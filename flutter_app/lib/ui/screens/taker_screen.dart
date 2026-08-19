@@ -41,6 +41,8 @@ class TakerScreen extends ConsumerWidget {
 }
 
 class _QuickTickets extends ConsumerWidget {
+  const _QuickTickets();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.s;
