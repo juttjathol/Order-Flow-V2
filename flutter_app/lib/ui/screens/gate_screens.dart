@@ -75,13 +75,13 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
     super.initState();
     final snap = ref.read(appControllerProvider);
     keyCtrl.text = snap.session.license.key;
-    apiCtrl.text = snap.session.apiBase;
+    
   }
 
   @override
   void dispose() {
     keyCtrl.dispose();
-    apiCtrl.dispose();
+    
     super.dispose();
   }
 
@@ -113,15 +113,7 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
                   prefixIcon: const Icon(Icons.vpn_key),
                 ),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: apiCtrl,
-                decoration: InputDecoration(
-                  labelText: s.t('api_base'),
-                  prefixIcon: const Icon(Icons.cloud),
-                ),
-                onSubmitted: (v) => ref.ctrl.setApiBase(v),
-              ),
+              
               if (snap.error != null) ...[
                 const SizedBox(height: 12),
                 Text(s.t(snap.error!), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
