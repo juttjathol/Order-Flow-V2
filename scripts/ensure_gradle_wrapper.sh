@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
-# Replace a missing/corrupt Android Gradle wrapper with the official jar.
+# Install a valid Gradle wrapper matching Flutter stable (Gradle 9.3.1).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIR="$ROOT/flutter_app/android"
-JAR="$DIR/gradle/wrapper/gradle-wrapper.jar"
-mkdir -p "$DIR/gradle/wrapper"
+WRAP="$DIR/gradle/wrapper"
+JAR="$WRAP/gradle-wrapper.jar"
+PROPS="$WRAP/gradle-wrapper.properties"
+GRADLE_VER="9.3.1"
+mkdir -p "$WRAP"
+
+cat > "$PROPS" <<EOF
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+distributionUrl=https\\://services.gradle.org/distributions/gradle-${GRADLE_VER}-all.zip
+EOF
 
 is_valid() {
   python3 - "$1" <<'PY'
@@ -20,17 +31,11 @@ except Exception:
 PY
 }
 
-if [[ -f "$JAR" ]] && is_valid "$JAR"; then
-  echo "Gradle wrapper jar is valid"
-  chmod +x "$DIR/gradlew" 2>/dev/null || true
-  exit 0
-fi
-
-echo "Downloading official Gradle wrapper jar"
+echo "Downloading official Gradle ${GRADLE_VER} wrapper jar"
 URLS=(
-  "https://github.com/gradle/gradle/raw/v8.12.0/gradle/wrapper/gradle-wrapper.jar"
-  "https://raw.githubusercontent.com/gradle/gradle/v8.12.0/gradle/wrapper/gradle-wrapper.jar"
-  "https://github.com/gradle/gradle/raw/v8.11.1/gradle/wrapper/gradle-wrapper.jar"
+  "https://github.com/gradle/gradle/raw/v${GRADLE_VER}/gradle/wrapper/gradle-wrapper.jar"
+  "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VER}/gradle/wrapper/gradle-wrapper.jar"
+  "https://github.com/gradle/gradle/raw/v8.14.3/gradle/wrapper/gradle-wrapper.jar"
 )
 ok=0
 for url in "${URLS[@]}"; do
@@ -42,14 +47,14 @@ for url in "${URLS[@]}"; do
 done
 
 if [[ "$ok" -ne 1 ]]; then
-  echo "Falling back to Gradle distribution"
-  curl -fsSL --retry 3 -o /tmp/gradle-8.12-bin.zip \
-    https://services.gradle.org/distributions/gradle-8.12-bin.zip
-  rm -rf /tmp/gradle-8.12
-  unzip -q /tmp/gradle-8.12-bin.zip -d /tmp
+  echo "Falling back to Gradle distribution ${GRADLE_VER}"
+  curl -fsSL --retry 3 -o "/tmp/gradle-${GRADLE_VER}-bin.zip" \
+    "https://services.gradle.org/distributions/gradle-${GRADLE_VER}-bin.zip"
+  rm -rf "/tmp/gradle-${GRADLE_VER}"
+  unzip -q "/tmp/gradle-${GRADLE_VER}-bin.zip" -d /tmp
   (
     cd "$DIR"
-    /tmp/gradle-8.12/bin/gradle wrapper --gradle-version 8.12
+    "/tmp/gradle-${GRADLE_VER}/bin/gradle" wrapper --gradle-version "$GRADLE_VER"
   )
 fi
 
@@ -57,5 +62,5 @@ if ! is_valid "$JAR"; then
   echo "ERROR: could not install a valid gradle-wrapper.jar"
   exit 1
 fi
-chmod +x "$DIR/gradlew"
-echo "Installed valid Gradle wrapper"
+chmod +x "$DIR/gradlew" || true
+echo "Installed Gradle ${GRADLE_VER} wrapper"
