@@ -1,0 +1,16 @@
+{
+  "name": "order-flow-saas",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Order Flow SaaS license dashboard for Cloudflare Pages + D1",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1=DB",
+    "deploy": "wrangler pages deploy public",
+    "db:create": "wrangler d1 create order_flow",
+    "db:init": "wrangler d1 execute order_flow --remote --file=schema.sql",
+    "db:init:local": "wrangler d1 execute order_flow --local --file=schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}

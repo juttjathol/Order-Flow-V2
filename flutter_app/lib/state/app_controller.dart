@@ -1,0 +1,539 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+
+import '../core/constants.dart';
+import '../models/models.dart';
+import '../models/reducer.dart';
+import '../models/seed.dart';
+import '../services/backup_service.dart';
+import '../services/lan_client.dart';
+import '../services/lan_server.dart';
+import '../services/license_service.dart';
+import '../services/print_service.dart';
+import '../services/storage_service.dart';
+
+final storageProvider = Provider<StorageService>((ref) {
+  throw UnimplementedError('storageProvider must be overridden');
+});
+
+final appControllerProvider =
+    NotifierProvider<AppController, AppSnapshot>(AppController.new);
+
+class AppSnapshot {
+  AppSnapshot({
+    required this.ready,
+    required this.session,
+    required this.store,
+    required this.gate,
+    required this.serverOn,
+    required this.connected,
+    required this.lanIp,
+    required this.busy,
+    required this.error,
+    required this.notices,
+    required this.online,
+    required this.clients,
+  });
+
+  final bool ready;
+  final SessionPrefs session;
+  final AppStore store;
+  final LicenseGate gate;
+  final bool serverOn;
+  final bool connected;
+  final String? lanIp;
+  final bool busy;
+  final String? error;
+  final List<AppNotice> notices;
+  final bool online;
+  final List<ClientInfo> clients;
+
+  L10nView get l10n => L10nView(session.locale);
+  String get currency => store.profile.currencySymbol;
+  bool get currencyPrefix => store.profile.currencyPrefix;
+  bool get isMain => session.role == AppRole.main;
+  bool get isClient =>
+      session.role != AppRole.none && session.role != AppRole.main;
+
+  AppSnapshot copyWith({
+    bool? ready,
+    SessionPrefs? session,
+    AppStore? store,
+    LicenseGate? gate,
+    bool? serverOn,
+    bool? connected,
+    String? lanIp,
+    bool? busy,
+    String? error,
+    List<AppNotice>? notices,
+    bool? online,
+    List<ClientInfo>? clients,
+    bool clearError = false,
+    bool clearIp = false,
+  }) {
+    return AppSnapshot(
+      ready: ready ?? this.ready,
+      session: session ?? this.session,
+      store: store ?? this.store,
+      gate: gate ?? this.gate,
+      serverOn: serverOn ?? this.serverOn,
+      connected: connected ?? this.connected,
+      lanIp: clearIp ? lanIp : (lanIp ?? this.lanIp),
+      busy: busy ?? this.busy,
+      error: clearError ? error : (error ?? this.error),
+      notices: notices ?? this.notices,
+      online: online ?? this.online,
+      clients: clients ?? this.clients,
+    );
+  }
+}
+
+class L10nView {
+  L10nView(this.code);
+  final String code;
+}
+
+class AppController extends Notifier<AppSnapshot> {
+  late StorageService _storage;
+  final _license = LicenseService();
+  final printer = PrintService();
+  LanServer? _server;
+  LanClient? _client;
+  Timer? _revalidate;
+  Timer? _ipTimer;
+  StreamSubscription? _netSub;
+  bool _booted = false;
+
+  @override
+  AppSnapshot build() {
+    _storage = ref.read(storageProvider);
+    ref.onDispose(() {
+      _revalidate?.cancel();
+      _ipTimer?.cancel();
+      _netSub?.cancel();
+      unawaited(_server?.stop());
+      unawaited(_client?.close());
+    });
+    Future.microtask(bootstrap);
+    return AppSnapshot(
+      ready: false,
+      session: SessionPrefs(),
+      store: AppStore(),
+      gate: LicenseGate.boot,
+      serverOn: false,
+      connected: false,
+      lanIp: null,
+      busy: true,
+      error: null,
+      notices: const [],
+      online: true,
+      clients: const [],
+    );
+  }
+
+  Future<void> bootstrap() async {
+    if (_booted) return;
+    _booted = true;
+    final session = _storage.loadSession();
+    final store = await _storage.loadStore();
+    state = state.copyWith(
+      ready: true,
+      session: session,
+      store: store,
+      gate: _computeGate(session),
+      busy: false,
+      clearError: true,
+    );
+    _netSub = Connectivity().onConnectivityChanged.listen((events) {
+      final online = events.any((e) => e != ConnectivityResult.none);
+      state = state.copyWith(online: online);
+      if (online && session.role == AppRole.main && session.license.valid) {
+        unawaited(revalidate());
+      }
+    });
+    if (session.role == AppRole.main &&
+        session.license.valid &&
+        !session.license.locked) {
+      await startServer();
+      unawaited(revalidate());
+    } else if (session.role == AppRole.driver && session.pairedDriverId != null) {
+      // Driver can work locally after first pair.
+      if (session.mainHost.isNotEmpty) {
+        unawaited(_tryDriverSync());
+      }
+    } else if (_clientLike(session) && session.mainHost.isNotEmpty) {
+      unawaited(connectToMain(session.mainHost, persist: false));
+    }
+    _revalidate = Timer.periodic(
+      const Duration(minutes: kRevalidateMinutes),
+      (_) => revalidate(),
+    );
+    _ipTimer = Timer.periodic(const Duration(seconds: 20), (_) => refreshIp());
+    await refreshIp();
+  }
+
+  bool _clientLike(SessionPrefs session) =>
+      session.role != AppRole.none &&
+      session.role != AppRole.main &&
+      session.role != AppRole.driver;
+
+  LicenseGate _computeGate(SessionPrefs session) {
+    if (session.license.locked) return LicenseGate.locked;
+    if (session.role == AppRole.none) return LicenseGate.license;
+    if (session.role == AppRole.main) {
+      if (!session.license.valid) return LicenseGate.license;
+      if (!session.modelPicked) return LicenseGate.setup;
+      return LicenseGate.ready;
+    }
+    if (session.role == AppRole.driver && session.pairedDriverId != null) {
+      return LicenseGate.ready;
+    }
+    if (session.mainHost.isEmpty) return LicenseGate.license;
+    return LicenseGate.ready;
+  }
+
+  Future<void> persist() async {
+    await _storage.saveSession(state.session);
+    await _storage.saveStore(state.store);
+  }
+
+  void _emit(AppSnapshot next) {
+    state = next;
+    unawaited(persist());
+  }
+
+  Future<void> setLocale(String code) async {
+    state.session.locale = code;
+    _emit(state.copyWith(session: state.session));
+  }
+
+  Future<void> setTheme(ThemeChoice theme) async {
+    state.session.theme = theme;
+    _emit(state.copyWith(session: state.session));
+  }
+
+  Future<void> setApiBase(String url) async {
+    state.session.apiBase = url.trim();
+    _emit(state.copyWith(session: state.session));
+  }
+
+  Future<void> setDisplayName(String name) async {
+    state.session.displayName = name.trim();
+    _emit(state.copyWith(session: state.session));
+  }
+
+  Future<String?> activateLicense(String key) async {
+    state = state.copyWith(busy: true, clearError: true, error: null);
+    state.session.license.key = key.trim();
+    final result = await _license.validate(
+      apiBase: state.session.apiBase,
+      licenseKey: key,
+      deviceId: state.session.deviceId,
+    );
+    if (result.boundOther) {
+      state = state.copyWith(busy: false, error: 'bound_other');
+      return 'bound_other';
+    }
+    final rec = _license.applyOnlineResult(state.session.license, result);
+    state.session.license = rec;
+    if (rec.locked) {
+      state.session.role = AppRole.main;
+      _emit(state.copyWith(
+        session: state.session,
+        gate: LicenseGate.locked,
+        busy: false,
+        error: rec.lockReason,
+      ));
+      return rec.lockReason;
+    }
+    if (!rec.valid) {
+      _emit(state.copyWith(
+        session: state.session,
+        busy: false,
+        error: result.error.isEmpty ? 'key_invalid' : result.error,
+      ));
+      return state.error;
+    }
+    state.session.role = AppRole.main;
+    state.session.modelPicked = state.store.seeded;
+    _emit(state.copyWith(
+      session: state.session,
+      gate: state.store.seeded ? LicenseGate.ready : LicenseGate.setup,
+      busy: false,
+    ));
+    await startServer();
+    return null;
+  }
+
+  Future<void> revalidate() async {
+    final session = state.session;
+    if (session.role != AppRole.main || session.license.key.isEmpty) return;
+    if (session.license.locked) {
+      _emit(state.copyWith(gate: LicenseGate.locked));
+      return;
+    }
+    final result = await _license.validate(
+      apiBase: session.apiBase,
+      licenseKey: session.license.key,
+      deviceId: session.deviceId,
+    );
+    final rec = _license.applyOnlineResult(session.license, result);
+    session.license = rec;
+    if (rec.locked) {
+      await _server?.stop();
+      _server = null;
+      _emit(state.copyWith(
+        session: session,
+        gate: LicenseGate.locked,
+        serverOn: false,
+      ));
+      return;
+    }
+    if (!rec.valid && !rec.inGrace) {
+      await _server?.stop();
+      _server = null;
+      _emit(state.copyWith(
+        session: session,
+        gate: LicenseGate.license,
+        serverOn: false,
+        error: 'offline_expired',
+      ));
+      return;
+    }
+    _emit(state.copyWith(session: session, gate: _computeGate(session)));
+  }
+
+  Future<void> pickModel(BusinessModel model) async {
+    if (!state.store.seeded) {
+      seedFor(model, state.store);
+    } else {
+      state.store.model = model;
+    }
+    state.session.modelPicked = true;
+    _emit(state.copyWith(
+      store: state.store,
+      session: state.session,
+      gate: LicenseGate.ready,
+    ));
+    _server?.broadcastState();
+  }
+
+  Future<void> startServer() async {
+    if (state.session.license.locked) return;
+    if (!state.session.license.valid && !state.session.license.inGrace) return;
+    _server ??= LanServer(
+      readStore: () => state.store,
+      onCommand: _localApply,
+    );
+    try {
+      await _server!.start(port: kLanPort);
+      state = state.copyWith(serverOn: true, clients: _server!.clients.values.toList());
+      await refreshIp();
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), serverOn: false);
+    }
+  }
+
+  ReduceResult _localApply(NetCommand cmd) {
+    final result = StoreReducer.apply(state.store, cmd);
+    state = state.copyWith(
+      store: result.store,
+      notices: result.notice == null
+          ? state.notices
+          : [result.notice!, ...state.notices].take(20).toList(),
+      clients: _server?.clients.values.toList() ?? state.clients,
+    );
+    unawaited(persist());
+    return result;
+  }
+
+  Future<void> dispatch(NetCommand cmd) async {
+    if (state.isMain || state.session.role == AppRole.none) {
+      final result = _localApply(cmd);
+      _server?.broadcastState();
+      if (result.notice != null) _server?.broadcastNotice(result.notice!);
+      return;
+    }
+    final client = _client;
+    if (client == null) {
+      // Driver offline path: apply locally for status, retry later.
+      if (state.session.role == AppRole.driver) {
+        _localApply(cmd);
+        unawaited(_tryDriverSync());
+        return;
+      }
+      state = state.copyWith(error: 'disconnected');
+      return;
+    }
+    try {
+      await client.send(cmd);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<String?> connectToMain(String host, {bool persist = true, AppRole? role}) async {
+    final clean = host.trim().replaceFirst(RegExp(r'^https?://'), '');
+    final onlyHost = clean.split(':').first.split('/').first;
+    if (onlyHost.isEmpty) return 'host_required';
+    state = state.copyWith(busy: true, clearError: true, error: null);
+    await _client?.close();
+    _client = LanClient(
+      host: onlyHost,
+      onStore: (store) {
+        state = state.copyWith(store: store, connected: true);
+        unawaited(_storage.saveStore(store));
+      },
+      onNotice: (notice) {
+        state = state.copyWith(
+          notices: [notice, ...state.notices].take(20).toList(),
+        );
+      },
+      onStatus: (up) => state = state.copyWith(connected: up),
+    );
+    try {
+      final chosen = role ?? state.session.role;
+      await _client!.connect(
+        deviceId: state.session.deviceId,
+        name: state.session.displayName.isEmpty ? 'Station' : state.session.displayName,
+        role: chosen.name,
+      );
+      state.session.mainHost = onlyHost;
+      if (chosen != AppRole.none && chosen != AppRole.main) {
+        state.session.role = chosen;
+      }
+      if (persist) await _storage.saveSession(state.session);
+      final ready = state.session.role != AppRole.none;
+      _emit(state.copyWith(
+        session: state.session,
+        gate: ready ? LicenseGate.ready : LicenseGate.license,
+        busy: false,
+        connected: true,
+      ));
+      return null;
+    } catch (e) {
+      state = state.copyWith(busy: false, error: 'cannot_connect', connected: false);
+      return 'cannot_connect';
+    }
+  }
+
+  Future<String?> pairDriver(String host, String name) async {
+    final err = await connectToMain(host, role: AppRole.driver);
+    if (err != null) return err;
+    try {
+      final res = await _client!.driverCall({
+        'name': 'pairDriver',
+        'deviceId': state.session.deviceId,
+        'name': name,
+      });
+      final driver = res['driver'];
+      if (driver is Map && driver['id'] != null) {
+        state.session.pairedDriverId = driver['id'].toString();
+        state.session.displayName = name;
+        state.session.role = AppRole.driver;
+        _emit(state.copyWith(session: state.session, gate: LicenseGate.ready));
+      }
+      return null;
+    } catch (e) {
+      return 'cannot_connect';
+    }
+  }
+
+  Future<void> _tryDriverSync() async {
+    final host = state.session.mainHost;
+    final id = state.session.pairedDriverId;
+    if (host.isEmpty || id == null) return;
+    try {
+      _client ??= LanClient(
+        host: host,
+        onStore: (store) => state = state.copyWith(store: store, connected: true),
+        onNotice: (_) {},
+        onStatus: (up) => state = state.copyWith(connected: up),
+      );
+      final driver = state.store.driverById(id);
+      await _client!.driverCall({
+        'id': id,
+        'deviceId': state.session.deviceId,
+        'status': driver?.status.name ?? DriverStatus.free.name,
+        'name': state.session.displayName,
+      });
+      state = state.copyWith(connected: true);
+    } catch (_) {
+      state = state.copyWith(connected: false);
+    }
+  }
+
+  Future<void> setDriverStatus(DriverStatus status) async {
+    final id = state.session.pairedDriverId;
+    if (id == null) return;
+    await dispatch(NetCommand(
+      name: 'setDriverStatus',
+      payload: {
+        'id': id,
+        'deviceId': state.session.deviceId,
+        'status': status.name,
+        'name': state.session.displayName,
+      },
+      actor: state.session.displayName,
+    ));
+    unawaited(_tryDriverSync());
+  }
+
+  Future<void> chooseClientRole(AppRole role, String name) async {
+    state.session.role = role;
+    state.session.displayName = name.trim().isEmpty ? role.name : name.trim();
+    _emit(state.copyWith(session: state.session, gate: LicenseGate.ready));
+    if (state.session.mainHost.isNotEmpty) {
+      await connectToMain(state.session.mainHost, role: role);
+    }
+  }
+
+  Future<void> leaveRole() async {
+    await _server?.stop();
+    await _client?.close();
+    _server = null;
+    _client = null;
+    state.session.role = AppRole.none;
+    state.session.mainHost = '';
+    // Keep license + driver pairing so Main stays activated / driver stays paired.
+    _emit(state.copyWith(
+      session: state.session,
+      gate: _computeGate(state.session),
+      serverOn: false,
+      connected: false,
+    ));
+  }
+
+  Future<void> refreshIp() async {
+    try {
+      final ip = await NetworkInfo().getWifiIP();
+      state = state.copyWith(lanIp: ip, clients: _server?.clients.values.toList());
+    } catch (_) {}
+  }
+
+  void dismissNotice(String id) {
+    state = state.copyWith(
+      notices: state.notices.where((n) => n.id != id).toList(),
+    );
+  }
+
+  void clearError() => state = state.copyWith(clearError: true, error: null);
+
+  Future<void> importStore(AppStore store) async {
+    if (!state.isMain) return;
+    store.revision += 1;
+    _emit(state.copyWith(store: store));
+    _server?.broadcastState();
+  }
+
+  BackupService get backup => BackupService(_storage);
+
+  String joinUrl() {
+    final ip = state.lanIp ?? '0.0.0.0';
+    return 'orderflow://join?host=$ip&port=$kLanPort';
+  }
+}

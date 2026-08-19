@@ -1,0 +1,3 @@
+ADMIN_PASSWORD=change-me-now
+ADMIN_SECRET=change-this-long-random-string
+LICENSE_DEFAULT_DAYS=365

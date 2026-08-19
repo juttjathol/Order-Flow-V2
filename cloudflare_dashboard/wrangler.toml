@@ -1,0 +1,17 @@
+name = "order-flow-saas"
+pages_build_output_dir = "public"
+compatibility_date = "2025-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "order_flow"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Set these as Pages secrets (never commit real values):
+#   npx wrangler pages secret put ADMIN_PASSWORD
+#   npx wrangler pages secret put ADMIN_SECRET
+#
+# Optional vars:
+#   ADMIN_PASSWORD
+#   ADMIN_SECRET
+#   LICENSE_DEFAULT_DAYS = "365"

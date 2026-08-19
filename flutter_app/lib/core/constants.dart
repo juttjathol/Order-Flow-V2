@@ -1,0 +1,11 @@
+const int kLanPort = 8787;
+const int kEscPosPort = 9100;
+const int kOfflineGraceHours = 48;
+const int kRevalidateMinutes = 15;
+const String kWhatsAppHandle = '@Jathol_Jutt';
+const String kWhatsAppUrl = 'https://wa.me/Jathol_Jutt';
+const String kDefaultApiBase = 'https://order-flow-saas.pages.dev';
+const String kAppName = 'Order Flow';
+const String kAppVersion = '1.0.0';
+const String kJoinScheme = 'orderflow';
+const String kDefaultCurrency = 'Rs';
