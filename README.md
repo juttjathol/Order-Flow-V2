@@ -53,9 +53,15 @@ First success **binds** the phone. A second phone is rejected until you click **
 
 ---
 
-## 2. Get the APK — just publish a GitHub tag
+## 2. Get the APK — publish a GitHub Release tag
 
-On GitHub (no terminal):
+The Arena GitHub app cannot create workflow files. Add the builder **once** with this pre-filled page (filename and YAML are already filled in):
+
+**[Create `.github/workflows/build-release.yml` — then click “Commit changes”](https://github.com/juttjathol/Order-Flow-V2/new/main?filename=.github/workflows/build-release.yml)**
+
+Paste is not required if the editor opened with the file name. If the box is empty, copy [`scripts/github/build-release.yml`](scripts/github/build-release.yml) into it and commit to `main`.
+
+After that, every release is tag-only (no terminal):
 
 1. Open the repo → **Releases** → **Draft a new release**
 2. **Choose a tag** → type `v1.0.0` → **Create new tag** on `main`
