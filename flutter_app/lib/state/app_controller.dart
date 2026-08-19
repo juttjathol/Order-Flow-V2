@@ -230,7 +230,7 @@ class AppController extends Notifier<AppSnapshot> {
     state = state.copyWith(busy: true, clearError: true, error: null);
     state.session.license.key = key.trim();
     final result = await _license.validate(
-      apiBase: state.session.apiBase,
+      apiBase: kDefaultApiBase,
       licenseKey: key,
       deviceId: state.session.deviceId,
     );
@@ -277,7 +277,7 @@ class AppController extends Notifier<AppSnapshot> {
       return;
     }
     final result = await _license.validate(
-      apiBase: session.apiBase,
+      apiBase: kDefaultApiBase,
       licenseKey: session.license.key,
       deviceId: session.deviceId,
     );
