@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*"
+  release:
+    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -51,6 +54,7 @@ jobs:
       - name: Attach APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           files: flutter_app/build/app/outputs/flutter-apk/app-release.apk
           generate_release_notes: true
         env:
