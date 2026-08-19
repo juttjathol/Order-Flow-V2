@@ -68,7 +68,7 @@ class LicenseScreen extends ConsumerStatefulWidget {
 
 class _LicenseScreenState extends ConsumerState<LicenseScreen> {
   final keyCtrl = TextEditingController();
-  final apiCtrl = TextEditingController();
+  
 
   @override
   void initState() {
