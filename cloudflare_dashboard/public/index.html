@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Order Flow Admin</title>
+  <link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+  <div id="login" class="login-wrap">
+    <form class="login-card" id="login-form">
+      <div class="brand">
+        <div class="mark">OF</div>
+        <div>
+          <h1>Order Flow</h1>
+          <div class="muted">License & customer dashboard</div>
+        </div>
+      </div>
+      <label for="password">Admin password</label>
+      <input id="password" type="password" autocomplete="current-password" required/>
+      <p id="login-error" class="error"></p>
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
+
+  <div id="app" class="app hidden">
+    <aside class="side">
+      <div class="brand">
+        <div class="mark">OF</div>
+        <div>
+          <strong>Order Flow</strong>
+          <div class="muted">SaaS admin</div>
+        </div>
+      </div>
+      <nav>
+        <a href="#home" class="active" data-view="home">Overview</a>
+        <a href="#customers" data-view="customers">Customers</a>
+        <a href="#licenses" data-view="licenses">License keys</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="top">
+        <div>
+          <h2 id="view-title">Overview</h2>
+          <div class="muted">Create customers, issue keys, reset device bindings.</div>
+        </div>
+        <div class="actions">
+          <button class="secondary" id="theme-btn" type="button">Theme</button>
+          <button class="secondary" id="logout-btn" type="button">Log out</button>
+        </div>
+      </div>
+
+      <section id="view-home">
+        <div class="stats">
+          <div class="stat"><span class="muted">Customers</span><b id="stat-customers">0</b></div>
+          <div class="stat"><span class="muted">Keys</span><b id="stat-licenses">0</b></div>
+          <div class="stat"><span class="muted">Bound devices</span><b id="stat-bound">0</b></div>
+          <div class="stat"><span class="muted">Revoked</span><b id="stat-revoked">0</b></div>
+        </div>
+        <div class="panel" style="padding:18px">
+          <h3>How binding works</h3>
+          <p class="muted">One license key activates exactly one Main device. The first successful validate call stores <span class="mono">bound_device_id</span>. A second phone using the same key is rejected until you reset the binding. Deleting or revoking a key makes the Main app lock and show WhatsApp support <strong>@Jathol_Jutt</strong>.</p>
+        </div>
+      </section>
+
+      <section id="view-customers" class="hidden">
+        <div class="panel" style="padding:18px;margin-bottom:16px">
+          <h3>New customer</h3>
+          <div class="row">
+            <div><label>Name</label><input id="c-name"/></div>
+            <div><label>Business</label><input id="c-biz"/></div>
+            <div><label>Email</label><input id="c-email"/></div>
+            <div><label>Phone</label><input id="c-phone"/></div>
+          </div>
+          <div class="toolbar">
+            <span class="muted">A customer can hold many keys.</span>
+            <button id="c-save" type="button">Create customer</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Business</th><th>Contact</th><th>Created</th><th></th></tr></thead>
+          <tbody id="c-body"></tbody>
+        </table>
+      </section>
+
+      <section id="view-licenses" class="hidden">
+        <div class="panel" style="padding:18px;margin-bottom:16px">
+          <h3>Issue license key</h3>
+          <div class="row">
+            <div>
+              <label>Customer</label>
+              <select id="l-customer"></select>
+            </div>
+            <div>
+              <label>Valid days</label>
+              <input id="l-days" type="number" value="365" min="1"/>
+            </div>
+          </div>
+          <div class="toolbar">
+            <span class="muted">Key format OF-XXXX-XXXX-XXXX-XXXX. Bound after first Main activation.</span>
+            <button id="l-save" type="button">Generate key</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Key</th><th>Customer</th><th>Status</th><th>Device</th><th>Expires</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="l-body"></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

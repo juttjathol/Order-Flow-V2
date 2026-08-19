@@ -1,0 +1,42 @@
+# Flutter
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+*.lock
+
+# Android
+**/android/.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/GeneratedPluginRegistrant.java
+**/android/.cxx/
+**/android/key.properties
+**/*.keystore
+**/*.jks
+
+# Cloudflare / Node
+node_modules/
+.wrangler/
+.dev.vars
+dist/
+.DS_Store
+*.log
+.env
+.env.*
+
+# Misc
+*.apk
+*.aab
+.arena/
