@@ -10,33 +10,43 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 
-class SplashScreen extends ConsumerWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = ref.s;
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    );
+    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: OfColors.deep,
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const _Logo(),
-            const SizedBox(height: 18),
-            Text(
-              s.t('app'),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(s.t('tagline'), style: const TextStyle(color: OfColors.mint)),
-            const SizedBox(height: 28),
-            const CircularProgressIndicator(color: OfColors.mint),
-          ],
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.18, end: 1).animate(_scale),
+          child: const _Logo(size: 168),
         ),
       ),
     );
@@ -44,18 +54,19 @@ class SplashScreen extends ConsumerWidget {
 }
 
 class _Logo extends StatelessWidget {
-  const _Logo();
+  const _Logo({this.size = 84});
+  final double size;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 84,
-      height: 84,
-      decoration: BoxDecoration(
-        color: OfColors.forest,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: OfColors.mint, width: 2),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.22),
+      child: Image.asset(
+        'assets/brand/logo.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
       ),
-      child: const Icon(Icons.point_of_sale, color: OfColors.mint, size: 42),
     );
   }
 }
