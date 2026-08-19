@@ -121,7 +121,6 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () async {
-                  await ref.ctrl.setApiBase(apiCtrl.text);
                   final err = await ref.ctrl.activateLicense(keyCtrl.text);
                   if (err != null && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t(err))));
