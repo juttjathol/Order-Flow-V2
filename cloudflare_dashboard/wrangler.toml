@@ -2,16 +2,11 @@ name = "order-flow-saas"
 pages_build_output_dir = "public"
 compatibility_date = "2025-10-01"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "order_flow"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
-
-# Set these as Pages secrets (never commit real values):
-#   npx wrangler pages secret put ADMIN_PASSWORD
-#   npx wrangler pages secret put ADMIN_SECRET
+# Bind D1 in the Cloudflare dashboard (no id needed here):
+# Pages project → Settings → Bindings → D1 database
+#   Variable name: DB
+#   Database: order_flow
 #
-# Optional vars:
+# Secrets (Settings → Environment variables):
 #   ADMIN_PASSWORD
 #   ADMIN_SECRET
-#   LICENSE_DEFAULT_DAYS = "365"
