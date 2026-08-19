@@ -1,61 +1,62 @@
-#!/usr/bin/env bash
-# Replace a missing/corrupt Android Gradle wrapper with the official jar.
-set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIR="$ROOT/flutter_app/android"
-JAR="$DIR/gradle/wrapper/gradle-wrapper.jar"
-mkdir -p "$DIR/gradle/wrapper"
+name: Build Release APK
 
-is_valid() {
-  python3 - "$1" <<'PY'
-import sys, zipfile
-path = sys.argv[1]
-try:
-    with zipfile.ZipFile(path) as z:
-        names = z.namelist()
-    ok = any(n.endswith("GradleWrapperMain.class") for n in names)
-    sys.exit(0 if ok else 1)
-except Exception:
-    sys.exit(1)
-PY
-}
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
 
-if [[ -f "$JAR" ]] && is_valid "$JAR"; then
-  echo "Gradle wrapper jar is valid"
-  chmod +x "$DIR/gradlew" 2>/dev/null || true
-  exit 0
-fi
+permissions:
+  contents: write
 
-echo "Downloading official Gradle wrapper jar"
-URLS=(
-  "https://github.com/gradle/gradle/raw/v8.12.0/gradle/wrapper/gradle-wrapper.jar"
-  "https://raw.githubusercontent.com/gradle/gradle/v8.12.0/gradle/wrapper/gradle-wrapper.jar"
-  "https://github.com/gradle/gradle/raw/v8.11.1/gradle/wrapper/gradle-wrapper.jar"
-)
-ok=0
-for url in "${URLS[@]}"; do
-  echo "try $url"
-  if curl -fsSL --retry 3 -o "$JAR" "$url" && is_valid "$JAR"; then
-    ok=1
-    break
-  fi
-done
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-if [[ "$ok" -ne 1 ]]; then
-  echo "Falling back to Gradle distribution"
-  curl -fsSL --retry 3 -o /tmp/gradle-8.12-bin.zip \
-    https://services.gradle.org/distributions/gradle-8.12-bin.zip
-  rm -rf /tmp/gradle-8.12
-  unzip -q /tmp/gradle-8.12-bin.zip -d /tmp
-  (
-    cd "$DIR"
-    /tmp/gradle-8.12/bin/gradle wrapper --gradle-version 8.12
-  )
-fi
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
 
-if ! is_valid "$JAR"; then
-  echo "ERROR: could not install a valid gradle-wrapper.jar"
-  exit 1
-fi
-chmod +x "$DIR/gradlew"
-echo "Installed valid Gradle wrapper"
+      - name: Set up Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install a valid Gradle wrapper
+        run: bash scripts/ensure_gradle_wrapper.sh
+
+      - name: Force compileSdk 36 and minSdk 23
+        run: python3 scripts/patch_android.py
+
+      - name: Flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Patch Android plugin namespaces
+        run: python3 scripts/patch_android.py --plugins
+
+      - name: Build release APK
+        working-directory: flutter_app
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Attach APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: flutter_app/build/app/outputs/flutter-apk/app-release.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
