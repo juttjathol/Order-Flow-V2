@@ -287,6 +287,3 @@ Future<String> _shrink(List<int> bytes) async {
     return base64Encode(bytes);
   }
 }
-
-// ignore: unnecessary_import
-import 'dart:typed_data';
