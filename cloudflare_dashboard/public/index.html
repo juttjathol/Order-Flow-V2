@@ -57,6 +57,22 @@
           <div class="stat"><span class="muted">Bound devices</span><b id="stat-bound">0</b></div>
           <div class="stat"><span class="muted">Revoked</span><b id="stat-revoked">0</b></div>
         </div>
+                <div class="panel" style="padding:18px;margin-bottom:16px">
+          <h3>Latest Android APK</h3>
+          <p class="muted">GitHub latest release. Share this download link with shops.</p>
+          <p>Release: <strong id="apk-tag">Loading…</strong>
+            <span id="apk-status" class="badge unbound">Checking</span>
+          </p>
+          <p class="muted" id="apk-date"></p>
+          <p class="mono" id="apk-link">https://github.com/juttjathol/Order-Flow-V2/releases/latest/download/app-release.apk</p>
+          <div class="actions" style="margin-top:10px">
+            <a class="btn" id="apk-download" href="https://github.com/juttjathol/Order-Flow-V2/releases/latest/download/app-release.apk">Download APK</a>
+            <button class="secondary" id="apk-copy" type="button">Copy download link</button>
+            <a class="btn secondary" id="apk-release" href="https://github.com/juttjathol/Order-Flow-V2/releases/latest">Open release</a>
+          </div>
+        </div>
+        <div class="panel" style="padding:18px">
+          <h3>How binding works</h3>
         <div class="panel" style="padding:18px">
           <h3>How binding works</h3>
           <p class="muted">One license key activates exactly one Main device. The first successful validate call stores <span class="mono">bound_device_id</span>. A second phone using the same key is rejected until you reset the binding. Deleting or revoking a key makes the Main app lock and show WhatsApp support <strong>@Jathol_Jutt</strong>.</p>
