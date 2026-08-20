@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -54,19 +53,16 @@ class _SplashScreenState extends State<SplashScreen>
 }
 
 class _Logo extends StatelessWidget {
-  const _Logo({this.size = 84});
+  const _Logo({this.size = 220});
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(size * 0.22),
-      child: Image.asset(
-        'assets/brand/logo.png',
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-      ),
+    return Image.asset(
+      'assets/brand/logo.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
     );
   }
 }
@@ -149,25 +145,6 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
               const SizedBox(height: 8),
               Text(s.t('no_key_needed'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)),
               const SizedBox(height: 28),
-              Row(
-                children: [
-                  Text('${s.t('device_id')}: '),
-                  Flexible(
-                    child: Text(
-                      snap.session.deviceId,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy, size: 18),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: snap.session.deviceId));
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 children: [

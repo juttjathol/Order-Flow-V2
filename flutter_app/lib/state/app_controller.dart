@@ -138,8 +138,12 @@ class AppController extends Notifier<AppSnapshot> {
   Future<void> bootstrap() async {
     if (_booted) return;
     _booted = true;
+    final started = DateTime.now();
     final session = _storage.loadSession();
     final store = await _storage.loadStore();
+    final remain = const Duration(milliseconds: 720) -
+        DateTime.now().difference(started);
+    if (remain > Duration.zero) await Future.delayed(remain);
     state = state.copyWith(
       ready: true,
       session: session,
