@@ -28,6 +28,8 @@ class MoreScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
+        if (snap.isMain)
+          _tile(context, Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
         _tile(context, Icons.receipt_long, s.t('bill_profile'), () => _bill(context, ref)),
         _tile(context, Icons.print, s.t('printers'), () => _printers(context, ref)),
         _tile(context, Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
@@ -104,6 +106,51 @@ class MoreScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _changeModel(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final models = <(BusinessModel, String, String, IconData)>[
+    (BusinessModel.restaurant, 'restaurant', 'model_restaurant_hint', Icons.restaurant),
+    (BusinessModel.retail, 'retail', 'model_retail_hint', Icons.storefront),
+    (BusinessModel.fastfood, 'fastfood', 'model_fastfood_hint', Icons.fastfood),
+    (BusinessModel.services, 'services_model', 'model_services_hint', Icons.spa),
+  ];
+  await showModalBottomSheet<void>(
+    context: context,
+    builder: (ctx) => Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(s.t('business_model'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          const SizedBox(height: 8),
+          Text(s.t('change_model_hint'), style: const TextStyle(color: OfColors.muted)),
+          const SizedBox(height: 12),
+          ...models.map((m) {
+            final selected = ref.snap.store.model == m.$1;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: OfCard(
+                color: selected ? OfColors.emerald.withValues(alpha: 0.15) : null,
+                onTap: () async {
+                  await ref.ctrl.changeBusinessModel(m.$1);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(m.$4, color: OfColors.emerald),
+                  title: Text(s.t(m.$2), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(s.t(m.$3)),
+                  trailing: selected ? const Icon(Icons.check, color: OfColors.emerald) : null,
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    ),
+  );
 }
 
 Future<void> _bill(BuildContext context, WidgetRef ref) async {
@@ -428,6 +475,13 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
           TextButton(
             onPressed: () => Clipboard.setData(ClipboardData(text: ref.snap.session.deviceId)),
             child: Text(s.t('device_id')),
+          ),
+          const SizedBox(height: 8),
+          const Center(
+            child: Text(
+              kBrandName,
+              style: TextStyle(color: OfColors.muted, fontWeight: FontWeight.w800, letterSpacing: 1.1),
+            ),
           ),
         ],
       ),

@@ -498,6 +498,7 @@ class L10n {
     'out_of_stock': 'ختم',
     'auto_deduct': 'فروخت پر خود کاٹیں',
     'business_model': 'کاروباری ماڈل',
+    'change_model_hint': 'لے آؤٹ بدلیں۔ مینو، اسٹاک اور آرڈر محفوظ رہیں گے۔',
     'restaurant': 'ریستوران',
     'retail': 'ریٹیل',
     'fastfood': 'فاسٹ فوڈ',

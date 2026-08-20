@@ -326,6 +326,11 @@ class AppController extends Notifier<AppSnapshot> {
     _server?.broadcastState();
   }
 
+  Future<void> changeBusinessModel(BusinessModel model) async {
+    if (!state.isMain) return;
+    await dispatch(NetCommand(name: 'setModel', payload: {'model': model.name}));
+  }
+
   Future<void> startServer() async {
     if (state.session.license.locked) return;
     if (!state.session.license.valid && !state.session.license.inGrace) return;

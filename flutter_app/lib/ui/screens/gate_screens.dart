@@ -42,10 +42,30 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: OfColors.deep,
-      body: Center(
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.18, end: 1).animate(_scale),
-          child: const _Logo(size: 168),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const Spacer(),
+            Center(
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.18, end: 1).animate(_scale),
+                child: const _Logo(size: 280),
+              ),
+            ),
+            const Spacer(),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 28),
+              child: Text(
+                kBrandName,
+                style: TextStyle(
+                  color: OfColors.mint,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -103,7 +123,7 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
             children: [
-              const _Logo(),
+              const Center(child: _Logo(size: 240)),
               const SizedBox(height: 16),
               Text(s.t('app'), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
               Text(s.t('tagline'), style: const TextStyle(color: OfColors.muted)),
@@ -159,6 +179,16 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
                     onSelected: (_) => ref.ctrl.setLocale('ur'),
                   ),
                 ],
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                kBrandName,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: OfColors.muted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                ),
               ),
             ],
           ),
