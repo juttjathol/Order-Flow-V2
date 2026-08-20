@@ -17,8 +17,9 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late final AnimationController _blink;
   late final Animation<double> _scale;
 
   @override
@@ -28,6 +29,10 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 720),
     );
+    _blink = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 530),
+    )..repeat(reverse: true);
     _scale = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
     _ctrl.forward();
   }
@@ -35,6 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _ctrl.dispose();
+    _blink.dispose();
     super.dispose();
   }
 
@@ -42,30 +48,35 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: OfColors.deep,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(),
-            Center(
-              child: ScaleTransition(
-                scale: Tween<double>(begin: 0.18, end: 1).animate(_scale),
-                child: const _Logo(size: 280),
-              ),
-            ),
-            const Spacer(),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 28),
-              child: Text(
+      body: Center(
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.72, end: 1).animate(_scale),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _Logo(size: 72),
+              const SizedBox(width: 14),
+              const Text(
                 kBrandName,
                 style: TextStyle(
-                  color: OfColors.mint,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  letterSpacing: 1.2,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 42,
+                  letterSpacing: -0.6,
+                  height: 1,
                 ),
               ),
-            ),
-          ],
+              FadeTransition(
+                opacity: _blink,
+                child: Container(
+                  margin: const EdgeInsets.only(left: 6, top: 18),
+                  width: 18,
+                  height: 3,
+                  color: const Color(0xFF8A9AA8),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -95,20 +106,17 @@ class LicenseScreen extends ConsumerStatefulWidget {
 
 class _LicenseScreenState extends ConsumerState<LicenseScreen> {
   final keyCtrl = TextEditingController();
-  
 
   @override
   void initState() {
     super.initState();
     final snap = ref.read(appControllerProvider);
     keyCtrl.text = snap.session.license.key;
-    
   }
 
   @override
   void dispose() {
     keyCtrl.dispose();
-    
     super.dispose();
   }
 
@@ -117,81 +125,101 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
     final s = ref.s;
     final snap = ref.snap;
     return Scaffold(
+      backgroundColor: OfColors.deep,
       body: BusyBarrier(
         busy: snap.busy,
-        child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-            children: [
-              const Center(child: _Logo(size: 240)),
-              const SizedBox(height: 16),
-              Text(s.t('app'), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
-              Text(s.t('tagline'), style: const TextStyle(color: OfColors.muted)),
-              const SizedBox(height: 24),
-              Text(s.t('main_needs_key'), style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Text(s.t('need_internet_first')),
-              const SizedBox(height: 16),
-              TextField(
-                controller: keyCtrl,
-                textCapitalization: TextCapitalization.characters,
-                decoration: InputDecoration(
-                  labelText: s.t('paste_key'),
-                  prefixIcon: const Icon(Icons.vpn_key),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(
+              child: Opacity(
+                opacity: 0.28,
+                child: Image.asset(
+                  'assets/brand/logo.png',
+                  fit: BoxFit.contain,
+                  width: MediaQuery.sizeOf(context).width * 0.92,
+                  height: MediaQuery.sizeOf(context).height * 0.72,
                 ),
               ),
-              
-              if (snap.error != null) ...[
-                const SizedBox(height: 12),
-                Text(s.t(snap.error!), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
-              ],
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () async {
-                  final err = await ref.ctrl.activateLicense(keyCtrl.text);
-                  if (err != null && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t(err))));
-                  }
-                },
-                icon: const Icon(Icons.verified),
-                label: Text(s.t('activate')),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () => context.push('/connect'),
-                icon: const Icon(Icons.wifi),
-                label: Text(s.t('connect_main')),
-              ),
-              const SizedBox(height: 8),
-              Text(s.t('no_key_needed'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)),
-              const SizedBox(height: 28),
-              Wrap(
-                spacing: 8,
+            ),
+            SafeArea(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
                 children: [
-                  ChoiceChip(
-                    label: Text(s.t('english')),
-                    selected: snap.session.locale == 'en',
-                    onSelected: (_) => ref.ctrl.setLocale('en'),
+                  Text(
+                    s.t('app'),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                   ),
-                  ChoiceChip(
-                    label: Text(s.t('urdu')),
-                    selected: snap.session.locale == 'ur',
-                    onSelected: (_) => ref.ctrl.setLocale('ur'),
+                  Text(s.t('tagline'), style: const TextStyle(color: OfColors.muted)),
+                  const SizedBox(height: 24),
+                  Text(s.t('main_needs_key'), style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(s.t('need_internet_first')),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: keyCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: InputDecoration(
+                      labelText: s.t('paste_key'),
+                      prefixIcon: const Icon(Icons.vpn_key),
+                    ),
+                  ),
+                  if (snap.error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(s.t(snap.error!), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
+                  ],
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      final err = await ref.ctrl.activateLicense(keyCtrl.text);
+                      if (err != null && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t(err))));
+                      }
+                    },
+                    icon: const Icon(Icons.verified),
+                    label: Text(s.t('activate')),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/connect'),
+                    icon: const Icon(Icons.wifi),
+                    label: Text(s.t('connect_main')),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(s.t('no_key_needed'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)),
+                  const SizedBox(height: 28),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: Text(s.t('english')),
+                        selected: snap.session.locale == 'en',
+                        onSelected: (_) => ref.ctrl.setLocale('en'),
+                      ),
+                      ChoiceChip(
+                        label: Text(s.t('urdu')),
+                        selected: snap.session.locale == 'ur',
+                        onSelected: (_) => ref.ctrl.setLocale('ur'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  const Text(
+                    kBrandName,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: OfColors.mint,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
-              const Text(
-                kBrandName,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: OfColors.muted,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
