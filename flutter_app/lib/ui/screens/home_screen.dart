@@ -149,6 +149,11 @@ class _ServerCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text('${s.t('wifi_ip')}: $ip'),
                   Text('${s.t('port')}: $kLanPort'),
+                  if (snap.session.role == AppRole.main && snap.lanIp != null)
+                    SelectableText(
+                      'http://$ip:$kLanPort',
+                      style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800),
+                    ),
                   const SizedBox(height: 6),
                   StatusChip(
                     snap.serverOn

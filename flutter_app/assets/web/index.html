@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Order Flow · Jathol</title>
+  <style>
+    :root {
+      --bg: #0b1210;
+      --panel: #151c1a;
+      --panel2: #1c2622;
+      --line: #2a3832;
+      --mint: #3ddc97;
+      --green: #22c55e;
+      --gold: #e6b325;
+      --red: #ef4444;
+      --text: #f4f7f5;
+      --muted: #8aa399;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, Segoe UI, sans-serif; }
+    body { background-image: radial-gradient(circle at 20% 0%, #163328 0, transparent 40%); }
+    header {
+      display: flex; align-items: center; gap: 18px; padding: 12px 20px;
+      background: #101816; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5;
+    }
+    .brand { font-weight: 800; letter-spacing: .4px; }
+    .brand span { color: var(--mint); }
+    nav { display: flex; gap: 6px; flex-wrap: wrap; }
+    nav button, .btn {
+      background: transparent; color: var(--text); border: 0; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600;
+    }
+    nav button.active, nav button:hover { background: #1e2c26; color: var(--mint); }
+    .wrap { display: grid; grid-template-columns: 240px 1fr; gap: 16px; padding: 16px; min-height: calc(100vh - 58px); }
+    .side, .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+    .stat { margin-bottom: 18px; }
+    .stat b { font-size: 42px; display: block; }
+    .muted { color: var(--muted); }
+    .green { background: var(--green); color: #06210f; }
+    .gold { background: var(--gold); color: #2a2100; }
+    .red { background: var(--red); color: white; }
+    .ghost { background: #111816; border: 1px solid var(--line); color: var(--text); }
+    .grid { display: grid; gap: 12px; }
+    .g2 { grid-template-columns: 1.4fr 1fr; }
+    .g4 { grid-template-columns: repeat(4, 1fr); }
+    .g3 { grid-template-columns: repeat(3, 1fr); }
+    .kpi { background: var(--panel2); border-radius: 14px; padding: 14px; }
+    .kpi i { color: var(--mint); font-style: normal; font-size: 22px; }
+    .bar { display: flex; align-items: end; gap: 8px; height: 180px; padding-top: 10px; }
+    .bar span { flex: 1; background: linear-gradient(#4ade80, #166534); border-radius: 8px 8px 4px 4px; position: relative; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .tcard { border-radius: 14px; padding: 16px; min-height: 92px; cursor: pointer; border: 1px solid var(--line); background: #121a17; }
+    .tcard.free { background: #111816; }
+    .tcard.ordered { background: var(--green); color: #05210f; }
+    .tcard.ready { background: var(--gold); color: #2a2100; }
+    .tcard.busy { background: var(--red); }
+    .menu { display: grid; grid-template-columns: 88px 1fr; gap: 14px; }
+    .cats { display: flex; flex-direction: column; gap: 8px; }
+    .cats button { text-align: left; }
+    .products { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+    .pimg { height: 128px; border-radius: 12px; background: #0e1613 center/cover no-repeat; margin-bottom: 8px; }
+    input, textarea, select {
+      width: 100%; background: #0e1613; color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0 12px;
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .hidden { display: none !important; }
+    footer { text-align: center; color: var(--muted); padding: 8px 0 18px; font-weight: 800; letter-spacing: 1px; }
+    @media (max-width: 980px) {
+      .wrap, .g2, .g4, .g3, .menu, .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">ORDER <span>FLOW</span></div>
+    <nav>
+      <button data-page="pos" class="active">POS</button>
+      <button data-page="tables">Tables</button>
+      <button data-page="items">Items</button>
+      <button data-page="people">People</button>
+      <button data-page="sales">Sales</button>
+      <button data-page="settings">Settings</button>
+      <button data-page="orders">Orders</button>
+    </nav>
+    <div style="margin-left:auto" class="muted" id="live"></div>
+  </header>
+
+  <div class="wrap" id="page-pos">
+    <aside class="side">
+      <div class="stat"><div class="muted">Realtime orders</div><b id="openCount">0</b></div>
+      <button class="btn ghost" onclick="show('orders')">View status</button>
+      <button class="btn green" style="width:100%;margin-top:8px" onclick="newOrder()">Add order</button>
+      <div class="stat" style="margin-top:24px"><div class="muted">Tables occupied</div><b id="occ">0%</b></div>
+      <div class="stat"><div class="muted">Sales today</div><b id="today">0</b></div>
+    </aside>
+    <main class="grid">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between"><b>Sales</b><span class="muted">This week</span></div>
+        <div class="bar" id="weekBar"></div>
+      </div>
+      <div class="grid g4" id="kpis"></div>
+      <div class="grid g2">
+        <div class="card"><b>Top selling items</b><div id="topItems"></div></div>
+        <div class="card"><b>Orders from</b><div id="fromBars"></div><br><b>Payment modes</b><div id="payBars"></div></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="wrap hidden" id="page-tables" style="grid-template-columns:1fr">
+    <div class="tables" id="tableGrid"></div>
+  </div>
+
+  <div class="wrap hidden" id="page-items">
+    <div class="menu" style="grid-column:1/-1">
+      <div class="cats" id="cats"></div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <input id="search" placeholder="Search item" oninput="renderItems()" style="max-width:320px" />
+          <button class="btn green" onclick="showAddItem()">Upload item</button>
+        </div>
+        <div class="products" id="products"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap hidden" id="page-people" style="grid-template-columns:1fr 1fr">
+    <div class="card"><b>Staff</b><div id="staff"></div></div>
+    <div class="card"><b>Drivers</b><div id="drivers"></div></div>
+  </div>
+
+  <div class="wrap hidden" id="page-sales" style="grid-template-columns:1fr">
+    <div class="card"><b>Highest selling</b><div class="grid g4" id="hiSell"></div><div class="bar" id="weekBar2"></div></div>
+  </div>
+
+  <div class="wrap hidden" id="page-settings" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <b>Settings</b>
+      <label>Company name</label><input id="sName" />
+      <label>Phone</label><input id="sPhone" />
+      <label>Address</label><input id="sAddr" />
+      <label>Tax ID</label><input id="sTax" />
+      <button class="btn green" onclick="saveProfile()">Submit</button>
+    </div>
+    <div class="card">
+      <b>Receipt</b>
+      <label>Footer</label><textarea id="sFoot" rows="3"></textarea>
+      <label>Currency</label><input id="sCur" />
+      <label>Tax rate %</label><input id="sRate" />
+      <label>Business model</label>
+      <select id="sModel">
+        <option value="restaurant">Restaurant</option>
+        <option value="retail">Retail</option>
+        <option value="fastfood">Fast food</option>
+        <option value="services">Services</option>
+      </select>
+      <button class="btn green" onclick="saveProfile()">Submit</button>
+    </div>
+  </div>
+
+  <div class="wrap hidden" id="page-orders" style="grid-template-columns:1fr">
+    <div class="card"><table><thead><tr><th>Ticket</th><th>Table</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody id="orderRows"></tbody></table></div>
+  </div>
+
+  <div class="wrap hidden" id="page-add" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <button class="btn ghost" onclick="show('items')">Back</button>
+      <h3>Upload an item</h3>
+      <label>Item name</label><input id="iName" />
+      <div class="row"><div><label>SKU</label><input id="iSku" /></div><div><label>Price</label><input id="iPrice" /></div></div>
+      <label>Category</label><select id="iCat"></select>
+      <label>Description</label><textarea id="iDesc" rows="3"></textarea>
+      <button class="btn green" onclick="saveItem()">Upload item</button>
+    </div>
+    <div class="card">
+      <b>In stock</b>
+      <p class="muted">New items are available immediately on all stations on this Wi‑Fi.</p>
+    </div>
+  </div>
+
+  <footer>Jathol</footer>
+  <script>
+    let store = null, catId = null;
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => {
+      const p = store?.profile || {};
+      const s = p.currencySymbol || 'Rs';
+      const v = (Number(n)||0).toFixed(2);
+      return p.currencyPrefix === false ? (v + ' ' + s) : (s + ' ' + v);
+    };
+    async function load() {
+      const r = await fetch('/state');
+      const j = await r.json();
+      store = j.store;
+      render();
+    }
+    async function cmd(name, payload) {
+      await fetch('/command', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, payload, actor:'web' }) });
+      await load();
+    }
+    function show(page) {
+      document.querySelectorAll('[id^=page-]').forEach(el => el.classList.add('hidden'));
+      $('page-'+page).classList.remove('hidden');
+      document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.page===page));
+    }
+    document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.page));
+
+    function weekSales() {
+      const days = [];
+      for (let i=6;i>=0;i--) {
+        const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+        const next = new Date(d); next.setDate(d.getDate()+1);
+        const sum = (store.orders||[]).filter(o => o.status==='paid' && new Date(o.updatedAt)>=d && new Date(o.updatedAt)<next)
+          .reduce((a,o)=>a+(o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0),0);
+        days.push({d, sum});
+      }
+      return days;
+    }
+    function bars(el) {
+      const days = weekSales();
+      const max = Math.max(1, ...days.map(x=>x.sum));
+      el.innerHTML = days.map(x => `<span title="${x.sum}" style="height:${8+92*x.sum/max}%"></span>`).join('');
+    }
+    function renderPos() {
+      const orders = store.orders||[];
+      const open = orders.filter(o => !['paid','cancelled'].includes(o.status));
+      const tables = store.tables||[];
+      const occ = tables.length ? Math.round(100*tables.filter(t=>t.status!=='free').length/tables.length) : 0;
+      const today = weekSales().at(-1).sum;
+      $('openCount').textContent = open.length;
+      $('occ').textContent = occ + '%';
+      $('today').textContent = money(today);
+      $('live').textContent = (store.profile?.businessName||'Shop') + ' · local';
+      bars($('weekBar'));
+      const paid = orders.filter(o=>o.status==='paid');
+      const items = paid.reduce((n,o)=>n+(o.lines||[]).reduce((a,l)=>a+(l.qty||1),0),0);
+      $('kpis').innerHTML = `
+        <div class="kpi"><i>🍽</i><div class="muted">Total order</div><b>${paid.length}</b></div>
+        <div class="kpi"><i>🔥</i><div class="muted">Revenue</div><b>${money(today)}</b></div>
+        <div class="kpi"><i>🍴</i><div class="muted">Items sold</div><b>${items}</b></div>
+        <div class="kpi"><i>📦</i><div class="muted">Open</div><b>${open.length}</b></div>`;
+      const counts = {};
+      paid.forEach(o => (o.lines||[]).forEach(l => { counts[l.name]=(counts[l.name]||0)+(l.qty||1); }));
+      const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+      $('topItems').innerHTML = top.map(([n,c])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a3832"><span>${n}</span><span class="muted">${c}</span></div>`).join('') || '<p class="muted">No paid orders yet</p>';
+      const dine = orders.filter(o=>o.type==='dineIn').length;
+      const take = orders.filter(o=>o.type==='takeaway').length;
+      const tot = Math.max(1, dine+take);
+      $('fromBars').innerHTML = `Tables ${dine}<div style="height:8px;background:#14532d;width:${100*dine/tot}%;border-radius:8px;margin:6px 0"></div>Takeaway ${take}<div style="height:8px;background:#166534;width:${100*take/tot}%;border-radius:8px;margin:6px 0"></div>`;
+      const pay = {cash:0,card:0,wallet:0,other:0};
+      paid.forEach(o => { const k=o.payment||'cash'; pay[k]=(pay[k]||0)+1; });
+      $('payBars').innerHTML = Object.entries(pay).map(([k,v])=>`${k} ${v}`).join(' · ');
+    }
+    function renderTables() {
+      const orders = store.orders||[];
+      $('tableGrid').innerHTML = (store.tables||[]).map(t => {
+        const o = orders.find(x => x.id===t.currentOrderId);
+        const cls = t.status==='ready' ? 'ready' : t.status==='ordered' ? 'ordered' : 'free';
+        const n = o ? (o.lines||[]).length : 0;
+        return `<div class="tcard ${cls}" onclick="openTable('${t.id}')"><b>${t.name}</b><div>${o?('Ordered '+n+' items'):'No order'}</div></div>`;
+      }).join('');
+    }
+    function renderItems() {
+      const q = ($('search').value||'').toLowerCase();
+      const cats = store.categories||[];
+      if (!catId && cats[0]) catId = cats[0].id;
+      $('cats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${c.id}';renderItems()">${c.name}</button>`).join('');
+      const list = (store.products||[]).filter(p => (!catId || p.categoryId===catId) && (!q || p.name.toLowerCase().includes(q)));
+      $('products').innerHTML = list.map(p => {
+        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${p.imageBase64})` : '';
+        return `<div class="card" onclick="addLine('${p.id}')"><div class="pimg" style="${img}"></div><b>${p.name}</b><div class="muted">${money(p.price)}</div></div>`;
+      }).join('');
+    }
+    function renderPeople() {
+      $('staff').innerHTML = (store.staff||[]).map(s=>`<div>${s.name} · ${s.roleLabel||''}</div>`).join('') || '<p class="muted">No staff</p>';
+      $('drivers').innerHTML = (store.drivers||[]).map(d=>`<div>${d.name} · ${d.status}</div>`).join('') || '<p class="muted">No drivers</p>';
+    }
+    function renderSales() {
+      bars($('weekBar2'));
+      const counts = {};
+      (store.orders||[]).filter(o=>o.status==='paid').forEach(o => (o.lines||[]).forEach(l => { counts[l.name]=(counts[l.name]||0)+(l.qty||1); }));
+      const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,4);
+      $('hiSell').innerHTML = top.map(([n,c])=>`<div class="kpi"><b>${n}</b><div class="muted">${c} times</div></div>`).join('') || '<p class="muted">No sales yet</p>';
+    }
+    function fillSettings() {
+      const p = store.profile||{};
+      $('sName').value = p.businessName||'';
+      $('sPhone').value = p.phone||'';
+      $('sAddr').value = p.address||'';
+      $('sTax').value = p.taxId||'';
+      $('sFoot').value = p.footer||'';
+      $('sCur').value = p.currencySymbol||'Rs';
+      $('sRate').value = p.taxRate||0;
+      $('sModel').value = store.model||'restaurant';
+    }
+    function renderOrders() {
+      $('orderRows').innerHTML = (store.orders||[]).slice(0,40).map(o => `<tr>
+        <td>${o.ticketNo}</td><td>${o.tableName||o.type}</td><td>${o.status}</td>
+        <td>${money((o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0))}</td>
+        <td>${['paid','cancelled'].includes(o.status)?'':`<button class="btn green" onclick="pay('${o.id}')">Pay</button>`}</td>
+      </tr>`).join('');
+    }
+    function render() {
+      if (!store) return;
+      renderPos(); renderTables(); renderItems(); renderPeople(); renderSales(); fillSettings(); renderOrders();
+    }
+    async function saveProfile() {
+      const profile = {
+        ...(store.profile||{}),
+        businessName: $('sName').value,
+        phone: $('sPhone').value,
+        address: $('sAddr').value,
+        taxId: $('sTax').value,
+        footer: $('sFoot').value,
+        currencySymbol: $('sCur').value,
+        taxRate: Number($('sRate').value||0),
+      };
+      await cmd('setProfile', { profile });
+      if ($('sModel').value !== store.model) await cmd('setModel', { model: $('sModel').value });
+    }
+    function showAddItem() {
+      $('iCat').innerHTML = (store.categories||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+      show('add');
+    }
+    async function saveItem() {
+      await cmd('upsertProduct', { product: {
+        id: crypto.randomUUID(),
+        categoryId: $('iCat').value,
+        name: $('iName').value,
+        sku: $('iSku').value,
+        price: Number($('iPrice').value||0),
+        description: $('iDesc').value,
+        available: true,
+      }});
+      show('items');
+    }
+    async function newOrder() {
+      const t = (store.tables||[]).find(x=>x.status==='free') || (store.tables||[])[0];
+      await cmd('createOrder', { order: {
+        id: crypto.randomUUID(), ticketNo:'', type: t?'dineIn':'takeaway', status:'open',
+        tableId: t?.id, tableName: t?.name, lines: [], createdBy: 'web'
+      }});
+      show('orders');
+    }
+    async function openTable(id) {
+      const t = (store.tables||[]).find(x=>x.id===id);
+      if (t && t.currentOrderId) { show('orders'); return; }
+      await cmd('createOrder', { order: {
+        id: crypto.randomUUID(), ticketNo:'', type:'dineIn', status:'open',
+        tableId: t.id, tableName: t.name, lines: [], createdBy: 'web'
+      }});
+    }
+    async function addLine(pid) {
+      const p = (store.products||[]).find(x=>x.id===pid);
+      let o = (store.orders||[]).find(x => !['paid','cancelled'].includes(x.status));
+      if (!o) { await newOrder(); o = (store.orders||[]).find(x => !['paid','cancelled'].includes(x.status)); }
+      if (!p || !o) return;
+      await cmd('addLine', { orderId: o.id, line: { id: crypto.randomUUID(), productId: p.id, name: p.name, unitPrice: p.price, qty: 1 } });
+    }
+    async function pay(id) { await cmd('setOrderStatus', { id, status: 'paid', payment: 'cash' }); }
+    load();
+    setInterval(load, 2500);
+  </script>
+</body>
+</html>
