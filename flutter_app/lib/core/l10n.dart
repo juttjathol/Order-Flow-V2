@@ -406,6 +406,10 @@ class L10n {
     'people_section': 'PEOPLE',
     'reports_section': 'REPORTS',
     'account_section': 'ACCOUNT',
+    'service_charge': 'Service',
+    'service_rate': 'Service charge %',
+    'tip': 'Tip',
+    'tip_none': 'No tip',
   };
 
   static const _ur = {
@@ -766,6 +770,15 @@ class L10n {
     'model_services_hint': 'ملاقاتیں، عملہ، واک ان',
     'exact': 'برابر',
     'ticket_more': 'ٹکٹ اعمال',
+    'shop_section': 'دکان',
+    'hardware_section': 'ہارڈویئر',
+    'people_section': 'لوگ',
+    'reports_section': 'رپورٹس',
+    'account_section': 'اکاؤنٹ',
+    'service_charge': 'سروس',
+    'service_rate': 'سروس چارج ٪',
+    'tip': 'ٹپ',
+    'tip_none': 'ٹپ نہیں',
   };
 
   static const _table = {'en': _en, 'ur': _ur};

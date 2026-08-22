@@ -266,7 +266,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               children: [
                 _kv(s.t('subtotal'), moneyOf(ref.snap, order.subtotal + order.discount)),
                 if (order.discount > 0) _kv(s.t('discount'), '- ${moneyOf(ref.snap, order.discount)}'),
+                if (order.service > 0) _kv('${s.t('service_charge')} ${order.serviceRate}%', moneyOf(ref.snap, order.service)),
                 if (order.tax > 0) _kv('${s.t('tax')} ${order.taxRate}%', moneyOf(ref.snap, order.tax)),
+                if (order.tip > 0) _kv(s.t('tip'), moneyOf(ref.snap, order.tip)),
                 _kv(s.t('total'), moneyOf(ref.snap, order.total), bold: true),
               ],
             ),
@@ -526,19 +528,22 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     final s = ref.s;
     PaymentMethod method = PaymentMethod.cash;
     var tender = '';
+    var tip = order.tip;
+    final base = order.subtotal + order.service + order.tax;
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) {
+          final due = base + tip;
           final received = double.tryParse(tender) ?? 0;
-          final change = received - order.total;
+          final change = received - due;
           return Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('${s.t('payment')}  ${moneyOf(ref.snap, order.total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+                Text('${s.t('payment')}  ${moneyOf(ref.snap, due)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
@@ -546,12 +551,27 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       .map((m) => ChoiceChip(label: Text(s.t(m.name)), selected: method == m, onSelected: (_) => setSt(() => method = m)))
                       .toList(),
                 ),
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerLeft, child: Text(s.t('tip'), style: const TextStyle(color: OfColors.muted))),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final p in [0, 5, 10, 15])
+                      ChoiceChip(
+                        label: Text(p == 0 ? s.t('tip_none') : '$p%'),
+                        selected: (base <= 0 && tip == 0 && p == 0) ||
+                            (base > 0 && (tip - base * p / 100).abs() < 0.02) ||
+                            (p == 0 && tip == 0),
+                        onSelected: (_) => setSt(() => tip = base * p / 100),
+                      ),
+                  ],
+                ),
                 if (method == PaymentMethod.cash) ...[
                   const SizedBox(height: 12),
                   Align(alignment: Alignment.centerLeft, child: Text(s.t('tendered'), style: const TextStyle(color: OfColors.muted))),
                   Text(tender.isEmpty ? '0' : tender, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 28)),
-                  if (received >= order.total) Text('${s.t('change_due')}  ${moneyOf(ref.snap, change)}', style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800)),
-                  if (tender.isNotEmpty && received < order.total) Text(s.t('cash_short'), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
+                  if (received >= due) Text('${s.t('change_due')}  ${moneyOf(ref.snap, change)}', style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800)),
+                  if (tender.isNotEmpty && received < due) Text(s.t('cash_short'), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -573,7 +593,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                           ),
                         ),
                       FilledButton.tonal(
-                        onPressed: () => setSt(() => tender = order.total.toStringAsFixed(order.total % 1 == 0 ? 0 : 2)),
+                        onPressed: () => setSt(() => tender = due.toStringAsFixed(due % 1 == 0 ? 0 : 2)),
                         child: Text(s.t('exact')),
                       ),
                     ],
@@ -581,7 +601,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                 ],
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: method == PaymentMethod.cash && received + 0.001 < order.total ? null : () => Navigator.pop(ctx, true),
+                  onPressed: method == PaymentMethod.cash && received + 0.001 < due ? null : () => Navigator.pop(ctx, true),
                   child: Text(s.t('pay_and_close')),
                 ),
               ],

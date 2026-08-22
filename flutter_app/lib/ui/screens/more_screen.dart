@@ -182,6 +182,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
   final footer = TextEditingController(text: p.footer);
   final cur = TextEditingController(text: p.currencySymbol);
   final tax = TextEditingController(text: p.taxRate.toString());
+  final svc = TextEditingController(text: p.serviceRate.toString());
   final pin = TextEditingController(text: p.managerPin);
   var prefix = p.currencyPrefix;
   await showModalBottomSheet<void>(
@@ -210,6 +211,8 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
               const SizedBox(height: 8),
               TextField(controller: tax, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('tax_rate'))),
               const SizedBox(height: 8),
+              TextField(controller: svc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('service_rate'))),
+              const SizedBox(height: 8),
               TextField(
                 controller: pin,
                 obscureText: true,
@@ -228,6 +231,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     currencySymbol: cur.text.trim().isEmpty ? kDefaultCurrency : cur.text.trim(),
                     currencyPrefix: prefix,
                     taxRate: double.tryParse(tax.text) ?? 0,
+                    serviceRate: double.tryParse(svc.text) ?? 0,
                     logoBase64: p.logoBase64,
                     managerPin: pin.text.trim(),
                   );

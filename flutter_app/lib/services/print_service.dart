@@ -100,9 +100,13 @@ class PrintService {
       ..rule()
       ..row('Subtotal', m(order.subtotal + order.discount));
     if (order.discount > 0) b.row('Discount', '- ${m(order.discount)}');
+    if (order.service > 0) {
+      b.row('Service ${order.serviceRate.toStringAsFixed(1)}%', m(order.service));
+    }
     if (order.tax > 0) {
       b.row('Tax ${order.taxRate.toStringAsFixed(1)}%', m(order.tax));
     }
+    if (order.tip > 0) b.row('Tip', m(order.tip));
     b
       ..doubleSize(true)
       ..row('TOTAL', m(order.total))

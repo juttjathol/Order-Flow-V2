@@ -160,6 +160,7 @@
       <label>Footer</label><textarea id="sFoot" rows="3"></textarea>
       <label>Currency</label><input id="sCur" />
       <label>Tax rate %</label><input id="sRate" />
+      <label>Service charge %</label><input id="sSvc" />
       <label>Business model</label>
       <select id="sModel">
         <option value="restaurant">Restaurant</option>
@@ -317,6 +318,7 @@
       $('sFoot').value = p.footer||'';
       $('sCur').value = p.currencySymbol||'Rs';
       $('sRate').value = p.taxRate||0;
+      $('sSvc').value = p.serviceRate||0;
       $('sModel').value = store.model||'restaurant';
     }
     function renderOrders() {
@@ -370,6 +372,7 @@
         footer: $('sFoot').value,
         currencySymbol: $('sCur').value,
         taxRate: Number($('sRate').value||0),
+        serviceRate: Number($('sSvc').value||0),
       };
       await cmd('setProfile', { profile });
       if ($('sModel').value !== store.model) await cmd('setModel', { model: $('sModel').value });
@@ -405,28 +408,53 @@
           if (!address) { alert('Address required'); return; }
         }
       }
+      const nid = crypto.randomUUID();
       await cmd('createOrder', { order: {
-        id: crypto.randomUUID(), ticketNo:'', type: kind, status:'open',
+        id: nid, ticketNo:'', type: kind, status:'open',
         tableId, tableName, customerName, customerPhone, address, lines: [], createdBy: 'web'
       }});
-      show('orders');
+      activeOrderId = nid;
+      show('ticket');
     }
     async function openTable(id) {
       const t = (store.tables||[]).find(x=>x.id===id);
-      if (t && t.currentOrderId) { show('orders'); return; }
+      if (t && t.currentOrderId) { activeOrderId = t.currentOrderId; show('ticket'); return; }
+      const nid = crypto.randomUUID();
       await cmd('createOrder', { order: {
-        id: crypto.randomUUID(), ticketNo:'', type:'dineIn', status:'open',
+        id: nid, ticketNo:'', type:'dineIn', status:'open',
         tableId: t.id, tableName: t.name, lines: [], createdBy: 'web'
       }});
+      activeOrderId = nid;
+      show('ticket');
     }
     async function addLine(pid) {
       const p = (store.products||[]).find(x=>x.id===pid);
-      let o = (store.orders||[]).find(x => !['paid','cancelled'].includes(x.status));
-      if (!o) { await newOrder(); o = (store.orders||[]).find(x => !['paid','cancelled'].includes(x.status)); }
+      let o = activeOrder();
+      if (!o) { await newOrder('dineIn'); o = activeOrder(); }
       if (!p || !o) return;
+      activeOrderId = o.id;
       await cmd('addLine', { orderId: o.id, line: { id: crypto.randomUUID(), productId: p.id, name: p.name, unitPrice: p.price, qty: 1 } });
+      show('ticket');
     }
-    async function pay(id) { await cmd('setOrderStatus', { id, status: 'paid', payment: 'cash' }); }
+    function dueOf(o) {
+      const net = Math.max(0, orderTotal(o) - (o.discount||0));
+      const svc = net * ((o.serviceRate||store.profile?.serviceRate||0)/100);
+      const tax = net * ((o.taxRate||0)/100);
+      return net + svc + tax + (o.tip||0);
+    }
+    async function pay(id) {
+      if (!needPin()) return;
+      const o = (store.orders||[]).find(x=>x.id===id);
+      if (!o) return;
+      const tip = Number(prompt('Tip amount (0 for none)', '0') || 0);
+      const due = dueOf({...o, tip});
+      const method = (prompt('Payment: cash / card / wallet / other', 'cash') || 'cash').toLowerCase();
+      if (method === 'cash') {
+        const tender = Number(prompt('Cash received', String(due)) || 0);
+        if (tender + 0.001 < due) { alert('Amount is less than the total'); return; }
+      }
+      await cmd('setOrderStatus', { id, status: 'paid', payment: method, tip });
+    }
     load();
     setInterval(load, 2500);
   </script>

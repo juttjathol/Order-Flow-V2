@@ -125,6 +125,7 @@ class StoreReducer {
         final order = PosOrder.fromJson(mapOf(p['order']));
         order.ticketNo = store.nextTicket();
         order.taxRate = store.profile.taxRate;
+        order.serviceRate = store.profile.serviceRate;
         store.orders.insert(0, order);
         _syncTable(store, order);
         bump();
@@ -205,6 +206,9 @@ class StoreReducer {
           if (p['payment'] != null) {
             order.payment =
                 enumParse(PaymentMethod.values, p['payment'], PaymentMethod.cash);
+          }
+          if (p['tip'] != null) {
+            order.tip = parseNum(p['tip']);
           }
           if (p['driverId'] != null) {
             order.driverId = parseStr(p['driverId']);

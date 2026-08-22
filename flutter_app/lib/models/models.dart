@@ -88,6 +88,7 @@ class BillProfile {
     this.currencySymbol = kDefaultCurrency,
     this.currencyPrefix = true,
     this.taxRate = 0,
+    this.serviceRate = 0,
     this.logoBase64,
     this.managerPin = '',
   });
@@ -100,6 +101,7 @@ class BillProfile {
   String currencySymbol;
   bool currencyPrefix;
   double taxRate;
+  double serviceRate;
   String? logoBase64;
   String managerPin;
 
@@ -112,6 +114,7 @@ class BillProfile {
         currencySymbol: currencySymbol,
         currencyPrefix: currencyPrefix,
         taxRate: taxRate,
+        serviceRate: serviceRate,
         logoBase64: logoBase64,
         managerPin: managerPin,
       );
@@ -125,6 +128,7 @@ class BillProfile {
         'currencySymbol': currencySymbol,
         'currencyPrefix': currencyPrefix,
         'taxRate': taxRate,
+        'serviceRate': serviceRate,
         'logoBase64': logoBase64,
         'managerPin': managerPin,
       };
@@ -140,6 +144,7 @@ class BillProfile {
       currencySymbol: parseStr(m['currencySymbol']) ?? kDefaultCurrency,
       currencyPrefix: parseBool(m['currencyPrefix'], true),
       taxRate: parseNum(m['taxRate']),
+      serviceRate: parseNum(m['serviceRate']),
       logoBase64: parseStr(m['logoBase64']),
       managerPin: parseStr(m['managerPin']) ?? '',
     );
@@ -386,6 +391,8 @@ class PosOrder {
     List<OrderLine>? lines,
     this.discount = 0,
     this.taxRate = 0,
+    this.serviceRate = 0,
+    this.tip = 0,
     this.payment,
     this.notes = '',
     DateTime? createdAt,
@@ -412,6 +419,8 @@ class PosOrder {
   List<OrderLine> lines;
   double discount;
   double taxRate;
+  double serviceRate;
+  double tip;
   PaymentMethod? payment;
   String notes;
   DateTime createdAt;
@@ -424,8 +433,9 @@ class PosOrder {
 
   double get subtotal =>
       lines.fold<double>(0, (s, l) => s + l.lineTotal) - discount;
+  double get service => (subtotal * (serviceRate / 100.0)).clamp(0, double.infinity);
   double get tax => subtotal * (taxRate / 100.0);
-  double get total => (subtotal + tax).clamp(0, double.infinity);
+  double get total => (subtotal + service + tax + tip).clamp(0, double.infinity);
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -441,6 +451,8 @@ class PosOrder {
         'lines': lines.map((e) => e.toJson()).toList(),
         'discount': discount,
         'taxRate': taxRate,
+        'serviceRate': serviceRate,
+        'tip': tip,
         'payment': payment?.name,
         'notes': notes,
         'createdAt': createdAt.toIso8601String(),
@@ -469,6 +481,8 @@ class PosOrder {
             .toList(),
         discount: parseNum(j['discount']),
         taxRate: parseNum(j['taxRate']),
+        serviceRate: parseNum(j['serviceRate']),
+        tip: parseNum(j['tip']),
         payment: j['payment'] == null
             ? null
             : enumParse(PaymentMethod.values, j['payment'], PaymentMethod.cash),
