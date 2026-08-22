@@ -221,29 +221,40 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           Expanded(
             child: order.lines.isEmpty
                 ? EmptyState(icon: Icons.add_shopping_cart, message: s.t('add_items'))
-                : ListView.builder(
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
                     itemCount: order.lines.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final line = order.lines[i];
-                      return ListTile(
-                        title: Text(line.name),
-                        subtitle: Text('${s.t('course_${line.course}')} · ${moneyOf(ref.snap, line.unitPrice)}'),
-                        leading: locked
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.remove_circle_outline),
-                                onPressed: () => _qty(order, line, line.qty - 1),
+                      final qty = line.qty % 1 == 0 ? line.qty.toInt().toString() : line.qty.toString();
+                      return InkWell(
+                        onTap: locked ? null : () => _noteLine(order, line),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          child: Row(
+                            children: [
+                              if (!locked)
+                                IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.remove_circle_outline), onPressed: () => _qty(order, line, line.qty - 1)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(line.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                                      StatusChip(s.t('course_${line.course}'), color: OfColors.mint),
+                                      Text(moneyOf(ref.snap, line.unitPrice), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                                    ]),
+                                    if (line.notes.isNotEmpty) Text(line.notes, style: const TextStyle(color: OfColors.gold, fontSize: 12)),
+                                  ],
+                                ),
                               ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('${line.qty % 1 == 0 ? line.qty.toInt() : line.qty}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                            if (!locked)
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline),
-                                onPressed: () => _qty(order, line, line.qty + 1),
-                              ),
-                          ],
+                              Text(qty, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                              if (!locked)
+                                IconButton(visualDensity: VisualDensity.compact, icon: const Icon(Icons.add_circle_outline), onPressed: () => _qty(order, line, line.qty + 1)),
+                              MoneyText(line.unitPrice * line.qty, style: const TextStyle(fontSize: 14)),
+                            ],
+                          ),
                         ),
                       );
                     },
