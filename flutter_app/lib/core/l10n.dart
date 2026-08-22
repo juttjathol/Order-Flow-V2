@@ -410,6 +410,11 @@ class L10n {
     'service_rate': 'Service charge %',
     'tip': 'Tip',
     'tip_none': 'No tip',
+    'modifiers': 'Modifiers',
+    'add_modifier': 'Add modifier',
+    'mod_size': 'Size',
+    'mod_spice': 'Spice',
+    'mod_extra': 'Add-on',
   };
 
   static const _ur = {
@@ -779,6 +784,11 @@ class L10n {
     'service_rate': 'سروس چارج ٪',
     'tip': 'ٹپ',
     'tip_none': 'ٹپ نہیں',
+    'modifiers': 'موڈیفائر',
+    'add_modifier': 'موڈیفائر شامل',
+    'mod_size': 'سائز',
+    'mod_spice': 'مصالحہ',
+    'mod_extra': 'ایڈ آن',
   };
 
   static const _table = {'en': _en, 'ur': _ur};

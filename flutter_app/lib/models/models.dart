@@ -211,6 +211,37 @@ class MenuCategory {
       );
 }
 
+class ItemMod {
+  ItemMod({
+    required this.id,
+    required this.name,
+    this.group = 'extra',
+    this.price = 0,
+  });
+
+  String id;
+  String name;
+  /// size | spice | extra — size/spice pick one, extra can stack.
+  String group;
+  double price;
+
+  bool get exclusive => group == 'size' || group == 'spice';
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'group': group,
+        'price': price,
+      };
+
+  factory ItemMod.fromJson(Map<String, dynamic> j) => ItemMod(
+        id: parseStr(j['id']) ?? newId(),
+        name: parseStr(j['name']) ?? '',
+        group: parseStr(j['group']) ?? 'extra',
+        price: parseNum(j['price']),
+      );
+}
+
 class MenuProduct {
   MenuProduct({
     required this.id,
@@ -225,7 +256,8 @@ class MenuProduct {
     this.inventoryId,
     this.deductQty = 1,
     this.course = 'main',
-  });
+    List<ItemMod>? mods,
+  }) : mods = mods ?? <ItemMod>[];
 
   String id;
   String categoryId;
@@ -239,6 +271,7 @@ class MenuProduct {
   String? inventoryId;
   double deductQty;
   String course;
+  List<ItemMod> mods;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -253,6 +286,7 @@ class MenuProduct {
         'inventoryId': inventoryId,
         'deductQty': deductQty,
         'course': course,
+        'mods': mods.map((e) => e.toJson()).toList(),
       };
 
   factory MenuProduct.fromJson(Map<String, dynamic> j) => MenuProduct(
@@ -268,7 +302,10 @@ class MenuProduct {
         inventoryId: parseStr(j['inventoryId']),
         deductQty: parseNum(j['deductQty'], 1),
         course: parseStr(j['course']) ?? 'main',
-        fired: parseBool(j['fired']),
+        mods: ((j['mods'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => ItemMod.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
       );
 }
 

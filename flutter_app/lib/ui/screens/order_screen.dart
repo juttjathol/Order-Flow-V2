@@ -368,20 +368,43 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Future<void> _add(PosOrder order, MenuProduct p) async {
     if (!await _stockOk(p)) return;
-    final existing = order.lines.where((l) => l.productId == p.id && l.notes.isEmpty).firstOrNull;
-    if (existing != null) {
-      existing.qty += 1;
+    var name = p.name;
+    var price = p.price;
+    var note = '';
+    if (p.mods.isNotEmpty) {
+      final picked = await _pickMods(p);
+      if (picked == null) return;
+      if (picked.isNotEmpty) {
+        name = '$name · ${picked.map((m) => m.name).join(', ')}';
+        price += picked.fold<double>(0, (s, m) => s + m.price);
+        note = picked.map((m) => m.name).join(', ');
+      }
+    } else {
+      final existing = order.lines.where((l) => l.productId == p.id && l.notes.isEmpty).firstOrNull;
+      if (existing != null) {
+        existing.qty += 1;
+        await ref.ctrl.dispatch(NetCommand(name: 'updateLine', payload: {
+          'orderId': order.id,
+          'line': existing.toJson(),
+        }));
+        return;
+      }
+    }
+    final same = order.lines.where((l) => l.productId == p.id && l.notes == note && l.unitPrice == price).firstOrNull;
+    if (same != null) {
+      same.qty += 1;
       await ref.ctrl.dispatch(NetCommand(name: 'updateLine', payload: {
         'orderId': order.id,
-        'line': existing.toJson(),
+        'line': same.toJson(),
       }));
       return;
     }
     final line = OrderLine(
       id: newId(),
       productId: p.id,
-      name: p.name,
-      unitPrice: p.price,
+      name: name,
+      unitPrice: price,
+      notes: note,
       inventoryId: p.inventoryId,
       deductQty: p.deductQty,
       course: _guessCourse(p),
@@ -390,6 +413,75 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       'orderId': order.id,
       'line': line.toJson(),
     }));
+  }
+
+  Future<List<ItemMod>?> _pickMods(MenuProduct p) async {
+    final s = ref.s;
+    final chosen = <String, ItemMod>{};
+    final extras = <String>{};
+    for (final g in ['size', 'spice']) {
+      final first = p.mods.where((m) => m.group == g).firstOrNull;
+      if (first != null) chosen[g] = first;
+    }
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          double extra = chosen.values.fold<double>(0, (a, m) => a + m.price) +
+              p.mods.where((m) => extras.contains(m.id)).fold<double>(0, (a, m) => a + m.price);
+          return Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(p.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                  Text(moneyOf(ref.snap, p.price + extra), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  for (final g in ['size', 'spice'])
+                    if (p.mods.any((m) => m.group == g)) ...[
+                      const SizedBox(height: 10),
+                      Text(s.t('mod_$g'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Wrap(
+                        spacing: 8,
+                        children: p.mods.where((m) => m.group == g).map((m) => ChoiceChip(
+                              label: Text('${m.name}${m.price == 0 ? '' : ' +${m.price}'}'),
+                              selected: chosen[g]?.id == m.id,
+                              onSelected: (_) => setSt(() => chosen[g] = m),
+                            )).toList(),
+                      ),
+                    ],
+                  if (p.mods.any((m) => m.group == 'extra')) ...[
+                    const SizedBox(height: 10),
+                    Text(s.t('mod_extra'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ...p.mods.where((m) => m.group == 'extra').map((m) => CheckboxListTile(
+                          dense: true,
+                          value: extras.contains(m.id),
+                          title: Text('${m.name}${m.price == 0 ? '' : '  +${moneyOf(ref.snap, m.price)}'}'),
+                          onChanged: (v) => setSt(() {
+                            if (v == true) {
+                              extras.add(m.id);
+                            } else {
+                              extras.remove(m.id);
+                            }
+                          }),
+                        )),
+                  ],
+                  const SizedBox(height: 12),
+                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('add'))),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    if (ok != true) return null;
+    return [
+      ...chosen.values,
+      ...p.mods.where((m) => extras.contains(m.id)),
+    ];
   }
 
   Future<void> _qty(PosOrder order, OrderLine line, double qty) async {

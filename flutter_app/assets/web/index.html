@@ -352,7 +352,8 @@
       activeOrderId = o.id;
       const lines = (o.lines||[]).map(l => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div><b>${l.qty||1}× ${l.name}</b></div><div>${money((l.unitPrice||0)*(l.qty||1))}</div></div>`).join('');
       $('tRail').innerHTML = `<div class="muted">${o.ticketNo||''} · ${o.tableName||o.type} · ${o.status}</div>
-        <b style="font-size:28px">${money(orderTotal(o))}</b>
+        <b style="font-size:28px">${money(dueOf(o))}</b>
+        <div class="muted">incl. service ${o.serviceRate||store.profile?.serviceRate||0}%</div>
         <div style="max-height:46vh;overflow:auto;margin:10px 0">${lines||'<p class="muted">Add items</p>'}</div>
         <button class="btn green" style="width:100%" onclick="cmd('setOrderStatus',{id:'${o.id}',status:'preparing'})">Send kitchen</button>
         <button class="btn ghost" style="width:100%;margin-top:8px" onclick="pay('${o.id}')">Pay</button>`;
@@ -433,7 +434,27 @@
       if (!o) { await newOrder('dineIn'); o = activeOrder(); }
       if (!p || !o) return;
       activeOrderId = o.id;
-      await cmd('addLine', { orderId: o.id, line: { id: crypto.randomUUID(), productId: p.id, name: p.name, unitPrice: p.price, qty: 1 } });
+      let name = p.name, price = Number(p.price||0), notes = '';
+      const mods = p.mods || [];
+      if (mods.length) {
+        const picked = [];
+        for (const g of ['size','spice']) {
+          const opts = mods.filter(m => m.group===g);
+          if (!opts.length) continue;
+          const labels = opts.map((m,i)=>`${i+1}:${m.name}${m.price?(' +'+m.price):''}`).join('  ');
+          const n = Number(prompt((g==='size'?'Size':'Spice')+'  '+labels, '1')||1) - 1;
+          if (opts[n]) picked.push(opts[n]);
+        }
+        mods.filter(m => m.group==='extra').forEach(m => {
+          if (confirm((m.name||'Add-on') + (m.price?(' +'+m.price):'') + '?')) picked.push(m);
+        });
+        if (picked.length) {
+          name = name + ' · ' + picked.map(m=>m.name).join(', ');
+          price += picked.reduce((a,m)=>a+Number(m.price||0),0);
+          notes = picked.map(m=>m.name).join(', ');
+        }
+      }
+      await cmd('addLine', { orderId: o.id, line: { id: crypto.randomUUID(), productId: p.id, name, unitPrice: price, qty: 1, notes } });
       show('ticket');
     }
     function dueOf(o) {

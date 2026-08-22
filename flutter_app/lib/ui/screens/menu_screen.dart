@@ -214,6 +214,7 @@ Future<void> editProduct(
   var image = existing?.imageBase64;
   var cat = existing?.categoryId ?? categoryId;
   var inv = existing?.inventoryId;
+  final mods = [...?existing?.mods];
 
   final ok = await showModalBottomSheet<bool>(
     context: context,
@@ -269,6 +270,57 @@ Future<void> editProduct(
                 onChanged: (v) => setSt(() => available = v),
                 title: Text(s.t('available')),
               ),
+              Align(alignment: Alignment.centerLeft, child: Text(s.t('modifiers'), style: const TextStyle(fontWeight: FontWeight.w800))),
+              ...mods.map((m) => ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(m.name),
+                    subtitle: Text('${s.t('mod_${m.group}')}  +${m.price}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => setSt(() => mods.removeWhere((e) => e.id == m.id)),
+                    ),
+                  )),
+              TextButton.icon(
+                onPressed: () async {
+                  final n = TextEditingController();
+                  final pr = TextEditingController(text: '0');
+                  var g = 'extra';
+                  final add = await showDialog<bool>(
+                    context: ctx,
+                    builder: (d) => StatefulBuilder(
+                      builder: (d, setD) => AlertDialog(
+                        title: Text(s.t('add_modifier')),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextField(controller: n, decoration: InputDecoration(labelText: s.t('name'))),
+                            TextField(controller: pr, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('price'))),
+                            DropdownButtonFormField<String>(
+                              value: g,
+                              items: [
+                                DropdownMenuItem(value: 'size', child: Text(s.t('mod_size'))),
+                                DropdownMenuItem(value: 'spice', child: Text(s.t('mod_spice'))),
+                                DropdownMenuItem(value: 'extra', child: Text(s.t('mod_extra'))),
+                              ],
+                              onChanged: (v) => setD(() => g = v ?? g),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+                          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('add'))),
+                        ],
+                      ),
+                    ),
+                  );
+                  if (add == true && n.text.trim().isNotEmpty) {
+                    setSt(() => mods.add(ItemMod(id: newId(), name: n.text.trim(), group: g, price: double.tryParse(pr.text) ?? 0)));
+                  }
+                },
+                icon: const Icon(Icons.add),
+                label: Text(s.t('add_modifier')),
+              ),
               FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('save'))),
               if (existing != null)
                 TextButton(
@@ -295,6 +347,7 @@ Future<void> editProduct(
       available: available,
       imageBase64: image,
       inventoryId: inv,
+      mods: mods,
     );
     await ref.ctrl.dispatch(NetCommand(name: 'upsertProduct', payload: {'product': p.toJson()}));
   }
