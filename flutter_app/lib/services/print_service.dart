@@ -31,7 +31,9 @@ class PrintService {
       ..text('KITCHEN TICKET')
       ..rule()
       ..align('left')
-      ..text('Ticket ${order.ticketNo}')
+      ..text('Ticket ${order.ticketNo}');
+    if (order.createdBy.isNotEmpty) b.text('Station: ${order.createdBy}');
+    b
       ..text(order.tableName == null || order.tableName!.isEmpty
           ? order.type.name.toUpperCase()
           : 'TABLE ${order.tableName}');

@@ -118,6 +118,22 @@ class _TablesMap extends ConsumerWidget {
       context.push('/order/${t.currentOrderId}');
       return;
     }
+    final recent = ref.snap.store.orders.where((o) =>
+        o.tableId == t.id && DateTime.now().difference(o.createdAt).inSeconds < 10);
+    if (recent.isNotEmpty) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(ref.s.t('dup_order')),
+          content: Text(ref.s.t('dup_order_body')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ref.s.t('cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(ref.s.t('continue'))),
+          ],
+        ),
+      );
+      if (go != true) return;
+    }
     final store = ref.snap.store;
     final order = PosOrder(
       id: newId(),

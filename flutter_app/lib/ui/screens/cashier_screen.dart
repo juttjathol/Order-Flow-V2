@@ -32,6 +32,8 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
         actions: [
           StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
               color: ref.snap.connected ? OfColors.mint : OfColors.danger),
+          IconButton(tooltip: s.t('start_shift'), onPressed: () => startShift(context, ref), icon: const Icon(Icons.badge)),
+          IconButton(tooltip: s.t('reprint_any'), onPressed: () => reprintSearch(context, ref), icon: const Icon(Icons.find_in_page)),
           IconButton(
             tooltip: s.t('reprint_last'),
             onPressed: () async {

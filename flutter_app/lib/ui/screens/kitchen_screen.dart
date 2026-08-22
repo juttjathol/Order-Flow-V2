@@ -58,6 +58,8 @@ class KitchenScreen extends ConsumerWidget {
                       ),
                       if (o.type == OrderType.delivery && o.address.isNotEmpty)
                         Text(o.address, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                      if (o.createdBy.isNotEmpty)
+                        Text('${s.t('station')}: ${o.createdBy}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
                       if (o.type == OrderType.takeaway && o.customerName.isNotEmpty)
                         Text('${s.t('takeaway')} · ${o.customerName}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
                       Text(
@@ -67,7 +69,8 @@ class KitchenScreen extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Expanded(
                         child: ListView(
-                          children: ([...o.lines]..sort((a, b) => a.course.compareTo(b.course)))
+                          children: ([...o.lines.where((l) => o.lines.every((x) => !x.fired) || l.fired)]
+                                ..sort((a, b) => a.course.compareTo(b.course)))
                               .map((l) => Text('${s.t('course_${l.course}')}  ${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}'))
                               .toList(),
                         ),

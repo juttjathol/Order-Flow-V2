@@ -17,6 +17,9 @@ class RoleAccess {
       'updateLine',
       'removeLine',
       'patchOrder',
+      'moveOrder',
+      'mergeOrders',
+      'fireCourse',
     };
     const kitchenStatus = {'preparing', 'ready', 'served'};
     const cashierStatus = {'open', 'preparing', 'ready', 'served', 'paid', 'cancelled'};

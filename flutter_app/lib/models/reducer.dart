@@ -143,6 +143,51 @@ class StoreReducer {
         store.lastDayClose = DateTime.now();
         bump();
         break;
+      case 'startShift':
+        store.shiftCashier = parseStr(p['name']) ?? '';
+        store.shiftStartedAt = DateTime.now();
+        bump();
+        break;
+      case 'moveOrder':
+        final order = store.orderById(parseStr(p['orderId']));
+        final table = store.tableById(parseStr(p['tableId']));
+        if (order != null && table != null) {
+          final old = store.tableById(order.tableId);
+          if (old != null && old.currentOrderId == order.id) {
+            old.currentOrderId = null;
+            old.status = TableStatus.free;
+          }
+          order.tableId = table.id;
+          order.tableName = table.name;
+          table.currentOrderId = order.id;
+          table.status = order.status == OrderStatus.ready ? TableStatus.ready : TableStatus.ordered;
+        }
+        bump();
+        break;
+      case 'mergeOrders':
+        final keep = store.orderById(parseStr(p['keepId']));
+        final drop = store.orderById(parseStr(p['dropId']));
+        if (keep != null && drop != null && keep.id != drop.id) {
+          keep.lines.addAll(drop.lines);
+          drop.status = OrderStatus.cancelled;
+          drop.voidReason = 'merged into ${keep.ticketNo}';
+          _syncTable(store, drop);
+          _syncTable(store, keep);
+        }
+        bump();
+        break;
+      case 'fireCourse':
+        final order = store.orderById(parseStr(p['orderId']));
+        final course = parseStr(p['course']) ?? '';
+        if (order != null) {
+          for (final l in order.lines) {
+            if (course.isEmpty || l.course == course) l.fired = true;
+          }
+          order.sentAt ??= DateTime.now();
+          if (order.status == OrderStatus.open) order.status = OrderStatus.preparing;
+        }
+        bump();
+        break;
       case 'setOrderStatus':
         final order = store.orderById(parseStr(p['id']));
         if (order != null) {

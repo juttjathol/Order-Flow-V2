@@ -155,12 +155,14 @@ class OfCard extends StatelessWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.padding = const EdgeInsets.all(14),
     this.color,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final EdgeInsets padding;
   final Color? color;
 
@@ -170,10 +172,11 @@ class OfCard extends StatelessWidget {
       color: color,
       child: Padding(padding: padding, child: child),
     );
-    if (onTap == null) return card;
+    if (onTap == null && onLongPress == null) return card;
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: onTap,
+      onLongPress: onLongPress,
       child: card,
     );
   }

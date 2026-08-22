@@ -8,6 +8,7 @@ import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/offsite_order.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/pos_ops.dart';
 
 class OrderScreen extends ConsumerStatefulWidget {
   const OrderScreen({super.key, required this.orderId});
@@ -33,8 +34,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     }
     final products = snap.store.products.where((p) {
       final query = q.trim().toLowerCase();
-      return p.available &&
-          (query.isEmpty ||
+      return (query.isEmpty ||
               p.name.toLowerCase().contains(query) ||
               p.sku.toLowerCase().contains(query));
     }).toList();
@@ -106,12 +106,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             itemBuilder: (_, i) {
               final p = products[i];
               return OfCard(
-                onTap: locked ? null : () => _add(order, p),
+                onTap: locked || !p.available ? null : () => _add(order, p),
+                onLongPress: () => eightySix(context, ref, p),
                 child: Column(
                   children: [
                     ProductImage(p.imageBase64, size: 44),
                     const SizedBox(height: 4),
-                    Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    Text(p.available ? p.name : '${p.name} 86', maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                     MoneyText(p.price, style: const TextStyle(fontSize: 12)),
                   ],
                 ),
@@ -148,6 +149,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                     MoneyText(order.total, style: const TextStyle(fontSize: 22)),
                   ],
                 ),
+                if (order.createdBy.isNotEmpty)
+                  Text('${s.t('station')}: ${order.createdBy}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
                 if (order.type == OrderType.takeaway || order.type == OrderType.delivery)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -226,6 +229,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                     ),
                   if (!kitchenOnly && canPay)
                     OutlinedButton(onPressed: () => _split(order), child: Text(s.t('split_bill'))),
+                  if (!kitchenOnly && canPay)
+                    OutlinedButton(onPressed: () => applyDiscount(context, ref, order), child: Text(s.t('discount'))),
+                  if (!kitchenOnly && canPay)
+                    OutlinedButton(onPressed: () => compTicket(context, ref, order), child: Text(s.t('comp_meal'))),
+                  if (!kitchenOnly)
+                    OutlinedButton(onPressed: () => moveTicket(context, ref, order), child: Text(s.t('move_table'))),
+                  if (!kitchenOnly)
+                    OutlinedButton(onPressed: () => mergeTicket(context, ref, order), child: Text(s.t('merge_table'))),
+                  if (!kitchenOnly)
+                    OutlinedButton(onPressed: () => fireCourse(context, ref, order), child: Text(s.t('fire_course'))),
                   if (order.status == OrderStatus.open && !kitchenOnly && !order.held)
                     FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen'))),
                   if (order.status == OrderStatus.open && kitchenOnly)

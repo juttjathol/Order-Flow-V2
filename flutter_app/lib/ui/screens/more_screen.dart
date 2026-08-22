@@ -9,6 +9,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/pos_ops.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -37,6 +38,9 @@ class MoreScreen extends ConsumerWidget {
         _tile(context, Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
         _tile(context, Icons.badge, s.t('staff'), () => _staff(context, ref)),
         _tile(context, Icons.spa, s.t('services'), () => _services(context, ref)),
+        _tile(context, Icons.bar_chart, s.t('x_report'), () => showSalesReports(context, ref, zReport: false)),
+        if (snap.isMain) _tile(context, Icons.assignment_turned_in, s.t('z_report'), () => showSalesReports(context, ref, zReport: true)),
+        _tile(context, Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
         _tile(context, Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
         if (snap.isMain) _tile(context, Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
         _tile(context, Icons.backup, s.t('export_backup'), () async {

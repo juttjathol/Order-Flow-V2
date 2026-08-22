@@ -25,7 +25,7 @@ enum OrderType { dineIn, takeaway, delivery, retail, service }
 
 enum OrderStatus { open, preparing, ready, served, paid, cancelled }
 
-enum PaymentMethod { cash, card, wallet, other }
+enum PaymentMethod { cash, card, wallet, other, complimentary }
 
 enum DriverStatus { free, busy, offline }
 
@@ -263,6 +263,7 @@ class MenuProduct {
         inventoryId: parseStr(j['inventoryId']),
         deductQty: parseNum(j['deductQty'], 1),
         course: parseStr(j['course']) ?? 'main',
+        fired: parseBool(j['fired']),
       );
 }
 
@@ -327,6 +328,7 @@ class OrderLine {
     this.inventoryId,
     this.deductQty = 0,
     this.course = 'main',
+    this.fired = false,
   });
 
   String id;
@@ -338,6 +340,7 @@ class OrderLine {
   String? inventoryId;
   double deductQty;
   String course;
+  bool fired;
 
   double get lineTotal => unitPrice * qty;
 
@@ -351,6 +354,7 @@ class OrderLine {
         'inventoryId': inventoryId,
         'deductQty': deductQty,
         'course': course,
+        'fired': fired,
       };
 
   factory OrderLine.fromJson(Map<String, dynamic> j) => OrderLine(
@@ -363,6 +367,7 @@ class OrderLine {
         inventoryId: parseStr(j['inventoryId']),
         deductQty: parseNum(j['deductQty']),
         course: parseStr(j['course']) ?? 'main',
+        fired: parseBool(j['fired']),
       );
 }
 
@@ -693,6 +698,8 @@ class AppStore {
     this.ticketSeq = 1000,
     this.seeded = false,
     this.lastDayClose,
+    this.shiftCashier = '',
+    DateTime? shiftStartedAt,
   })  : profile = profile ?? BillProfile(),
         tables = tables ?? <FloorTable>[],
         categories = categories ?? <MenuCategory>[],
@@ -704,7 +711,8 @@ class AppStore {
         services = services ?? <ServiceOffering>[],
         appointments = appointments ?? <Appointment>[],
         kitchenPrinter = kitchenPrinter ?? PrinterConfig(),
-        receiptPrinter = receiptPrinter ?? PrinterConfig();
+        receiptPrinter = receiptPrinter ?? PrinterConfig(),
+        shiftStartedAt = shiftStartedAt;
 
   int schemaVersion;
   int revision;
@@ -724,6 +732,8 @@ class AppStore {
   int ticketSeq;
   bool seeded;
   DateTime? lastDayClose;
+  String shiftCashier;
+  DateTime? shiftStartedAt;
 
   String get currency => profile.currencySymbol;
 
@@ -746,6 +756,8 @@ class AppStore {
         'ticketSeq': ticketSeq,
         'seeded': seeded,
         'lastDayClose': lastDayClose?.toIso8601String(),
+        'shiftCashier': shiftCashier,
+        'shiftStartedAt': shiftStartedAt?.toIso8601String(),
       };
 
   factory AppStore.fromJson(Map<String, dynamic>? j) {
@@ -784,6 +796,8 @@ class AppStore {
       ticketSeq: parseInt(m['ticketSeq'], 1000),
       seeded: parseBool(m['seeded']),
       lastDayClose: m['lastDayClose'] == null ? null : parseTime(m['lastDayClose']),
+      shiftCashier: parseStr(m['shiftCashier']) ?? '',
+      shiftStartedAt: m['shiftStartedAt'] == null ? null : parseTime(m['shiftStartedAt']),
     );
   }
 
