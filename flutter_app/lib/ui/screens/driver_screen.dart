@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 
 class DriverScreen extends ConsumerWidget {
   const DriverScreen({super.key});
@@ -31,7 +32,7 @@ class DriverScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(s.t('role_driver')),
         actions: [
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       body: ListView(

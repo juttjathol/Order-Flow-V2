@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 
 class SpecialistScreen extends ConsumerWidget {
   const SpecialistScreen({super.key});

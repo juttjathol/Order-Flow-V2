@@ -15,6 +15,7 @@ class StorageService {
   final Directory _docs;
 
   static const _sessionKey = 'of_session_v1';
+  static const _queueKey = 'of_cmd_queue_v1';
   static const _stateName = 'app_state.json';
 
   static Future<StorageService> open() async {

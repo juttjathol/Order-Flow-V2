@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 import '../widgets/offsite_order.dart';
 import 'floor_screen.dart';
 
@@ -23,7 +24,7 @@ class TakerScreen extends ConsumerWidget {
           actions: [
             StatusChip(snap.connected ? s.t('connected') : s.t('disconnected'),
                 color: snap.connected ? const Color(0xFF3DDC97) : const Color(0xFFE85D4C)),
-            IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+            IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
           ],
           bottom: TabBar(tabs: [
             Tab(text: s.t('tables')),

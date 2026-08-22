@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 import 'stock_screen.dart';
 
 class StockClerkScreen extends ConsumerWidget {
@@ -17,7 +18,7 @@ class StockClerkScreen extends ConsumerWidget {
         actions: [
           StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
               color: ref.snap.connected ? OfColors.mint : OfColors.danger),
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       body: const StockScreen(),

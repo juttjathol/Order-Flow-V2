@@ -7,6 +7,6 @@ const String kWhatsAppUrl = 'https://wa.me/Jathol_Jutt';
 const String kDefaultApiBase = 'https://order-flow-v2.pages.dev';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.0.7';
+const String kAppVersion = '1.0.8';
 const String kJoinScheme = 'orderflow';
 const String kDefaultCurrency = 'Rs';

@@ -108,6 +108,8 @@ class AppController extends Notifier<AppSnapshot> {
   Timer? _ipTimer;
   StreamSubscription? _netSub;
   Timer? _saveTimer;
+  Timer? _flushTimer;
+  final _queue = <NetCommand>[];
   bool _booted = false;
 
   @override
@@ -117,6 +119,7 @@ class AppController extends Notifier<AppSnapshot> {
       _revalidate?.cancel();
       _ipTimer?.cancel();
       _saveTimer?.cancel();
+      _flushTimer?.cancel();
       _netSub?.cancel();
       unawaited(_server?.stop());
       unawaited(_client?.close());
@@ -141,6 +144,9 @@ class AppController extends Notifier<AppSnapshot> {
   Future<void> bootstrap() async {
     if (_booted) return;
     _booted = true;
+    _queue
+      ..clear()
+      ..addAll(_storage.loadQueue());
     final started = DateTime.now();
     final session = _storage.loadSession();
     final store = await _storage.loadStore();
@@ -395,20 +401,58 @@ class AppController extends Notifier<AppSnapshot> {
     }
     final client = _client;
     if (client == null) {
-      // Driver offline path: apply locally for status, retry later.
       if (state.session.role == AppRole.driver) {
         _localApply(cmd);
         unawaited(_tryDriverSync());
         return;
       }
-      state = state.copyWith(error: 'disconnected');
+      _queue.add(cmd);
+      unawaited(_storage.saveQueue(_queue));
+      state = state.copyWith(error: 'queued_offline');
       return;
     }
     try {
       await client.send(cmd);
+      unawaited(flushQueue());
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      _queue.add(cmd);
+      unawaited(_storage.saveQueue(_queue));
+      state = state.copyWith(error: 'queued_offline');
     }
+  }
+
+  Future<void> flushQueue() async {
+    if (_queue.isEmpty || _client == null) return;
+    final pending = List<NetCommand>.from(_queue);
+    _queue.clear();
+    for (final cmd in pending) {
+      try {
+        await _client!.send(cmd);
+      } catch (_) {
+        _queue.add(cmd);
+      }
+    }
+    await _storage.saveQueue(_queue);
+  }
+
+  void rememberReceipt(String orderId) {
+    state.session.lastReceiptOrderId = orderId;
+    _schedulePersist();
+  }
+
+  Future<void> reprintLast() async {
+    final id = state.session.lastReceiptOrderId;
+    PosOrder? order = state.store.orderById(id);
+    if (order == null) {
+      for (final o in state.store.orders) {
+        if (o.status == OrderStatus.paid) {
+          order = o;
+          break;
+        }
+      }
+    }
+    if (order == null) throw Exception('no_receipt');
+    await printer.receipt(state.store, order);
   }
 
   Future<String?> connectToMain(String host, {bool persist = true, AppRole? role}) async {
@@ -428,7 +472,10 @@ class AppController extends Notifier<AppSnapshot> {
           notices: [notice, ...state.notices].take(20).toList(),
         );
       },
-      onStatus: (up) => state = state.copyWith(connected: up),
+      onStatus: (up) {
+        state = state.copyWith(connected: up);
+        if (up) unawaited(flushQueue());
+      },
     );
     try {
       final chosen = role ?? state.session.role;
@@ -449,6 +496,7 @@ class AppController extends Notifier<AppSnapshot> {
         busy: false,
         connected: true,
       ));
+      unawaited(flushQueue());
       return null;
     } catch (e) {
       state = state.copyWith(busy: false, error: 'cannot_connect', connected: false);

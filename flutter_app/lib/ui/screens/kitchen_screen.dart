@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 
 class KitchenScreen extends ConsumerWidget {
   const KitchenScreen({super.key});
@@ -25,7 +26,7 @@ class KitchenScreen extends ConsumerWidget {
         actions: [
           StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
               color: ref.snap.connected ? OfColors.mint : OfColors.danger),
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       body: orders.isEmpty

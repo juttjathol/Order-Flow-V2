@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -325,7 +326,13 @@ class _RoleScreenState extends ConsumerState<RoleScreen> {
           FilledButton(
             onPressed: selected == null
                 ? null
-                : () => ref.ctrl.chooseClientRole(selected!, name.text),
+                : () async {
+                    if (selected == AppRole.cashier) {
+                      final ok = await confirmManagerPin(context, ref, requiredForCashier: true);
+                      if (!ok) return;
+                    }
+                    await ref.ctrl.chooseClientRole(selected!, name.text);
+                  },
             child: Text(s.t('continue')),
           ),
         ],

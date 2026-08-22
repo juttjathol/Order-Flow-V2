@@ -89,6 +89,7 @@ class BillProfile {
     this.currencyPrefix = true,
     this.taxRate = 0,
     this.logoBase64,
+    this.managerPin = '',
   });
 
   String businessName;
@@ -100,6 +101,7 @@ class BillProfile {
   bool currencyPrefix;
   double taxRate;
   String? logoBase64;
+  String managerPin;
 
   BillProfile copy() => BillProfile(
         businessName: businessName,
@@ -111,6 +113,7 @@ class BillProfile {
         currencyPrefix: currencyPrefix,
         taxRate: taxRate,
         logoBase64: logoBase64,
+        managerPin: managerPin,
       );
 
   Map<String, dynamic> toJson() => {
@@ -123,6 +126,7 @@ class BillProfile {
         'currencyPrefix': currencyPrefix,
         'taxRate': taxRate,
         'logoBase64': logoBase64,
+        'managerPin': managerPin,
       };
 
   factory BillProfile.fromJson(Map<String, dynamic>? j) {
@@ -137,6 +141,7 @@ class BillProfile {
       currencyPrefix: parseBool(m['currencyPrefix'], true),
       taxRate: parseNum(m['taxRate']),
       logoBase64: parseStr(m['logoBase64']),
+      managerPin: parseStr(m['managerPin']) ?? '',
     );
   }
 }
@@ -374,6 +379,7 @@ class PosOrder {
     DateTime? updatedAt,
     this.createdBy = '',
     this.stockDeducted = false,
+    this.held = false,
   })  : lines = lines ?? <OrderLine>[],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -397,6 +403,7 @@ class PosOrder {
   DateTime updatedAt;
   String createdBy;
   bool stockDeducted;
+  bool held;
 
   double get subtotal =>
       lines.fold<double>(0, (s, l) => s + l.lineTotal) - discount;
@@ -423,6 +430,7 @@ class PosOrder {
         'updatedAt': updatedAt.toIso8601String(),
         'createdBy': createdBy,
         'stockDeducted': stockDeducted,
+        'held': held,
       };
 
   factory PosOrder.fromJson(Map<String, dynamic> j) => PosOrder(
@@ -450,6 +458,7 @@ class PosOrder {
         updatedAt: parseTime(j['updatedAt']),
         createdBy: parseStr(j['createdBy']) ?? '',
         stockDeducted: parseBool(j['stockDeducted']),
+        held: parseBool(j['held']),
       );
 }
 
@@ -940,6 +949,7 @@ class SessionPrefs {
     this.mainHost = '',
     this.pairedDriverId,
     this.modelPicked = false,
+    this.lastReceiptOrderId,
     LicenseRecord? license,
   }) : license = license ?? LicenseRecord();
 
@@ -952,6 +962,7 @@ class SessionPrefs {
   String mainHost;
   String? pairedDriverId;
   bool modelPicked;
+  String? lastReceiptOrderId;
   LicenseRecord license;
 
   Map<String, dynamic> toJson() => {
@@ -964,6 +975,7 @@ class SessionPrefs {
         'mainHost': mainHost,
         'pairedDriverId': pairedDriverId,
         'modelPicked': modelPicked,
+        'lastReceiptOrderId': lastReceiptOrderId,
         'license': license.toJson(),
       };
 

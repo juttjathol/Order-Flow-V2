@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -72,7 +73,7 @@ class MoreScreen extends ConsumerWidget {
           }
         }),
         _tile(context, Icons.vpn_key, s.t('license'), () => _license(context, ref)),
-        _tile(context, Icons.manage_accounts, s.t('roles'), () => ref.ctrl.leaveRole()),
+        _tile(context, Icons.manage_accounts, s.t('roles'), () => leaveRoleWithPin(context, ref)),
         _tile(context, Icons.language, s.t('language'), () {
           ref.ctrl.setLocale(snap.session.locale == 'en' ? 'ur' : 'en');
         }),
@@ -164,6 +165,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
   final footer = TextEditingController(text: p.footer);
   final cur = TextEditingController(text: p.currencySymbol);
   final tax = TextEditingController(text: p.taxRate.toString());
+  final pin = TextEditingController(text: p.managerPin);
   var prefix = p.currencyPrefix;
   await showModalBottomSheet<void>(
     context: context,
@@ -190,6 +192,13 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
               TextField(controller: cur, decoration: InputDecoration(labelText: s.t('currency_symbol'))),
               const SizedBox(height: 8),
               TextField(controller: tax, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('tax_rate'))),
+              const SizedBox(height: 8),
+              TextField(
+                controller: pin,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: s.t('set_pin'), helperText: s.t('pin_required')),
+              ),
               SwitchListTile(value: prefix, onChanged: (v) => setSt(() => prefix = v), title: Text(s.t('prefix_currency'))),
               FilledButton(
                 onPressed: () async {
@@ -203,6 +212,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     currencyPrefix: prefix,
                     taxRate: double.tryParse(tax.text) ?? 0,
                     logoBase64: p.logoBase64,
+                    managerPin: pin.text.trim(),
                   );
                   await ref.ctrl.dispatch(NetCommand(name: 'setProfile', payload: {'profile': next.toJson()}));
                   if (ctx.mounted) Navigator.pop(ctx);

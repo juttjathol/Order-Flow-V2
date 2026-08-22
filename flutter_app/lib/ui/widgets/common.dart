@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -230,46 +231,79 @@ class BusyBarrier extends StatelessWidget {
   }
 }
 
-class ReadyBannerHost extends ConsumerWidget {
+class ReadyBannerHost extends ConsumerStatefulWidget {
   const ReadyBannerHost({super.key, required this.child});
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReadyBannerHost> createState() => _ReadyBannerHostState();
+}
+
+class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
+  String? _lastId;
+
+  @override
+  Widget build(BuildContext context) {
     final notices = ref.snap.notices;
+    final first = notices.isEmpty ? null : notices.first;
+    if (first != null && first.id != _lastId) {
+      _lastId = first.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SystemSound.play(SystemSoundType.alert);
+        HapticFeedback.heavyImpact();
+      });
+    }
     return Stack(
       children: [
-        child,
-        if (notices.isNotEmpty)
+        widget.child,
+        if (first != null)
           SafeArea(
             child: Align(
               alignment: Alignment.topCenter,
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                 child: Material(
-                  elevation: 8,
-                  borderRadius: BorderRadius.circular(16),
+                  elevation: 16,
+                  borderRadius: BorderRadius.circular(20),
                   color: OfColors.forest,
-                  child: ListTile(
-                    leading: const Icon(Icons.notifications_active, color: OfColors.mint),
-                    title: Text(
-                      notices.first.title,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 18, 8, 18),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: OfColors.mint, width: 2),
                     ),
-                    subtitle: Text(
-                      notices.first.body,
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () =>
-                          ref.ctrl.dismissNotice(notices.first.id),
-                    ),
+                    child: InkWell(
                     onTap: () {
-                      final id = notices.first.orderId;
-                      ref.ctrl.dismissNotice(notices.first.id);
+                      final id = first.orderId;
+                      ref.ctrl.dismissNotice(first.id);
                       if (id != null) context.push('/order/$id');
                     },
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notifications_active, color: OfColors.mint, size: 40),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                first.title,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(first.body, style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.3)),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => ref.ctrl.dismissNotice(first.id),
+                        ),
+                      ],
+                    ),
+                    ),
                   ),
                 ),
               ),

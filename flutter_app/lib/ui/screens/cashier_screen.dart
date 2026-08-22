@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 import '../widgets/offsite_order.dart';
 
 class CashierScreen extends ConsumerWidget {
@@ -23,7 +24,23 @@ class CashierScreen extends ConsumerWidget {
         actions: [
           StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
               color: ref.snap.connected ? OfColors.mint : OfColors.danger),
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          IconButton(
+            tooltip: s.t('reprint_last'),
+            onPressed: () async {
+              try {
+                await ref.ctrl.reprintLast();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('no_receipt'))));
+                }
+              }
+            },
+            icon: const Icon(Icons.print),
+          ),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       floatingActionButton: ref.snap.store.model == BusinessModel.retail

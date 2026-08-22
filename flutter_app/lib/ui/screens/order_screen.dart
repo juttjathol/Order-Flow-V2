@@ -139,6 +139,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                     StatusChip(s.t(order.status.name), color: statusColor(order.status)),
                     const SizedBox(width: 8),
                     StatusChip(_typeLabel(s, order), color: order.type == OrderType.delivery ? OfColors.info : OfColors.mint),
+                    if (order.held) ...[
+                      const SizedBox(width: 8),
+                      StatusChip(s.t('held'), color: OfColors.warn),
+                    ],
                     const Spacer(),
                     MoneyText(order.total, style: const TextStyle(fontSize: 22)),
                   ],
@@ -214,7 +218,14 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  if (order.status == OrderStatus.open && !kitchenOnly)
+                  if (!kitchenOnly)
+                    OutlinedButton(
+                      onPressed: () => _toggleHold(order),
+                      child: Text(order.held ? s.t('unhold') : s.t('hold')),
+                    ),
+                  if (!kitchenOnly && canPay)
+                    OutlinedButton(onPressed: () => _split(order), child: Text(s.t('split_bill'))),
+                  if (order.status == OrderStatus.open && !kitchenOnly && !order.held)
                     FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen'))),
                   if (order.status == OrderStatus.open && kitchenOnly)
                     FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('mark_preparing'))),
@@ -307,6 +318,71 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       'orderId': order.id,
       'line': line.toJson(),
     }));
+  }
+
+  Future<void> _toggleHold(PosOrder order) async {
+    order.held = !order.held;
+    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': order.toJson()}));
+  }
+
+  Future<void> _split(PosOrder order) async {
+    final s = ref.s;
+    final picked = <String>{};
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(s.t('split_bill'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+              ...order.lines.map((l) => CheckboxListTile(
+                    value: picked.contains(l.id),
+                    title: Text('${l.qty.toStringAsFixed(l.qty % 1 == 0 ? 0 : 1)}  ${l.name}'),
+                    onChanged: (v) => setSt(() {
+                      if (v == true) {
+                        picked.add(l.id);
+                      } else {
+                        picked.remove(l.id);
+                      }
+                    }),
+                  )),
+              FilledButton(onPressed: picked.isEmpty ? null : () => Navigator.pop(ctx, true), child: Text(s.t('split_pay'))),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (ok != true || picked.isEmpty) return;
+    final move = order.lines.where((l) => picked.contains(l.id)).toList();
+    final child = PosOrder(
+      id: newId(),
+      ticketNo: '',
+      type: order.type,
+      tableId: order.tableId,
+      tableName: order.tableName,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      address: order.address,
+      taxRate: order.taxRate,
+      lines: move.map((l) => OrderLine(
+            id: newId(),
+            productId: l.productId,
+            name: l.name,
+            unitPrice: l.unitPrice,
+            qty: l.qty,
+            notes: l.notes,
+            inventoryId: l.inventoryId,
+            deductQty: l.deductQty,
+          )).toList(),
+      createdBy: ref.snap.session.displayName,
+    );
+    await ref.ctrl.dispatch(NetCommand(name: 'createOrder', payload: {'order': child.toJson()}));
+    for (final l in move) {
+      await ref.ctrl.dispatch(NetCommand(name: 'removeLine', payload: {'orderId': order.id, 'lineId': l.id}));
+    }
+    if (mounted) _pay(child);
   }
 
   Future<void> _status(PosOrder order, OrderStatus status) async {
