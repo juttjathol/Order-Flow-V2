@@ -35,7 +35,7 @@ class KitchenScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: gridCount(context, phone: 1, tablet: 3),
-                mainAxisExtent: 240,
+                mainAxisExtent: 280,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
               ),
@@ -60,11 +60,15 @@ class KitchenScreen extends ConsumerWidget {
                         Text(o.address, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
                       if (o.type == OrderType.takeaway && o.customerName.isNotEmpty)
                         Text('${s.t('takeaway')} · ${o.customerName}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                      Text(
+                        '${s.t('kot_age')}: ${_age(o)}',
+                        style: const TextStyle(color: OfColors.gold, fontWeight: FontWeight.w700),
+                      ),
                       const SizedBox(height: 8),
                       Expanded(
                         child: ListView(
-                          children: o.lines
-                              .map((l) => Text('${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}'))
+                          children: ([...o.lines]..sort((a, b) => a.course.compareTo(b.course)))
+                              .map((l) => Text('${s.t('course_${l.course}')}  ${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}'))
                               .toList(),
                         ),
                       ),
@@ -92,6 +96,12 @@ class KitchenScreen extends ConsumerWidget {
               },
             ),
     );
+  }
+
+  String _age(PosOrder o) {
+    final start = o.sentAt ?? o.createdAt;
+    final m = DateTime.now().difference(start).inMinutes;
+    return '${m}m';
   }
 
   Future<void> _set(WidgetRef ref, PosOrder o, OrderStatus status) {

@@ -183,7 +183,15 @@
 
   <footer>Jathol</footer>
   <script>
-    let store = null, catId = null;
+    let store = null, catId = null, unlocked = false;
+    function needPin() {
+      const pin = store?.profile?.managerPin || '';
+      if (!pin || unlocked) return true;
+      const typed = prompt('Manager PIN') || '';
+      if (typed !== pin) { alert('Wrong PIN'); return false; }
+      unlocked = true;
+      return true;
+    }
     const $ = (id) => document.getElementById(id);
     const money = (n) => {
       const p = store?.profile || {};
@@ -206,7 +214,10 @@
       $('page-'+page).classList.remove('hidden');
       document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.page===page));
     }
-    document.querySelectorAll('nav button').forEach(b => b.onclick = () => show(b.dataset.page));
+    document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+      if (b.dataset.page === 'settings' && !needPin()) return;
+      show(b.dataset.page);
+    });
 
     function weekSales() {
       const days = [];
@@ -309,6 +320,7 @@
       renderPos(); renderTables(); renderItems(); renderPeople(); renderSales(); fillSettings(); renderOrders();
     }
     async function saveProfile() {
+      if (!needPin()) return;
       const profile = {
         ...(store.profile||{}),
         businessName: $('sName').value,
@@ -338,11 +350,24 @@
       }});
       show('items');
     }
-    async function newOrder() {
-      const t = (store.tables||[]).find(x=>x.status==='free') || (store.tables||[])[0];
+    async function newOrder(kind) {
+      kind = kind || 'takeaway';
+      let customerName = '', customerPhone = '', address = '', tableId, tableName;
+      if (kind === 'dineIn') {
+        const t = (store.tables||[]).find(x=>x.status==='free') || (store.tables||[])[0];
+        tableId = t?.id; tableName = t?.name;
+        if (!t) kind = 'takeaway';
+      } else {
+        customerName = prompt(kind === 'delivery' ? 'Customer name' : 'Pickup name') || 'Guest';
+        customerPhone = prompt('Phone') || '';
+        if (kind === 'delivery') {
+          address = prompt('Delivery address') || '';
+          if (!address) { alert('Address required'); return; }
+        }
+      }
       await cmd('createOrder', { order: {
-        id: crypto.randomUUID(), ticketNo:'', type: t?'dineIn':'takeaway', status:'open',
-        tableId: t?.id, tableName: t?.name, lines: [], createdBy: 'web'
+        id: crypto.randomUUID(), ticketNo:'', type: kind, status:'open',
+        tableId, tableName, customerName, customerPhone, address, lines: [], createdBy: 'web'
       }});
       show('orders');
     }

@@ -37,6 +37,39 @@ class HomeScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
+          if (snap.isMain) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () async {
+                      try {
+                        await ref.ctrl.reprintLast();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('no_receipt'))));
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.print),
+                    label: Text(s.t('reprint_last')),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _dayClose(context, ref),
+                    icon: const Icon(Icons.lock_clock),
+                    label: Text(s.t('day_close')),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           GridView.count(
             crossAxisCount: wide ? 4 : 2,
@@ -111,6 +144,42 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+Future<void> _dayClose(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final store = ref.snap.store;
+  final today = store.salesOn(DateTime.now());
+  final paid = store.orders.where((o) => o.status == OrderStatus.paid).where((o) {
+    final d = DateTime.now();
+    return o.updatedAt.year == d.year && o.updatedAt.month == d.month && o.updatedAt.day == d.day;
+  });
+  final cash = paid.where((o) => o.payment == PaymentMethod.cash).fold<double>(0, (a, o) => a + o.total);
+  final card = paid.where((o) => o.payment == PaymentMethod.card).fold<double>(0, (a, o) => a + o.total);
+  final open = store.openOrders.length;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('day_close')),
+      content: Text(
+        '${s.t('day_close_open')}\n\n'
+        '${s.t('today_sales')}: ${moneyOf(ref.snap, today)}\n'
+        '${s.t('cash')}: ${moneyOf(ref.snap, cash)}\n'
+        '${s.t('card')}: ${moneyOf(ref.snap, card)}\n'
+        '${s.t('open_orders')}: $open',
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('day_close'))),
+      ],
+    ),
+  );
+  if (ok == true) {
+    await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {}));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
+    }
   }
 }
 

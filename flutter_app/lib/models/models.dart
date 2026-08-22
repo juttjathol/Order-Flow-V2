@@ -219,6 +219,7 @@ class MenuProduct {
     this.sku = '',
     this.inventoryId,
     this.deductQty = 1,
+    this.course = 'main',
   });
 
   String id;
@@ -232,6 +233,7 @@ class MenuProduct {
   String sku;
   String? inventoryId;
   double deductQty;
+  String course;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -245,6 +247,7 @@ class MenuProduct {
         'sku': sku,
         'inventoryId': inventoryId,
         'deductQty': deductQty,
+        'course': course,
       };
 
   factory MenuProduct.fromJson(Map<String, dynamic> j) => MenuProduct(
@@ -259,6 +262,7 @@ class MenuProduct {
         sku: parseStr(j['sku']) ?? '',
         inventoryId: parseStr(j['inventoryId']),
         deductQty: parseNum(j['deductQty'], 1),
+        course: parseStr(j['course']) ?? 'main',
       );
 }
 
@@ -322,6 +326,7 @@ class OrderLine {
     this.notes = '',
     this.inventoryId,
     this.deductQty = 0,
+    this.course = 'main',
   });
 
   String id;
@@ -332,6 +337,7 @@ class OrderLine {
   String notes;
   String? inventoryId;
   double deductQty;
+  String course;
 
   double get lineTotal => unitPrice * qty;
 
@@ -344,6 +350,7 @@ class OrderLine {
         'notes': notes,
         'inventoryId': inventoryId,
         'deductQty': deductQty,
+        'course': course,
       };
 
   factory OrderLine.fromJson(Map<String, dynamic> j) => OrderLine(
@@ -355,6 +362,7 @@ class OrderLine {
         notes: parseStr(j['notes']) ?? '',
         inventoryId: parseStr(j['inventoryId']),
         deductQty: parseNum(j['deductQty']),
+        course: parseStr(j['course']) ?? 'main',
       );
 }
 
@@ -380,6 +388,8 @@ class PosOrder {
     this.createdBy = '',
     this.stockDeducted = false,
     this.held = false,
+    this.voidReason = '',
+    this.sentAt,
   })  : lines = lines ?? <OrderLine>[],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -404,6 +414,8 @@ class PosOrder {
   String createdBy;
   bool stockDeducted;
   bool held;
+  String voidReason;
+  DateTime? sentAt;
 
   double get subtotal =>
       lines.fold<double>(0, (s, l) => s + l.lineTotal) - discount;
@@ -431,6 +443,8 @@ class PosOrder {
         'createdBy': createdBy,
         'stockDeducted': stockDeducted,
         'held': held,
+        'voidReason': voidReason,
+        'sentAt': sentAt?.toIso8601String(),
       };
 
   factory PosOrder.fromJson(Map<String, dynamic> j) => PosOrder(
@@ -459,6 +473,8 @@ class PosOrder {
         createdBy: parseStr(j['createdBy']) ?? '',
         stockDeducted: parseBool(j['stockDeducted']),
         held: parseBool(j['held']),
+        voidReason: parseStr(j['voidReason']) ?? '',
+        sentAt: j['sentAt'] == null ? null : parseTime(j['sentAt']),
       );
 }
 
@@ -676,6 +692,7 @@ class AppStore {
     PrinterConfig? receiptPrinter,
     this.ticketSeq = 1000,
     this.seeded = false,
+    this.lastDayClose,
   })  : profile = profile ?? BillProfile(),
         tables = tables ?? <FloorTable>[],
         categories = categories ?? <MenuCategory>[],
@@ -706,6 +723,7 @@ class AppStore {
   PrinterConfig receiptPrinter;
   int ticketSeq;
   bool seeded;
+  DateTime? lastDayClose;
 
   String get currency => profile.currencySymbol;
 
@@ -727,6 +745,7 @@ class AppStore {
         'receiptPrinter': receiptPrinter.toJson(),
         'ticketSeq': ticketSeq,
         'seeded': seeded,
+        'lastDayClose': lastDayClose?.toIso8601String(),
       };
 
   factory AppStore.fromJson(Map<String, dynamic>? j) {
@@ -764,6 +783,7 @@ class AppStore {
       ),
       ticketSeq: parseInt(m['ticketSeq'], 1000),
       seeded: parseBool(m['seeded']),
+      lastDayClose: m['lastDayClose'] == null ? null : parseTime(m['lastDayClose']),
     );
   }
 
@@ -991,6 +1011,7 @@ class SessionPrefs {
       mainHost: parseStr(m['mainHost']) ?? '',
       pairedDriverId: parseStr(m['pairedDriverId']),
       modelPicked: parseBool(m['modelPicked']),
+      lastReceiptOrderId: parseStr(m['lastReceiptOrderId']),
       license: LicenseRecord.fromJson(
         m['license'] is Map ? Map<String, dynamic>.from(m['license'] as Map) : null,
       ),

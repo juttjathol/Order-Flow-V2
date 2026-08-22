@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/offsite_order.dart';
+import '../widgets/pin_gate.dart';
 
 class OrderScreen extends ConsumerStatefulWidget {
   const OrderScreen({super.key, required this.orderId});
@@ -178,7 +179,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       final line = order.lines[i];
                       return ListTile(
                         title: Text(line.name),
-                        subtitle: Text(moneyOf(ref.snap, line.unitPrice)),
+                        subtitle: Text('${s.t('course_${line.course}')} · ${moneyOf(ref.snap, line.unitPrice)}'),
                         leading: locked
                             ? null
                             : IconButton(
@@ -243,12 +244,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                     FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay_and_close'))),
                   if (!kitchenOnly)
                     OutlinedButton(
-                      onPressed: () => confirm(
-                        context,
-                        title: s.t('cancel_order'),
-                        body: s.t('confirm_cancel'),
-                        onYes: () => _status(order, OrderStatus.cancelled),
-                      ),
+                      onPressed: () => _voidOrder(order),
                       child: Text(s.t('cancel_order')),
                     ),
                 ],
@@ -281,7 +277,39 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     );
   }
 
+  String _guessCourse(MenuProduct p) {
+    if (p.course.isNotEmpty && p.course != 'main') return p.course;
+    final cat = ref.snap.store.categories.where((c) => c.id == p.categoryId).firstOrNull?.name.toLowerCase() ?? '';
+    if (cat.contains('start') || cat.contains('soup')) return 'starter';
+    if (cat.contains('drink') || cat.contains('bever') || cat.contains('cola')) return 'drink';
+    if (cat.contains('dessert') || cat.contains('sweet')) return 'dessert';
+    if (cat.contains('side') || cat.contains('bread')) return 'side';
+    return 'main';
+  }
+
+  Future<bool> _stockOk(MenuProduct p) async {
+    final invId = p.inventoryId;
+    if (invId == null) return true;
+    final item = ref.snap.store.stockById(invId);
+    if (item == null || item.quantity > 0) return true;
+    final s = ref.s;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.t('stock_out_block')),
+        content: Text(p.name),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('stock_override'))),
+        ],
+      ),
+    );
+    if (go != true) return false;
+    return confirmManagerPin(context, ref);
+  }
+
   Future<void> _add(PosOrder order, MenuProduct p) async {
+    if (!await _stockOk(p)) return;
     final existing = order.lines.where((l) => l.productId == p.id && l.notes.isEmpty).firstOrNull;
     if (existing != null) {
       existing.qty += 1;
@@ -298,6 +326,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       unitPrice: p.price,
       inventoryId: p.inventoryId,
       deductQty: p.deductQty,
+      course: _guessCourse(p),
     );
     await ref.ctrl.dispatch(NetCommand(name: 'addLine', payload: {
       'orderId': order.id,
@@ -307,6 +336,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Future<void> _qty(PosOrder order, OrderLine line, double qty) async {
     if (qty <= 0) {
+      final reason = await _askVoid();
+      if (reason == null) return;
+      order.notes = [order.notes, 'VOID ${line.name}: $reason'].where((e) => e.isNotEmpty).join(' | ');
+      await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': order.toJson()}));
       await ref.ctrl.dispatch(NetCommand(name: 'removeLine', payload: {
         'orderId': order.id,
         'lineId': line.id,

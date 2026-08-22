@@ -139,6 +139,10 @@ class StoreReducer {
         }
         bump();
         break;
+      case 'closeDay':
+        store.lastDayClose = DateTime.now();
+        bump();
+        break;
       case 'setOrderStatus':
         final order = store.orderById(parseStr(p['id']));
         if (order != null) {
@@ -147,6 +151,12 @@ class StoreReducer {
           final prev = order.status;
           order.status = next;
           order.updatedAt = DateTime.now();
+          if (next == OrderStatus.preparing && order.sentAt == null) {
+            order.sentAt = DateTime.now();
+          }
+          if (p['voidReason'] != null) {
+            order.voidReason = parseStr(p['voidReason']) ?? '';
+          }
           if (p['payment'] != null) {
             order.payment =
                 enumParse(PaymentMethod.values, p['payment'], PaymentMethod.cash);

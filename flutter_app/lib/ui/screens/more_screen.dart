@@ -38,6 +38,7 @@ class MoreScreen extends ConsumerWidget {
         _tile(context, Icons.badge, s.t('staff'), () => _staff(context, ref)),
         _tile(context, Icons.spa, s.t('services'), () => _services(context, ref)),
         _tile(context, Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
+        if (snap.isMain) _tile(context, Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
         _tile(context, Icons.backup, s.t('export_backup'), () async {
           await ref.ctrl.backup.exportAndShare(snap.store);
           if (context.mounted) {
@@ -433,6 +434,34 @@ Future<void> _services(BuildContext context, WidgetRef ref) async {
       ),
     ),
   );
+}
+
+Future<void> _closeDay(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final store = ref.snap.store;
+  final today = store.salesOn(DateTime.now());
+  final open = store.openOrders.length;
+  final last = store.lastDayClose;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('day_close')),
+      content: Text(
+        '${s.t('day_close_open')}\n${s.t('today_sales')}: ${moneyOf(ref.snap, today)}\n${s.t('open_orders')}: $open'
+        '${last == null ? '' : '\n${s.t('last_close')}: $last'}',
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('day_close'))),
+      ],
+    ),
+  );
+  if (ok == true) {
+    await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {}));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
+    }
+  }
 }
 
 Future<void> _reports(BuildContext context, WidgetRef ref) async {

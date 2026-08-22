@@ -42,7 +42,13 @@ class PrintService {
     b
       ..text(_fmt(order.createdAt))
       ..rule();
-    for (final line in order.lines) {
+    final lines = [...order.lines]..sort((a, b) => a.course.compareTo(b.course));
+    String? last;
+    for (final line in lines) {
+      if (last != line.course) {
+        last = line.course;
+        b.text('-- ${line.course.toUpperCase()} --');
+      }
       b.text('${line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1)} x ${line.name}');
       if (line.notes.isNotEmpty) b.text('  * ${line.notes}');
     }

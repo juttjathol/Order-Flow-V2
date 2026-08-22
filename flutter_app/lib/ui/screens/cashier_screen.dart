@@ -9,15 +9,23 @@ import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
 import '../widgets/offsite_order.dart';
 
-class CashierScreen extends ConsumerWidget {
+class CashierScreen extends ConsumerStatefulWidget {
   const CashierScreen({super.key});
+  @override
+  ConsumerState<CashierScreen> createState() => _CashierScreenState();
+}
+
+class _CashierScreenState extends ConsumerState<CashierScreen> {
+  String filter = 'all';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final s = ref.s;
-    final orders = ref.snap.store.orders
-        .where((o) => o.status != OrderStatus.paid && o.status != OrderStatus.cancelled)
-        .toList();
+    final orders = ref.snap.store.orders.where((o) {
+      if (o.status == OrderStatus.paid || o.status == OrderStatus.cancelled) return false;
+      if (filter == 'held') return o.held;
+      return true;
+    }).toList();
     return Scaffold(
       appBar: AppBar(
         title: Text(s.t('payment_queue')),
@@ -63,6 +71,16 @@ class CashierScreen extends ConsumerWidget {
       body: Column(
         children: [
           const OffsiteOrderBar(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(label: Text(s.t('filter_all')), selected: filter == 'all', onSelected: (_) => setState(() => filter = 'all')),
+                ChoiceChip(label: Text(s.t('held_only')), selected: filter == 'held', onSelected: (_) => setState(() => filter = 'held')),
+              ],
+            ),
+          ),
           Expanded(
             child: orders.isEmpty
                 ? EmptyState(icon: Icons.payments, message: s.t('no_orders'))

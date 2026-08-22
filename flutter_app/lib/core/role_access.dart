@@ -5,6 +5,7 @@ class RoleAccess {
   static bool allow(String roleName, NetCommand cmd) {
     final role = enumParse(AppRole.values, roleName, AppRole.none);
     if (role == AppRole.main) return true;
+    if (cmd.name == 'closeDay') return false;
     // Empty / web dashboard on the shop LAN is the owner console.
     if (role == AppRole.none && (roleName.isEmpty || roleName == 'web')) {
       return true;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -241,6 +242,13 @@ class ReadyBannerHost extends ConsumerStatefulWidget {
 
 class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
   String? _lastId;
+  Timer? _hide;
+
+  @override
+  void dispose() {
+    _hide?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,6 +259,10 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         SystemSound.play(SystemSoundType.alert);
         HapticFeedback.heavyImpact();
+        _hide?.cancel();
+        _hide = Timer(const Duration(seconds: 8), () {
+          if (mounted) ref.ctrl.dismissNotice(first.id);
+        });
       });
     }
     return Stack(
