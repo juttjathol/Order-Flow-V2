@@ -81,14 +81,31 @@ class DriverScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text('${o.ticketNo}  ${o.customerName.isEmpty ? s.t('guest') : o.customerName}',
                         style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text(o.address.isEmpty ? o.customerPhone : o.address),
+                    subtitle: Text([
+                      if (o.customerPhone.isNotEmpty) o.customerPhone,
+                      if (o.address.isNotEmpty) o.address,
+                      s.t(o.status.name),
+                    ].join(' · ')),
                     trailing: MoneyText(o.total),
                     onTap: () async {
+                      final next = o.driverId == null
+                          ? o.status
+                          : o.status == OrderStatus.ready
+                              ? OrderStatus.served
+                              : o.status == OrderStatus.served
+                                  ? OrderStatus.paid
+                                  : o.status;
                       await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
                         'id': o.id,
-                        'status': o.status == OrderStatus.ready ? OrderStatus.served.name : OrderStatus.ready.name,
+                        'status': next.name,
                         'driverId': me?.id,
                       }));
+                      if (next == OrderStatus.served || o.driverId == null) {
+                        await ref.ctrl.setDriverStatus(DriverStatus.busy);
+                      }
+                      if (next == OrderStatus.paid) {
+                        await ref.ctrl.setDriverStatus(DriverStatus.free);
+                      }
                     },
                   ),
                 ),

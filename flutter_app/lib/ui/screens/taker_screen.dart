@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/offsite_order.dart';
 import 'floor_screen.dart';
 
 class TakerScreen extends ConsumerWidget {
@@ -50,13 +51,13 @@ class _QuickTickets extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         FilledButton.icon(
-          onPressed: () => _make(context, ref, OrderType.takeaway),
+          onPressed: () => startOffsiteOrder(context, ref, OrderType.takeaway),
           icon: const Icon(Icons.takeout_dining),
           label: Text(s.t('takeaway')),
         ),
         const SizedBox(height: 10),
         FilledButton.tonalIcon(
-          onPressed: () => _make(context, ref, OrderType.delivery),
+          onPressed: () => startOffsiteOrder(context, ref, OrderType.delivery),
           icon: const Icon(Icons.delivery_dining),
           label: Text(s.t('delivery')),
         ),
@@ -78,18 +79,5 @@ class _QuickTickets extends ConsumerWidget {
             ),
       ],
     );
-  }
-
-  Future<void> _make(BuildContext context, WidgetRef ref, OrderType type) async {
-    final store = ref.snap.store;
-    final order = PosOrder(
-      id: newId(),
-      ticketNo: '',
-      type: type,
-      taxRate: store.profile.taxRate,
-      createdBy: ref.snap.session.displayName,
-    );
-    await ref.ctrl.dispatch(NetCommand(name: 'createOrder', payload: {'order': order.toJson()}));
-    if (context.mounted) context.push('/order/${order.id}');
   }
 }

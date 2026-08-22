@@ -50,11 +50,15 @@ class KitchenScreen extends ConsumerWidget {
                         children: [
                           Text(o.ticketNo, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
                           const SizedBox(width: 8),
-                          Text(o.tableName ?? o.type.name),
+                          Text(o.tableName ?? (o.type == OrderType.dineIn ? s.t('dine_in') : s.t(o.type.name))),
                           const Spacer(),
                           StatusChip(s.t(o.status.name), color: statusColor(o.status)),
                         ],
                       ),
+                      if (o.type == OrderType.delivery && o.address.isNotEmpty)
+                        Text(o.address, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                      if (o.type == OrderType.takeaway && o.customerName.isNotEmpty)
+                        Text('${s.t('takeaway')} · ${o.customerName}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
                       const SizedBox(height: 8),
                       Expanded(
                         child: ListView(

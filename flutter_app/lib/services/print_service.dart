@@ -34,7 +34,12 @@ class PrintService {
       ..text('Ticket ${order.ticketNo}')
       ..text(order.tableName == null || order.tableName!.isEmpty
           ? order.type.name.toUpperCase()
-          : 'TABLE ${order.tableName}')
+          : 'TABLE ${order.tableName}');
+    if (order.customerName.isNotEmpty) b.text(order.customerName);
+    if (order.type == OrderType.delivery && order.address.isNotEmpty) {
+      b.text(order.address);
+    }
+    b
       ..text(_fmt(order.createdAt))
       ..rule();
     for (final line in order.lines) {
@@ -72,7 +77,10 @@ class PrintService {
       ..text('Receipt ${order.ticketNo}')
       ..text(_fmt(order.updatedAt));
     if (order.tableName?.isNotEmpty == true) b.text('Table ${order.tableName}');
+    b.text(order.type.name.toUpperCase());
     if (order.customerName.isNotEmpty) b.text('Customer: ${order.customerName}');
+    if (order.customerPhone.isNotEmpty) b.text(order.customerPhone);
+    if (order.address.isNotEmpty) b.text(order.address);
     b.rule();
     for (final line in order.lines) {
       b.row(

@@ -2,9 +2,11 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/offsite_order.dart';
 
 class OrderScreen extends ConsumerStatefulWidget {
   const OrderScreen({super.key, required this.orderId});
@@ -39,7 +41,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${order.ticketNo}  ${order.tableName ?? s.t(order.type.name == 'dineIn' ? 'dine_in' : order.type.name)}'),
+        title: Text('${order.ticketNo}  ${_typeLabel(s, order)}'),
         actions: [
           IconButton(
             tooltip: s.t('print_kitchen'),
@@ -119,11 +121,37 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                StatusChip(s.t(order.status.name), color: statusColor(order.status)),
-                const Spacer(),
-                MoneyText(order.total, style: const TextStyle(fontSize: 22)),
+                Row(
+                  children: [
+                    StatusChip(s.t(order.status.name), color: statusColor(order.status)),
+                    const SizedBox(width: 8),
+                    StatusChip(_typeLabel(s, order), color: order.type == OrderType.delivery ? OfColors.info : OfColors.mint),
+                    const Spacer(),
+                    MoneyText(order.total, style: const TextStyle(fontSize: 22)),
+                  ],
+                ),
+                if (order.type == OrderType.takeaway || order.type == OrderType.delivery)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    leading: Icon(order.type == OrderType.delivery ? Icons.delivery_dining : Icons.takeout_dining, color: OfColors.emerald),
+                    title: Text(order.customerName.isEmpty ? s.t('guest') : order.customerName, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text([
+                      if (order.customerPhone.isNotEmpty) order.customerPhone,
+                      if (order.type == OrderType.delivery && order.address.isNotEmpty) order.address,
+                      if (order.driverId != null)
+                        ref.snap.store.driverById(order.driverId)?.name ?? s.t('assign_driver'),
+                    ].join(' · ')),
+                    trailing: locked
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => editOffsiteDetails(context, ref, order),
+                          ),
+                  ),
               ],
             ),
           ),
@@ -180,7 +208,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                     FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen'))),
                   if (order.status == OrderStatus.preparing)
                     FilledButton(onPressed: () => _status(order, OrderStatus.ready), child: Text(s.t('mark_ready'))),
-                  if (order.status == OrderStatus.ready)
+                  if (order.status == OrderStatus.ready && order.type == OrderType.takeaway)
+                    FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_picked_up'))),
+                  if (order.status == OrderStatus.ready && order.type == OrderType.delivery)
+                    FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('out_for_delivery'))),
+                  if (order.status == OrderStatus.ready && order.type != OrderType.takeaway && order.type != OrderType.delivery)
                     FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_served'))),
                   FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay_and_close'))),
                   OutlinedButton(
@@ -198,6 +230,15 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ],
       ),
     );
+  }
+
+  String _typeLabel(dynamic s, PosOrder order) {
+    if (order.tableName?.isNotEmpty == true && order.type == OrderType.dineIn) return order.tableName!;
+    if (order.type == OrderType.dineIn) return s.t('dine_in');
+    if (order.type == OrderType.takeaway) return s.t('takeaway');
+    if (order.type == OrderType.delivery) return s.t('delivery');
+    if (order.type == OrderType.retail) return s.t('retail_sale');
+    return s.t('service_ticket');
   }
 
   Widget _kv(String k, String v, {bool bold = false}) {

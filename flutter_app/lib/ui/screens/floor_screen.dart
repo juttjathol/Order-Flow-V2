@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/offsite_order.dart';
 
 class FloorScreen extends ConsumerWidget {
   const FloorScreen({super.key});
@@ -37,14 +38,22 @@ class _TablesMap extends ConsumerWidget {
         label: Text(s.t('add_table')),
       ),
       body: store.tables.isEmpty
-          ? EmptyState(
-              icon: Icons.table_restaurant,
-              message: s.t('no_tables'),
-              action: () => _editTable(context, ref),
-              actionLabel: s.t('add_table'),
+          ? Column(
+              children: [
+                const OffsiteOrderBar(),
+                Expanded(
+                  child: EmptyState(
+                    icon: Icons.table_restaurant,
+                    message: s.t('no_tables'),
+                    action: () => _editTable(context, ref),
+                    actionLabel: s.t('add_table'),
+                  ),
+                ),
+              ],
             )
           : Column(
               children: [
+                const OffsiteOrderBar(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Text(s.t('tap_table')),
@@ -173,7 +182,12 @@ class _RetailRegister extends ConsumerWidget {
         icon: const Icon(Icons.add_shopping_cart),
         label: Text(s.t('new_order')),
       ),
-      body: _OpenOrderList(empty: s.t('no_orders')),
+      body: Column(
+        children: [
+          const OffsiteOrderBar(),
+          Expanded(child: _OpenOrderList(empty: s.t('no_orders'))),
+        ],
+      ),
     );
   }
 }
@@ -186,11 +200,16 @@ class _QueueBoard extends ConsumerWidget {
     final s = ref.s;
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _newTicket(context, ref, OrderType.takeaway),
+        onPressed: () => startOffsiteOrder(context, ref, OrderType.takeaway),
         icon: const Icon(Icons.confirmation_number),
         label: Text(s.t('new_order')),
       ),
-      body: _OpenOrderList(empty: s.t('no_orders')),
+      body: Column(
+        children: [
+          const OffsiteOrderBar(),
+          Expanded(child: _OpenOrderList(empty: s.t('no_orders'))),
+        ],
+      ),
     );
   }
 }
@@ -209,36 +228,43 @@ class _AppointmentsBoard extends ConsumerWidget {
         icon: const Icon(Icons.event),
         label: Text(s.t('add_appointment')),
       ),
-      body: list.isEmpty
-          ? EmptyState(icon: Icons.event_busy, message: s.t('no_appts'), action: () => _book(context, ref), actionLabel: s.t('book'))
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-              itemCount: list.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final a = list[i];
-                final svc = store.services.where((e) => e.id == a.serviceId).firstOrNull;
-                final staff = store.staff.where((e) => e.id == a.staffId).firstOrNull;
-                return OfCard(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('${a.customerName} · ${svc?.name ?? s.t('service_ticket')}',
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text('${a.start.hour.toString().padLeft(2, '0')}:${a.start.minute.toString().padLeft(2, '0')}  ${staff?.name ?? ''}'),
-                    trailing: StatusChip(a.status, color: OfColors.emerald),
-                    onTap: () async {
-                      final next = a.status == 'booked'
-                          ? 'inProgress'
-                          : a.status == 'inProgress'
-                              ? 'done'
-                              : 'booked';
-                      a.status = next;
-                      await ref.ctrl.dispatch(NetCommand(name: 'upsertAppointment', payload: {'appointment': a.toJson()}));
+      body: Column(
+        children: [
+          const OffsiteOrderBar(),
+          Expanded(
+            child: list.isEmpty
+                ? EmptyState(icon: Icons.event_busy, message: s.t('no_appts'), action: () => _book(context, ref), actionLabel: s.t('book'))
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final a = list[i];
+                      final svc = store.services.where((e) => e.id == a.serviceId).firstOrNull;
+                      final staff = store.staff.where((e) => e.id == a.staffId).firstOrNull;
+                      return OfCard(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text('${a.customerName} · ${svc?.name ?? s.t('service_ticket')}',
+                              style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: Text('${a.start.hour.toString().padLeft(2, '0')}:${a.start.minute.toString().padLeft(2, '0')}  ${staff?.name ?? ''}'),
+                          trailing: StatusChip(a.status, color: OfColors.emerald),
+                          onTap: () async {
+                            final next = a.status == 'booked'
+                                ? 'inProgress'
+                                : a.status == 'inProgress'
+                                    ? 'done'
+                                    : 'booked';
+                            a.status = next;
+                            await ref.ctrl.dispatch(NetCommand(name: 'upsertAppointment', payload: {'appointment': a.toJson()}));
+                          },
+                        ),
+                      );
                     },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -316,8 +342,22 @@ class _OpenOrderList extends ConsumerWidget {
           child: Row(
             children: [
               StatusChip(s.t(o.status.name), color: statusColor(o.status)),
+              const SizedBox(width: 8),
+              StatusChip(s.t(o.type.name == 'dineIn' ? 'dine_in' : o.type.name), color: o.type == OrderType.delivery ? OfColors.info : OfColors.mint),
               const SizedBox(width: 10),
-              Expanded(child: Text('${o.ticketNo}  ${o.customerName.isEmpty ? o.type.name : o.customerName}', style: const TextStyle(fontWeight: FontWeight.w800))),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${o.ticketNo}  ${o.customerName.isEmpty ? s.t(o.type.name == 'dineIn' ? 'dine_in' : o.type.name) : o.customerName}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    if (o.type == OrderType.delivery && o.address.isNotEmpty)
+                      Text(o.address, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                  ],
+                ),
+              ),
               MoneyText(o.total),
             ],
           ),

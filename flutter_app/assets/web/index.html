@@ -91,7 +91,9 @@
     <aside class="side">
       <div class="stat"><div class="muted">Realtime orders</div><b id="openCount">0</b></div>
       <button class="btn ghost" onclick="show('orders')">View status</button>
-      <button class="btn green" style="width:100%;margin-top:8px" onclick="newOrder()">Add order</button>
+      <button class="btn green" style="width:100%;margin-top:8px" onclick="newOrder('dineIn')">Add dine-in</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px" onclick="newOrder('takeaway')">Takeaway</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px" onclick="newOrder('delivery')">Delivery</button>
       <div class="stat" style="margin-top:24px"><div class="muted">Tables occupied</div><b id="occ">0%</b></div>
       <div class="stat"><div class="muted">Sales today</div><b id="today">0</b></div>
     </aside>
@@ -246,8 +248,9 @@
       $('topItems').innerHTML = top.map(([n,c])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a3832"><span>${n}</span><span class="muted">${c}</span></div>`).join('') || '<p class="muted">No paid orders yet</p>';
       const dine = orders.filter(o=>o.type==='dineIn').length;
       const take = orders.filter(o=>o.type==='takeaway').length;
-      const tot = Math.max(1, dine+take);
-      $('fromBars').innerHTML = `Tables ${dine}<div style="height:8px;background:#14532d;width:${100*dine/tot}%;border-radius:8px;margin:6px 0"></div>Takeaway ${take}<div style="height:8px;background:#166534;width:${100*take/tot}%;border-radius:8px;margin:6px 0"></div>`;
+      const del = orders.filter(o=>o.type==='delivery').length;
+      const tot = Math.max(1, dine+take+del);
+      $('fromBars').innerHTML = `Tables ${dine}<div style="height:8px;background:#14532d;width:${100*dine/tot}%;border-radius:8px;margin:6px 0"></div>Takeaway ${take}<div style="height:8px;background:#166534;width:${100*take/tot}%;border-radius:8px;margin:6px 0"></div>Delivery ${del}<div style="height:8px;background:#0ea5e9;width:${100*del/tot}%;border-radius:8px;margin:6px 0"></div>`;
       const pay = {cash:0,card:0,wallet:0,other:0};
       paid.forEach(o => { const k=o.payment||'cash'; pay[k]=(pay[k]||0)+1; });
       $('payBars').innerHTML = Object.entries(pay).map(([k,v])=>`${k} ${v}`).join(' · ');
