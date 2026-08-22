@@ -62,6 +62,7 @@ class OfScaffold extends ConsumerWidget {
     this.fab,
     this.bottom,
     this.leading,
+    this.subtitle,
   });
 
   final String title;
@@ -70,18 +71,55 @@ class OfScaffold extends ConsumerWidget {
   final Widget? fab;
   final Widget? bottom;
   final Widget? leading;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: subtitle == null
+            ? Text(title)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title),
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+                  ),
+                ],
+              ),
         leading: leading,
         actions: actions,
       ),
       floatingActionButton: fab,
       bottomNavigationBar: bottom,
       body: body,
+    );
+  }
+}
+
+/// Shared chrome for role stations: live status + leave.
+class StationActions extends ConsumerWidget {
+  const StationActions({super.key, this.extra = const []});
+  final List<Widget> extra;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.s;
+    final up = ref.snap.connected || ref.snap.serverOn;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: StatusChip(
+            up ? s.t('connected') : s.t('disconnected'),
+            color: up ? OfColors.mint : OfColors.danger,
+          ),
+        ),
+        ...extra,
+      ],
     );
   }
 }

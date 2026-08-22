@@ -20,10 +20,18 @@ class TakerScreen extends ConsumerWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(s.t('role_taker')),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(s.t('role_taker')),
+              Text(
+                snap.session.displayName.isEmpty ? s.t('tables') : snap.session.displayName,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+              ),
+            ],
+          ),
           actions: [
-            StatusChip(snap.connected ? s.t('connected') : s.t('disconnected'),
-                color: snap.connected ? const Color(0xFF3DDC97) : const Color(0xFFE85D4C)),
+            const StationActions(),
             IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
           ],
           bottom: TabBar(tabs: [

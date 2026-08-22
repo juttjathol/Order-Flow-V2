@@ -40,7 +40,16 @@ class _MainShellState extends ConsumerState<MainShell> {
     ];
     return Scaffold(
       appBar: AppBar(
-        title: Text(ref.snap.store.profile.businessName),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(ref.snap.store.profile.businessName),
+            Text(
+              s.t('role_main'),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            ),
+          ],
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),

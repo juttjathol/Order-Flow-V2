@@ -150,7 +150,7 @@ class AppController extends Notifier<AppSnapshot> {
     final started = DateTime.now();
     final session = _storage.loadSession();
     final store = await _storage.loadStore();
-    final remain = const Duration(milliseconds: 720) -
+    final remain = const Duration(milliseconds: 1000) -
         DateTime.now().difference(started);
     if (remain > Duration.zero) await Future.delayed(remain);
     state = state.copyWith(

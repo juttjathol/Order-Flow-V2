@@ -83,7 +83,14 @@ class HomeScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(st.icon, color: st.color),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: st.color.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(st.icon, color: st.color, size: 22),
+                          ),
                           const Spacer(),
                           Text(st.label, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
                           const SizedBox(height: 4),

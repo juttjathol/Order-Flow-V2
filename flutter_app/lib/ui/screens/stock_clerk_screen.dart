@@ -16,8 +16,7 @@ class StockClerkScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(s.t('role_stock')),
         actions: [
-          StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
-              color: ref.snap.connected ? OfColors.mint : OfColors.danger),
+          const StationActions(),
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),

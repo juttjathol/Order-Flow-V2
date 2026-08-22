@@ -23,10 +23,18 @@ class SpecialistScreen extends ConsumerWidget {
       ..sort((a, b) => a.start.compareTo(b.start));
     return Scaffold(
       appBar: AppBar(
-        title: Text(s.t('specialist_queue')),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t('specialist_queue')),
+            Text(
+              ref.snap.session.displayName,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            ),
+          ],
+        ),
         actions: [
-          StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
-              color: ref.snap.connected ? OfColors.mint : OfColors.danger),
+          const StationActions(),
           IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
         ],
       ),

@@ -30,8 +30,18 @@ class DriverScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(s.t('role_driver')),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t('role_driver')),
+            Text(
+              snap.session.displayName.isEmpty ? s.t('delivery_queue') : snap.session.displayName,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            ),
+          ],
+        ),
         actions: [
+          const StationActions(),
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),

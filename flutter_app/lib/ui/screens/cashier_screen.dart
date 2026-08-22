@@ -8,6 +8,7 @@ import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
 import '../widgets/offsite_order.dart';
+import '../widgets/pos_ops.dart';
 
 class CashierScreen extends ConsumerStatefulWidget {
   const CashierScreen({super.key});
@@ -28,10 +29,18 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
     }).toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text(s.t('payment_queue')),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t('payment_queue')),
+            Text(
+              ref.snap.session.displayName.isEmpty ? s.t('role_cashier') : ref.snap.session.displayName,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            ),
+          ],
+        ),
         actions: [
-          StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
-              color: ref.snap.connected ? OfColors.mint : OfColors.danger),
+          const StationActions(),
           IconButton(tooltip: s.t('start_shift'), onPressed: () => startShift(context, ref), icon: const Icon(Icons.badge)),
           IconButton(tooltip: s.t('reprint_any'), onPressed: () => reprintSearch(context, ref), icon: const Icon(Icons.find_in_page)),
           IconButton(
