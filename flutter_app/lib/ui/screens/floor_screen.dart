@@ -10,13 +10,14 @@ import '../widgets/common.dart';
 import '../widgets/offsite_order.dart';
 
 class FloorScreen extends ConsumerWidget {
-  const FloorScreen({super.key});
+  const FloorScreen({super.key, this.manage = true});
+  final bool manage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final model = ref.snap.store.model;
     return switch (model) {
-      BusinessModel.restaurant => const _TablesMap(),
+      BusinessModel.restaurant => _TablesMap(manage: manage),
       BusinessModel.retail => const _RetailRegister(),
       BusinessModel.fastfood => const _QueueBoard(),
       BusinessModel.services => const _AppointmentsBoard(),
@@ -25,18 +26,21 @@ class FloorScreen extends ConsumerWidget {
 }
 
 class _TablesMap extends ConsumerWidget {
-  const _TablesMap();
+  const _TablesMap({this.manage = true});
+  final bool manage;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.s;
     final store = ref.snap.store;
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _editTable(context, ref),
-        icon: const Icon(Icons.add),
-        label: Text(s.t('add_table')),
-      ),
+      floatingActionButton: manage
+          ? FloatingActionButton.extended(
+              onPressed: () => _editTable(context, ref),
+              icon: const Icon(Icons.add),
+              label: Text(s.t('add_table')),
+            )
+          : null,
       body: store.tables.isEmpty
           ? Column(
               children: [
@@ -89,7 +93,7 @@ class _TablesMap extends ConsumerWidget {
                         child: InkWell(
                           borderRadius: BorderRadius.circular(18),
                           onTap: () => _openTable(context, ref, t),
-                          onLongPress: () => _editTable(context, ref, existing: t),
+                          onLongPress: manage ? () => _editTable(context, ref, existing: t) : null,
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [

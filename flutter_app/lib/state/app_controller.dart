@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 
 import '../core/constants.dart';
+import '../core/role_access.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
 import '../models/seed.dart';
@@ -106,6 +107,7 @@ class AppController extends Notifier<AppSnapshot> {
   Timer? _revalidate;
   Timer? _ipTimer;
   StreamSubscription? _netSub;
+  Timer? _saveTimer;
   bool _booted = false;
 
   @override
@@ -114,6 +116,7 @@ class AppController extends Notifier<AppSnapshot> {
     ref.onDispose(() {
       _revalidate?.cancel();
       _ipTimer?.cancel();
+      _saveTimer?.cancel();
       _netSub?.cancel();
       unawaited(_server?.stop());
       unawaited(_client?.close());
@@ -205,9 +208,16 @@ class AppController extends Notifier<AppSnapshot> {
     await _storage.saveStore(state.store);
   }
 
+  void _schedulePersist() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 450), () {
+      unawaited(persist());
+    });
+  }
+
   void _emit(AppSnapshot next) {
     state = next;
-    unawaited(persist());
+    _schedulePersist();
   }
 
   Future<void> setLocale(String code) async {
@@ -348,6 +358,9 @@ class AppController extends Notifier<AppSnapshot> {
   }
 
   ReduceResult _localApply(NetCommand cmd) {
+    if (!RoleAccess.allow(cmd.role, cmd)) {
+      return ReduceResult(state.store);
+    }
     final result = StoreReducer.apply(state.store, cmd);
     state = state.copyWith(
       store: result.store,
@@ -356,11 +369,24 @@ class AppController extends Notifier<AppSnapshot> {
           : [result.notice!, ...state.notices].take(20).toList(),
       clients: _server?.clients.values.toList() ?? state.clients,
     );
-    unawaited(persist());
+    _schedulePersist();
     return result;
   }
 
+  NetCommand _stamp(NetCommand cmd) {
+    if (cmd.role.isNotEmpty) return cmd;
+    return NetCommand(
+      id: cmd.id,
+      name: cmd.name,
+      payload: cmd.payload,
+      actor: cmd.actor.isEmpty ? state.session.displayName : cmd.actor,
+      role: state.session.role.name,
+      at: cmd.at,
+    );
+  }
+
   Future<void> dispatch(NetCommand cmd) async {
+    cmd = _stamp(cmd);
     if (state.isMain || state.session.role == AppRole.none) {
       final result = _localApply(cmd);
       _server?.broadcastState();

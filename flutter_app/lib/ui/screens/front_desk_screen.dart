@@ -38,7 +38,7 @@ class FrontDeskScreen extends ConsumerWidget {
         icon: const Icon(Icons.receipt_long),
         label: Text(s.t('walk_in')),
       ),
-      body: const FloorScreen(),
+      body: const FloorScreen(manage: false),
     );
   }
 }

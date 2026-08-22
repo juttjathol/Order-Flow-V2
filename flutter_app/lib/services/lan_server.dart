@@ -10,6 +10,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/constants.dart';
+import '../core/role_access.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
 
@@ -70,8 +71,12 @@ class LanServer {
       'type': 'state',
       'store': readStore().toJson(),
     });
-    for (final s in _sockets) {
-      s.sink.add(msg);
+    for (final s in _sockets.toList()) {
+      try {
+        s.sink.add(msg);
+      } catch (_) {
+        _sockets.remove(s);
+      }
     }
   }
 
@@ -144,6 +149,9 @@ class LanServer {
         return _json({'ok': false, 'error': 'invalid'}, status: 400);
       }
       final cmd = NetCommand.fromJson(Map<String, dynamic>.from(body));
+      if (!RoleAccess.allow(cmd.role, cmd)) {
+        return _json({'ok': false, 'error': 'forbidden'}, status: 403);
+      }
       final result = onCommand(cmd);
       broadcastState();
       if (result.notice != null) broadcastNotice(result.notice!);

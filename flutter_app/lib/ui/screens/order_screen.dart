@@ -37,7 +37,15 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               p.name.toLowerCase().contains(query) ||
               p.sku.toLowerCase().contains(query));
     }).toList();
-    final locked = order.status == OrderStatus.paid || order.status == OrderStatus.cancelled;
+    final role = snap.session.role;
+    final kitchenOnly = role == AppRole.kitchen;
+    final canPay = role == AppRole.main || role == AppRole.cashier;
+    final canEdit = role == AppRole.main ||
+        role == AppRole.orderTaker ||
+        role == AppRole.cashier ||
+        role == AppRole.frontDesk;
+    final closed = order.status == OrderStatus.paid || order.status == OrderStatus.cancelled;
+    final locked = closed || !canEdit;
 
     return Scaffold(
       appBar: AppBar(
@@ -55,19 +63,21 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           ),
         ],
       ),
-      body: isTablet(context)
-          ? Row(
-              children: [
-                Expanded(child: _catalog(products, order, locked)),
-                SizedBox(width: 380, child: _ticket(order, locked)),
-              ],
-            )
-          : Column(
-              children: [
-                Expanded(flex: 3, child: _catalog(products, order, locked)),
-                Expanded(flex: 2, child: _ticket(order, locked)),
-              ],
-            ),
+      body: kitchenOnly
+          ? _ticket(order, closed, kitchenOnly: true, canPay: false)
+          : isTablet(context)
+              ? Row(
+                  children: [
+                    Expanded(child: _catalog(products, order, locked)),
+                    SizedBox(width: 380, child: _ticket(order, closed, canPay: canPay)),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Expanded(flex: 3, child: _catalog(products, order, locked)),
+                    Expanded(flex: 2, child: _ticket(order, closed, canPay: canPay)),
+                  ],
+                ),
     );
   }
 
@@ -112,7 +122,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     );
   }
 
-  Widget _ticket(PosOrder order, bool locked) {
+  Widget _ticket(PosOrder order, bool locked, {bool kitchenOnly = false, bool canPay = true}) {
     final s = ref.s;
     return Material(
       color: Theme.of(context).cardColor,
@@ -204,26 +214,32 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  if (order.status == OrderStatus.open)
+                  if (order.status == OrderStatus.open && !kitchenOnly)
                     FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen'))),
-                  if (order.status == OrderStatus.preparing)
+                  if (order.status == OrderStatus.open && kitchenOnly)
+                    FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('mark_preparing'))),
+                  if (order.status == OrderStatus.preparing && (kitchenOnly || canPay))
                     FilledButton(onPressed: () => _status(order, OrderStatus.ready), child: Text(s.t('mark_ready'))),
-                  if (order.status == OrderStatus.ready && order.type == OrderType.takeaway)
+                  if (order.status == OrderStatus.ready && order.type == OrderType.takeaway && !kitchenOnly)
                     FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_picked_up'))),
-                  if (order.status == OrderStatus.ready && order.type == OrderType.delivery)
+                  if (order.status == OrderStatus.ready && order.type == OrderType.delivery && !kitchenOnly)
                     FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('out_for_delivery'))),
-                  if (order.status == OrderStatus.ready && order.type != OrderType.takeaway && order.type != OrderType.delivery)
+                  if (order.status == OrderStatus.ready &&
+                      order.type != OrderType.takeaway &&
+                      order.type != OrderType.delivery)
                     FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_served'))),
-                  FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay_and_close'))),
-                  OutlinedButton(
-                    onPressed: () => confirm(
-                      context,
-                      title: s.t('cancel_order'),
-                      body: s.t('confirm_cancel'),
-                      onYes: () => _status(order, OrderStatus.cancelled),
+                  if (canPay)
+                    FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay_and_close'))),
+                  if (!kitchenOnly)
+                    OutlinedButton(
+                      onPressed: () => confirm(
+                        context,
+                        title: s.t('cancel_order'),
+                        body: s.t('confirm_cancel'),
+                        onYes: () => _status(order, OrderStatus.cancelled),
+                      ),
+                      child: Text(s.t('cancel_order')),
                     ),
-                    child: Text(s.t('cancel_order')),
-                  ),
                 ],
               ),
             ),

@@ -829,6 +829,7 @@ class NetCommand {
     required this.name,
     Map<String, dynamic>? payload,
     this.actor = '',
+    this.role = '',
     String? id,
     DateTime? at,
   })  : payload = payload ?? <String, dynamic>{},
@@ -839,6 +840,7 @@ class NetCommand {
   final String name;
   final Map<String, dynamic> payload;
   final String actor;
+  final String role;
   final DateTime at;
 
   Map<String, dynamic> toJson() => {
@@ -846,6 +848,7 @@ class NetCommand {
         'name': name,
         'payload': payload,
         'actor': actor,
+        'role': role,
         'at': at.toIso8601String(),
       };
 
@@ -856,6 +859,7 @@ class NetCommand {
             ? Map<String, dynamic>.from(j['payload'] as Map)
             : <String, dynamic>{},
         actor: parseStr(j['actor']) ?? '',
+        role: parseStr(j['role']) ?? '',
         at: parseTime(j['at']),
       );
 }

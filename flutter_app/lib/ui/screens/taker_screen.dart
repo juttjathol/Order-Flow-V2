@@ -32,7 +32,7 @@ class TakerScreen extends ConsumerWidget {
         ),
         body: TabBarView(
           children: [
-            const FloorScreen(),
+            const FloorScreen(manage: false),
             const _QuickTickets(),
           ],
         ),

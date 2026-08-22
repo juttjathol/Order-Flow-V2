@@ -30,7 +30,8 @@ class MoreScreen extends ConsumerWidget {
         const SizedBox(height: 12),
         if (snap.isMain)
           _tile(context, Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
-        _tile(context, Icons.receipt_long, s.t('bill_profile'), () => _bill(context, ref)),
+        if (snap.isMain)
+          _tile(context, Icons.receipt_long, s.t('bill_profile'), () => _bill(context, ref)),
         _tile(context, Icons.print, s.t('printers'), () => _printers(context, ref)),
         _tile(context, Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
         _tile(context, Icons.badge, s.t('staff'), () => _staff(context, ref)),
