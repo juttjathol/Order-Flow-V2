@@ -71,6 +71,28 @@ class StorageService {
     return AppStore();
   }
 
+  List<NetCommand> loadQueue() {
+    final raw = prefs.getString(_queueKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is! List) return [];
+      return list
+          .whereType<Map>()
+          .map((e) => NetCommand.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveQueue(List<NetCommand> cmds) async {
+    await prefs.setString(
+      _queueKey,
+      jsonEncode(cmds.map((c) => c.toJson()).toList()),
+    );
+  }
+
   Future<void> saveStore(AppStore store) async {
     final encoded = jsonEncode(store.toJson());
     await _stateFile.writeAsString(encoded);
