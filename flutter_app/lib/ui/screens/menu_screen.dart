@@ -113,15 +113,39 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
                     itemBuilder: (_, i) {
                       final p = products[i];
                       return OfCard(
+                        padding: EdgeInsets.zero,
                         onTap: () => editProduct(context, ref, existing: p, categoryId: p.categoryId),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(child: Center(child: ProductImage(p.imageBase64, size: 88))),
-                            Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-                            MoneyText(p.price),
-                            if (!p.available)
-                              StatusChip(s.t('unavailable'), color: OfColors.danger),
+                            Expanded(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                                    child: p.imageBase64 == null || p.imageBase64!.isEmpty
+                                        ? ColoredBox(color: OfColors.emerald.withValues(alpha: 0.12), child: const Icon(Icons.restaurant, color: OfColors.emerald, size: 40))
+                                        : ProductImage(p.imageBase64, size: 400),
+                                  ),
+                                  Positioned(
+                                    right: 8,
+                                    bottom: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(color: OfColors.deep.withValues(alpha: 0.82), borderRadius: BorderRadius.circular(20)),
+                                      child: MoneyText(p.price, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                    ),
+                                  ),
+                                  if (!p.available)
+                                    const Align(alignment: Alignment.topLeft, child: Padding(padding: EdgeInsets.all(8), child: StatusChip('86', color: OfColors.danger))),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                              child: Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
+                            ),
                           ],
                         ),
                       );

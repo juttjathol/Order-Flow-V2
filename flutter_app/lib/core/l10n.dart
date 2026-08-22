@@ -401,6 +401,11 @@ class L10n {
     'logout_role': 'Leave role',
     'exact': 'Exact',
     'ticket_more': 'Ticket actions',
+    'shop_section': 'SHOP',
+    'hardware_section': 'HARDWARE',
+    'people_section': 'PEOPLE',
+    'reports_section': 'REPORTS',
+    'account_section': 'ACCOUNT',
   };
 
   static const _ur = {
@@ -761,9 +766,6 @@ class L10n {
     'model_services_hint': 'ملاقاتیں، عملہ، واک ان',
     'exact': 'برابر',
     'ticket_more': 'ٹکٹ اعمال',
-    'cash_short': 'رقم کل سے کم ہے',
-    'change_due': 'بقایا',
-    'tendered': 'موصول نقد',
   };
 
   static const _table = {'en': _en, 'ur': _ur};

@@ -78,6 +78,7 @@
     <div class="brand">JATHOL <span>POS</span></div>
     <nav>
       <button data-page="pos" class="active">POS</button>
+      <button data-page="ticket">Ticket</button>
       <button data-page="tables">Tables</button>
       <button data-page="items">Items</button>
       <button data-page="people">People</button>
@@ -109,6 +110,14 @@
         <div class="card"><b>Orders from</b><div id="fromBars"></div><br><b>Payment modes</b><div id="payBars"></div></div>
       </div>
     </main>
+  </div>
+
+  <div class="wrap hidden" id="page-ticket" style="grid-template-columns:1fr 360px">
+    <div>
+      <div id="tCats" class="cats" style="flex-direction:row;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div class="products" id="tProducts"></div>
+    </div>
+    <aside class="side" id="tRail"></aside>
   </div>
 
   <div class="wrap hidden" id="page-tables" style="grid-template-columns:1fr">
@@ -184,7 +193,7 @@
 
   <footer>Jathol</footer>
   <script>
-    let store = null, catId = null, unlocked = false;
+    let store = null, catId = null, unlocked = false, activeOrderId = null;
     function needPin() {
       const pin = store?.profile?.managerPin || '';
       if (!pin || unlocked) return true;
@@ -317,9 +326,38 @@
         <td>${['paid','cancelled'].includes(o.status)?'':`<button class="btn green" onclick="pay('${o.id}')">Pay</button>`}</td>
       </tr>`).join('');
     }
+    function orderTotal(o) {
+      return (o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0);
+    }
+    function activeOrder() {
+      return (store.orders||[]).find(o => o.id===activeOrderId && !['paid','cancelled'].includes(o.status))
+        || (store.orders||[]).find(o => !['paid','cancelled'].includes(o.status));
+    }
+    function renderTicket() {
+      const cats = store.categories||[];
+      if (!catId && cats[0]) catId = cats[0].id;
+      $('tCats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${c.id}';renderTicket()">${c.name}</button>`).join('');
+      const list = (store.products||[]).filter(p => (!catId || p.categoryId===catId) && p.available!==false);
+      $('tProducts').innerHTML = list.map(p => {
+        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${p.imageBase64})` : '';
+        return `<div class="card" onclick="addLine('${p.id}')"><div class="pimg" style="${img}"></div><b>${p.name}</b><div class="muted">${money(p.price)}</div></div>`;
+      }).join('');
+      const o = activeOrder();
+      if (!o) {
+        $('tRail').innerHTML = '<p class="muted">No open ticket. Start dine-in, takeaway or delivery.</p><button class="btn green" style="width:100%" onclick="newOrder(\'dineIn\')">New ticket</button>';
+        return;
+      }
+      activeOrderId = o.id;
+      const lines = (o.lines||[]).map(l => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div><b>${l.qty||1}× ${l.name}</b></div><div>${money((l.unitPrice||0)*(l.qty||1))}</div></div>`).join('');
+      $('tRail').innerHTML = `<div class="muted">${o.ticketNo||''} · ${o.tableName||o.type} · ${o.status}</div>
+        <b style="font-size:28px">${money(orderTotal(o))}</b>
+        <div style="max-height:46vh;overflow:auto;margin:10px 0">${lines||'<p class="muted">Add items</p>'}</div>
+        <button class="btn green" style="width:100%" onclick="cmd('setOrderStatus',{id:'${o.id}',status:'preparing'})">Send kitchen</button>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="pay('${o.id}')">Pay</button>`;
+    }
     function render() {
       if (!store) return;
-      renderPos(); renderTables(); renderItems(); renderPeople(); renderSales(); fillSettings(); renderOrders();
+      renderPos(); renderTables(); renderItems(); renderPeople(); renderSales(); fillSettings(); renderOrders(); renderTicket();
     }
     async function saveProfile() {
       if (!needPin()) return;

@@ -21,6 +21,7 @@ class OrderScreen extends ConsumerStatefulWidget {
 class _OrderScreenState extends ConsumerState<OrderScreen> {
   String q = '';
   String? catId;
+  int phoneTab = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -73,13 +74,27 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               ? Row(
                   children: [
                     Expanded(child: _catalog(products, order, locked)),
-                    SizedBox(width: 380, child: _ticket(order, closed, canPay: canPay)),
+                    SizedBox(width: 400, child: _ticket(order, closed, canPay: canPay)),
                   ],
                 )
               : Column(
                   children: [
-                    Expanded(flex: 3, child: _catalog(products, order, locked)),
-                    Expanded(flex: 2, child: _ticket(order, closed, canPay: canPay)),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: SegmentedButton<int>(
+                        segments: [
+                          ButtonSegment(value: 0, label: Text(s.t('menu')), icon: const Icon(Icons.restaurant_menu)),
+                          ButtonSegment(value: 1, label: Text(s.t('ticket')), icon: const Icon(Icons.receipt_long)),
+                        ],
+                        selected: {phoneTab},
+                        onSelectionChanged: (v) => setState(() => phoneTab = v.first),
+                      ),
+                    ),
+                    Expanded(
+                      child: phoneTab == 0
+                          ? _catalog(products, order, locked)
+                          : _ticket(order, closed, canPay: canPay),
+                    ),
                   ],
                 ),
     );
@@ -87,6 +102,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Widget _catalog(List<MenuProduct> products, PosOrder order, bool locked) {
     final s = ref.s;
+    final cats = [...ref.snap.store.categories]..sort((a, b) => a.sort.compareTo(b.sort));
     return Column(
       children: [
         Padding(
@@ -96,6 +112,23 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             onChanged: (v) => setState(() => q = v),
           ),
         ),
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(label: Text(s.t('all')), selected: catId == null, onSelected: (_) => setState(() => catId = null)),
+              ),
+              ...cats.map((c) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(label: Text(c.name), selected: catId == c.id, onSelected: (_) => setState(() => catId = c.id)),
+                  )),
+            ],
+          ),
+        ),
         Expanded(
           child: GridView.builder(
             padding: const EdgeInsets.all(12),
@@ -103,20 +136,29 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               crossAxisCount: gridCount(context, phone: 3, tablet: 4),
               mainAxisSpacing: 8,
               crossAxisSpacing: 8,
-              childAspectRatio: 0.78,
+              childAspectRatio: 0.72,
             ),
             itemCount: products.length,
             itemBuilder: (_, i) {
               final p = products[i];
               return OfCard(
+                padding: const EdgeInsets.all(8),
                 onTap: locked || !p.available ? null : () => _add(order, p),
                 onLongPress: () => eightySix(context, ref, p),
                 child: Column(
                   children: [
-                    ProductImage(p.imageBase64, size: 44),
+                    Expanded(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Center(child: ProductImage(p.imageBase64, size: 72)),
+                          if (!p.available) Align(alignment: Alignment.topRight, child: StatusChip('86', color: OfColors.danger)),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(p.available ? p.name : '${p.name} 86', maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    MoneyText(p.price, style: const TextStyle(fontSize: 12)),
+                    Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    MoneyText(p.price, style: const TextStyle(fontSize: 13)),
                   ],
                 ),
               );
@@ -428,34 +470,113 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     }));
   }
 
+  Future<void> _noteLine(PosOrder order, OrderLine line) async {
+    final s = ref.s;
+    final c = TextEditingController(text: line.notes);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.t('line_notes')),
+        content: TextField(controller: c, autofocus: true, decoration: InputDecoration(labelText: s.t('notes'))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('save'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    line.notes = c.text.trim();
+    await ref.ctrl.dispatch(NetCommand(name: 'updateLine', payload: {'orderId': order.id, 'line': line.toJson()}));
+  }
+
+  Future<void> _moreOps(PosOrder order, bool canPay) async {
+    final s = ref.s;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(title: Text(order.held ? s.t('unhold') : s.t('hold')), leading: const Icon(Icons.pause_circle), onTap: () { Navigator.pop(ctx); _toggleHold(order); }),
+            if (canPay) ListTile(title: Text(s.t('split_bill')), leading: const Icon(Icons.call_split), onTap: () { Navigator.pop(ctx); _split(order); }),
+            if (canPay) ListTile(title: Text(s.t('discount')), leading: const Icon(Icons.percent), onTap: () { Navigator.pop(ctx); applyDiscount(context, ref, order); }),
+            if (canPay) ListTile(title: Text(s.t('comp_meal')), leading: const Icon(Icons.card_giftcard), onTap: () { Navigator.pop(ctx); compTicket(context, ref, order); }),
+            ListTile(title: Text(s.t('move_table')), leading: const Icon(Icons.swap_horiz), onTap: () { Navigator.pop(ctx); moveTicket(context, ref, order); }),
+            ListTile(title: Text(s.t('merge_table')), leading: const Icon(Icons.merge_type), onTap: () { Navigator.pop(ctx); mergeTicket(context, ref, order); }),
+            ListTile(title: Text(s.t('fire_course')), leading: const Icon(Icons.local_fire_department), onTap: () { Navigator.pop(ctx); fireCourse(context, ref, order); }),
+            ListTile(title: Text(s.t('cancel_order')), leading: const Icon(Icons.cancel, color: OfColors.danger), onTap: () { Navigator.pop(ctx); _voidOrder(order); }),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _pay(PosOrder order) async {
     final s = ref.s;
     PaymentMethod method = PaymentMethod.cash;
+    var tender = '';
     final ok = await showModalBottomSheet<bool>(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${s.t('payment')}  ${moneyOf(ref.snap, order.total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                children: PaymentMethod.values
-                    .map((m) => ChoiceChip(
-                          label: Text(s.t(m.name)),
-                          selected: method == m,
-                          onSelected: (_) => setSt(() => method = m),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 12),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('pay_and_close'))),
-            ],
-          ),
-        ),
+        builder: (ctx, setSt) {
+          final received = double.tryParse(tender) ?? 0;
+          final change = received - order.total;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('${s.t('payment')}  ${moneyOf(ref.snap, order.total)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  children: PaymentMethod.values
+                      .map((m) => ChoiceChip(label: Text(s.t(m.name)), selected: method == m, onSelected: (_) => setSt(() => method = m)))
+                      .toList(),
+                ),
+                if (method == PaymentMethod.cash) ...[
+                  const SizedBox(height: 12),
+                  Align(alignment: Alignment.centerLeft, child: Text(s.t('tendered'), style: const TextStyle(color: OfColors.muted))),
+                  Text(tender.isEmpty ? '0' : tender, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 28)),
+                  if (received >= order.total) Text('${s.t('change_due')}  ${moneyOf(ref.snap, change)}', style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800)),
+                  if (tender.isNotEmpty && received < order.total) Text(s.t('cash_short'), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final d in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'])
+                        SizedBox(
+                          width: 72,
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: () => setSt(() {
+                              if (d == '⌫') {
+                                if (tender.isNotEmpty) tender = tender.substring(0, tender.length - 1);
+                              } else if (!(d == '.' && tender.contains('.'))) {
+                                tender += d;
+                              }
+                            }),
+                            child: Text(d, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                          ),
+                        ),
+                      FilledButton.tonal(
+                        onPressed: () => setSt(() => tender = order.total.toStringAsFixed(order.total % 1 == 0 ? 0 : 2)),
+                        child: Text(s.t('exact')),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: method == PaymentMethod.cash && received + 0.001 < order.total ? null : () => Navigator.pop(ctx, true),
+                  child: Text(s.t('pay_and_close')),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
     if (ok == true) {
@@ -464,10 +585,40 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         'status': OrderStatus.paid.name,
         'payment': method.name,
       }));
+      ref.ctrl.rememberReceipt(order.id);
       try {
         await ref.ctrl.printer.receipt(ref.read(appControllerProvider).store, order);
       } catch (_) {}
     }
+  }
+
+  Future<String?> _askVoid() async {
+    final s = ref.s;
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(title: Text(s.t('void_reason'), style: const TextStyle(fontWeight: FontWeight.w800))),
+            ListTile(title: Text(s.t('void_wrong')), onTap: () => Navigator.pop(ctx, s.t('void_wrong'))),
+            ListTile(title: Text(s.t('void_left')), onTap: () => Navigator.pop(ctx, s.t('void_left'))),
+            ListTile(title: Text(s.t('void_other')), onTap: () => Navigator.pop(ctx, s.t('void_other'))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _voidOrder(PosOrder order) async {
+    final reason = await _askVoid();
+    if (reason == null) return;
+    order.notes = [order.notes, 'VOID: $reason'].where((e) => e.isNotEmpty).join(' | ');
+    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': order.toJson()}));
+    await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
+      'id': order.id,
+      'status': OrderStatus.cancelled.name,
+    }));
   }
 
   Future<void> _printKitchen(PosOrder order) async {

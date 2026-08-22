@@ -29,20 +29,25 @@ class MoreScreen extends ConsumerWidget {
             subtitle: Text('${s.t(snap.store.model.name == 'services' ? 'services_model' : snap.store.model.name)} · ${s.t('currency')} ${snap.currency}'),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        _h(s.t('shop_section')),
         if (snap.isMain)
           _tile(context, Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
         if (snap.isMain)
           _tile(context, Icons.receipt_long, s.t('bill_profile'), () => _bill(context, ref)),
+        _h(s.t('hardware_section')),
         _tile(context, Icons.print, s.t('printers'), () => _printers(context, ref)),
+        _h(s.t('people_section')),
         _tile(context, Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
         _tile(context, Icons.badge, s.t('staff'), () => _staff(context, ref)),
         _tile(context, Icons.spa, s.t('services'), () => _services(context, ref)),
+        _h(s.t('reports_section')),
         _tile(context, Icons.bar_chart, s.t('x_report'), () => showSalesReports(context, ref, zReport: false)),
         if (snap.isMain) _tile(context, Icons.assignment_turned_in, s.t('z_report'), () => showSalesReports(context, ref, zReport: true)),
         _tile(context, Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
         _tile(context, Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
         if (snap.isMain) _tile(context, Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
+        _h(s.t('account_section')),
         _tile(context, Icons.backup, s.t('export_backup'), () async {
           await ref.ctrl.backup.exportAndShare(snap.store);
           if (context.mounted) {
@@ -96,6 +101,13 @@ class MoreScreen extends ConsumerWidget {
         const SizedBox(height: 16),
         Text('${s.t('version')} $kAppVersion', textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)),
       ],
+    );
+  }
+
+  Widget _h(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+      child: Text(title, style: const TextStyle(color: OfColors.muted, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
     );
   }
 
