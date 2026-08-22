@@ -399,6 +399,8 @@ class L10n {
     'apply': 'Apply',
     'clear': 'Clear',
     'logout_role': 'Leave role',
+    'exact': 'Exact',
+    'ticket_more': 'Ticket actions',
   };
 
   static const _ur = {
@@ -757,6 +759,11 @@ class L10n {
     'model_retail_hint': 'ایس کے یو، چیک آؤٹ، انوینٹری',
     'model_fastfood_hint': 'قطار کے ٹکٹ اور کچن ڈسپلے',
     'model_services_hint': 'ملاقاتیں، عملہ، واک ان',
+    'exact': 'برابر',
+    'ticket_more': 'ٹکٹ اعمال',
+    'cash_short': 'رقم کل سے کم ہے',
+    'change_due': 'بقایا',
+    'tendered': 'موصول نقد',
   };
 
   static const _table = {'en': _en, 'ur': _ur};

@@ -6,16 +6,16 @@
   <title>Order Flow · Jathol</title>
   <style>
     :root {
-      --bg: #0b1210;
-      --panel: #151c1a;
-      --panel2: #1c2622;
-      --line: #2a3832;
+      --bg: #051912;
+      --panel: #0c261d;
+      --panel2: #134233;
+      --line: #1f3d32;
       --mint: #3ddc97;
-      --green: #22c55e;
-      --gold: #e6b325;
-      --red: #ef4444;
-      --text: #f4f7f5;
-      --muted: #8aa399;
+      --green: #1b8f62;
+      --gold: #e6c35c;
+      --red: #e85d4c;
+      --text: #f3f7f2;
+      --muted: #7a9a8c;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: Inter, system-ui, Segoe UI, sans-serif; }
@@ -24,7 +24,7 @@
       display: flex; align-items: center; gap: 18px; padding: 12px 20px;
       background: #101816; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5;
     }
-    .brand { font-weight: 800; letter-spacing: .4px; }
+    .brand { font-weight: 800; letter-spacing: .4px; font-size: 18px; }
     .brand span { color: var(--mint); }
     nav { display: flex; gap: 6px; flex-wrap: wrap; }
     nav button, .btn {
@@ -51,7 +51,8 @@
     table { width: 100%; border-collapse: collapse; }
     td, th { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
     .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-    .tcard { border-radius: 14px; padding: 16px; min-height: 92px; cursor: pointer; border: 1px solid var(--line); background: #121a17; }
+    .tcard { border-radius: 16px; padding: 18px; min-height: 118px; cursor: pointer; border: 2px solid var(--line); background: #121a17; }
+    .tcard b { font-size: 22px; display:block; }
     .tcard.free { background: #111816; }
     .tcard.ordered { background: var(--green); color: #05210f; }
     .tcard.ready { background: var(--gold); color: #2a2100; }
@@ -74,7 +75,7 @@
 </head>
 <body>
   <header>
-    <div class="brand">ORDER <span>FLOW</span></div>
+    <div class="brand">JATHOL <span>POS</span></div>
     <nav>
       <button data-page="pos" class="active">POS</button>
       <button data-page="tables">Tables</button>
@@ -272,7 +273,8 @@
         const o = orders.find(x => x.id===t.currentOrderId);
         const cls = t.status==='ready' ? 'ready' : t.status==='ordered' ? 'ordered' : 'free';
         const n = o ? (o.lines||[]).length : 0;
-        return `<div class="tcard ${cls}" onclick="openTable('${t.id}')"><b>${t.name}</b><div>${o?('Ordered '+n+' items'):'No order'}</div></div>`;
+        const tot = o ? money((o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0)) : '';
+        return `<div class="tcard ${cls}" onclick="openTable('${t.id}')"><b>${t.name}</b><div>${o?((o.ticketNo||'')+' · '+n+' items'):'Free'}</div>${tot?`<div style="font-weight:800;margin-top:6px">${tot}</div>`:''}</div>`;
       }).join('');
     }
     function renderItems() {

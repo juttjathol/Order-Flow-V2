@@ -50,18 +50,19 @@ class KitchenScreen extends ConsumerWidget {
               itemCount: orders.length,
               itemBuilder: (_, i) {
                 final o = orders[i];
+                final mins = DateTime.now().difference(o.sentAt ?? o.createdAt).inMinutes;
+                final ageColor = mins >= 15 ? OfColors.danger : mins >= 8 ? OfColors.warn : OfColors.mint;
                 return OfCard(
                   onTap: () => context.push('/order/${o.id}'),
-                  color: statusColor(o.status).withValues(alpha: 0.08),
+                  color: ageColor.withValues(alpha: 0.14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Text(o.ticketNo, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+                          Text(o.ticketNo, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 28, color: ageColor)),
                           const SizedBox(width: 8),
-                          Text(o.tableName ?? (o.type == OrderType.dineIn ? s.t('dine_in') : s.t(o.type.name))),
-                          const Spacer(),
+                          Expanded(child: Text(o.tableName ?? (o.type == OrderType.dineIn ? s.t('dine_in') : s.t(o.type.name)), style: const TextStyle(fontWeight: FontWeight.w700))),
                           StatusChip(s.t(o.status.name), color: statusColor(o.status)),
                         ],
                       ),
@@ -73,7 +74,7 @@ class KitchenScreen extends ConsumerWidget {
                         Text('${s.t('takeaway')} · ${o.customerName}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
                       Text(
                         '${s.t('kot_age')}: ${_age(o)}',
-                        style: const TextStyle(color: OfColors.gold, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: ageColor, fontWeight: FontWeight.w800, fontSize: 16),
                       ),
                       const SizedBox(height: 8),
                       Expanded(

@@ -84,24 +84,33 @@ class _TablesMap extends ConsumerWidget {
                     itemCount: store.tables.length,
                     itemBuilder: (_, i) {
                       final t = store.tables[i];
+                      final ticket = t.currentOrderId == null ? null : store.orderById(t.currentOrderId);
                       return Material(
-                        color: tableColor(t.status).withValues(alpha: 0.16),
+                        color: tableColor(t.status).withValues(alpha: 0.18),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
-                          side: BorderSide(color: tableColor(t.status), width: 2),
+                          side: BorderSide(color: tableColor(t.status), width: 2.5),
                         ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(18),
                           onTap: () => _openTable(context, ref, t),
                           onLongPress: manage ? () => _editTable(context, ref, existing: t) : null,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(t.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
-                              Text('${t.seats} ${s.t('seats_n')}'),
-                              const SizedBox(height: 6),
-                              StatusChip(s.t(t.status.name), color: tableColor(t.status)),
-                            ],
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(t.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 26)),
+                                Text('${t.seats} ${s.t('seats_n')}', style: const TextStyle(color: OfColors.muted)),
+                                const SizedBox(height: 6),
+                                StatusChip(s.t(t.status.name), color: tableColor(t.status)),
+                                if (ticket != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(ticket.ticketNo, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                                  MoneyText(ticket.total, style: const TextStyle(fontSize: 14)),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       );

@@ -20,6 +20,7 @@ class OrderScreen extends ConsumerStatefulWidget {
 
 class _OrderScreenState extends ConsumerState<OrderScreen> {
   String q = '';
+  String? catId;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +35,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     }
     final products = snap.store.products.where((p) {
       final query = q.trim().toLowerCase();
-      return (query.isEmpty ||
+      final catOk = catId == null || p.categoryId == catId;
+      return catOk &&
+          (query.isEmpty ||
               p.name.toLowerCase().contains(query) ||
               p.sku.toLowerCase().contains(query));
     }).toList();
@@ -218,50 +221,37 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           if (!locked)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (!kitchenOnly)
-                    OutlinedButton(
-                      onPressed: () => _toggleHold(order),
-                      child: Text(order.held ? s.t('unhold') : s.t('hold')),
+              child: kitchenOnly
+                  ? Row(children: [
+                      if (order.status == OrderStatus.open)
+                        Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('mark_preparing')))),
+                      if (order.status == OrderStatus.preparing)
+                        Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.ready), child: Text(s.t('mark_ready')))),
+                      if (order.status == OrderStatus.ready)
+                        Expanded(child: FilledButton.tonal(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_served')))),
+                    ])
+                  : Row(
+                      children: [
+                        OutlinedButton(onPressed: () => _moreOps(order, canPay), child: Text(s.t('more'))),
+                        const SizedBox(width: 8),
+                        if (order.status == OrderStatus.open && !order.held)
+                          Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen')))),
+                        if (order.status == OrderStatus.preparing && canPay)
+                          Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.ready), child: Text(s.t('mark_ready')))),
+                        if (order.status == OrderStatus.ready && order.type == OrderType.takeaway)
+                          Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_picked_up')))),
+                        if (order.status == OrderStatus.ready && order.type == OrderType.delivery)
+                          Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('out_for_delivery')))),
+                        if (order.status == OrderStatus.ready &&
+                            order.type != OrderType.takeaway &&
+                            order.type != OrderType.delivery)
+                          Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_served')))),
+                        if (canPay) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay')))),
+                        ],
+                      ],
                     ),
-                  if (!kitchenOnly && canPay)
-                    OutlinedButton(onPressed: () => _split(order), child: Text(s.t('split_bill'))),
-                  if (!kitchenOnly && canPay)
-                    OutlinedButton(onPressed: () => applyDiscount(context, ref, order), child: Text(s.t('discount'))),
-                  if (!kitchenOnly && canPay)
-                    OutlinedButton(onPressed: () => compTicket(context, ref, order), child: Text(s.t('comp_meal'))),
-                  if (!kitchenOnly)
-                    OutlinedButton(onPressed: () => moveTicket(context, ref, order), child: Text(s.t('move_table'))),
-                  if (!kitchenOnly)
-                    OutlinedButton(onPressed: () => mergeTicket(context, ref, order), child: Text(s.t('merge_table'))),
-                  if (!kitchenOnly)
-                    OutlinedButton(onPressed: () => fireCourse(context, ref, order), child: Text(s.t('fire_course'))),
-                  if (order.status == OrderStatus.open && !kitchenOnly && !order.held)
-                    FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen'))),
-                  if (order.status == OrderStatus.open && kitchenOnly)
-                    FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('mark_preparing'))),
-                  if (order.status == OrderStatus.preparing && (kitchenOnly || canPay))
-                    FilledButton(onPressed: () => _status(order, OrderStatus.ready), child: Text(s.t('mark_ready'))),
-                  if (order.status == OrderStatus.ready && order.type == OrderType.takeaway && !kitchenOnly)
-                    FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_picked_up'))),
-                  if (order.status == OrderStatus.ready && order.type == OrderType.delivery && !kitchenOnly)
-                    FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('out_for_delivery'))),
-                  if (order.status == OrderStatus.ready &&
-                      order.type != OrderType.takeaway &&
-                      order.type != OrderType.delivery)
-                    FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_served'))),
-                  if (canPay)
-                    FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay_and_close'))),
-                  if (!kitchenOnly)
-                    OutlinedButton(
-                      onPressed: () => _voidOrder(order),
-                      child: Text(s.t('cancel_order')),
-                    ),
-                ],
-              ),
             ),
         ],
       ),
