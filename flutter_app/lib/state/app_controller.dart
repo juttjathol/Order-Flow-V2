@@ -39,6 +39,7 @@ class AppSnapshot {
     required this.notices,
     required this.online,
     required this.clients,
+    required this.pendingSync,
   });
 
   final bool ready;
@@ -53,6 +54,7 @@ class AppSnapshot {
   final List<AppNotice> notices;
   final bool online;
   final List<ClientInfo> clients;
+  final int pendingSync;
 
   L10nView get l10n => L10nView(session.locale);
   String get currency => store.profile.currencySymbol;
@@ -74,6 +76,7 @@ class AppSnapshot {
     List<AppNotice>? notices,
     bool? online,
     List<ClientInfo>? clients,
+    int? pendingSync,
     bool clearError = false,
     bool clearIp = false,
   }) {
@@ -90,6 +93,7 @@ class AppSnapshot {
       notices: notices ?? this.notices,
       online: online ?? this.online,
       clients: clients ?? this.clients,
+      pendingSync: pendingSync ?? this.pendingSync,
     );
   }
 }
@@ -111,7 +115,10 @@ class AppController extends Notifier<AppSnapshot> {
   Timer? _saveTimer;
   Timer? _flushTimer;
   final _queue = <NetCommand>[];
+  final _seenIds = <String>{};
   bool _booted = false;
+  bool _flushing = false;
+  bool _reconnecting = false;
 
   @override
   AppSnapshot build() {
@@ -124,6 +131,7 @@ class AppController extends Notifier<AppSnapshot> {
       _netSub?.cancel();
       unawaited(_server?.stop());
       unawaited(_client?.close());
+      unawaited(ShopKeepAlive.stop());
     });
     Future.microtask(bootstrap);
     return AppSnapshot(
@@ -139,6 +147,7 @@ class AppController extends Notifier<AppSnapshot> {
       notices: const [],
       online: true,
       clients: const [],
+      pendingSync: _queue.length,
     );
   }
 
@@ -148,6 +157,9 @@ class AppController extends Notifier<AppSnapshot> {
     _queue
       ..clear()
       ..addAll(_storage.loadQueue());
+    _seenIds
+      ..clear()
+      ..addAll(_storage.loadSeenIds());
     final started = DateTime.now();
     final session = _storage.loadSession();
     final store = await _storage.loadStore();
@@ -160,6 +172,7 @@ class AppController extends Notifier<AppSnapshot> {
       store: store,
       gate: _computeGate(session),
       busy: false,
+      pendingSync: _queue.length,
       clearError: true,
     );
     _netSub = Connectivity().onConnectivityChanged.listen((events) {
@@ -187,7 +200,11 @@ class AppController extends Notifier<AppSnapshot> {
       (_) => revalidate(),
     );
     _ipTimer = Timer.periodic(const Duration(seconds: 20), (_) => refreshIp());
+    _flushTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      unawaited(_keepStationSynced());
+    });
     await refreshIp();
+    unawaited(_keepStationSynced());
   }
 
   bool _clientLike(SessionPrefs session) =>
@@ -375,6 +392,17 @@ class AppController extends Notifier<AppSnapshot> {
     if (!RoleAccess.allow(cmd.role, cmd)) {
       return ReduceResult(state.store);
     }
+    if (cmd.id.isNotEmpty && _seenIds.contains(cmd.id)) {
+      return ReduceResult(state.store);
+    }
+    if (cmd.id.isNotEmpty) {
+      _seenIds.add(cmd.id);
+      if (_seenIds.length > 500) {
+        final extra = _seenIds.length - 400;
+        _seenIds.removeAll(_seenIds.take(extra).toList());
+      }
+      unawaited(_storage.saveSeenIds(_seenIds));
+    }
     final result = StoreReducer.apply(state.store, cmd);
     state = state.copyWith(
       store: result.store,
@@ -407,40 +435,83 @@ class AppController extends Notifier<AppSnapshot> {
       if (result.notice != null) _server?.broadcastNotice(result.notice!);
       return;
     }
+    _localApply(cmd);
+    if (state.session.role == AppRole.driver) {
+      unawaited(_tryDriverSync());
+    }
     final client = _client;
-    if (client == null) {
-      if (state.session.role == AppRole.driver) {
-        _localApply(cmd);
-        unawaited(_tryDriverSync());
-        return;
-      }
-      _queue.add(cmd);
-      unawaited(_storage.saveQueue(_queue));
-      state = state.copyWith(error: 'queued_offline');
+    if (client == null || !state.connected) {
+      _enqueue(cmd);
       return;
     }
     try {
       await client.send(cmd);
       unawaited(flushQueue());
-    } catch (e) {
-      _queue.add(cmd);
-      unawaited(_storage.saveQueue(_queue));
-      state = state.copyWith(error: 'queued_offline');
+    } catch (_) {
+      _enqueue(cmd);
     }
   }
 
-  Future<void> flushQueue() async {
-    if (_queue.isEmpty || _client == null) return;
-    final pending = List<NetCommand>.from(_queue);
-    _queue.clear();
-    for (final cmd in pending) {
-      try {
-        await _client!.send(cmd);
-      } catch (_) {
-        _queue.add(cmd);
-      }
+  void _enqueue(NetCommand cmd) {
+    if (_queue.any((c) => c.id == cmd.id)) return;
+    _queue.add(cmd);
+    unawaited(_storage.saveQueue(_queue));
+    state = state.copyWith(
+      error: 'queued_offline',
+      pendingSync: _queue.length,
+    );
+  }
+
+  void _acceptRemoteStore(AppStore store) {
+    if (_queue.isNotEmpty) {
+      unawaited(flushQueue());
+      return;
     }
-    await _storage.saveQueue(_queue);
+    state = state.copyWith(store: store, connected: true, pendingSync: 0);
+    unawaited(_storage.saveStore(store));
+  }
+
+  Future<void> flushQueue() async {
+    if (_flushing || _queue.isEmpty || _client == null) return;
+    _flushing = true;
+    try {
+      final pending = List<NetCommand>.from(_queue);
+      _queue.clear();
+      for (final cmd in pending) {
+        try {
+          await _client!.send(cmd);
+        } catch (_) {
+          _queue.add(cmd);
+        }
+      }
+      await _storage.saveQueue(_queue);
+      state = state.copyWith(pendingSync: _queue.length);
+    } finally {
+      _flushing = false;
+    }
+  }
+
+  Future<void> _keepStationSynced() async {
+    if (!state.isClient && state.session.role != AppRole.driver) return;
+    if (state.session.mainHost.isEmpty) return;
+    if (!state.connected) {
+      await _reconnectStation();
+    }
+    if (state.connected) {
+      await flushQueue();
+    }
+  }
+
+  Future<void> _reconnectStation() async {
+    if (_reconnecting) return;
+    final host = state.session.mainHost;
+    if (host.isEmpty) return;
+    _reconnecting = true;
+    try {
+      await connectToMain(host, persist: false, role: state.session.role, quiet: true);
+    } finally {
+      _reconnecting = false;
+    }
   }
 
   void rememberReceipt(String orderId) {
@@ -463,18 +534,22 @@ class AppController extends Notifier<AppSnapshot> {
     await printer.receipt(state.store, order);
   }
 
-  Future<String?> connectToMain(String host, {bool persist = true, AppRole? role}) async {
+  Future<String?> connectToMain(
+    String host, {
+    bool persist = true,
+    AppRole? role,
+    bool quiet = false,
+  }) async {
     final clean = host.trim().replaceFirst(RegExp(r'^https?://'), '');
     final onlyHost = clean.split(':').first.split('/').first;
     if (onlyHost.isEmpty) return 'host_required';
-    state = state.copyWith(busy: true, clearError: true, error: null);
+    if (!quiet) {
+      state = state.copyWith(busy: true, clearError: true, error: null);
+    }
     await _client?.close();
     _client = LanClient(
       host: onlyHost,
-      onStore: (store) {
-        state = state.copyWith(store: store, connected: true);
-        unawaited(_storage.saveStore(store));
-      },
+      onStore: _acceptRemoteStore,
       onNotice: (notice) {
         state = state.copyWith(
           notices: [notice, ...state.notices].take(20).toList(),
@@ -503,11 +578,21 @@ class AppController extends Notifier<AppSnapshot> {
         gate: ready ? LicenseGate.ready : LicenseGate.license,
         busy: false,
         connected: true,
+        pendingSync: _queue.length,
       ));
       unawaited(flushQueue());
       return null;
     } catch (e) {
-      state = state.copyWith(busy: false, error: 'cannot_connect', connected: false);
+      final alreadyPaired = state.session.role != AppRole.none &&
+          state.session.role != AppRole.main &&
+          state.session.mainHost.isNotEmpty;
+      state = state.copyWith(
+        busy: false,
+        error: quiet && alreadyPaired ? state.error : 'cannot_connect',
+        connected: false,
+        gate: alreadyPaired ? LicenseGate.ready : state.gate,
+        pendingSync: _queue.length,
+      );
       return 'cannot_connect';
     }
   }
@@ -541,7 +626,7 @@ class AppController extends Notifier<AppSnapshot> {
     try {
       _client ??= LanClient(
         host: host,
-        onStore: (store) => state = state.copyWith(store: store, connected: true),
+        onStore: _acceptRemoteStore,
         onNotice: (_) {},
         onStatus: (up) => state = state.copyWith(connected: up),
       );

@@ -107,15 +107,24 @@ class StationActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.s;
-    final up = ref.snap.connected || ref.snap.serverOn;
+    final snap = ref.snap;
+    final up = snap.connected || snap.serverOn;
+    final pending = snap.pendingSync;
+    final label = !up && pending > 0
+        ? '${s.t('working_offline')} · $pending'
+        : up && pending > 0
+            ? '${s.t('syncing_back')} $pending'
+            : (up ? s.t('connected') : s.t('disconnected'));
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
           padding: const EdgeInsets.only(right: 4),
           child: StatusChip(
-            up ? s.t('connected') : s.t('disconnected'),
-            color: up ? OfColors.mint : OfColors.danger,
+            label,
+            color: up
+                ? (pending > 0 ? OfColors.warn : OfColors.mint)
+                : OfColors.danger,
           ),
         ),
         ...extra,

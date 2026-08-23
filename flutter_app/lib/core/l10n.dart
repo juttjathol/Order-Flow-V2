@@ -273,6 +273,8 @@ class L10n {
     'no_receipt': 'No last receipt',
     'queued_offline': 'Saved offline — will send when Main is back',
     'pending_sync': 'Waiting to sync',
+    'working_offline': 'Main offline — still taking orders',
+    'syncing_back': 'Sending saved work to Main…',
     'course': 'Course',
     'course_starter': 'Starter',
     'course_main': 'Main',
