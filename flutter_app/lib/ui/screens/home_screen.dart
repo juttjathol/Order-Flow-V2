@@ -22,14 +22,35 @@ class HomeScreen extends ConsumerWidget {
     final open = store.openOrders.length;
     final low = store.lowStock.length;
     final ready = store.orders.where((o) => o.status == OrderStatus.ready).length;
+    final now = DateTime.now();
+    final appts = store.appointments.where((a) =>
+        a.start.year == now.year && a.start.month == now.month && a.start.day == now.day).length;
+    final busy = store.appointments.where((a) => a.status == 'inProgress').length;
+    final sold = store.orders
+        .where((o) => o.status == OrderStatus.paid && o.updatedAt.year == now.year && o.updatedAt.month == now.month && o.updatedAt.day == now.day)
+        .fold<int>(0, (n, o) => n + o.lines.fold<int>(0, (a, l) => a + l.qty.round()));
     final wide = isTablet(context);
 
-    final stats = [
-      _Stat(s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
-      _Stat(s.t('open_orders'), '$open', Icons.receipt_long, OfColors.gold),
-      _Stat(s.t('low_stock'), '$low', Icons.inventory_2, OfColors.warn),
-      _Stat(s.t('ready_to_serve'), '$ready', Icons.notifications_active, OfColors.info),
-    ];
+    final stats = switch (store.model) {
+      BusinessModel.retail => [
+          _Stat(s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
+          _Stat(s.t('open_orders'), '$open', Icons.receipt_long, OfColors.gold),
+          _Stat(s.t('low_stock'), '$low', Icons.inventory_2, OfColors.warn),
+          _Stat(s.t('items_sold'), '$sold', Icons.shopping_bag, OfColors.info),
+        ],
+      BusinessModel.services => [
+          _Stat(s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
+          _Stat(s.t('appointments'), '$appts', Icons.event, OfColors.gold),
+          _Stat(s.t('in_progress'), '$busy', Icons.timelapse, OfColors.warn),
+          _Stat(s.t('staff'), '${store.staff.length}', Icons.badge, OfColors.info),
+        ],
+      _ => [
+          _Stat(s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
+          _Stat(s.t('open_orders'), '$open', Icons.receipt_long, OfColors.gold),
+          _Stat(s.t('ready_to_serve'), '$ready', Icons.notifications_active, OfColors.info),
+          _Stat(s.t('low_stock'), '$low', Icons.inventory_2, OfColors.warn),
+        ],
+    };
 
     return RefreshIndicator(
       onRefresh: () => ref.ctrl.refreshIp(),

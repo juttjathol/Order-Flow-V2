@@ -16,12 +16,72 @@ class FloorScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final model = ref.snap.store.model;
-    return switch (model) {
+    final board = switch (model) {
       BusinessModel.restaurant => _TablesMap(manage: manage),
       BusinessModel.retail => const _RetailRegister(),
       BusinessModel.fastfood => const _QueueBoard(),
       BusinessModel.services => const _AppointmentsBoard(),
     };
+    if (!isTablet(context) || model == BusinessModel.services) return board;
+    return Row(
+      children: [
+        Expanded(child: board),
+        const VerticalDivider(width: 1),
+        const SizedBox(width: 320, child: _TicketRail()),
+      ],
+    );
+  }
+}
+
+class _TicketRail extends ConsumerWidget {
+  const _TicketRail();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.s;
+    final orders = ref.snap.store.openOrders;
+    return ColoredBox(
+      color: Theme.of(context).cardColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            child: Text(s.t('open_orders'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          ),
+          Expanded(
+            child: orders.isEmpty
+                ? EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                    itemCount: orders.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final o = orders[i];
+                      return OfCard(
+                        onTap: () => context.push('/order/${o.id}'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              StatusChip(s.t(o.status.name), color: statusColor(o.status)),
+                              const Spacer(),
+                              MoneyText(o.total, style: const TextStyle(fontSize: 14)),
+                            ]),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${o.ticketNo}  ${o.tableName ?? (o.customerName.isEmpty ? s.t(o.type.name == 'dineIn' ? 'dine_in' : o.type.name) : o.customerName)}',
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

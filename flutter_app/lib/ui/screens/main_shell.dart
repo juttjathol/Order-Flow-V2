@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../widgets/common.dart';
+import '../widgets/station_shell.dart';
 import 'floor_screen.dart';
 import 'home_screen.dart';
 import 'menu_screen.dart';
@@ -23,57 +25,44 @@ class _MainShellState extends ConsumerState<MainShell> {
     final s = ref.s;
     final model = ref.snap.store.model;
     final second = switch (model) {
-      BusinessModel.restaurant => (Icons.table_restaurant, s.t('tables')),
-      BusinessModel.retail => (Icons.point_of_sale, s.t('register')),
-      BusinessModel.fastfood => (Icons.confirmation_number, s.t('queue')),
-      BusinessModel.services => (Icons.event, s.t('appointments')),
+      BusinessModel.restaurant => (Icons.table_restaurant, Icons.table_restaurant, s.t('tables')),
+      BusinessModel.retail => (Icons.point_of_sale, Icons.point_of_sale, s.t('register')),
+      BusinessModel.fastfood => (Icons.confirmation_number, Icons.confirmation_number, s.t('queue')),
+      BusinessModel.services => (Icons.event, Icons.event, s.t('appointments')),
     };
     final third = model == BusinessModel.services
-        ? (Icons.spa, s.t('services'))
-        : (Icons.restaurant_menu, s.t('menu'));
-    final pages = const [
-      HomeScreen(),
-      FloorScreen(),
-      MenuScreen(),
-      StockScreen(),
-      MoreScreen(),
-    ];
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(ref.snap.store.profile.businessName),
-            Text(
-              s.t('role_main'),
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(
-              child: StatusChip(
-                ref.snap.serverOn ? s.t('server_on') : s.t('server_off'),
-                color: ref.snap.serverOn ? const Color(0xFF3DDC97) : const Color(0xFFF0A202),
-              ),
+        ? (Icons.spa_outlined, Icons.spa, s.t('services'))
+        : (Icons.restaurant_menu_outlined, Icons.restaurant_menu, s.t('menu'));
+    return StationShell(
+      title: ref.snap.store.profile.businessName,
+      subtitle: s.t('role_main'),
+      index: index,
+      onIndex: (i) => setState(() => index = i),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Center(
+            child: StatusChip(
+              ref.snap.serverOn ? s.t('server_on') : s.t('server_off'),
+              color: ref.snap.serverOn ? OfColors.mint : OfColors.warn,
             ),
           ),
-        ],
-      ),
-      body: IndexedStack(index: index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => index = i),
-        destinations: [
-          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home), label: s.t('home')),
-          NavigationDestination(icon: Icon(second.$1), label: second.$2),
-          NavigationDestination(icon: Icon(third.$1), label: third.$2),
-          NavigationDestination(icon: const Icon(Icons.inventory_2_outlined), selectedIcon: const Icon(Icons.inventory_2), label: s.t('stock')),
-          NavigationDestination(icon: const Icon(Icons.more_horiz), label: s.t('more')),
-        ],
-      ),
+        ),
+      ],
+      destinations: [
+        StationDest(icon: Icons.home_outlined, selectedIcon: Icons.home, label: s.t('home')),
+        StationDest(icon: second.$1, selectedIcon: second.$2, label: second.$3),
+        StationDest(icon: third.$1, selectedIcon: third.$2, label: third.$3),
+        StationDest(icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2, label: s.t('stock')),
+        StationDest(icon: Icons.more_horiz, selectedIcon: Icons.more_horiz, label: s.t('more')),
+      ],
+      pages: const [
+        HomeScreen(),
+        FloorScreen(),
+        MenuScreen(),
+        StockScreen(),
+        MoreScreen(),
+      ],
     );
   }
 }
