@@ -9,6 +9,14 @@ import 'models/models.dart';
 import 'state/app_controller.dart';
 import 'ui/widgets/common.dart';
 
+class _OfScroll extends ScrollBehavior {
+  const _OfScroll();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const BouncingScrollPhysics();
+}
+
 class OrderFlowApp extends ConsumerWidget {
   const OrderFlowApp({super.key});
 

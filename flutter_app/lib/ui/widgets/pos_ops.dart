@@ -73,7 +73,7 @@ Future<void> moveTicket(BuildContext context, WidgetRef ref, PosOrder order) asy
     builder: (ctx) => AlertDialog(
       title: Text(s.t('move_table')),
       content: DropdownButtonFormField<String>(
-        initialValue: id,
+        value: id,
         items: tables.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))).toList(),
         onChanged: (v) => id = v,
       ),
@@ -98,7 +98,7 @@ Future<void> mergeTicket(BuildContext context, WidgetRef ref, PosOrder order) as
     builder: (ctx) => AlertDialog(
       title: Text(s.t('merge_table')),
       content: DropdownButtonFormField<String>(
-        initialValue: drop,
+        value: drop,
         items: others.map((o) => DropdownMenuItem(value: o.id, child: Text('${o.ticketNo} ${o.tableName ?? ''}'))).toList(),
         onChanged: (v) => drop = v,
       ),
@@ -121,7 +121,7 @@ Future<void> fireCourse(BuildContext context, WidgetRef ref, PosOrder order) asy
     builder: (ctx) => AlertDialog(
       title: Text(s.t('fire_course')),
       content: DropdownButtonFormField<String>(
-        initialValue: course,
+        value: course,
         items: const ['starter', 'main', 'side', 'dessert', 'drink', '']
             .map((c) => DropdownMenuItem(value: c, child: Text(c.isEmpty ? 'All' : c)))
             .toList(),

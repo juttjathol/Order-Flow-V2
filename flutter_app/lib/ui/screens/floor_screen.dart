@@ -398,14 +398,14 @@ class _AppointmentsBoard extends ConsumerWidget {
               TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone'))),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                initialValue: serviceId,
+                value: serviceId,
                 items: store.services.map((e) => DropdownMenuItem(value: e.id, child: Text('${e.name}  ${moneyOf(ref.snap, e.price)}'))).toList(),
                 onChanged: (v) => setSt(() => serviceId = v ?? serviceId),
                 decoration: InputDecoration(labelText: s.t('services')),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                initialValue: staffId,
+                value: staffId,
                 items: store.staff.map((e) => DropdownMenuItem(value: e.id, child: Text(e.name))).toList(),
                 onChanged: (v) => setSt(() => staffId = v ?? staffId),
                 decoration: InputDecoration(labelText: s.t('staff')),
