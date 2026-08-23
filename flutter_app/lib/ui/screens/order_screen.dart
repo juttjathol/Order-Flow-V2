@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -57,6 +58,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       appBar: AppBar(
         title: Text('${order.ticketNo}  ${_typeLabel(s, order)}'),
         actions: [
+          if (!locked)
+            IconButton(
+              tooltip: s.t('scan_sku'),
+              onPressed: () => _scanSku(order),
+              icon: const Icon(Icons.qr_code_scanner),
+            ),
           IconButton(
             tooltip: s.t('print_kitchen'),
             onPressed: () => _printKitchen(order),
@@ -144,7 +151,17 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
           child: TextField(
-            decoration: InputDecoration(hintText: s.t('sku_or_name'), prefixIcon: const Icon(Icons.search)),
+            decoration: InputDecoration(
+              hintText: s.t('sku_or_name'),
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: locked
+                  ? null
+                  : IconButton(
+                      tooltip: s.t('scan_sku'),
+                      onPressed: () => _scanSku(order),
+                      icon: const Icon(Icons.qr_code_scanner),
+                    ),
+            ),
             onChanged: (v) => setState(() => q = v),
           ),
         ),
@@ -381,6 +398,68 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     if (cat.contains('dessert') || cat.contains('sweet')) return 'dessert';
     if (cat.contains('side') || cat.contains('bread')) return 'side';
     return 'main';
+  }
+
+  MenuProduct? _matchSku(String code) {
+    final needle = code.trim().toLowerCase();
+    if (needle.isEmpty) return null;
+    final products = ref.snap.store.products;
+    for (final p in products) {
+      if (p.sku.trim().toLowerCase() == needle) return p;
+    }
+    for (final p in products) {
+      if (p.sku.isNotEmpty && p.sku.trim().toLowerCase().contains(needle)) return p;
+    }
+    return null;
+  }
+
+  Future<void> _scanSku(PosOrder order) async {
+    final s = ref.s;
+    var handled = false;
+    final code = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.sizeOf(ctx).height * 0.72,
+        child: Column(
+          children: [
+            ListTile(
+              title: Text(s.t('scan_sku'), style: const TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text(s.t('scan_sku_hint')),
+              trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+            ),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                child: MobileScanner(
+                  onDetect: (capture) {
+                    if (handled) return;
+                    final value = capture.barcodes.firstOrNull?.rawValue;
+                    if (value == null || value.trim().isEmpty) return;
+                    handled = true;
+                    Navigator.pop(ctx, value.trim());
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (code == null || !mounted) return;
+    final product = _matchSku(code);
+    if (product == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${s.t('sku_not_found')}: $code')));
+      return;
+    }
+    if (!product.available) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('unavailable'))));
+      return;
+    }
+    await _add(order, product);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${product.name}  ${product.sku}')));
+    }
   }
 
   Future<bool> _stockOk(MenuProduct p) async {
