@@ -57,15 +57,21 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: OfColors.deep,
+      backgroundColor: Colors.black,
       body: Center(
         child: ScaleTransition(
           scale: Tween<double>(begin: 0.92, end: 1).animate(_scale),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const _Logo(size: 68),
-              const SizedBox(width: 14),
+              Image.asset(
+                'assets/brand/bolt.png',
+                width: 56,
+                height: 72,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
+              const SizedBox(width: 12),
               Text(
                 _typed,
                 style: const TextStyle(
@@ -79,31 +85,16 @@ class _SplashScreenState extends State<SplashScreen>
               FadeTransition(
                 opacity: _blink,
                 child: Container(
-                  margin: const EdgeInsets.only(left: 4, top: 16),
-                  width: 16,
-                  height: 3,
-                  color: const Color(0xFF8A9AA8),
+                  margin: const EdgeInsets.only(left: 3),
+                  width: 3,
+                  height: 36,
+                  color: Colors.white,
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Logo extends StatelessWidget {
-  const _Logo({this.size = 220});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/brand/logo.png',
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
     );
   }
 }
@@ -141,17 +132,20 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ColorFiltered(
-              colorFilter: ColorFilter.mode(
-                const Color(0xFF051912).withValues(alpha: 0.35),
-                BlendMode.srcATop,
-              ),
-              child: Opacity(
-                opacity: 0.22,
-                child: Image.asset(
-                  'assets/brand/logo.png',
-                  fit: BoxFit.contain,
-                  alignment: const Alignment(0, -0.15),
+            IgnorePointer(
+              child: OverflowBox(
+                maxWidth: 980,
+                maxHeight: 980,
+                child: Opacity(
+                  opacity: 0.16,
+                  child: Image.asset(
+                    'assets/brand/mark.png',
+                    width: 980,
+                    height: 980,
+                    fit: BoxFit.contain,
+                    alignment: Alignment.center,
+                    filterQuality: FilterQuality.high,
+                  ),
                 ),
               ),
             ),

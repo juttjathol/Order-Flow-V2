@@ -119,8 +119,7 @@ async function refresh() {
   renderCustomers();
   renderLicenses();
 }
-const APK_FALLBACK =
-  "https://github.com/juttjathol/Order-Flow-V2/releases/latest/download/app-release.apk";
+const APK_STABLE = `${location.origin}/download`;
 
 async function loadGithubRelease() {
   const tagEl = document.getElementById("apk-tag");
@@ -128,39 +127,28 @@ async function loadGithubRelease() {
   const dateEl = document.getElementById("apk-date");
   const linkEl = document.getElementById("apk-link");
   const dl = document.getElementById("apk-download");
-  const rel = document.getElementById("apk-release");
   if (!tagEl) return;
+  window.__apkUrl = APK_STABLE;
+  if (linkEl) linkEl.textContent = APK_STABLE;
+  if (dl) dl.href = APK_STABLE;
   try {
-    const res = await fetch(
-      "https://api.github.com/repos/juttjathol/Order-Flow-V2/releases/latest",
-    );
-    if (!res.ok) throw new Error("no release");
+    const res = await fetch(`${APK_STABLE}?meta=1`);
     const data = await res.json();
-    const asset = (data.assets || []).find((a) =>
-      String(a.name || "").toLowerCase().endsWith(".apk"),
-    );
-    const url = asset?.browser_download_url || APK_FALLBACK;
-    tagEl.textContent = data.tag_name || "latest";
-    if (dateEl) dateEl.textContent = data.published_at ? "Published " + String(data.published_at).slice(0, 10) : "";
-    if (linkEl) linkEl.textContent = url;
-    if (dl) dl.href = url;
-    if (rel && data.html_url) rel.href = data.html_url;
-    statusEl.className = asset ? "badge bound" : "badge unbound";
-    statusEl.textContent = asset ? "APK ready" : "No APK on this release";
-    window.__apkUrl = url;
+    if (!res.ok || !data.ok) throw new Error(data.error || "no apk");
+    tagEl.textContent = data.tag || "latest";
+    if (dateEl) dateEl.textContent = data.publishedAt ? "Published " + String(data.publishedAt).slice(0, 10) : "";
+    statusEl.className = "badge bound";
+    statusEl.textContent = "Always latest";
   } catch (e) {
     tagEl.textContent = "latest";
     statusEl.className = "badge unbound";
-    statusEl.textContent = "Could not read GitHub";
-    if (linkEl) linkEl.textContent = APK_FALLBACK;
-    if (dl) dl.href = APK_FALLBACK;
-    window.__apkUrl = APK_FALLBACK;
+    statusEl.textContent = "Set GITHUB_TOKEN on Pages if the repo is private";
   }
 }
 async function boot() {
    loadGithubRelease();
   document.getElementById("apk-copy")?.addEventListener("click", () => {
-    navigator.clipboard.writeText(window.__apkUrl || APK_FALLBACK);
+    navigator.clipboard.writeText(window.__apkUrl || `${location.origin}/download`);
   });
   if (!state.token) {
     showApp(false);

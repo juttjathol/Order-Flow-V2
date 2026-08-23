@@ -46,4 +46,6 @@ flutter:
 
   assets:
     - assets/brand/logo.png
+    - assets/brand/bolt.png
+    - assets/brand/mark.png
     - assets/web/index.html
