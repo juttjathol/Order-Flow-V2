@@ -416,6 +416,8 @@ class L10n {
     'mod_spice': 'Spice',
     'mod_extra': 'Add-on',
     'license_enter_key': 'Enter your 16-character license key to activate',
+    'server_keep_title': 'Shop server running',
+    'server_keep_body': 'Stations can stay connected. Do not swipe this app away.',
   };
 
   static const _ur = {
@@ -790,6 +792,8 @@ class L10n {
     'mod_size': 'سائز',
     'mod_spice': 'مصالحہ',
     'mod_extra': 'ایڈ آن',
+    'server_keep_title': 'شاپ سرور چل رہا ہے',
+    'server_keep_body': 'سٹیشنز جڑی رہ سکتی ہیں۔ اس ایپ کو سوائپ کر کے بند نہ کریں۔',
   };
 
   static const _table = {'en': _en, 'ur': _ur};

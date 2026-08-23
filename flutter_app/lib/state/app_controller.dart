@@ -15,6 +15,7 @@ import '../services/lan_client.dart';
 import '../services/lan_server.dart';
 import '../services/license_service.dart';
 import '../services/print_service.dart';
+import '../services/shop_keepalive.dart';
 import '../services/storage_service.dart';
 
 final storageProvider = Provider<StorageService>((ref) {
@@ -306,6 +307,7 @@ class AppController extends Notifier<AppSnapshot> {
     if (rec.locked) {
       await _server?.stop();
       _server = null;
+      await ShopKeepAlive.stop();
       _emit(state.copyWith(
         session: session,
         gate: LicenseGate.locked,
@@ -316,6 +318,7 @@ class AppController extends Notifier<AppSnapshot> {
     if (!rec.valid && !rec.inGrace) {
       await _server?.stop();
       _server = null;
+      await ShopKeepAlive.stop();
       _emit(state.copyWith(
         session: session,
         gate: LicenseGate.license,
@@ -357,8 +360,13 @@ class AppController extends Notifier<AppSnapshot> {
     try {
       await _server!.start(port: kLanPort);
       state = state.copyWith(serverOn: true, clients: _server!.clients.values.toList());
+      await ShopKeepAlive.start(
+        title: state.store.profile.businessName.isEmpty ? kBrandName : state.store.profile.businessName,
+        text: 'Shop server · port $kLanPort',
+      );
       await refreshIp();
     } catch (e) {
+      await ShopKeepAlive.stop();
       state = state.copyWith(error: e.toString(), serverOn: false);
     }
   }
@@ -578,6 +586,7 @@ class AppController extends Notifier<AppSnapshot> {
   Future<void> leaveRole() async {
     await _server?.stop();
     await _client?.close();
+    await ShopKeepAlive.stop();
     _server = null;
     _client = null;
     state.session.role = AppRole.none;
