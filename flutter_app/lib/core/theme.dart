@@ -82,7 +82,7 @@ class OfTheme {
         color: isDark ? OfColors.cardDark : OfColors.paper,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(22),
           side: BorderSide(
             color: isDark ? const Color(0x223DDC97) : const Color(0x140B3D2E),
           ),

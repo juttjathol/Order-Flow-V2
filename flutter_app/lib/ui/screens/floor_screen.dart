@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,7 +29,7 @@ class FloorScreen extends ConsumerWidget {
       children: [
         Expanded(child: board),
         const VerticalDivider(width: 1),
-        const SizedBox(width: 320, child: _TicketRail()),
+        const SizedBox(width: 360, child: _TicketRail()),
       ],
     );
   }
@@ -46,16 +48,16 @@ class _TicketRail extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-            child: Text(s.t('open_orders'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 12),
+            child: Text(s.t('live_board'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
           ),
           Expanded(
             child: orders.isEmpty
                 ? EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
                 : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     itemCount: orders.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (_, i) {
                       final o = orders[i];
                       return OfCard(
@@ -119,13 +121,14 @@ class _TablesMap extends ConsumerWidget {
               children: [
                 const OffsiteOrderBar(),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Text(s.t('tap_table')),
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  child: Text(s.t('tap_table'), style: TextStyle(color: OfColors.mute(context), fontSize: 16)),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                   child: Wrap(
-                    spacing: 8,
+                    spacing: 10,
+                    runSpacing: 8,
                     children: [
                       StatusChip(s.t('free'), color: OfColors.emerald),
                       StatusChip(s.t('ordered'), color: OfColors.warn),
@@ -134,40 +137,55 @@ class _TablesMap extends ConsumerWidget {
                   ),
                 ),
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
+                  child: _FloorClock(
+                    builder: (now) => GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(22, 8, 22, 100),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: gridCount(context, phone: 3, tablet: 5),
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
+                      crossAxisCount: gridCount(context, phone: 2, tablet: 4),
+                      mainAxisSpacing: 18,
+                      crossAxisSpacing: 18,
+                      childAspectRatio: 0.92,
                     ),
                     itemCount: store.tables.length,
                     itemBuilder: (_, i) {
                       final t = store.tables[i];
                       final ticket = t.currentOrderId == null ? null : store.orderById(t.currentOrderId);
+                      final color = tableColor(t.status);
+                      final mins = ticket == null ? null : now.difference(ticket.createdAt).inMinutes;
                       return Material(
-                        color: tableColor(t.status).withValues(alpha: 0.18),
+                        color: OfColors.card(context),
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          side: BorderSide(color: tableColor(t.status), width: 2.5),
+                          borderRadius: BorderRadius.circular(28),
+                          side: BorderSide(color: color, width: 3),
                         ),
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(28),
                           onTap: () => _openTable(context, ref, t),
                           onLongPress: manage ? () => _editTable(context, ref, existing: t) : null,
                           child: Padding(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                             child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(t.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 26)),
-                                Text('${t.seats} ${s.t('seats_n')}', style: const TextStyle(color: OfColors.muted)),
-                                const SizedBox(height: 6),
-                                StatusChip(s.t(t.status.name), color: tableColor(t.status)),
+                                Container(
+                                  width: 18,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 10)],
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(t.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 32, letterSpacing: -0.8)),
+                                const SizedBox(height: 4),
+                                Text('${t.seats} ${s.t('seats_n')}', style: TextStyle(color: OfColors.mute(context), fontSize: 14)),
+                                const Spacer(),
+                                StatusChip(s.t(t.status.name), color: color),
                                 if (ticket != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(ticket.ticketNo, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                                  MoneyText(ticket.total, style: const TextStyle(fontSize: 14)),
+                                  const SizedBox(height: 10),
+                                  Text('${ticket.ticketNo}  ·  ${mins}m', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                                  MoneyText(ticket.total, style: const TextStyle(fontSize: 16)),
                                 ],
                               ],
                             ),
@@ -175,6 +193,7 @@ class _TablesMap extends ConsumerWidget {
                         ),
                       );
                     },
+                  ),
                   ),
                 ),
               ],
@@ -454,6 +473,36 @@ class _OpenOrderList extends ConsumerWidget {
       },
     );
   }
+}
+
+class _FloorClock extends StatefulWidget {
+  const _FloorClock({required this.builder});
+  final Widget Function(DateTime now) builder;
+
+  @override
+  State<_FloorClock> createState() => _FloorClockState();
+}
+
+class _FloorClockState extends State<_FloorClock> {
+  Timer? _t;
+  DateTime now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _t = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) setState(() => now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(now);
 }
 
 Future<void> _newSale(BuildContext context, WidgetRef ref) async {

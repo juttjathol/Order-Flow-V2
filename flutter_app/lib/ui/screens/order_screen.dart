@@ -73,8 +73,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           : isTablet(context)
               ? Row(
                   children: [
-                    Expanded(child: _catalog(products, order, locked)),
-                    SizedBox(width: 400, child: _ticket(order, closed, canPay: canPay)),
+                    SizedBox(width: 200, child: _categories()),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: _catalog(products, order, locked, hideCats: true)),
+                    SizedBox(width: 420, child: _ticket(order, closed, canPay: canPay)),
                   ],
                 )
               : Column(
@@ -100,43 +102,77 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     );
   }
 
-  Widget _catalog(List<MenuProduct> products, PosOrder order, bool locked) {
+  Widget _categories() {
+    final s = ref.s;
+    final cats = [...ref.snap.store.categories]..sort((a, b) => a.sort.compareTo(b.sort));
+    return Material(
+      color: Theme.of(context).cardColor,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+            child: Text(s.t('menu'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+          ),
+          _catTile(s.t('all'), null),
+          ...cats.map((c) => _catTile(c.name, c.id)),
+        ],
+      ),
+    );
+  }
+
+  Widget _catTile(String label, String? id) {
+    final on = catId == id;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        selected: on,
+        selectedTileColor: OfColors.mint.withValues(alpha: 0.18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(label, style: TextStyle(fontWeight: on ? FontWeight.w800 : FontWeight.w600, fontSize: 15)),
+        onTap: () => setState(() => catId = id),
+      ),
+    );
+  }
+
+  Widget _catalog(List<MenuProduct> products, PosOrder order, bool locked, {bool hideCats = false}) {
     final s = ref.s;
     final cats = [...ref.snap.store.categories]..sort((a, b) => a.sort.compareTo(b.sort));
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
           child: TextField(
             decoration: InputDecoration(hintText: s.t('sku_or_name'), prefixIcon: const Icon(Icons.search)),
             onChanged: (v) => setState(() => q = v),
           ),
         ),
-        SizedBox(
-          height: 48,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(label: Text(s.t('all')), selected: catId == null, onSelected: (_) => setState(() => catId = null)),
-              ),
-              ...cats.map((c) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(label: Text(c.name), selected: catId == c.id, onSelected: (_) => setState(() => catId = c.id)),
-                  )),
-            ],
+        if (!hideCats)
+          SizedBox(
+            height: 56,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(label: Text(s.t('all')), selected: catId == null, onSelected: (_) => setState(() => catId = null)),
+                ),
+                ...cats.map((c) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(label: Text(c.name), selected: catId == c.id, onSelected: (_) => setState(() => catId = c.id)),
+                    )),
+              ],
+            ),
           ),
-        ),
         Expanded(
           child: GridView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(18),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: gridCount(context, phone: 3, tablet: 4),
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 0.72,
+              crossAxisCount: gridCount(context, phone: 2, tablet: 3),
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              childAspectRatio: 0.78,
             ),
             itemCount: products.length,
             itemBuilder: (_, i) {

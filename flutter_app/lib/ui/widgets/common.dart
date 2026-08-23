@@ -203,7 +203,7 @@ class OfCard extends StatelessWidget {
     required this.child,
     this.onTap,
     this.onLongPress,
-    this.padding = const EdgeInsets.all(14),
+    this.padding = const EdgeInsets.all(20),
     this.color,
   });
 

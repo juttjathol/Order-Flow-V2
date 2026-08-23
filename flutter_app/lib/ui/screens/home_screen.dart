@@ -52,14 +52,36 @@ class HomeScreen extends ConsumerWidget {
         ],
     };
 
+    final hour = DateTime.now().hour;
+    final greet = hour < 12
+        ? s.t('good_morning')
+        : hour < 17
+            ? s.t('good_afternoon')
+            : s.t('good_evening');
+    final ySales = store.salesOn(DateTime.now().subtract(const Duration(days: 1)));
+    final delta = ySales == 0 ? null : ((today - ySales) / ySales * 100);
+
     return RefreshIndicator(
       onRefresh: () => ref.ctrl.refreshIp(),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(22, 20, 22, 36),
         children: [
+          Text(
+            greet,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${store.profile.businessName}  ·  ${_longDate(DateTime.now())}',
+            style: TextStyle(color: OfColors.mute(context), fontSize: 16, height: 1.4),
+          ),
+          const SizedBox(height: 20),
           _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
           if (snap.isMain) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
@@ -80,7 +102,7 @@ class HomeScreen extends ConsumerWidget {
                     label: Text(s.t('reprint_last')),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: () => _dayClose(context, ref),
@@ -91,84 +113,105 @@ class HomeScreen extends ConsumerWidget {
               ],
             ),
           ],
-          const SizedBox(height: 14),
+          const SizedBox(height: 22),
           GridView.count(
             crossAxisCount: wide ? 4 : 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: wide ? 1.6 : 1.45,
-            children: stats
-                .map((st) => OfCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: st.color.withValues(alpha: 0.16),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(st.icon, color: st.color, size: 22),
-                          ),
-                          const Spacer(),
-                          Text(st.label, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
-                          const SizedBox(height: 4),
-                          Text(st.value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
-                        ],
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: wide ? 1.45 : 1.2,
+            children: [
+              for (var i = 0; i < stats.length; i++)
+                OfCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: stats[i].color.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(stats[i].icon, color: stats[i].color, size: 26),
                       ),
-                    ))
-                .toList(),
+                      const Spacer(),
+                      Text(stats[i].label, style: TextStyle(color: OfColors.mute(context), fontSize: 13)),
+                      const SizedBox(height: 6),
+                      Text(stats[i].value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 26, letterSpacing: -0.5)),
+                      if (i == 0 && delta != null)
+                        Text(
+                          '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(0)}% ${s.t('vs_yesterday')}',
+                          style: TextStyle(
+                            color: delta >= 0 ? OfColors.emerald : OfColors.danger,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 18),
-          Text(s.t('charts'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 10),
-          _SalesChart(store: store, snap: snap, title: s.t('sales_chart')),
-          const SizedBox(height: 12),
-          if (wide)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _StockChart(store: store, title: s.t('stock_chart'))),
-                const SizedBox(width: 12),
-                Expanded(child: _StaffChart(store: store, title: s.t('staff_chart'), s: s)),
-              ],
-            )
-          else ...[
-            _StockChart(store: store, title: s.t('stock_chart')),
-            const SizedBox(height: 12),
-            _StaffChart(store: store, title: s.t('staff_chart'), s: s),
-          ],
-          const SizedBox(height: 18),
-          Text(s.t('open_orders'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 28),
+          Text(s.t('live_board'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 14),
           if (store.openOrders.isEmpty)
             EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
           else
-            ...store.openOrders.take(8).map((o) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: OfCard(
-                    onTap: () => context.push('/order/${o.id}'),
+            ...store.openOrders.take(10).map((o) {
+              final age = DateTime.now().difference(o.createdAt);
+              final mins = age.inMinutes;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: OfCard(
+                  onTap: () => context.push('/order/${o.id}'),
+                  padding: EdgeInsets.zero,
+                  child: IntrinsicHeight(
                     child: Row(
                       children: [
-                        StatusChip(s.t(o.status.name), color: statusColor(o.status)),
-                        const SizedBox(width: 10),
+                        Container(width: 8, color: statusColor(o.status)),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${o.ticketNo}  ${o.tableName ?? o.type.name}',
-                                  style: const TextStyle(fontWeight: FontWeight.w800)),
-                              Text('${o.lines.length} ${s.t('items')}'),
-                            ],
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${o.ticketNo}  ·  ${o.tableName ?? o.type.name}',
+                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        '${o.lines.length} ${s.t('items')}  ·  ${s.t('open_for')} ${mins}m',
+                                        style: TextStyle(color: OfColors.mute(context), fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    StatusChip(s.t(o.status.name), color: statusColor(o.status)),
+                                    const SizedBox(height: 8),
+                                    MoneyText(o.total, style: const TextStyle(fontSize: 20)),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        MoneyText(o.total),
                       ],
                     ),
                   ),
-                )),
+                ),
+              );
+            }),
+          const SizedBox(height: 12),
+          _ChartsFold(store: store, snap: snap, s: s, wide: wide),
         ],
       ),
     );
@@ -208,6 +251,62 @@ Future<void> _dayClose(BuildContext context, WidgetRef ref) async {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
     }
+  }
+}
+
+String _longDate(DateTime d) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${d.day} ${months[d.month - 1]} ${d.year}';
+}
+
+class _ChartsFold extends StatefulWidget {
+  const _ChartsFold({required this.store, required this.snap, required this.s, required this.wide});
+  final AppStore store;
+  final AppSnapshot snap;
+  final dynamic s;
+  final bool wide;
+
+  @override
+  State<_ChartsFold> createState() => _ChartsFoldState();
+}
+
+class _ChartsFoldState extends State<_ChartsFold> {
+  bool open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => setState(() => open = !open),
+            icon: Icon(open ? Icons.expand_less : Icons.insights),
+            label: Text(open ? s.t('hide_charts') : s.t('show_charts')),
+          ),
+        ),
+        if (open) ...[
+          const SizedBox(height: 8),
+          _SalesChart(store: widget.store, snap: widget.snap, title: s.t('sales_chart')),
+          const SizedBox(height: 16),
+          if (widget.wide)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _StockChart(store: widget.store, title: s.t('stock_chart'))),
+                const SizedBox(width: 16),
+                Expanded(child: _StaffChart(store: widget.store, title: s.t('staff_chart'), s: s)),
+              ],
+            )
+          else ...[
+            _StockChart(store: widget.store, title: s.t('stock_chart')),
+            const SizedBox(height: 16),
+            _StaffChart(store: widget.store, title: s.t('staff_chart'), s: s),
+          ],
+        ],
+      ],
+    );
   }
 }
 
