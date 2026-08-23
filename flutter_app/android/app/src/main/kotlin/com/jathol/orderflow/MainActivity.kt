@@ -28,6 +28,8 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PRINTER)
+            .setMethodCallHandler(ShopPrinter(this))
     }
 
     private fun maybeAskNotifications() {
@@ -44,5 +46,6 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "jathol/shop_keepalive"
+        private const val PRINTER = "jathol/printer"
     }
 }

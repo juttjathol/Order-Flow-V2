@@ -671,16 +671,32 @@ class Appointment {
 }
 
 class PrinterConfig {
-  PrinterConfig({this.host = '', this.port = kEscPosPort, this.enabled = false});
+  PrinterConfig({
+    this.host = '',
+    this.port = kEscPosPort,
+    this.enabled = false,
+    this.transport = 'lan',
+    this.btAddress = '',
+    this.btName = '',
+  });
 
   String host;
   int port;
   bool enabled;
+  /// lan | bluetooth
+  String transport;
+  String btAddress;
+  String btName;
+
+  bool get isBluetooth => transport == 'bluetooth';
 
   Map<String, dynamic> toJson() => {
         'host': host,
         'port': port,
         'enabled': enabled,
+        'transport': transport,
+        'btAddress': btAddress,
+        'btName': btName,
       };
 
   factory PrinterConfig.fromJson(Map<String, dynamic>? j) {
@@ -689,6 +705,9 @@ class PrinterConfig {
       host: parseStr(m['host']) ?? '',
       port: parseInt(m['port'], kEscPosPort),
       enabled: parseBool(m['enabled']),
+      transport: parseStr(m['transport']) ?? 'lan',
+      btAddress: parseStr(m['btAddress']) ?? '',
+      btName: parseStr(m['btName']) ?? '',
     );
   }
 }

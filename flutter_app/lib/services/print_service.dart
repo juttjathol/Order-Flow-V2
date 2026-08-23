@@ -2,10 +2,21 @@ import 'dart:io';
 
 import '../core/money.dart';
 import '../models/models.dart';
+import 'bluetooth_printer.dart';
 
 class PrintService {
+  final bluetooth = BluetoothPrinter();
+
   Future<void> send(PrinterConfig cfg, List<int> bytes) async {
-    if (!cfg.enabled || cfg.host.trim().isEmpty) {
+    if (!cfg.enabled) throw Exception('Printer is not configured');
+    if (cfg.isBluetooth) {
+      if (cfg.btAddress.trim().isEmpty) {
+        throw Exception('Printer is not configured');
+      }
+      await bluetooth.printBytes(cfg.btAddress.trim(), bytes);
+      return;
+    }
+    if (cfg.host.trim().isEmpty) {
       throw Exception('Printer is not configured');
     }
     final socket = await Socket.connect(
