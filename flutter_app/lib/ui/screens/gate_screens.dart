@@ -135,119 +135,136 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
     final s = ref.s;
     final snap = ref.snap;
     return Scaffold(
-      backgroundColor: OfColors.deep,
+      backgroundColor: const Color(0xFF051912),
       body: BusyBarrier(
         busy: snap.busy,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Opacity(
-              opacity: 0.42,
-              child: Transform.scale(
-                scale: 1.65,
+            ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                const Color(0xFF051912).withValues(alpha: 0.35),
+                BlendMode.srcATop,
+              ),
+              child: Opacity(
+                opacity: 0.22,
                 child: Image.asset(
                   'assets/brand/logo.png',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  width: double.infinity,
-                  height: double.infinity,
-                ),
-              ),
-            ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x88051912), Color(0xCC051912), Color(0xF2051912)],
+                  fit: BoxFit.contain,
+                  alignment: const Alignment(0, -0.15),
                 ),
               ),
             ),
             SafeArea(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
+                  constraints: const BoxConstraints(maxWidth: 420),
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(22, 28, 22, 36),
+                    padding: const EdgeInsets.fromLTRB(28, 48, 28, 28),
                     children: [
+                      const SizedBox(height: 48),
                       Text(
                         s.t('app'),
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                      ),
-                      Text(s.t('tagline'), style: const TextStyle(color: OfColors.muted)),
-                      const SizedBox(height: 24),
-                      Material(
-                        color: OfColors.cardDark.withValues(alpha: 0.84),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: const BorderSide(color: Color(0x333DDC97)),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 34,
+                          letterSpacing: -0.6,
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(s.t('main_needs_key'),
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white)),
-                              const SizedBox(height: 6),
-                              Text(s.t('need_internet_first'), style: const TextStyle(color: OfColors.muted)),
-                              const SizedBox(height: 16),
-                              TextField(
-                                controller: keyCtrl,
-                                textCapitalization: TextCapitalization.characters,
-                                style: const TextStyle(color: Colors.white, letterSpacing: 1.2),
-                                decoration: InputDecoration(
-                                  labelText: s.t('paste_key'),
-                                  prefixIcon: const Icon(Icons.vpn_key),
-                                ),
-                              ),
-                              if (snap.error != null) ...[
-                                const SizedBox(height: 12),
-                                Text(s.t(snap.error!),
-                                    style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
-                              ],
-                              const SizedBox(height: 16),
-                              FilledButton.icon(
-                                onPressed: () async {
-                                  final err = await ref.ctrl.activateLicense(keyCtrl.text);
-                                  if (err != null && context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t(err))));
-                                  }
-                                },
-                                icon: const Icon(Icons.verified),
-                                label: Text(s.t('activate')),
-                              ),
-                              const SizedBox(height: 10),
-                              OutlinedButton.icon(
-                                onPressed: () => context.push('/connect'),
-                                icon: const Icon(Icons.wifi),
-                                label: Text(s.t('connect_main')),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(s.t('no_key_needed'),
-                                  textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
-                            ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        s.t('license_enter_key'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Color(0xFF9BB5A8), fontSize: 15, height: 1.35),
+                      ),
+                      const SizedBox(height: 28),
+                      Text(s.t('license_key'), style: const TextStyle(color: Color(0xFF9BB5A8), fontSize: 13)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: keyCtrl,
+                        textAlign: TextAlign.center,
+                        textCapitalization: TextCapitalization.characters,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          letterSpacing: 2.2,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'XXXX-XXXX-XXXX-XXXX',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.28), letterSpacing: 2.2),
+                          filled: true,
+                          fillColor: const Color(0x22000000),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(color: Color(0x553DDC97), width: 1.4),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(color: OfColors.mint, width: 1.6),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      Wrap(
-                        spacing: 8,
+                      if (snap.error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(s.t(snap.error!),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
+                      ],
+                      const SizedBox(height: 18),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: OfColors.mint,
+                          foregroundColor: const Color(0xFF042016),
+                          minimumSize: const Size.fromHeight(54),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                        ),
+                        onPressed: () async {
+                          final err = await ref.ctrl.activateLicense(keyCtrl.text);
+                          if (err != null && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t(err))));
+                          }
+                        },
+                        child: Text(s.t('activate')),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white70),
+                          minimumSize: const Size.fromHeight(54),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                        ),
+                        onPressed: () => context.push('/connect'),
+                        child: Text(s.t('connect_main')),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(s.t('no_key_needed'),
+                          textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                      const SizedBox(height: 28),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           ChoiceChip(
                             label: Text(s.t('english')),
                             selected: snap.session.locale == 'en',
                             onSelected: (_) => ref.ctrl.setLocale('en'),
                           ),
+                          const SizedBox(width: 10),
                           ChoiceChip(
                             label: Text(s.t('urdu')),
                             selected: snap.session.locale == 'ur',
                             onSelected: (_) => ref.ctrl.setLocale('ur'),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 36),
+                      const Text(
+                        kBrandName,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800, letterSpacing: 0.8),
                       ),
                     ],
                   ),

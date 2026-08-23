@@ -415,6 +415,7 @@ class L10n {
     'mod_size': 'Size',
     'mod_spice': 'Spice',
     'mod_extra': 'Add-on',
+    'license_enter_key': 'Enter your 16-character license key to activate',
   };
 
   static const _ur = {
