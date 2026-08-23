@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Production POS palette — deep forest + mint, high-contrast station UI.
+/// Hybrid POS: forest night + Suzlon cream day. Same layout language.
 class OfColors {
   static const forest = Color(0xFF0B3D2E);
   static const deep = Color(0xFF051912);
@@ -9,13 +9,23 @@ class OfColors {
   static const emerald = Color(0xFF1B8F62);
   static const mint = Color(0xFF3DDC97);
   static const gold = Color(0xFFE6C35C);
-  static const cream = Color(0xFFF4F7F4);
+  static const cream = Color(0xFFF3F6F2);
   static const ink = Color(0xFF10231B);
   static const danger = Color(0xFFE85D4C);
   static const warn = Color(0xFFF0A202);
   static const info = Color(0xFF3D9CF0);
   static const muted = Color(0xFF7A9A8C);
   static const line = Color(0x1A3DDC97);
+  static const paper = Color(0xFFFFFFFF);
+
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color card(BuildContext context) =>
+      isDark(context) ? cardDark : paper;
+
+  static Color mute(BuildContext context) =>
+      isDark(context) ? muted : const Color(0xFF5C7468);
 }
 
 class OfTheme {
@@ -67,8 +77,9 @@ class OfTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        elevation: 0,
-        color: isDark ? OfColors.cardDark : Colors.white,
+        elevation: isDark ? 0 : 1,
+        shadowColor: const Color(0x140B3D2E),
+        color: isDark ? OfColors.cardDark : OfColors.paper,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -80,8 +91,8 @@ class OfTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 72,
-        backgroundColor: isDark ? OfColors.cardDark : Colors.white,
-        indicatorColor: OfColors.mint.withValues(alpha: isDark ? 0.22 : 0.28),
+        backgroundColor: isDark ? OfColors.cardDark : OfColors.paper,
+        indicatorColor: OfColors.mint.withValues(alpha: isDark ? 0.22 : 0.35),
         labelTextStyle: WidgetStatePropertyAll(
           TextStyle(
             fontWeight: FontWeight.w700,
@@ -94,18 +105,22 @@ class OfTheme {
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 52),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: isDark ? OfColors.mint : OfColors.forest,
+          foregroundColor: isDark ? const Color(0xFF042016) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(48, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
-      dialogTheme: DialogThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: isDark ? OfColors.mint : OfColors.forest,
+        foregroundColor: isDark ? const Color(0xFF042016) : Colors.white,
+        elevation: 2,
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         showDragHandle: true,
@@ -115,7 +130,7 @@ class OfTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? const Color(0x22000000) : Colors.white,
+        fillColor: isDark ? const Color(0x22000000) : OfColors.paper,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

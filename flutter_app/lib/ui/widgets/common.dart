@@ -212,7 +212,7 @@ class OfCard extends StatelessWidget {
     );
     if (onTap == null && onLongPress == null) return card;
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       onLongPress: onLongPress,
       child: card,
