@@ -264,12 +264,53 @@ Future<void> showSalesReports(BuildContext context, WidgetRef ref, {required boo
 
 Future<void> startShift(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
+  final store = ref.snap.store;
+  if (store.shiftCashier.isNotEmpty) {
+    final cash = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.t('end_shift')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${s.t('shift_open')}: ${store.shiftCashier}'),
+            Text('${s.t('shift_float')}: ${moneyOf(ref.snap, store.shiftFloat)}'),
+            TextField(
+              controller: cash,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: s.t('shift_end_cash')),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('end_shift'))),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await ref.ctrl.dispatch(NetCommand(name: 'endShift', payload: {'endCash': double.tryParse(cash.text) ?? 0}));
+    }
+    return;
+  }
   final name = TextEditingController(text: ref.snap.session.displayName);
+  final float = TextEditingController();
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text(s.t('start_shift')),
-      content: TextField(controller: name, decoration: InputDecoration(labelText: s.t('your_name'))),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: name, decoration: InputDecoration(labelText: s.t('your_name'))),
+          TextField(
+            controller: float,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: s.t('shift_float')),
+          ),
+        ],
+      ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
         FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('start_shift'))),
@@ -278,6 +319,9 @@ Future<void> startShift(BuildContext context, WidgetRef ref) async {
   );
   if (ok == true && name.text.trim().isNotEmpty) {
     await ref.ctrl.setDisplayName(name.text.trim());
-    await ref.ctrl.dispatch(NetCommand(name: 'startShift', payload: {'name': name.text.trim()}));
+    await ref.ctrl.dispatch(NetCommand(name: 'startShift', payload: {
+      'name': name.text.trim(),
+      'float': double.tryParse(float.text) ?? 0,
+    }));
   }
 }

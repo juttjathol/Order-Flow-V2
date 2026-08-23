@@ -147,6 +147,35 @@ class StoreReducer {
       case 'startShift':
         store.shiftCashier = parseStr(p['name']) ?? '';
         store.shiftStartedAt = DateTime.now();
+        store.shiftFloat = parseNum(p['float']);
+        store.shiftEndCash = 0;
+        bump();
+        break;
+      case 'endShift':
+        store.shiftEndCash = parseNum(p['endCash']);
+        store.shiftCashier = '';
+        store.shiftStartedAt = null;
+        bump();
+        break;
+      case 'upsertCustomer':
+        final c = ShopCustomer.fromJson(mapOf(p['customer']));
+        final i = store.customers.indexWhere((e) => e.id == c.id);
+        if (i >= 0) {
+          store.customers[i] = c;
+        } else {
+          final byPhone = store.customers.indexWhere(
+            (e) => e.phone.isNotEmpty && e.phone == c.phone,
+          );
+          if (byPhone >= 0) {
+            store.customers[byPhone] = c..id = store.customers[byPhone].id;
+          } else {
+            store.customers.add(c);
+          }
+        }
+        bump();
+        break;
+      case 'deleteCustomer':
+        store.customers.removeWhere((e) => e.id == p['id']);
         bump();
         break;
       case 'moveOrder':

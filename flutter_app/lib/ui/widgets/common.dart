@@ -343,10 +343,15 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
     if (first != null && first.id != _lastId) {
       _lastId = first.id;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        SystemSound.play(SystemSoundType.alert);
-        HapticFeedback.heavyImpact();
+        void ping() {
+          SystemSound.play(SystemSoundType.alert);
+          HapticFeedback.heavyImpact();
+        }
+        ping();
+        Timer(const Duration(milliseconds: 700), ping);
+        Timer(const Duration(milliseconds: 1400), ping);
         _hide?.cancel();
-        _hide = Timer(const Duration(seconds: 8), () {
+        _hide = Timer(const Duration(seconds: 10), () {
           if (mounted) ref.ctrl.dismissNotice(first.id);
         });
       });

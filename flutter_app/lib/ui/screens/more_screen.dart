@@ -39,6 +39,8 @@ class MoreScreen extends ConsumerWidget {
         _h(s.t('hardware_section')),
         _tile(context, Icons.print, s.t('printers'), () => _printers(context, ref)),
         _h(s.t('people_section')),
+        _tile(context, Icons.people, s.t('customers_book'), () => _customers(context, ref)),
+        _tile(context, Icons.account_balance_wallet, s.t('shift'), () => _shiftCash(context, ref)),
         _tile(context, Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
         _tile(context, Icons.badge, s.t('staff'), () => _staff(context, ref)),
         _tile(context, Icons.spa, s.t('services'), () => _services(context, ref)),

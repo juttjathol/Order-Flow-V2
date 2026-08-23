@@ -73,6 +73,39 @@ Future<void> startOffsiteOrder(
                 style: const TextStyle(color: OfColors.muted),
               ),
               const SizedBox(height: 14),
+              if (store.customers.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      final c = await showModalBottomSheet<ShopCustomer>(
+                        context: ctx,
+                        builder: (d) => SafeArea(
+                          child: ListView(
+                            shrinkWrap: true,
+                            children: [
+                              ListTile(title: Text(s.t('pick_customer'), style: const TextStyle(fontWeight: FontWeight.w800))),
+                              ...store.customers.map((c) => ListTile(
+                                    title: Text(c.name),
+                                    subtitle: Text(c.phone),
+                                    onTap: () => Navigator.pop(d, c),
+                                  )),
+                            ],
+                          ),
+                        ),
+                      );
+                      if (c != null) {
+                        setSt(() {
+                          name.text = c.name;
+                          phone.text = c.phone;
+                          if (c.address.isNotEmpty) address.text = c.address;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.contacts),
+                    label: Text(s.t('pick_customer')),
+                  ),
+                ),
               TextField(
                 controller: name,
                 textCapitalization: TextCapitalization.words,
@@ -144,6 +177,16 @@ Future<void> startOffsiteOrder(
     createdBy: ref.snap.session.displayName,
   );
   await ref.ctrl.dispatch(NetCommand(name: 'createOrder', payload: {'order': order.toJson()}));
+  if (order.customerPhone.isNotEmpty || (order.customerName.isNotEmpty && order.customerName != s.t('guest'))) {
+    await ref.ctrl.dispatch(NetCommand(name: 'upsertCustomer', payload: {
+      'customer': ShopCustomer(
+        id: newId(),
+        name: order.customerName,
+        phone: order.customerPhone,
+        address: order.address,
+      ).toJson(),
+    }));
+  }
   if (openTicket && context.mounted) context.push('/order/${order.id}');
 }
 

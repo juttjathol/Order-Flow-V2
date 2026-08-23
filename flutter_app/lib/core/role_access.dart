@@ -28,12 +28,15 @@ class RoleAccess {
     switch (role) {
       case AppRole.orderTaker:
         if (ticketWrite.contains(cmd.name)) return true;
+        if (cmd.name == 'upsertCustomer' || cmd.name == 'deleteCustomer') return true;
         if (cmd.name == 'setOrderStatus') {
           return takerStatus.contains(cmd.payload['status']?.toString());
         }
         return false;
       case AppRole.cashier:
         if (ticketWrite.contains(cmd.name)) return true;
+        if (cmd.name == 'startShift' || cmd.name == 'endShift') return true;
+        if (cmd.name == 'upsertCustomer' || cmd.name == 'deleteCustomer') return true;
         if (cmd.name == 'setOrderStatus') {
           return cashierStatus.contains(cmd.payload['status']?.toString());
         }
@@ -50,6 +53,7 @@ class RoleAccess {
             cmd.name == 'adjustStock' ||
             cmd.name == 'deleteStock';
       case AppRole.frontDesk:
+        if (cmd.name == 'upsertCustomer' || cmd.name == 'deleteCustomer') return true;
         if (ticketWrite.contains(cmd.name)) return true;
         if (cmd.name == 'setOrderStatus') {
           return cashierStatus.contains(cmd.payload['status']?.toString());

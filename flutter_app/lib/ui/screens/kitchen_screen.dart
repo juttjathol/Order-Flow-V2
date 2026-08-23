@@ -43,7 +43,7 @@ class KitchenScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(20),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: gridCount(context, phone: 1, tablet: 3),
-                mainAxisExtent: 320,
+                mainAxisExtent: 380,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
               ),

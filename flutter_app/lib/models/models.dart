@@ -670,6 +670,38 @@ class Appointment {
       );
 }
 
+class ShopCustomer {
+  ShopCustomer({
+    required this.id,
+    required this.name,
+    this.phone = '',
+    this.address = '',
+    this.notes = '',
+  });
+
+  String id;
+  String name;
+  String phone;
+  String address;
+  String notes;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'phone': phone,
+        'address': address,
+        'notes': notes,
+      };
+
+  factory ShopCustomer.fromJson(Map<String, dynamic> j) => ShopCustomer(
+        id: parseStr(j['id']) ?? newId(),
+        name: parseStr(j['name']) ?? '',
+        phone: parseStr(j['phone']) ?? '',
+        address: parseStr(j['address']) ?? '',
+        notes: parseStr(j['notes']) ?? '',
+      );
+}
+
 class PrinterConfig {
   PrinterConfig({
     this.host = '',
@@ -770,6 +802,9 @@ class AppStore {
     this.lastDayClose,
     this.shiftCashier = '',
     DateTime? shiftStartedAt,
+    this.shiftFloat = 0,
+    this.shiftEndCash = 0,
+    List<ShopCustomer>? customers,
   })  : profile = profile ?? BillProfile(),
         tables = tables ?? <FloorTable>[],
         categories = categories ?? <MenuCategory>[],
@@ -782,7 +817,8 @@ class AppStore {
         appointments = appointments ?? <Appointment>[],
         kitchenPrinter = kitchenPrinter ?? PrinterConfig(),
         receiptPrinter = receiptPrinter ?? PrinterConfig(),
-        shiftStartedAt = shiftStartedAt;
+        shiftStartedAt = shiftStartedAt,
+        customers = customers ?? <ShopCustomer>[];
 
   int schemaVersion;
   int revision;
@@ -804,6 +840,9 @@ class AppStore {
   DateTime? lastDayClose;
   String shiftCashier;
   DateTime? shiftStartedAt;
+  double shiftFloat;
+  double shiftEndCash;
+  List<ShopCustomer> customers;
 
   String get currency => profile.currencySymbol;
 
@@ -828,6 +867,9 @@ class AppStore {
         'lastDayClose': lastDayClose?.toIso8601String(),
         'shiftCashier': shiftCashier,
         'shiftStartedAt': shiftStartedAt?.toIso8601String(),
+        'shiftFloat': shiftFloat,
+        'shiftEndCash': shiftEndCash,
+        'customers': customers.map((e) => e.toJson()).toList(),
       };
 
   factory AppStore.fromJson(Map<String, dynamic>? j) {
@@ -868,6 +910,9 @@ class AppStore {
       lastDayClose: m['lastDayClose'] == null ? null : parseTime(m['lastDayClose']),
       shiftCashier: parseStr(m['shiftCashier']) ?? '',
       shiftStartedAt: m['shiftStartedAt'] == null ? null : parseTime(m['shiftStartedAt']),
+      shiftFloat: parseNum(m['shiftFloat']),
+      shiftEndCash: parseNum(m['shiftEndCash']),
+      customers: list('customers', ShopCustomer.fromJson),
     );
   }
 
