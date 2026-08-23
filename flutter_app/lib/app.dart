@@ -37,9 +37,12 @@ class OrderFlowApp extends ConsumerWidget {
       ],
       routerConfig: router,
       builder: (context, child) {
-        return Directionality(
-          textDirection: l10n.direction,
-          child: ReadyBannerHost(child: child ?? const SizedBox.shrink()),
+        return ScrollConfiguration(
+          behavior: const _OfScroll(),
+          child: Directionality(
+            textDirection: l10n.direction,
+            child: ReadyBannerHost(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );

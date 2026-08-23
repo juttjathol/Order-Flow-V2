@@ -251,16 +251,25 @@ class OfCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(22));
     final card = Card(
       color: color,
+      shape: shape,
+      clipBehavior: Clip.antiAlias,
       child: Padding(padding: padding, child: child),
     );
     if (onTap == null && onLongPress == null) return card;
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: card,
+    return Card(
+      color: color,
+      shape: shape,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        splashColor: OfColors.mint.withValues(alpha: 0.18),
+        child: Padding(padding: padding, child: child),
+      ),
     );
   }
 }
@@ -365,7 +374,15 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
               alignment: Alignment.topCenter,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                child: Material(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, t, child) => Opacity(
+                    opacity: t,
+                    child: Transform.translate(offset: Offset(0, (1 - t) * -16), child: child),
+                  ),
+                  child: Material(
                   elevation: 16,
                   borderRadius: BorderRadius.circular(20),
                   color: OfColors.forest,
@@ -408,6 +425,7 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
                     ),
                     ),
                   ),
+                ),
                 ),
               ),
             ),

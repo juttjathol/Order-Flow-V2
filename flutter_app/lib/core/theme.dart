@@ -72,6 +72,9 @@ class OfTheme {
       brightness: brightness,
       visualDensity: VisualDensity.standard,
       textTheme: text,
+      splashFactory: InkRipple.splashFactory,
+      splashColor: OfColors.mint.withValues(alpha: isDark ? 0.16 : 0.22),
+      highlightColor: OfColors.mint.withValues(alpha: 0.08),
       scaffoldBackgroundColor: isDark ? OfColors.deep : OfColors.cream,
       dividerColor: isDark ? OfColors.line : const Color(0x14000000),
       appBarTheme: AppBarTheme(
@@ -153,6 +156,11 @@ class OfTheme {
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
