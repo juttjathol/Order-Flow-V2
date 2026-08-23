@@ -305,6 +305,120 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
   );
 }
 
+Future<void> _customers(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final list = [...ref.snap.store.customers]..sort((a, b) => a.name.compareTo(b.name));
+        return SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.72,
+          child: Column(
+            children: [
+              ListTile(
+                title: Text(s.t('customers_book'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                trailing: IconButton(icon: const Icon(Icons.add), onPressed: () => _editCustomer(ctx, ref)),
+              ),
+              Expanded(
+                child: list.isEmpty
+                    ? EmptyState(icon: Icons.people_outline, message: s.t('no_customers'))
+                    : ListView(
+                        children: list
+                            .map((c) => ListTile(
+                                  title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  subtitle: Text([c.phone, c.address].where((e) => e.isNotEmpty).join(' · ')),
+                                  onTap: () => _editCustomer(ctx, ref, existing: c),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () => ref.ctrl.dispatch(NetCommand(name: 'deleteCustomer', payload: {'id': c.id})),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _editCustomer(BuildContext context, WidgetRef ref, {ShopCustomer? existing}) async {
+  final s = ref.s;
+  final name = TextEditingController(text: existing?.name ?? '');
+  final phone = TextEditingController(text: existing?.phone ?? '');
+  final address = TextEditingController(text: existing?.address ?? '');
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (d) => AlertDialog(
+      title: Text(s.t('customers_book')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(controller: name, decoration: InputDecoration(labelText: s.t('customer_name'))),
+          TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone'))),
+          TextField(controller: address, decoration: InputDecoration(labelText: s.t('address'))),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('save'))),
+      ],
+    ),
+  );
+  if (ok == true && name.text.trim().isNotEmpty) {
+    await ref.ctrl.dispatch(NetCommand(name: 'upsertCustomer', payload: {
+      'customer': ShopCustomer(
+        id: existing?.id ?? newId(),
+        name: name.text.trim(),
+        phone: phone.text.trim(),
+        address: address.text.trim(),
+      ).toJson(),
+    }));
+  }
+}
+
+Future<void> _shiftCash(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final store = ref.snap.store;
+  final open = store.shiftCashier.isNotEmpty;
+  final name = TextEditingController(text: store.shiftCashier.isEmpty ? ref.snap.session.displayName : store.shiftCashier);
+  final cash = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(open ? s.t('end_shift') : s.t('start_shift')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (open) Text('${s.t('shift_open')}: ${store.shiftCashier}'),
+          if (!open) TextField(controller: name, decoration: InputDecoration(labelText: s.t('your_name'))),
+          TextField(
+            controller: cash,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: open ? s.t('shift_end_cash') : s.t('shift_float')),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(open ? s.t('end_shift') : s.t('start_shift'))),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  final amount = double.tryParse(cash.text) ?? 0;
+  if (open) {
+    await ref.ctrl.dispatch(NetCommand(name: 'endShift', payload: {'endCash': amount}));
+  } else {
+    await ref.ctrl.setDisplayName(name.text.trim());
+    await ref.ctrl.dispatch(NetCommand(name: 'startShift', payload: {'name': name.text.trim(), 'float': amount}));
+  }
+}
+
 Future<void> _drivers(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
   await showModalBottomSheet<void>(
