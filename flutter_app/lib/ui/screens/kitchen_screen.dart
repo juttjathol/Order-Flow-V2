@@ -40,68 +40,91 @@ class KitchenScreen extends ConsumerWidget {
       body: orders.isEmpty
           ? EmptyState(icon: Icons.soup_kitchen, message: s.t('no_orders'))
           : GridView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: gridCount(context, phone: 1, tablet: 3),
-                mainAxisExtent: 280,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
+                mainAxisExtent: 320,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
               ),
               itemCount: orders.length,
               itemBuilder: (_, i) {
                 final o = orders[i];
                 final mins = DateTime.now().difference(o.sentAt ?? o.createdAt).inMinutes;
                 final ageColor = mins >= 15 ? OfColors.danger : mins >= 8 ? OfColors.warn : OfColors.mint;
+                final lines = ([...o.lines.where((l) => o.lines.every((x) => !x.fired) || l.fired)]
+                  ..sort((a, b) => a.course.compareTo(b.course)));
                 return OfCard(
                   onTap: () => context.push('/order/${o.id}'),
-                  color: ageColor.withValues(alpha: 0.14),
+                  padding: EdgeInsets.zero,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          Text(o.ticketNo, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 28, color: ageColor)),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(o.tableName ?? (o.type == OrderType.dineIn ? s.t('dine_in') : s.t(o.type.name)), style: const TextStyle(fontWeight: FontWeight.w700))),
-                          StatusChip(s.t(o.status.name), color: statusColor(o.status)),
-                        ],
-                      ),
-                      if (o.type == OrderType.delivery && o.address.isNotEmpty)
-                        Text(o.address, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
-                      if (o.createdBy.isNotEmpty)
-                        Text('${s.t('station')}: ${o.createdBy}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
-                      if (o.type == OrderType.takeaway && o.customerName.isNotEmpty)
-                        Text('${s.t('takeaway')} · ${o.customerName}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
-                      Text(
-                        '${s.t('kot_age')}: ${_age(o)}',
-                        style: TextStyle(color: ageColor, fontWeight: FontWeight.w800, fontSize: 16),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: ListView(
-                          children: ([...o.lines.where((l) => o.lines.every((x) => !x.fired) || l.fired)]
-                                ..sort((a, b) => a.course.compareTo(b.course)))
-                              .map((l) => Text('${s.t('course_${l.course}')}  ${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}'))
-                              .toList(),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                        decoration: BoxDecoration(
+                          color: ageColor.withValues(alpha: 0.18),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(o.ticketNo, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 28, color: ageColor)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                o.tableName ?? (o.type == OrderType.dineIn ? s.t('dine_in') : s.t(o.type.name)),
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                              ),
+                            ),
+                            StatusChip('${mins}m', color: ageColor),
+                          ],
                         ),
                       ),
-                      Row(
-                        children: [
-                          if (o.status == OrderStatus.open)
-                            Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.preparing), child: Text(s.t('mark_preparing')))),
-                          if (o.status == OrderStatus.preparing)
-                            Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.ready), child: Text(s.t('mark_ready')))),
-                          if (o.status == OrderStatus.ready)
-                            Expanded(child: FilledButton.tonal(onPressed: () => _set(ref, o, OrderStatus.served), child: Text(s.t('mark_served')))),
-                          IconButton(
-                            onPressed: () async {
-                              try {
-                                await ref.ctrl.printer.kitchenTicket(ref.snap.store, o);
-                              } catch (_) {}
-                            },
-                            icon: const Icon(Icons.print),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                          child: ListView(
+                            children: lines
+                                .map((l) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          StatusChip(s.t('course_${l.course}'), color: OfColors.gold),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              '${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}',
+                                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ))
+                                .toList(),
                           ),
-                        ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        child: Row(
+                          children: [
+                            if (o.status == OrderStatus.open)
+                              Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.preparing), child: Text(s.t('mark_preparing')))),
+                            if (o.status == OrderStatus.preparing)
+                              Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.ready), child: Text(s.t('mark_ready')))),
+                            if (o.status == OrderStatus.ready)
+                              Expanded(child: FilledButton.tonal(onPressed: () => _set(ref, o, OrderStatus.served), child: Text(s.t('mark_served')))),
+                            IconButton(
+                              onPressed: () async {
+                                try {
+                                  await ref.ctrl.printer.kitchenTicket(ref.snap.store, o);
+                                } catch (_) {}
+                              },
+                              icon: const Icon(Icons.print),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

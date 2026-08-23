@@ -36,11 +36,20 @@ class StationShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final wide = isTablet(context);
     final bar = AppBar(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      titleSpacing: 12,
+      title: Row(
         children: [
-          Text(title),
-          Text(subtitle, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70)),
+          const BrandMark(size: 34),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(subtitle, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70)),
+              ],
+            ),
+          ),
         ],
       ),
       actions: actions,

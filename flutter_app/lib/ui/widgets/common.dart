@@ -133,6 +133,31 @@ class StationActions extends ConsumerWidget {
   }
 }
 
+class BrandMark extends StatelessWidget {
+  const BrandMark({super.key, this.size = 32});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.asset(
+        'assets/brand/logo.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: size,
+          height: size,
+          color: OfColors.mint,
+          alignment: Alignment.center,
+          child: const Text('J', style: TextStyle(fontWeight: FontWeight.w900, color: OfColors.deep)),
+        ),
+      ),
+    );
+  }
+}
+
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -151,21 +176,32 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(28),
+        padding: const EdgeInsets.all(36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 56, color: OfColors.muted),
-            const SizedBox(height: 14),
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: OfColors.mint.withValues(alpha: 0.14),
+                border: Border.all(color: OfColors.mint.withValues(alpha: 0.35)),
+              ),
+              child: Icon(icon, size: 40, color: OfColors.emerald),
+            ),
+            const SizedBox(height: 20),
             Text(
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: OfColors.muted,
+                    color: OfColors.mute(context),
+                    height: 1.4,
+                    fontSize: 16,
                   ),
             ),
             if (action != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               FilledButton(onPressed: action, child: Text(actionLabel ?? 'Add')),
             ],
           ],

@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
@@ -208,8 +209,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Widget _ticket(PosOrder order, bool locked, {bool kitchenOnly = false, bool canPay = true}) {
     final s = ref.s;
     return Material(
-      color: Theme.of(context).cardColor,
-      elevation: 6,
+      color: OfColors.isDark(context) ? OfColors.cardDark : const Color(0xFFFFFBF4),
+      elevation: 8,
+      shadowColor: const Color(0x220B3D2E),
       child: Column(
         children: [
           Padding(
@@ -404,6 +406,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Future<void> _add(PosOrder order, MenuProduct p) async {
     if (!await _stockOk(p)) return;
+    HapticFeedback.lightImpact();
     var name = p.name;
     var price = p.price;
     var note = '';

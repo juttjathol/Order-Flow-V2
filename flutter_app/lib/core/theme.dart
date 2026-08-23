@@ -55,11 +55,23 @@ class OfTheme {
 
   static ThemeData _base(ColorScheme scheme, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
+    final ink = isDark ? const Color(0xFFF3F7F2) : OfColors.ink;
+    final quiet = isDark ? OfColors.muted : const Color(0xFF5C7468);
+    final text = TextTheme(
+      headlineLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 34, letterSpacing: -0.8, height: 1.1, color: ink),
+      headlineMedium: TextStyle(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.6, height: 1.15, color: ink),
+      headlineSmall: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, letterSpacing: -0.4, color: ink),
+      titleLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: -0.3, color: ink),
+      titleMedium: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: ink),
+      bodyLarge: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, height: 1.45, color: ink),
+      bodyMedium: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, height: 1.45, color: quiet),
+    );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
       visualDensity: VisualDensity.standard,
+      textTheme: text,
       scaffoldBackgroundColor: isDark ? OfColors.deep : OfColors.cream,
       dividerColor: isDark ? OfColors.line : const Color(0x14000000),
       appBarTheme: AppBarTheme(

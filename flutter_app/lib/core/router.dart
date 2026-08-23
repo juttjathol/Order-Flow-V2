@@ -93,7 +93,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/specialist', builder: (_, __) => const SpecialistScreen()),
       GoRoute(
         path: '/order/:id',
-        builder: (_, state) => OrderScreen(orderId: state.pathParameters['id']!),
+        pageBuilder: (_, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: OrderScreen(orderId: state.pathParameters['id']!),
+          transitionDuration: const Duration(milliseconds: 280),
+          transitionsBuilder: (_, anim, __, child) => FadeTransition(
+            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+            child: child,
+          ),
+        ),
       ),
     ],
   );
