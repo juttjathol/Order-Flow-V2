@@ -845,7 +845,3 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     }
   }
 }
-t: Text(s.t('print_fail'))));
-    }
-  }
-}
