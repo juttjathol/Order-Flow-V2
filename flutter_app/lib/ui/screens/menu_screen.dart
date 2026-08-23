@@ -250,14 +250,14 @@ Future<void> editProduct(
               TextField(controller: sku, decoration: InputDecoration(labelText: s.t('sku'))),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: cat,
+                initialValue: cat,
                 items: store.categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
                 onChanged: (v) => setSt(() => cat = v ?? cat),
                 decoration: InputDecoration(labelText: s.t('category')),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String?>(
-                value: inv,
+                initialValue: inv,
                 items: [
                   DropdownMenuItem<String?>(value: null, child: Text(s.t('none'))),
                   ...store.stock.map((c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name))),
@@ -297,7 +297,7 @@ Future<void> editProduct(
                             TextField(controller: n, decoration: InputDecoration(labelText: s.t('name'))),
                             TextField(controller: pr, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('price'))),
                             DropdownButtonFormField<String>(
-                              value: g,
+                              initialValue: g,
                               items: [
                                 DropdownMenuItem(value: 'size', child: Text(s.t('mod_size'))),
                                 DropdownMenuItem(value: 'spice', child: Text(s.t('mod_spice'))),

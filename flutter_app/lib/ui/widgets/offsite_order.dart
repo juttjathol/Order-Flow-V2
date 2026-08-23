@@ -127,7 +127,7 @@ Future<void> startOffsiteOrder(
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String?>(
-                  value: driverId,
+                  initialValue: driverId,
                   decoration: InputDecoration(labelText: s.t('assign_driver')),
                   items: [
                     DropdownMenuItem<String?>(value: null, child: Text(s.t('assign_later'))),
@@ -238,7 +238,7 @@ Future<void> editOffsiteDetails(BuildContext context, WidgetRef ref, PosOrder or
               if (type == OrderType.delivery) ...[
                 TextField(controller: address, minLines: 2, maxLines: 3, decoration: InputDecoration(labelText: s.t('delivery_address'))),
                 DropdownButtonFormField<String?>(
-                  value: driverId,
+                  initialValue: driverId,
                   decoration: InputDecoration(labelText: s.t('assign_driver')),
                   items: [
                     DropdownMenuItem<String?>(value: null, child: Text(s.t('assign_later'))),
