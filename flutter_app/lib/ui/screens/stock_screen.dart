@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
+import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
 
 class StockScreen extends ConsumerStatefulWidget {
@@ -29,17 +30,38 @@ class _StockScreenState extends ConsumerState<StockScreen> {
     }).toList();
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => editStock(context, ref),
-        icon: const Icon(Icons.add),
-        label: Text(s.t('add_stock')),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'scan_stock',
+            onPressed: () => scanStock(context, ref),
+            icon: const Icon(Icons.qr_code_scanner),
+            label: Text(s.t('scan_sku')),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'add_stock',
+            onPressed: () => editStock(context, ref),
+            icon: const Icon(Icons.add),
+            label: Text(s.t('add_stock')),
+          ),
+        ],
       ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: TextField(
-              decoration: InputDecoration(hintText: s.t('sku_or_name'), prefixIcon: const Icon(Icons.search)),
+              decoration: InputDecoration(
+                hintText: s.t('sku_or_name'),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  tooltip: s.t('scan_sku'),
+                  onPressed: () => scanStock(context, ref),
+                  icon: const Icon(Icons.qr_code_scanner),
+                ),
+              ),
               onChanged: (v) => setState(() => q = v),
             ),
           ),
@@ -200,4 +222,36 @@ Future<void> editStock(BuildContext context, WidgetRef ref, {StockItem? existing
     );
     await ref.ctrl.dispatch(NetCommand(name: 'upsertStock', payload: {'stock': item.toJson()}));
   }
+}
+
+Future<void> scanStock(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final code = await scanBarcode(context, title: s.t('scan_stock'), hint: s.t('scan_stock_hint'));
+  if (code == null || !context.mounted) return;
+  final existing = stockBySku(ref.snap.store, code);
+  final qty = await askScanQty(context, title: existing?.name ?? code, initial: 1);
+  if (qty == null || !context.mounted) return;
+  if (existing != null) {
+    await ref.ctrl.dispatch(NetCommand(name: 'adjustStock', payload: {'id': existing.id, 'delta': qty}));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${existing.name}  +$qty')));
+    }
+    return;
+  }
+  final name = TextEditingController(text: code);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('add_stock')),
+      content: TextField(controller: name, decoration: InputDecoration(labelText: s.t('name'))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('save'))),
+      ],
+    ),
+  );
+  if (ok != true || name.text.trim().isEmpty) return;
+  await ref.ctrl.dispatch(NetCommand(name: 'upsertStock', payload: {
+    'stock': StockItem(id: newId(), name: name.text.trim(), sku: code, quantity: qty).toJson(),
+  }));
 }

@@ -2,11 +2,10 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
+import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
 import '../widgets/offsite_order.dart';
 import '../widgets/pin_gate.dart';
@@ -400,54 +399,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     return 'main';
   }
 
-  MenuProduct? _matchSku(String code) {
-    final needle = code.trim().toLowerCase();
-    if (needle.isEmpty) return null;
-    final products = ref.snap.store.products;
-    for (final p in products) {
-      if (p.sku.trim().toLowerCase() == needle) return p;
-    }
-    for (final p in products) {
-      if (p.sku.isNotEmpty && p.sku.trim().toLowerCase().contains(needle)) return p;
-    }
-    return null;
-  }
-
   Future<void> _scanSku(PosOrder order) async {
     final s = ref.s;
-    var handled = false;
-    final code = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => SizedBox(
-        height: MediaQuery.sizeOf(ctx).height * 0.72,
-        child: Column(
-          children: [
-            ListTile(
-              title: Text(s.t('scan_sku'), style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(s.t('scan_sku_hint')),
-              trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-            ),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                child: MobileScanner(
-                  onDetect: (capture) {
-                    if (handled) return;
-                    final value = capture.barcodes.firstOrNull?.rawValue;
-                    if (value == null || value.trim().isEmpty) return;
-                    handled = true;
-                    Navigator.pop(ctx, value.trim());
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    final code = await scanBarcode(context, title: s.t('scan_sku'), hint: s.t('scan_sku_hint'));
     if (code == null || !mounted) return;
-    final product = _matchSku(code);
+    final product = productBySku(ref.snap.store, code);
     if (product == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${s.t('sku_not_found')}: $code')));
       return;
@@ -456,9 +412,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('unavailable'))));
       return;
     }
-    await _add(order, product);
+    final qty = await askScanQty(context, title: '${product.name}  ${product.sku}');
+    if (qty == null || !mounted) return;
+    await _add(order, product, qty: qty);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${product.name}  ${product.sku}')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${product.name} × $qty')));
     }
   }
 
@@ -500,7 +458,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     } else {
       final existing = order.lines.where((l) => l.productId == p.id && l.notes.isEmpty).firstOrNull;
       if (existing != null) {
-        existing.qty += 1;
+        existing.qty += qty;
         await ref.ctrl.dispatch(NetCommand(name: 'updateLine', payload: {
           'orderId': order.id,
           'line': existing.toJson(),
@@ -510,7 +468,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     }
     final same = order.lines.where((l) => l.productId == p.id && l.notes == note && l.unitPrice == price).firstOrNull;
     if (same != null) {
-      same.qty += 1;
+      same.qty += qty;
       await ref.ctrl.dispatch(NetCommand(name: 'updateLine', payload: {
         'orderId': order.id,
         'line': same.toJson(),
@@ -522,6 +480,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       productId: p.id,
       name: name,
       unitPrice: price,
+      qty: qty,
       notes: note,
       inventoryId: p.inventoryId,
       deductQty: p.deductQty,
