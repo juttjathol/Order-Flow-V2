@@ -139,7 +139,7 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
                 child: Opacity(
                   opacity: 0.16,
                   child: Image.asset(
-                    'assets/brand/mark.png',
+                    'assets/brand/bolt.png',
                     width: 980,
                     height: 980,
                     fit: BoxFit.contain,
