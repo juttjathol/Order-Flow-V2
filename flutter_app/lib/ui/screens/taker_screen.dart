@@ -71,6 +71,26 @@ class _QuickTickets extends ConsumerWidget {
           label: Text(s.t('delivery')),
         ),
         const SizedBox(height: 18),
+        Text(s.t('recall'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        const SizedBox(height: 8),
+        ...ref.snap.store.openOrders.where((o) => o.held).map(
+              (o) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: OfCard(
+                  onTap: () async {
+                    o.held = false;
+                    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': o.toJson()}));
+                    if (context.mounted) context.push('/order/${o.id}');
+                  },
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${o.ticketNo}  ${o.tableName ?? o.customerName}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    trailing: StatusChip(s.t('held'), color: const Color(0xFFF0A202)),
+                  ),
+                ),
+              ),
+            ),
+        const SizedBox(height: 18),
         Text(s.t('ready_to_serve'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         const SizedBox(height: 8),
         ...ref.snap.store.orders.where((o) => o.status == OrderStatus.ready).map(

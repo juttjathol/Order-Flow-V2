@@ -267,6 +267,7 @@ class L10n {
     'checkout': 'Checkout',
     'hold': 'Hold',
     'unhold': 'Resume ticket',
+    'recall': 'Recall held',
     'split_bill': 'Split bill',
     'split_pay': 'Pay selected',
     'held': 'On hold',

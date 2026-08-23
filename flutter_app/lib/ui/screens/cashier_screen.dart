@@ -42,23 +42,6 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
         actions: [
           const StationActions(),
           IconButton(tooltip: s.t('start_shift'), onPressed: () => startShift(context, ref), icon: const Icon(Icons.badge)),
-          IconButton(tooltip: s.t('reprint_any'), onPressed: () => reprintSearch(context, ref), icon: const Icon(Icons.find_in_page)),
-          IconButton(
-            tooltip: s.t('reprint_last'),
-            onPressed: () async {
-              try {
-                await ref.ctrl.reprintLast();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
-                }
-              } catch (_) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('no_receipt'))));
-                }
-              }
-            },
-            icon: const Icon(Icons.print),
-          ),
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
@@ -88,7 +71,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
               spacing: 8,
               children: [
                 ChoiceChip(label: Text(s.t('filter_all')), selected: filter == 'all', onSelected: (_) => setState(() => filter = 'all')),
-                ChoiceChip(label: Text(s.t('held_only')), selected: filter == 'held', onSelected: (_) => setState(() => filter = 'held')),
+                ChoiceChip(label: Text(s.t('recall')), selected: filter == 'held', onSelected: (_) => setState(() => filter = 'held')),
               ],
             ),
           ),
@@ -112,7 +95,21 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
                           subtitle: Text(
                             '${s.t(o.type.name == 'dineIn' ? 'dine_in' : o.type.name)} · ${o.lines.length} ${s.t('items')} · ${s.t(o.status.name)}',
                           ),
-                          trailing: MoneyText(o.total),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (o.held)
+                                TextButton(
+                                  onPressed: () async {
+                                    o.held = false;
+                                    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': o.toJson()}));
+                                    if (context.mounted) context.push('/order/${o.id}');
+                                  },
+                                  child: Text(s.t('recall')),
+                                ),
+                              MoneyText(o.total),
+                            ],
+                          ),
                         ),
                       );
                     },

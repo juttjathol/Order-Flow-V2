@@ -343,6 +343,14 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       children: [
                         OutlinedButton(onPressed: () => _moreOps(order, canPay), child: Text(s.t('more'))),
                         const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: () async {
+                            await _toggleHold(order);
+                            if (context.mounted && !order.held) Navigator.maybePop(context);
+                          },
+                          child: Text(order.held ? s.t('unhold') : s.t('hold')),
+                        ),
+                        const SizedBox(width: 8),
                         if (order.status == OrderStatus.open && !order.held)
                           Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen')))),
                         if (order.status == OrderStatus.preparing && canPay)
@@ -401,23 +409,19 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Future<void> _scanSku(PosOrder order) async {
     final s = ref.s;
-    final code = await scanBarcode(context, title: s.t('scan_sku'), hint: s.t('scan_sku_hint'));
-    if (code == null || !mounted) return;
-    final product = productBySku(ref.snap.store, code);
-    if (product == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${s.t('sku_not_found')}: $code')));
-      return;
-    }
-    if (!product.available) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('unavailable'))));
-      return;
-    }
-    final qty = await askScanQty(context, title: '${product.name}  ${product.sku}');
-    if (qty == null || !mounted) return;
-    await _add(order, product, qty: qty);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${product.name} × $qty')));
-    }
+    await scanLoop(
+      context,
+      title: s.t('scan_sku'),
+      hint: s.t('scan_sku_hint'),
+      onCommit: (code, qty) async {
+        final live = ref.snap.store.orderById(order.id) ?? order;
+        final product = productBySku(ref.snap.store, code);
+        if (product == null) return '${s.t('sku_not_found')}: $code';
+        if (!product.available) return s.t('unavailable');
+        await _add(live, product, qty: qty);
+        return null;
+      },
+    );
   }
 
   Future<bool> _stockOk(MenuProduct p) async {
@@ -441,7 +445,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     return confirmManagerPin(context, ref);
   }
 
-  Future<void> _add(PosOrder order, MenuProduct p) async {
+  Future<void> _add(PosOrder order, MenuProduct p, {double qty = 1}) async {
     if (!await _stockOk(p)) return;
     HapticFeedback.lightImpact();
     var name = p.name;
@@ -838,6 +842,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
+    }
+  }
+}
+t: Text(s.t('print_fail'))));
     }
   }
 }
