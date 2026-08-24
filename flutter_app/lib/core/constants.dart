@@ -28,6 +28,6 @@ String kLicenseWhatsAppUrl({
 const String kDefaultApiBase = 'https://order-flow-v2.pages.dev';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.1.5';
+const String kAppVersion = '1.1.7';
 const String kJoinScheme = 'orderflow';
 const String kDefaultCurrency = 'Rs';

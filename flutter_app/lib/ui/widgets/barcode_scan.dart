@@ -280,25 +280,6 @@ class _LiveCamState extends State<_LiveCam> {
                 : MobileScanner(
                     controller: _ctrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Camera could not start. Allow camera permission, then retry.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white),
-                              ),
-                              const SizedBox(height: 12),
-                              FilledButton(onPressed: _boot, child: const Text('Retry camera')),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
                     onDetect: (capture) {
                       final value = capture.barcodes.firstOrNull?.rawValue;
                       if (value == null || value.trim().isEmpty) return;
