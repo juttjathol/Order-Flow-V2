@@ -118,7 +118,7 @@ class KitchenScreen extends ConsumerWidget {
                             IconButton(
                               onPressed: () async {
                                 try {
-                                  await ref.ctrl.printer.kitchenTicket(ref.snap.store, o);
+                                  await ref.ctrl.printer.kitchenTicket(ref.snap.store, o, role: ref.snap.session.role);
                                 } catch (_) {}
                               },
                               icon: const Icon(Icons.print),

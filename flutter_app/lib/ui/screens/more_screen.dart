@@ -249,58 +249,225 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
   );
 }
 
+const _printRoles = <(AppRole, String)>[
+  (AppRole.main, 'role_main'),
+  (AppRole.orderTaker, 'role_taker'),
+  (AppRole.kitchen, 'role_kitchen'),
+  (AppRole.cashier, 'role_cashier'),
+  (AppRole.driver, 'role_driver'),
+  (AppRole.stockClerk, 'role_stock'),
+  (AppRole.frontDesk, 'role_desk'),
+  (AppRole.specialist, 'role_specialist'),
+];
+
+Future<void> _savePrinters(
+  WidgetRef ref,
+  List<PrinterConfig> printers,
+  Map<String, String> rolePrinters,
+) async {
+  PrinterConfig? kitchen;
+  PrinterConfig? receipt;
+  final kid = rolePrinters[AppRole.kitchen.name];
+  final rid = rolePrinters[AppRole.cashier.name] ?? rolePrinters[AppRole.main.name];
+  for (final p in printers) {
+    if (p.id == kid) kitchen = p;
+    if (p.id == rid) receipt = p;
+  }
+  await ref.ctrl.dispatch(NetCommand(name: 'setPrinters', payload: {
+    'printers': printers.map((e) => e.toJson()).toList(),
+    'rolePrinters': rolePrinters,
+    if (kitchen != null) 'kitchen': kitchen.toJson(),
+    if (receipt != null) 'receipt': receipt.toJson(),
+  }));
+}
+
 Future<void> _printers(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
-  final k = TextEditingController(text: ref.snap.store.kitchenPrinter.host);
-  final r = TextEditingController(text: ref.snap.store.receiptPrinter.host);
-  var ken = ref.snap.store.kitchenPrinter.enabled;
-  var ren = ref.snap.store.receiptPrinter.enabled;
+  ref.snap.store.ensurePrinters();
+  var printers = ref.snap.store.printers.map((e) => e.copy()).toList();
+  var roleMap = Map<String, String>.from(ref.snap.store.rolePrinters);
+  List<BtDevice> bonded = const [];
+  var btErr = '';
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setSt) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SwitchListTile(value: ken, onChanged: (v) => setSt(() => ken = v), title: Text(s.t('kitchen_printer'))),
-            TextField(controller: k, decoration: const InputDecoration(hintText: '192.168.1.50')),
-            const SizedBox(height: 8),
-            SwitchListTile(value: ren, onChanged: (v) => setSt(() => ren = v), title: Text(s.t('receipt_printer'))),
-            TextField(controller: r, decoration: const InputDecoration(hintText: '192.168.1.51')),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () async {
-                await ref.ctrl.dispatch(NetCommand(name: 'setPrinters', payload: {
-                  'kitchen': PrinterConfig(host: k.text.trim(), enabled: ken).toJson(),
-                  'receipt': PrinterConfig(host: r.text.trim(), enabled: ren).toJson(),
-                }));
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: Text(s.t('save')),
+      builder: (ctx, setSt) {
+        Future<void> loadBt() async {
+          try {
+            bonded = await BluetoothPrinter().bonded();
+            btErr = '';
+          } catch (_) {
+            bonded = const [];
+            btErr = s.t('bluetooth_off');
+          }
+          if (ctx.mounted) setSt(() {});
+        }
+
+        Future<void> testOne(PrinterConfig p) async {
+          try {
+            await ref.ctrl.printer.test(p.copy()..enabled = true, ref.snap.store.profile.businessName);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
+            }
+          } catch (_) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
+            }
+          }
+        }
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(ctx).height * 0.86,
+            child: Column(
+              children: [
+                Text(s.t('printers'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                const SizedBox(height: 4),
+                Text(s.t('printers_hint'), style: const TextStyle(color: OfColors.muted)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      ...printers.map((p) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: OfCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  value: p.enabled,
+                                  onChanged: (v) => setSt(() => p.enabled = v),
+                                  title: TextField(
+                                    controller: TextEditingController(text: p.name)
+                                      ..selection = TextSelection.collapsed(offset: p.name.length),
+                                    decoration: InputDecoration(labelText: s.t('printer_name')),
+                                    onChanged: (v) => p.name = v,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    ChoiceChip(
+                                      label: Text(s.t('printer_lan')),
+                                      selected: !p.isBluetooth,
+                                      onSelected: (_) => setSt(() => p.transport = 'lan'),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ChoiceChip(
+                                      label: Text(s.t('printer_bluetooth')),
+                                      selected: p.isBluetooth,
+                                      onSelected: (_) async {
+                                        setSt(() => p.transport = 'bluetooth');
+                                        await loadBt();
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                if (!p.isBluetooth)
+                                  TextField(
+                                    controller: TextEditingController(text: p.host)
+                                      ..selection = TextSelection.collapsed(offset: p.host.length),
+                                    decoration: const InputDecoration(hintText: '192.168.1.50'),
+                                    onChanged: (v) => p.host = v.trim(),
+                                  )
+                                else ...[
+                                  Text(s.t('bt_pair_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                                  if (btErr.isNotEmpty) Text(btErr, style: const TextStyle(color: Colors.orange)),
+                                  TextButton(onPressed: loadBt, child: Text(s.t('pick_bt_printer'))),
+                                  if (bonded.isEmpty) Text(s.t('no_bt_printers'), style: const TextStyle(color: OfColors.muted)),
+                                  ...bonded.map((d) {
+                                    final sel = p.btAddress == d.address;
+                                    return ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(d.name),
+                                      subtitle: Text(d.address),
+                                      trailing: sel ? const Icon(Icons.check, color: OfColors.emerald) : null,
+                                      onTap: () => setSt(() {
+                                        p.btAddress = d.address;
+                                        p.btName = d.name;
+                                        if (p.name.trim().isEmpty) p.name = d.name;
+                                      }),
+                                    );
+                                  }),
+                                ],
+                                Row(
+                                  children: [
+                                    TextButton(onPressed: () => testOne(p), child: Text(s.t('test_print'))),
+                                    const Spacer(),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed: () => setSt(() {
+                                        printers = printers.where((e) => e.id != p.id).toList();
+                                        roleMap.removeWhere((_, id) => id == p.id);
+                                      }),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                      OutlinedButton.icon(
+                        onPressed: () => setSt(() {
+                          printers = [
+                            ...printers,
+                            PrinterConfig(name: '${s.t('printers')} ${printers.length + 1}', enabled: true),
+                          ];
+                        }),
+                        icon: const Icon(Icons.add),
+                        label: Text(s.t('add_printer')),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(s.t('role_printers'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                      Text(s.t('role_printers_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      ..._printRoles.map((row) {
+                        final role = row.$1;
+                        final current = roleMap[role.name] ?? '';
+                        final ids = printers.map((e) => e.id).toSet();
+                        final value = ids.contains(current) ? current : '';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: DropdownButtonFormField<String>(
+                            value: value,
+                            decoration: InputDecoration(labelText: s.t(row.$2)),
+                            items: [
+                              DropdownMenuItem(value: '', child: Text(s.t('none'))),
+                              ...printers.map(
+                                (p) => DropdownMenuItem(value: p.id, child: Text(p.label)),
+                              ),
+                            ],
+                            onChanged: (id) => setSt(() {
+                              if (id == null || id.isEmpty) {
+                                roleMap.remove(role.name);
+                              } else {
+                                roleMap[role.name] = id;
+                              }
+                            }),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    await _savePrinters(ref, printers, roleMap);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: Text(s.t('save')),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () async {
-                try {
-                  await ref.ctrl.printer.test(
-                    PrinterConfig(host: r.text.trim(), enabled: true),
-                    ref.snap.store.profile.businessName,
-                  );
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
-                  }
-                } catch (_) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
-                  }
-                }
-              },
-              child: Text(s.t('test_print')),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     ),
   );
 }

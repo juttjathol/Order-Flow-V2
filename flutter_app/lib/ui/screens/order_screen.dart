@@ -791,7 +791,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       }));
       ref.ctrl.rememberReceipt(order.id);
       try {
-        await ref.ctrl.printer.receipt(ref.read(appControllerProvider).store, order);
+        await ref.ctrl.printer.receipt(ref.read(appControllerProvider).store, order, role: ref.snap.session.role);
       } catch (_) {}
     }
   }
@@ -828,7 +828,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<void> _printKitchen(PosOrder order) async {
     final s = ref.s;
     try {
-      await ref.ctrl.printer.kitchenTicket(ref.snap.store, order);
+      await ref.ctrl.printer.kitchenTicket(ref.snap.store, order, role: ref.snap.session.role);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
@@ -838,7 +838,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<void> _printReceipt(PosOrder order) async {
     final s = ref.s;
     try {
-      await ref.ctrl.printer.receipt(ref.snap.store, order);
+      await ref.ctrl.printer.receipt(ref.snap.store, order, role: ref.snap.session.role);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));

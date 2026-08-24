@@ -32,7 +32,7 @@ class PrintService {
     }
   }
 
-  Future<void> kitchenTicket(AppStore store, PosOrder order) {
+  Future<void> kitchenTicket(AppStore store, PosOrder order, {AppRole? role}) {
     final b = EscPos()
       ..init()
       ..align('center')
@@ -74,10 +74,10 @@ class PrintService {
       ..rule()
       ..feed(4)
       ..cut();
-    return send(store.kitchenPrinter, b.bytes);
+    return send(store.printerForRole(role) ?? store.kitchenTarget(), b.bytes);
   }
 
-  Future<void> receipt(AppStore store, PosOrder order) {
+  Future<void> receipt(AppStore store, PosOrder order, {AppRole? role}) {
     final cur = store.profile.currencySymbol;
     final prefix = store.profile.currencyPrefix;
     String m(num n) => money(n, cur, prefix: prefix);
@@ -132,7 +132,7 @@ class PrintService {
     b
       ..feed(4)
       ..cut();
-    return send(store.receiptPrinter, b.bytes);
+    return send(store.receiptTarget(role), b.bytes);
   }
 
   Future<void> test(PrinterConfig cfg, String shop) {

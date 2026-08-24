@@ -704,14 +704,18 @@ class ShopCustomer {
 
 class PrinterConfig {
   PrinterConfig({
+    String? id,
+    this.name = '',
     this.host = '',
     this.port = kEscPosPort,
     this.enabled = false,
     this.transport = 'lan',
     this.btAddress = '',
     this.btName = '',
-  });
+  }) : id = id ?? newId();
 
+  String id;
+  String name;
   String host;
   int port;
   bool enabled;
@@ -722,7 +726,28 @@ class PrinterConfig {
 
   bool get isBluetooth => transport == 'bluetooth';
 
+  String get label {
+    if (name.trim().isNotEmpty) return name.trim();
+    if (isBluetooth && btName.trim().isNotEmpty) return btName.trim();
+    if (isBluetooth && btAddress.trim().isNotEmpty) return btAddress.trim();
+    if (host.trim().isNotEmpty) return host.trim();
+    return 'Printer';
+  }
+
+  PrinterConfig copy() => PrinterConfig(
+        id: id,
+        name: name,
+        host: host,
+        port: port,
+        enabled: enabled,
+        transport: transport,
+        btAddress: btAddress,
+        btName: btName,
+      );
+
   Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
         'host': host,
         'port': port,
         'enabled': enabled,
@@ -734,6 +759,8 @@ class PrinterConfig {
   factory PrinterConfig.fromJson(Map<String, dynamic>? j) {
     final m = j ?? const {};
     return PrinterConfig(
+      id: parseStr(m['id']),
+      name: parseStr(m['name']) ?? '',
       host: parseStr(m['host']) ?? '',
       port: parseInt(m['port'], kEscPosPort),
       enabled: parseBool(m['enabled']),
@@ -797,6 +824,8 @@ class AppStore {
     List<Appointment>? appointments,
     PrinterConfig? kitchenPrinter,
     PrinterConfig? receiptPrinter,
+    List<PrinterConfig>? printers,
+    Map<String, String>? rolePrinters,
     this.ticketSeq = 1000,
     this.seeded = false,
     this.lastDayClose,
@@ -817,6 +846,8 @@ class AppStore {
         appointments = appointments ?? <Appointment>[],
         kitchenPrinter = kitchenPrinter ?? PrinterConfig(),
         receiptPrinter = receiptPrinter ?? PrinterConfig(),
+        printers = printers ?? <PrinterConfig>[],
+        rolePrinters = rolePrinters ?? <String, String>{},
         shiftStartedAt = shiftStartedAt,
         customers = customers ?? <ShopCustomer>[];
 
@@ -862,6 +893,8 @@ class AppStore {
         'appointments': appointments.map((e) => e.toJson()).toList(),
         'kitchenPrinter': kitchenPrinter.toJson(),
         'receiptPrinter': receiptPrinter.toJson(),
+        'printers': printers.map((e) => e.toJson()).toList(),
+        'rolePrinters': rolePrinters,
         'ticketSeq': ticketSeq,
         'seeded': seeded,
         'lastDayClose': lastDayClose?.toIso8601String(),
@@ -905,6 +938,12 @@ class AppStore {
             ? Map<String, dynamic>.from(m['receiptPrinter'] as Map)
             : null,
       ),
+      printers: list('printers', PrinterConfig.fromJson),
+      rolePrinters: () {
+        final raw = m['rolePrinters'];
+        if (raw is! Map) return <String, String>{};
+        return raw.map((k, v) => MapEntry(k.toString(), v.toString()));
+      }(),
       ticketSeq: parseInt(m['ticketSeq'], 1000),
       seeded: parseBool(m['seeded']),
       lastDayClose: m['lastDayClose'] == null ? null : parseTime(m['lastDayClose']),
@@ -914,6 +953,53 @@ class AppStore {
       shiftEndCash: parseNum(m['shiftEndCash']),
       customers: list('customers', ShopCustomer.fromJson),
     );
+  }
+
+  void ensurePrinters() {
+    if (printers.isNotEmpty) return;
+    if (kitchenPrinter.enabled ||
+        kitchenPrinter.host.isNotEmpty ||
+        kitchenPrinter.btAddress.isNotEmpty) {
+      kitchenPrinter.id = kitchenPrinter.id.isEmpty ? newId() : kitchenPrinter.id;
+      if (kitchenPrinter.name.isEmpty) kitchenPrinter.name = 'Kitchen';
+      printers.add(kitchenPrinter.copy());
+      rolePrinters.putIfAbsent(AppRole.kitchen.name, () => printers.last.id);
+    }
+    if (receiptPrinter.enabled ||
+        receiptPrinter.host.isNotEmpty ||
+        receiptPrinter.btAddress.isNotEmpty) {
+      receiptPrinter.id = receiptPrinter.id.isEmpty ? newId() : receiptPrinter.id;
+      if (receiptPrinter.name.isEmpty) receiptPrinter.name = 'Receipt';
+      printers.add(receiptPrinter.copy());
+      rolePrinters.putIfAbsent(AppRole.cashier.name, () => printers.last.id);
+      rolePrinters.putIfAbsent(AppRole.main.name, () => printers.last.id);
+    }
+  }
+
+  PrinterConfig? printerById(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final p in printers) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  PrinterConfig? printerForRole(AppRole? role) {
+    if (role == null || role == AppRole.none) return null;
+    return printerById(rolePrinters[role.name]);
+  }
+
+  PrinterConfig kitchenTarget() {
+    ensurePrinters();
+    return printerForRole(AppRole.kitchen) ?? kitchenPrinter;
+  }
+
+  PrinterConfig receiptTarget([AppRole? role]) {
+    ensurePrinters();
+    return printerForRole(role) ??
+        printerForRole(AppRole.cashier) ??
+        printerForRole(AppRole.main) ??
+        receiptPrinter;
   }
 
   String nextTicket() {

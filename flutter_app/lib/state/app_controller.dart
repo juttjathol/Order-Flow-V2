@@ -531,7 +531,7 @@ class AppController extends Notifier<AppSnapshot> {
       }
     }
     if (order == null) throw Exception('no_receipt');
-    await printer.receipt(state.store, order);
+    await printer.receipt(state.store, order, role: state.session.role);
   }
 
   Future<String?> connectToMain(

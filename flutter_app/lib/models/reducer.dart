@@ -46,13 +46,27 @@ class StoreReducer {
         bump();
         break;
       case 'setPrinters':
+        if (p['printers'] is List) {
+          store.printers = (p['printers'] as List)
+              .whereType<Map>()
+              .map((e) => PrinterConfig.fromJson(Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        if (p['rolePrinters'] is Map) {
+          store.rolePrinters = Map<String, dynamic>.from(p['rolePrinters'] as Map)
+              .map((k, v) => MapEntry(k.toString(), v.toString()));
+        }
         if (p['kitchen'] is Map) {
           store.kitchenPrinter =
               PrinterConfig.fromJson(Map<String, dynamic>.from(p['kitchen'] as Map));
+        } else {
+          store.kitchenPrinter = store.kitchenTarget();
         }
         if (p['receipt'] is Map) {
           store.receiptPrinter =
               PrinterConfig.fromJson(Map<String, dynamic>.from(p['receipt'] as Map));
+        } else {
+          store.receiptPrinter = store.receiptTarget();
         }
         bump();
         break;

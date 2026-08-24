@@ -136,7 +136,7 @@ Future<void> fireCourse(BuildContext context, WidgetRef ref, PosOrder order) asy
   if (ok == true) {
     await ref.ctrl.dispatch(NetCommand(name: 'fireCourse', payload: {'orderId': order.id, 'course': course}));
     try {
-      await ref.ctrl.printer.kitchenTicket(ref.snap.store, order);
+      await ref.ctrl.printer.kitchenTicket(ref.snap.store, order, role: ref.snap.session.role);
     } catch (_) {
       if (context.mounted) showPrintFailed(context, ref);
     }
@@ -181,7 +181,7 @@ Future<void> reprintSearch(BuildContext context, WidgetRef ref) async {
                                     icon: const Icon(Icons.outdoor_grill),
                                     onPressed: () async {
                                       try {
-                                        await ref.ctrl.printer.kitchenTicket(ref.snap.store, o);
+                                        await ref.ctrl.printer.kitchenTicket(ref.snap.store, o, role: ref.snap.session.role);
                                       } catch (_) {
                                         if (context.mounted) showPrintFailed(context, ref);
                                       }
@@ -191,7 +191,7 @@ Future<void> reprintSearch(BuildContext context, WidgetRef ref) async {
                                     icon: const Icon(Icons.print),
                                     onPressed: () async {
                                       try {
-                                        await ref.ctrl.printer.receipt(ref.snap.store, o);
+                                        await ref.ctrl.printer.receipt(ref.snap.store, o, role: ref.snap.session.role);
                                       } catch (_) {
                                         if (context.mounted) showPrintFailed(context, ref);
                                       }
