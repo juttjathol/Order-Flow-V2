@@ -866,6 +866,8 @@ class AppStore {
   List<Appointment> appointments;
   PrinterConfig kitchenPrinter;
   PrinterConfig receiptPrinter;
+  List<PrinterConfig> printers;
+  Map<String, String> rolePrinters;
   int ticketSeq;
   bool seeded;
   DateTime? lastDayClose;
