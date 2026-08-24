@@ -237,6 +237,27 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
                       const SizedBox(height: 10),
                       Text(s.t('no_key_needed'),
                           textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                      const SizedBox(height: 14),
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF25D366),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                        ),
+                        onPressed: () => launchUrl(
+                          Uri.parse(kLicenseWhatsAppUrl()),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        icon: const Icon(Icons.chat),
+                        label: Text(s.t('whatsapp_support')),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        kWhatsAppHandle,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800),
+                      ),
                       const SizedBox(height: 28),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

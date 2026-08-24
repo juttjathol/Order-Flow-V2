@@ -818,6 +818,22 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
             onPressed: () => Clipboard.setData(ClipboardData(text: ref.snap.session.deviceId)),
             child: Text(s.t('device_id')),
           ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+            onPressed: () {
+              launchUrl(
+                Uri.parse(kLicenseWhatsAppUrl(
+                  name: ref.snap.session.displayName,
+                  businessName: ref.snap.store.profile.businessName,
+                  phone: ref.snap.store.profile.phone,
+                )),
+                mode: LaunchMode.externalApplication,
+              );
+            },
+            icon: const Icon(Icons.chat),
+            label: Text(s.t('whatsapp_support')),
+          ),
           const SizedBox(height: 8),
           const Center(
             child: Text(
