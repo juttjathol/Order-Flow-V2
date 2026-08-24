@@ -83,6 +83,7 @@ class L10n {
     'locked_body':
         'The license for this Main device was deleted or revoked. The app is locked. Contact support on WhatsApp.',
     'whatsapp_support': 'WhatsApp support',
+    'privacy_policy': 'Privacy policy',
     'whatsapp_handle': '@Jathol_Jutt',
     'api_base': 'License API URL',
     'choose_role': 'Choose how this device is used',
@@ -527,6 +528,7 @@ class L10n {
     'locked_body':
         'اس مین ڈیوائس کا لائسنس حذف یا منسوخ ہو گیا ہے۔ ایپ لاک ہے۔ واٹس ایپ پر سپورٹ سے رابطہ کریں۔',
     'whatsapp_support': 'واٹس ایپ سپورٹ',
+    'privacy_policy': 'رازداری کی پالیسی',
     'whatsapp_handle': '@Jathol_Jutt',
     'api_base': 'لائسنس اے پی آئی',
     'choose_role': 'اس ڈیوائس کا کردار منتخب کریں',

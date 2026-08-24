@@ -99,6 +99,9 @@ class MoreScreen extends ConsumerWidget {
         _tile(context, Icons.support_agent, s.t('whatsapp_support'), () {
           launchUrl(Uri.parse(kWhatsAppUrl), mode: LaunchMode.externalApplication);
         }),
+        _tile(context, Icons.privacy_tip_outlined, s.t('privacy_policy'), () {
+          launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication);
+        }),
         const SizedBox(height: 16),
         Text('${s.t('version')} $kAppVersion', textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)),
       ],
