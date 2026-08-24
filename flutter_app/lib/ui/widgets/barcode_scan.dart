@@ -26,7 +26,7 @@ Future<String?> scanBarcode(BuildContext context, {required String title, requir
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
               child: TextField(
                 controller: gun,
-                autofocus: true,
+                autofocus: false,
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(
                   labelText: 'USB / Bluetooth scanner',
@@ -41,17 +41,12 @@ Future<String?> scanBarcode(BuildContext context, {required String title, requir
               ),
             ),
             Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                child: MobileScanner(
-                  onDetect: (capture) {
-                    if (handled) return;
-                    final value = capture.barcodes.firstOrNull?.rawValue;
-                    if (value == null || value.trim().isEmpty) return;
-                    handled = true;
-                    Navigator.pop(ctx, value.trim());
-                  },
-                ),
+              child: _LiveCam(
+                onCode: (value) {
+                  if (handled) return;
+                  handled = true;
+                  Navigator.pop(ctx, value);
+                },
               ),
             ),
           ],
@@ -149,7 +144,7 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
                     flex: 3,
                     child: TextField(
                       controller: gun,
-                      autofocus: true,
+                      autofocus: false,
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: 'USB / Bluetooth / SKU',
@@ -195,6 +190,121 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LiveCam extends StatefulWidget {
+  const _LiveCam({required this.onCode});
+  final void Function(String code) onCode;
+
+  @override
+  State<_LiveCam> createState() => _LiveCamState();
+}
+
+class _LiveCamState extends State<_LiveCam> {
+  MobileScannerController? _ctrl;
+  Object? _err;
+  var _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
+  }
+
+  Future<void> _boot() async {
+    await _ctrl?.dispose();
+    final ctrl = MobileScannerController(
+      autoStart: false,
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.normal,
+    );
+    try {
+      await ctrl.start();
+      if (!mounted) {
+        await ctrl.dispose();
+        return;
+      }
+      setState(() {
+        _ctrl = ctrl;
+        _ready = true;
+        _err = null;
+      });
+    } catch (e) {
+      await ctrl.dispose();
+      if (!mounted) return;
+      setState(() {
+        _ctrl = null;
+        _ready = false;
+        _err = e;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      child: ColoredBox(
+        color: Colors.black,
+        child: _err != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.photo_camera_outlined, color: Colors.white70, size: 36),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Camera could not start. Allow camera permission, then retry. You can still type or use a USB / Bluetooth scanner above.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(onPressed: _boot, child: const Text('Retry camera')),
+                    ],
+                  ),
+                ),
+              )
+            : !_ready || _ctrl == null
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : MobileScanner(
+                    controller: _ctrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Camera could not start. Allow camera permission, then retry.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton(onPressed: _boot, child: const Text('Retry camera')),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    onDetect: (capture) {
+                      final value = capture.barcodes.firstOrNull?.rawValue;
+                      if (value == null || value.trim().isEmpty) return;
+                      widget.onCode(value.trim());
+                    },
+                  ),
       ),
     );
   }

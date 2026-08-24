@@ -33,22 +33,22 @@ class HomeScreen extends ConsumerWidget {
 
     final stats = switch (store.model) {
       BusinessModel.retail => [
-          _Stat(s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
-          _Stat(s.t('open_orders'), '$open', Icons.receipt_long, OfColors.gold),
-          _Stat(s.t('low_stock'), '$low', Icons.inventory_2, OfColors.warn),
-          _Stat(s.t('items_sold'), '$sold', Icons.shopping_bag, OfColors.info),
+          _Stat('sales', s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
+          _Stat('open', s.t('open_orders'), '$open', Icons.receipt_long, OfColors.gold),
+          _Stat('low', s.t('low_stock'), '$low', Icons.inventory_2, OfColors.warn),
+          _Stat('sold', s.t('items_sold'), '$sold', Icons.shopping_bag, OfColors.info),
         ],
       BusinessModel.services => [
-          _Stat(s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
-          _Stat(s.t('appointments'), '$appts', Icons.event, OfColors.gold),
-          _Stat(s.t('in_progress'), '$busy', Icons.timelapse, OfColors.warn),
-          _Stat(s.t('staff'), '${store.staff.length}', Icons.badge, OfColors.info),
+          _Stat('sales', s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
+          _Stat('appts', s.t('appointments'), '$appts', Icons.event, OfColors.gold),
+          _Stat('busy', s.t('in_progress'), '$busy', Icons.timelapse, OfColors.warn),
+          _Stat('staff', s.t('staff'), '${store.staff.length}', Icons.badge, OfColors.info),
         ],
       _ => [
-          _Stat(s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
-          _Stat(s.t('open_orders'), '$open', Icons.receipt_long, OfColors.gold),
-          _Stat(s.t('ready_to_serve'), '$ready', Icons.notifications_active, OfColors.info),
-          _Stat(s.t('low_stock'), '$low', Icons.inventory_2, OfColors.warn),
+          _Stat('sales', s.t('today_sales'), moneyOf(snap, today), Icons.payments, OfColors.mint),
+          _Stat('open', s.t('open_orders'), '$open', Icons.receipt_long, OfColors.gold),
+          _Stat('ready', s.t('ready_to_serve'), '$ready', Icons.notifications_active, OfColors.info),
+          _Stat('low', s.t('low_stock'), '$low', Icons.inventory_2, OfColors.warn),
         ],
     };
 
@@ -120,32 +120,46 @@ class HomeScreen extends ConsumerWidget {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
-            childAspectRatio: wide ? 1.45 : 1.2,
+            childAspectRatio: wide ? 1.45 : 0.98,
             children: [
               for (var i = 0; i < stats.length; i++)
                 OfCard(
+                  onTap: () => _openStat(context, ref, stats[i].id),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: stats[i].color.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Icon(stats[i].icon, color: stats[i].color, size: 26),
+                        child: Icon(stats[i].icon, color: stats[i].color, size: 24),
                       ),
                       const Spacer(),
                       Text(stats[i].label, style: TextStyle(color: OfColors.mute(context), fontSize: 13)),
-                      const SizedBox(height: 6),
-                      Text(stats[i].value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 26, letterSpacing: -0.5)),
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            stats[i].value,
+                            maxLines: 1,
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5),
+                          ),
+                        ),
+                      ),
                       if (i == 0 && delta != null)
                         Text(
                           '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(0)}% ${s.t('vs_yesterday')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: delta >= 0 ? OfColors.emerald : OfColors.danger,
                             fontWeight: FontWeight.w700,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                     ],
@@ -311,11 +325,168 @@ class _ChartsFoldState extends State<_ChartsFold> {
 }
 
 class _Stat {
-  _Stat(this.label, this.value, this.icon, this.color);
+  _Stat(this.id, this.label, this.value, this.icon, this.color);
+  final String id;
   final String label;
   final String value;
   final IconData icon;
   final Color color;
+}
+
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+Future<void> _openStat(BuildContext context, WidgetRef ref, String id) async {
+  final s = ref.s;
+  final store = ref.snap.store;
+  final now = DateTime.now();
+  final title = switch (id) {
+    'sales' => s.t('today_sales'),
+    'open' => s.t('open_orders'),
+    'ready' => s.t('ready_to_serve'),
+    'low' => s.t('low_stock'),
+    'sold' => s.t('items_sold'),
+    'appts' => s.t('appointments'),
+    'busy' => s.t('in_progress'),
+    'staff' => s.t('staff'),
+    _ => s.t('reports'),
+  };
+
+  Widget body;
+  switch (id) {
+    case 'sales':
+      final paid = store.orders
+          .where((o) => o.status == OrderStatus.paid && _sameDay(o.updatedAt, now))
+          .toList();
+      body = paid.isEmpty
+          ? EmptyState(icon: Icons.payments, message: s.t('empty'))
+          : ListView(
+              children: paid
+                  .map((o) => ListTile(
+                        title: Text('${o.ticketNo}  ·  ${o.tableName ?? o.type.name}'),
+                        subtitle: Text(o.payment?.name ?? ''),
+                        trailing: Text(moneyOf(ref.snap, o.total), style: const TextStyle(fontWeight: FontWeight.w800)),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/order/${o.id}');
+                        },
+                      ))
+                  .toList(),
+            );
+      break;
+    case 'open':
+      final list = store.openOrders;
+      body = list.isEmpty
+          ? EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
+          : ListView(
+              children: list
+                  .map((o) => ListTile(
+                        title: Text('${o.ticketNo}  ·  ${o.tableName ?? o.type.name}'),
+                        subtitle: Text(s.t(o.status.name)),
+                        trailing: Text(moneyOf(ref.snap, o.total), style: const TextStyle(fontWeight: FontWeight.w800)),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/order/${o.id}');
+                        },
+                      ))
+                  .toList(),
+            );
+      break;
+    case 'ready':
+      final list = store.orders.where((o) => o.status == OrderStatus.ready).toList();
+      body = list.isEmpty
+          ? EmptyState(icon: Icons.notifications_none, message: s.t('empty'))
+          : ListView(
+              children: list
+                  .map((o) => ListTile(
+                        title: Text('${o.ticketNo}  ·  ${o.tableName ?? o.type.name}'),
+                        subtitle: Text(s.t('ready_to_serve')),
+                        trailing: Text(moneyOf(ref.snap, o.total), style: const TextStyle(fontWeight: FontWeight.w800)),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/order/${o.id}');
+                        },
+                      ))
+                  .toList(),
+            );
+      break;
+    case 'low':
+      final list = store.lowStock;
+      body = list.isEmpty
+          ? EmptyState(icon: Icons.inventory_2, message: s.t('empty'))
+          : ListView(
+              children: list
+                  .map((item) => ListTile(
+                        title: Text(item.name),
+                        subtitle: Text('${item.sku}  ·  ${item.quantity} ${item.unit}'),
+                        trailing: Text(s.t(item.level == StockLevel.out ? 'out' : 'low')),
+                      ))
+                  .toList(),
+            );
+      break;
+    case 'sold':
+      final paid = store.orders.where((o) => o.status == OrderStatus.paid && _sameDay(o.updatedAt, now));
+      final counts = <String, double>{};
+      for (final o in paid) {
+        for (final l in o.lines) {
+          counts[l.name] = (counts[l.name] ?? 0) + l.qty;
+        }
+      }
+      final rows = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+      body = rows.isEmpty
+          ? EmptyState(icon: Icons.shopping_bag, message: s.t('empty'))
+          : ListView(
+              children: rows
+                  .map((e) => ListTile(
+                        title: Text(e.key),
+                        trailing: Text(e.value % 1 == 0 ? e.value.toInt().toString() : e.value.toStringAsFixed(1)),
+                      ))
+                  .toList(),
+            );
+      break;
+    case 'appts':
+      final list = store.appointments.where((a) => _sameDay(a.start, now)).toList();
+      body = list.isEmpty
+          ? EmptyState(icon: Icons.event, message: s.t('no_appts'))
+          : ListView(
+              children: list.map((a) => ListTile(title: Text(a.customerName), subtitle: Text(a.status))).toList(),
+            );
+      break;
+    case 'busy':
+      final list = store.appointments.where((a) => a.status == 'inProgress').toList();
+      body = list.isEmpty
+          ? EmptyState(icon: Icons.timelapse, message: s.t('empty'))
+          : ListView(
+              children: list.map((a) => ListTile(title: Text(a.customerName), subtitle: Text(a.status))).toList(),
+            );
+      break;
+    case 'staff':
+      body = store.staff.isEmpty
+          ? EmptyState(icon: Icons.badge, message: s.t('empty'))
+          : ListView(
+              children: store.staff.map((st) => ListTile(title: Text(st.name), subtitle: Text(st.roleLabel))).toList(),
+            );
+      break;
+    default:
+      body = EmptyState(icon: Icons.info_outline, message: s.t('empty'));
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => SizedBox(
+      height: MediaQuery.sizeOf(ctx).height * 0.72,
+      child: Column(
+        children: [
+          ListTile(
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+            trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+          ),
+          Expanded(child: body),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ServerCard extends StatelessWidget {
