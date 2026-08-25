@@ -70,6 +70,9 @@ class _SplashScreenState extends State<SplashScreen>
                 height: 72,
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.high,
+                color: null,
+                isAntiAlias: true,
+                errorBuilder: (_, __, ___) => const SizedBox(width: 56, height: 72),
               ),
               const SizedBox(width: 12),
               Text(

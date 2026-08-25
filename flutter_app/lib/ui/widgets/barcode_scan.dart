@@ -41,7 +41,7 @@ Future<String?> scanBarcode(BuildContext context, {required String title, requir
               ),
             ),
             Expanded(
-              child: _LiveCam(
+              child: ShopCameraScan(
                 onCode: (value) {
                   if (handled) return;
                   handled = true;
@@ -174,18 +174,13 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
                 child: Align(alignment: Alignment.centerLeft, child: Text(status)),
               ),
             Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                child: MobileScanner(
-                  onDetect: (capture) {
-                    final now = DateTime.now();
-                    if (lastCam != null && now.difference(lastCam!).inMilliseconds < 900) return;
-                    final value = capture.barcodes.firstOrNull?.rawValue;
-                    if (value == null || value.trim().isEmpty) return;
-                    lastCam = now;
-                    _take(value);
-                  },
-                ),
+              child: ShopCameraScan(
+                onCode: (value) {
+                  final now = DateTime.now();
+                  if (lastCam != null && now.difference(lastCam!).inMilliseconds < 900) return;
+                  lastCam = now;
+                  _take(value);
+                },
               ),
             ),
           ],
@@ -195,15 +190,16 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
   }
 }
 
-class _LiveCam extends StatefulWidget {
-  const _LiveCam({required this.onCode});
+class ShopCameraScan extends StatefulWidget {
+  const ShopCameraScan({super.key, required this.onCode, this.hint});
   final void Function(String code) onCode;
+  final String? hint;
 
   @override
-  State<_LiveCam> createState() => _LiveCamState();
+  State<ShopCameraScan> createState() => _ShopCameraScanState();
 }
 
-class _LiveCamState extends State<_LiveCam> {
+class _ShopCameraScanState extends State<ShopCameraScan> {
   MobileScannerController? _ctrl;
   Object? _err;
   var _ready = false;

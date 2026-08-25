@@ -1,13 +1,12 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
+import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
 
 class ConnectScreen extends ConsumerStatefulWidget {
@@ -94,7 +93,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                 controller: driverName,
                 decoration: InputDecoration(labelText: s.t('your_name')),
               ),
-            if (snap.error != null)
+            if (snap.error != null && snap.error != 'queued_offline')
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(s.t(snap.error!), style: const TextStyle(color: OfColors.danger)),
