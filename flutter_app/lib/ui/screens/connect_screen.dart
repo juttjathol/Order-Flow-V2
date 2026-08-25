@@ -120,10 +120,8 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                 borderRadius: BorderRadius.circular(16),
                 child: SizedBox(
                   height: 280,
-                  child: MobileScanner(
-                    onDetect: (capture) {
-                      final value = capture.barcodes.firstOrNull?.rawValue;
-                      if (value == null) return;
+                  child: ShopCameraScan(
+                    onCode: (value) {
                       final host = _hostFrom(value);
                       if (host == null || host.isEmpty) return;
                       setState(() => scan = false);
