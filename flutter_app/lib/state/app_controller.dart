@@ -413,6 +413,12 @@ class AppController extends Notifier<AppSnapshot> {
       clients: _server?.clients.values.toList() ?? state.clients,
     );
     _schedulePersist();
+    if (state.isMain &&
+        result.notice != null &&
+        result.notice!.kind == 'kitchen' &&
+        result.notice!.orderId != null) {
+      unawaited(_autoKitchenPrint(result.notice!.orderId!));
+    }
     return result;
   }
 

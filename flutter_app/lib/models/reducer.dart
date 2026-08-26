@@ -229,6 +229,17 @@ class StoreReducer {
           }
           order.sentAt ??= DateTime.now();
           if (order.status == OrderStatus.open) order.status = OrderStatus.preparing;
+          final label = order.tableName?.isNotEmpty == true
+              ? 'Table ${order.tableName}'
+              : 'Ticket ${order.ticketNo}';
+          notice = AppNotice(
+            id: newId(),
+            title: 'Kitchen order',
+            body: '$label sent to kitchen',
+            tableId: order.tableId,
+            orderId: order.id,
+            kind: 'kitchen',
+          );
         }
         bump();
         break;
@@ -265,6 +276,19 @@ class StoreReducer {
             order.stockDeducted = false;
           }
           _syncTable(store, order);
+          if (next == OrderStatus.preparing && prev != OrderStatus.preparing) {
+            final label = order.tableName?.isNotEmpty == true
+                ? 'Table ${order.tableName}'
+                : 'Ticket ${order.ticketNo}';
+            notice = AppNotice(
+              id: newId(),
+              title: 'Kitchen order',
+              body: '$label sent to kitchen',
+              tableId: order.tableId,
+              orderId: order.id,
+              kind: 'kitchen',
+            );
+          }
           if (next == OrderStatus.ready && prev != OrderStatus.ready) {
             final label = order.tableName?.isNotEmpty == true
                 ? 'Table ${order.tableName}'
@@ -275,6 +299,7 @@ class StoreReducer {
               body: '$label order is ready to serve',
               tableId: order.tableId,
               orderId: order.id,
+              kind: 'ready',
             );
           }
         }

@@ -931,6 +931,7 @@ class AppNotice {
     required this.body,
     this.tableId,
     this.orderId,
+    this.kind = 'ready',
     DateTime? at,
   }) : at = at ?? DateTime.now();
 
@@ -939,6 +940,8 @@ class AppNotice {
   final String body;
   final String? tableId;
   final String? orderId;
+  /// ready | kitchen
+  final String kind;
   final DateTime at;
 
   Map<String, dynamic> toJson() => {
@@ -947,6 +950,7 @@ class AppNotice {
         'body': body,
         'tableId': tableId,
         'orderId': orderId,
+        'kind': kind,
         'at': at.toIso8601String(),
       };
 
@@ -956,6 +960,7 @@ class AppNotice {
         body: parseStr(j['body']) ?? '',
         tableId: parseStr(j['tableId']),
         orderId: parseStr(j['orderId']),
+        kind: parseStr(j['kind']) ?? 'ready',
         at: parseTime(j['at']),
       );
 }
