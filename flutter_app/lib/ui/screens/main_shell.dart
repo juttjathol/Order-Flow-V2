@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -39,6 +40,20 @@ class _MainShellState extends ConsumerState<MainShell> {
       index: index,
       onIndex: (i) => setState(() => index = i),
       actions: [
+        if (ref.snap.isMain || ref.snap.isManager)
+          PopupMenuButton<String>(
+            tooltip: s.t('cover_role'),
+            icon: const Icon(Icons.switch_account),
+            onSelected: (p) => context.go(p),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: '/taker', child: Text(s.t('role_taker'))),
+              PopupMenuItem(value: '/kitchen', child: Text(s.t('role_kitchen'))),
+              PopupMenuItem(value: '/cashier', child: Text(s.t('role_cashier'))),
+              PopupMenuItem(value: '/clerk', child: Text(s.t('role_stock'))),
+              PopupMenuItem(value: '/desk', child: Text(s.t('role_desk'))),
+              PopupMenuItem(value: ref.snap.isManager ? '/manager' : '/main', child: Text(s.t('cover_home'))),
+            ],
+          ),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: Center(

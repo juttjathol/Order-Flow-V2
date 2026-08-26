@@ -127,9 +127,63 @@ class StationActions extends ConsumerWidget {
                 : OfColors.danger,
           ),
         ),
+        const DutyChip(),
         ...extra,
       ],
     );
+  }
+}
+
+class DutyChip extends ConsumerWidget {
+  const DutyChip({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.s;
+    final id = ref.snap.session.staffId;
+    final st = ref.snap.store.staffById(id);
+    if (id == null && !ref.snap.isMain && !ref.snap.isManager) {
+      return const SizedBox.shrink();
+    }
+    final duty = st?.duty ?? StaffDuty.onShift;
+    return IconButton(
+      tooltip: s.t('duty_${duty.name}'),
+      onPressed: () => _pickDuty(context, ref),
+      icon: Icon(
+        duty == StaffDuty.onShift
+            ? Icons.badge
+            : duty == StaffDuty.mealBreak
+                ? Icons.restaurant
+                : duty == StaffDuty.teaBreak
+                    ? Icons.emoji_food_beverage
+                    : Icons.cloud_off,
+      ),
+    );
+  }
+
+  Future<void> _pickDuty(BuildContext context, WidgetRef ref) async {
+    final s = ref.s;
+    var staffId = ref.snap.session.staffId;
+    if (staffId == null && (ref.snap.isMain || ref.snap.isManager) && ref.snap.store.staff.isNotEmpty) {
+      staffId = ref.snap.store.staff.first.id;
+    }
+    if (staffId == null) return;
+    final next = await showModalBottomSheet<StaffDuty>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(title: Text(s.t('duty_onShift')), leading: const Icon(Icons.badge), onTap: () => Navigator.pop(ctx, StaffDuty.onShift)),
+            ListTile(title: Text(s.t('duty_mealBreak')), leading: const Icon(Icons.restaurant), onTap: () => Navigator.pop(ctx, StaffDuty.mealBreak)),
+            ListTile(title: Text(s.t('duty_teaBreak')), leading: const Icon(Icons.emoji_food_beverage), onTap: () => Navigator.pop(ctx, StaffDuty.teaBreak)),
+            ListTile(title: Text(s.t('duty_offline')), leading: const Icon(Icons.cloud_off), onTap: () => Navigator.pop(ctx, StaffDuty.offline)),
+          ],
+        ),
+      ),
+    );
+    if (next == null) return;
+    await ref.ctrl.dispatch(NetCommand(name: 'setStaffDuty', payload: {'id': staffId, 'duty': next.name}));
   }
 }
 

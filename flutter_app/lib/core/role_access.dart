@@ -12,6 +12,7 @@ class RoleAccess {
           cmd.name != 'setModel';
     }
     // Empty / web dashboard on the shop LAN is the owner console.
+    if (cmd.name == 'setStaffDuty') return role != AppRole.none;
     if (role == AppRole.none && (roleName.isEmpty || roleName == 'web')) {
       return true;
     }

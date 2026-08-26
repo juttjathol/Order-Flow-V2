@@ -50,10 +50,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (snap.gate == LicenseGate.setup) {
         return loc == '/setup' ? null : '/setup';
       }
+      bool cover(String p) =>
+          p.startsWith('/taker') ||
+          p.startsWith('/kitchen') ||
+          p.startsWith('/cashier') ||
+          p.startsWith('/clerk') ||
+          p.startsWith('/desk') ||
+          p.startsWith('/specialist') ||
+          p.startsWith('/driver');
       switch (snap.session.role) {
         case AppRole.main:
-          if (loc.startsWith('/main') || loc.startsWith('/order')) return null;
+          if (loc.startsWith('/main') || loc.startsWith('/order') || cover(loc)) return null;
           return '/main';
+        case AppRole.manager:
+          if (loc.startsWith('/manager') || loc.startsWith('/order') || cover(loc)) return null;
+          return '/manager';
         case AppRole.orderTaker:
           if (loc.startsWith('/taker') || loc.startsWith('/order')) return null;
           return '/taker';

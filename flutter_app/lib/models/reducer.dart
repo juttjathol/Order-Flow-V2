@@ -384,6 +384,14 @@ class StoreReducer {
         store.staff.removeWhere((e) => e.id == p['id']);
         bump();
         break;
+      case 'setStaffDuty':
+        final st = store.staffById(parseStr(p['id']));
+        if (st != null) {
+          st.duty = enumParse(StaffDuty.values, p['duty'], st.duty);
+          st.lastSeen = DateTime.now();
+        }
+        bump();
+        break;
       case 'upsertService':
         final s = ServiceOffering.fromJson(mapOf(p['service']));
         final i = store.services.indexWhere((e) => e.id == s.id);

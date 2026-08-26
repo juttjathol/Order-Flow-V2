@@ -785,40 +785,95 @@ Future<void> _drivers(BuildContext context, WidgetRef ref) async {
   );
 }
 
-Future<void> _staff(BuildContext context, WidgetRef ref) async {
+Color _dutyColor(StaffDuty d) => switch (d) {
+      StaffDuty.onShift => OfColors.emerald,
+      StaffDuty.mealBreak => OfColors.warn,
+      StaffDuty.teaBreak => OfColors.gold,
+      StaffDuty.offline => OfColors.muted,
+    };
+
+Future<void> _editStaff(BuildContext context, WidgetRef ref, {StaffMember? existing}) async {
   final s = ref.s;
-  final name = TextEditingController();
-  final role = TextEditingController();
-  await showModalBottomSheet<void>(
+  final name = TextEditingController(text: existing?.name ?? '');
+  final role = TextEditingController(text: existing?.roleLabel ?? '');
+  final pin = TextEditingController(text: existing?.pin ?? '');
+  final ok = await showDialog<bool>(
     context: context,
-    builder: (ctx) => Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+    builder: (d) => AlertDialog(
+      title: Text(s.t('staff')),
+      content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ...ref.snap.store.staff.map((st) => ListTile(
-                title: Text(st.name),
-                subtitle: Text(st.roleLabel),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: () => ref.ctrl.dispatch(NetCommand(name: 'deleteStaff', payload: {'id': st.id})),
-                ),
-              )),
           TextField(controller: name, decoration: InputDecoration(labelText: s.t('name'))),
           TextField(controller: role, decoration: InputDecoration(labelText: s.t('roles'))),
-          FilledButton(
-            onPressed: () async {
-              if (name.text.trim().isEmpty) return;
-              await ref.ctrl.dispatch(NetCommand(name: 'upsertStaff', payload: {
-                'staff': StaffMember(id: newId(), name: name.text.trim(), roleLabel: role.text.trim()).toJson(),
-              }));
-              name.clear();
-              role.clear();
-            },
-            child: Text(s.t('add_staff')),
-          ),
+          TextField(controller: pin, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: s.t('staff_pin'))),
         ],
       ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('save'))),
+      ],
+    ),
+  );
+  if (ok == true && name.text.trim().isNotEmpty && pin.text.trim().isNotEmpty) {
+    await ref.ctrl.dispatch(NetCommand(name: 'upsertStaff', payload: {
+      'staff': StaffMember(
+        id: existing?.id ?? newId(),
+        name: name.text.trim(),
+        roleLabel: role.text.trim(),
+        pin: pin.text.trim(),
+        duty: existing?.duty ?? StaffDuty.offline,
+        active: existing?.active ?? true,
+      ).toJson(),
+    }));
+  }
+}
+
+Future<void> _staff(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final list = [...ref.snap.store.staff]..sort((a, b) => a.name.compareTo(b.name));
+        return SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.72,
+          child: Column(
+            children: [
+              ListTile(
+                title: Text(s.t('staff'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(s.t('staff_duty_hint')),
+                trailing: IconButton(icon: const Icon(Icons.add), onPressed: () => _editStaff(ctx, ref)),
+              ),
+              Expanded(
+                child: list.isEmpty
+                    ? EmptyState(icon: Icons.badge, message: s.t('staff_empty'))
+                    : ListView(
+                        children: list
+                            .map((st) => ListTile(
+                                  title: Text(st.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  subtitle: Text(st.roleLabel),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      StatusChip(s.t('duty_${st.duty.name}'), color: _dutyColor(st.duty)),
+                                      if (ref.snap.isMain || ref.snap.isManager)
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline),
+                                          onPressed: () => ref.ctrl.dispatch(NetCommand(name: 'deleteStaff', payload: {'id': st.id})),
+                                        ),
+                                    ],
+                                  ),
+                                  onTap: (ref.snap.isMain || ref.snap.isManager) ? () => _editStaff(ctx, ref, existing: st) : null,
+                                ))
+                            .toList(),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }

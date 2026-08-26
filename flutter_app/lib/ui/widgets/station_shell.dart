@@ -52,7 +52,10 @@ class StationShell extends ConsumerWidget {
           ),
         ],
       ),
-      actions: actions,
+      actions: [
+        const DutyChip(),
+        ...?actions,
+      ],
     );
     if (!wide) {
       return Scaffold(

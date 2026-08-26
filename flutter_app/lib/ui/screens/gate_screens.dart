@@ -354,11 +354,13 @@ class RoleScreen extends ConsumerStatefulWidget {
 
 class _RoleScreenState extends ConsumerState<RoleScreen> {
   final name = TextEditingController();
+  final pin = TextEditingController();
   AppRole? selected;
 
   @override
   void dispose() {
     name.dispose();
+    pin.dispose();
     super.dispose();
   }
 
@@ -376,6 +378,15 @@ class _RoleScreenState extends ConsumerState<RoleScreen> {
             controller: name,
             decoration: InputDecoration(labelText: s.t('your_name')),
           ),
+          if (selected != null && selected != AppRole.manager) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: pin,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: s.t('staff_pin')),
+            ),
+          ],
           const SizedBox(height: 12),
           ...roles.map((r) {
             return Padding(
@@ -396,11 +407,32 @@ class _RoleScreenState extends ConsumerState<RoleScreen> {
             onPressed: selected == null
                 ? null
                 : () async {
-                    if (selected == AppRole.cashier || selected == AppRole.manager) {
+                    if (selected == AppRole.manager) {
                       final ok = await confirmManagerPin(context, ref, requiredForCashier: true);
                       if (!ok) return;
+                      await ref.ctrl.chooseClientRole(selected!, name.text);
+                      return;
                     }
-                    await ref.ctrl.chooseClientRole(selected!, name.text);
+                    final n = name.text.trim();
+                    final p = pin.text.trim();
+                    if (n.isEmpty || p.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('staff_login_need'))));
+                      return;
+                    }
+                    StaffMember? match;
+                    for (final st in ref.snap.store.staff) {
+                      if (st.active &&
+                          st.name.toLowerCase() == n.toLowerCase() &&
+                          st.pin == p) {
+                        match = st;
+                        break;
+                      }
+                    }
+                    if (match == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('staff_pin_wrong'))));
+                      return;
+                    }
+                    await ref.ctrl.chooseClientRole(selected!, match.name, staffId: match.id);
                   },
             child: Text(s.t('continue')),
           ),

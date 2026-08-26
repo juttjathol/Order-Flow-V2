@@ -30,6 +30,8 @@ enum PaymentMethod { cash, card, wallet, other, complimentary }
 
 enum DriverStatus { free, busy, offline }
 
+enum StaffDuty { offline, onShift, mealBreak, teaBreak }
+
 enum ThemeChoice { system, light, dark }
 
 enum LicenseGate { boot, license, locked, setup, ready }
@@ -714,26 +716,38 @@ class StaffMember {
     required this.id,
     required this.name,
     this.roleLabel = '',
+    this.pin = '',
+    this.duty = StaffDuty.offline,
     this.active = true,
+    this.lastSeen,
   });
 
   String id;
   String name;
   String roleLabel;
+  String pin;
+  StaffDuty duty;
   bool active;
+  DateTime? lastSeen;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'roleLabel': roleLabel,
+        'pin': pin,
+        'duty': duty.name,
         'active': active,
+        'lastSeen': lastSeen?.toIso8601String(),
       };
 
   factory StaffMember.fromJson(Map<String, dynamic> j) => StaffMember(
         id: parseStr(j['id']) ?? newId(),
         name: parseStr(j['name']) ?? '',
         roleLabel: parseStr(j['roleLabel']) ?? '',
+        pin: parseStr(j['pin']) ?? '',
+        duty: enumParse(StaffDuty.values, j['duty'], StaffDuty.offline),
         active: parseBool(j['active'], true),
+        lastSeen: j['lastSeen'] == null ? null : parseTime(j['lastSeen']),
       );
 }
 
@@ -1180,6 +1194,14 @@ class AppStore {
     return null;
   }
 
+  StaffMember? staffById(String? id) {
+    if (id == null) return null;
+    for (final s in staff) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
   Driver? driverById(String? id) {
     if (id == null) return null;
     for (final d in drivers) {
@@ -1324,6 +1346,7 @@ class SessionPrefs {
     this.apiBase = kDefaultApiBase,
     this.mainHost = '',
     this.pairedDriverId,
+    this.staffId,
     this.modelPicked = false,
     this.lastReceiptOrderId,
     LicenseRecord? license,
@@ -1337,6 +1360,7 @@ class SessionPrefs {
   String apiBase;
   String mainHost;
   String? pairedDriverId;
+  String? staffId;
   bool modelPicked;
   String? lastReceiptOrderId;
   LicenseRecord license;
@@ -1350,6 +1374,7 @@ class SessionPrefs {
         'apiBase': apiBase,
         'mainHost': mainHost,
         'pairedDriverId': pairedDriverId,
+        'staffId': staffId,
         'modelPicked': modelPicked,
         'lastReceiptOrderId': lastReceiptOrderId,
         'license': license.toJson(),

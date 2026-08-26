@@ -660,16 +660,30 @@ class AppController extends Notifier<AppSnapshot> {
     unawaited(_tryDriverSync());
   }
 
-  Future<void> chooseClientRole(AppRole role, String name) async {
+  Future<void> chooseClientRole(AppRole role, String name, {String? staffId}) async {
     state.session.role = role;
     state.session.displayName = name.trim().isEmpty ? role.name : name.trim();
+    state.session.staffId = staffId;
     _emit(state.copyWith(session: state.session, gate: LicenseGate.ready));
+    if (staffId != null) {
+      await dispatch(NetCommand(name: 'setStaffDuty', payload: {
+        'id': staffId,
+        'duty': StaffDuty.onShift.name,
+      }));
+    }
     if (state.session.mainHost.isNotEmpty) {
       await connectToMain(state.session.mainHost, role: role);
     }
   }
 
   Future<void> leaveRole() async {
+    final sid = state.session.staffId;
+    if (sid != null) {
+      await dispatch(NetCommand(name: 'setStaffDuty', payload: {
+        'id': sid,
+        'duty': StaffDuty.offline.name,
+      }));
+    }
     await _server?.stop();
     await _client?.close();
     await ShopKeepAlive.stop();
@@ -677,6 +691,7 @@ class AppController extends Notifier<AppSnapshot> {
     _client = null;
     state.session.role = AppRole.none;
     state.session.mainHost = '';
+    state.session.staffId = null;
     // Keep license + driver pairing so Main stays activated / driver stays paired.
     _emit(state.copyWith(
       session: state.session,
