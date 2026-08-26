@@ -521,6 +521,14 @@ class AppController extends Notifier<AppSnapshot> {
     }
   }
 
+  Future<void> _autoKitchenPrint(String orderId) async {
+    final order = state.store.orderById(orderId);
+    if (order == null || order.lines.isEmpty) return;
+    try {
+      await printer.kitchenTicket(state.store, order, role: AppRole.kitchen);
+    } catch (_) {}
+  }
+
   void rememberReceipt(String orderId) {
     state.session.lastReceiptOrderId = orderId;
     _schedulePersist();
