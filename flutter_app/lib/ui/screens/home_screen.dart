@@ -79,8 +79,9 @@ class HomeScreen extends ConsumerWidget {
             style: TextStyle(color: OfColors.mute(context), fontSize: 16, height: 1.4),
           ),
           const SizedBox(height: 20),
-          _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
-          if (snap.isMain) ...[
+          if (snap.isMain)
+            _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
+          if (snap.isMain || snap.isManager) ...[
             const SizedBox(height: 16),
             Row(
               children: [

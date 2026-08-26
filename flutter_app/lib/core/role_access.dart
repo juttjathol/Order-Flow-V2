@@ -5,7 +5,12 @@ class RoleAccess {
   static bool allow(String roleName, NetCommand cmd) {
     final role = enumParse(AppRole.values, roleName, AppRole.none);
     if (role == AppRole.main) return true;
-    if (cmd.name == 'closeDay') return false;
+    if (cmd.name == 'closeDay') return role == AppRole.manager;
+    if (role == AppRole.manager) {
+      return cmd.name != 'replaceState' &&
+          cmd.name != 'seedModel' &&
+          cmd.name != 'setModel';
+    }
     // Empty / web dashboard on the shop LAN is the owner console.
     if (role == AppRole.none && (roleName.isEmpty || roleName == 'web')) {
       return true;
@@ -65,6 +70,10 @@ class RoleAccess {
         return roleName.isEmpty || roleName == 'web';
       case AppRole.main:
         return true;
+      case AppRole.manager:
+        return cmd.name != 'replaceState' &&
+            cmd.name != 'seedModel' &&
+            cmd.name != 'setModel';
     }
   }
 }

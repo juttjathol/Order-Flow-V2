@@ -89,6 +89,8 @@ class L10n {
     'choose_role': 'Choose how this device is used',
     'role_main': 'Main (server)',
     'role_main_hint': 'Requires license. Starts the local POS server.',
+    'role_manager': 'Manager',
+    'role_manager_hint': 'Join Main. Run the floor, tickets, stock, and reports. Cannot change license, PIN, or restore backups.',
     'role_taker': 'Order Taker',
     'role_taker_hint': 'Join Main on Wi‑Fi. Take table and ticket orders.',
     'role_kitchen': 'Kitchen',

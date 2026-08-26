@@ -10,6 +10,7 @@ enum BusinessModel { restaurant, retail, fastfood, services }
 enum AppRole {
   none,
   main,
+  manager,
   orderTaker,
   kitchen,
   cashier,

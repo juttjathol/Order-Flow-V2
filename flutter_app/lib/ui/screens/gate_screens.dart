@@ -396,7 +396,7 @@ class _RoleScreenState extends ConsumerState<RoleScreen> {
             onPressed: selected == null
                 ? null
                 : () async {
-                    if (selected == AppRole.cashier) {
+                    if (selected == AppRole.cashier || selected == AppRole.manager) {
                       final ok = await confirmManagerPin(context, ref, requiredForCashier: true);
                       if (!ok) return;
                     }
@@ -413,6 +413,7 @@ class _RoleScreenState extends ConsumerState<RoleScreen> {
     switch (model) {
       case BusinessModel.restaurant:
         return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
           (AppRole.orderTaker, Icons.room_service, 'role_taker', 'role_taker_hint'),
           (AppRole.kitchen, Icons.soup_kitchen, 'role_kitchen', 'role_kitchen_hint'),
           (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),
@@ -420,17 +421,20 @@ class _RoleScreenState extends ConsumerState<RoleScreen> {
         ];
       case BusinessModel.retail:
         return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
           (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),
           (AppRole.stockClerk, Icons.inventory_2, 'role_stock', 'role_stock_hint'),
         ];
       case BusinessModel.fastfood:
         return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
           (AppRole.orderTaker, Icons.fastfood, 'role_taker', 'role_taker_hint'),
           (AppRole.kitchen, Icons.soup_kitchen, 'role_kitchen', 'role_kitchen_hint'),
           (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),
         ];
       case BusinessModel.services:
         return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
           (AppRole.frontDesk, Icons.desk, 'role_desk', 'role_desk_hint'),
           (AppRole.specialist, Icons.badge, 'role_specialist', 'role_specialist_hint'),
           (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),

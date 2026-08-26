@@ -45,8 +45,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     }).toList();
     final role = snap.session.role;
     final kitchenOnly = role == AppRole.kitchen;
-    final canPay = role == AppRole.main || role == AppRole.cashier;
+    final canPay = role == AppRole.main || role == AppRole.cashier || role == AppRole.manager;
     final canEdit = role == AppRole.main ||
+        role == AppRole.manager ||
         role == AppRole.orderTaker ||
         role == AppRole.cashier ||
         role == AppRole.frontDesk;

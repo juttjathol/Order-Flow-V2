@@ -37,7 +37,7 @@ class MoreScreen extends ConsumerWidget {
         _h(s.t('shop_section')),
         if (snap.isMain)
           _tile(context, Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
-        if (snap.isMain)
+        if (snap.isMain || snap.isManager)
           _tile(context, Icons.receipt_long, s.t('bill_profile'), () => _bill(context, ref)),
         _h(s.t('hardware_section')),
         _tile(context, Icons.print, s.t('printers'), () => _printers(context, ref)),
@@ -50,7 +50,7 @@ class MoreScreen extends ConsumerWidget {
         _h(s.t('reports_section')),
         _tile(context, Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
         _tile(context, Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
-        if (snap.isMain) _tile(context, Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
+        if (snap.isMain || snap.isManager) _tile(context, Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
         _h(s.t('account_section')),
         _tile(context, Icons.backup, s.t('export_backup'), () async {
           await ref.ctrl.backup.exportAndShare(snap.store);
@@ -58,6 +58,7 @@ class MoreScreen extends ConsumerWidget {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('backup_ok'))));
           }
         }),
+        if (snap.isMain)
         _tile(context, Icons.unarchive, s.t('import_backup'), () async {
           if (!snap.isMain) return;
           final ok = await showDialog<bool>(
@@ -86,7 +87,7 @@ class MoreScreen extends ConsumerWidget {
             }
           }
         }),
-        _tile(context, Icons.vpn_key, s.t('license'), () => _license(context, ref)),
+        if (snap.isMain) _tile(context, Icons.vpn_key, s.t('license'), () => _license(context, ref)),
         _tile(context, Icons.manage_accounts, s.t('roles'), () => leaveRoleWithPin(context, ref)),
         _tile(context, Icons.language, s.t('language'), () {
           ref.ctrl.setLocale(snap.session.locale == 'en' ? 'ur' : 'en');
@@ -320,7 +321,8 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     const SizedBox(height: 8),
                     TextField(controller: svc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('service_rate'))),
                     const SizedBox(height: 8),
-                    TextField(controller: pin, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: s.t('set_pin'))),
+                    if (ref.snap.isMain)
+                      TextField(controller: pin, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: s.t('set_pin'))),
                     SwitchListTile(value: prefix, onChanged: (v) => setSt(() => prefix = v), title: Text(s.t('prefix_currency'))),
                     const SizedBox(height: 12),
                     Text(s.t('slip_pay_qr'), style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -361,7 +363,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     logoBase64: p.logoBase64,
                     payQrBase64: p.payQrBase64,
                     payQrLabel: qrLabel.text.trim(),
-                    managerPin: pin.text.trim(),
+                    managerPin: ref.snap.isMain ? pin.text.trim() : p.managerPin,
                     kitchenSlip: p.kitchenSlip,
                     counterSlip: p.counterSlip,
                     takeawaySlip: p.takeawaySlip,
@@ -382,6 +384,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
 
 const _printRoles = <(AppRole, String)>[
   (AppRole.main, 'role_main'),
+  (AppRole.manager, 'role_manager'),
   (AppRole.orderTaker, 'role_taker'),
   (AppRole.kitchen, 'role_kitchen'),
   (AppRole.cashier, 'role_cashier'),

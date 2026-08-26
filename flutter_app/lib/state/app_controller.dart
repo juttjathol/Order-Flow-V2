@@ -60,6 +60,7 @@ class AppSnapshot {
   String get currency => store.profile.currencySymbol;
   bool get currencyPrefix => store.profile.currencyPrefix;
   bool get isMain => session.role == AppRole.main;
+  bool get isManager => session.role == AppRole.manager;
   bool get isClient =>
       session.role != AppRole.none && session.role != AppRole.main;
 

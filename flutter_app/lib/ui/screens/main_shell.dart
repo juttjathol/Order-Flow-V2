@@ -35,7 +35,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         : (Icons.restaurant_menu_outlined, Icons.restaurant_menu, s.t('menu'));
     return StationShell(
       title: ref.snap.store.profile.businessName,
-      subtitle: s.t('role_main'),
+      subtitle: s.t(ref.snap.isManager ? 'role_manager' : 'role_main'),
       index: index,
       onIndex: (i) => setState(() => index = i),
       actions: [
@@ -43,8 +43,12 @@ class _MainShellState extends ConsumerState<MainShell> {
           padding: const EdgeInsets.only(right: 12),
           child: Center(
             child: StatusChip(
-              ref.snap.serverOn ? s.t('server_on') : s.t('server_off'),
-              color: ref.snap.serverOn ? OfColors.mint : OfColors.warn,
+              ref.snap.isMain
+                  ? (ref.snap.serverOn ? s.t('server_on') : s.t('server_off'))
+                  : (ref.snap.connected ? s.t('connected') : s.t('disconnected')),
+              color: (ref.snap.isMain ? ref.snap.serverOn : ref.snap.connected)
+                  ? OfColors.mint
+                  : OfColors.warn,
             ),
           ),
         ),

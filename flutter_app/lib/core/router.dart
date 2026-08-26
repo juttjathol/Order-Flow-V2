@@ -84,6 +84,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/role', builder: (_, __) => const RoleScreen()),
       GoRoute(path: '/setup', builder: (_, __) => const SetupScreen()),
       GoRoute(path: '/main', builder: (_, __) => const MainShell()),
+      GoRoute(path: '/manager', builder: (_, __) => const MainShell()),
       GoRoute(path: '/taker', builder: (_, __) => const TakerScreen()),
       GoRoute(path: '/kitchen', builder: (_, __) => const KitchenScreen()),
       GoRoute(path: '/cashier', builder: (_, __) => const CashierScreen()),
