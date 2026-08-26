@@ -78,20 +78,110 @@ bool parseBool(Object? raw, [bool fallback = false]) {
   return fallback;
 }
 
+class SlipTemplate {
+  SlipTemplate({
+    this.heading = 'CASH RECEIPT',
+    this.showLogo = true,
+    this.showAddress = true,
+    this.showPhone = true,
+    this.showPrices = true,
+    this.showTotals = true,
+    this.showPayment = true,
+    this.showQr = true,
+    this.showCustomer = true,
+  });
+
+  String heading;
+  bool showLogo;
+  bool showAddress;
+  bool showPhone;
+  bool showPrices;
+  bool showTotals;
+  bool showPayment;
+  bool showQr;
+  bool showCustomer;
+
+  SlipTemplate copy() => SlipTemplate(
+        heading: heading,
+        showLogo: showLogo,
+        showAddress: showAddress,
+        showPhone: showPhone,
+        showPrices: showPrices,
+        showTotals: showTotals,
+        showPayment: showPayment,
+        showQr: showQr,
+        showCustomer: showCustomer,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'heading': heading,
+        'showLogo': showLogo,
+        'showAddress': showAddress,
+        'showPhone': showPhone,
+        'showPrices': showPrices,
+        'showTotals': showTotals,
+        'showPayment': showPayment,
+        'showQr': showQr,
+        'showCustomer': showCustomer,
+      };
+
+  factory SlipTemplate.fromJson(Map<String, dynamic>? j, SlipTemplate fallback) {
+    final m = j ?? const {};
+    return SlipTemplate(
+      heading: parseStr(m['heading']) ?? fallback.heading,
+      showLogo: parseBool(m['showLogo'], fallback.showLogo),
+      showAddress: parseBool(m['showAddress'], fallback.showAddress),
+      showPhone: parseBool(m['showPhone'], fallback.showPhone),
+      showPrices: parseBool(m['showPrices'], fallback.showPrices),
+      showTotals: parseBool(m['showTotals'], fallback.showTotals),
+      showPayment: parseBool(m['showPayment'], fallback.showPayment),
+      showQr: parseBool(m['showQr'], fallback.showQr),
+      showCustomer: parseBool(m['showCustomer'], fallback.showCustomer),
+    );
+  }
+
+  static SlipTemplate kitchen() => SlipTemplate(
+        heading: 'KITCHEN TICKET',
+        showLogo: false,
+        showAddress: false,
+        showPhone: false,
+        showPrices: false,
+        showTotals: false,
+        showPayment: false,
+        showQr: false,
+        showCustomer: true,
+      );
+
+  static SlipTemplate counter() => SlipTemplate(heading: 'CASH RECEIPT');
+
+  static SlipTemplate takeaway() => SlipTemplate(heading: 'TAKEAWAY RECEIPT');
+
+  static SlipTemplate delivery() => SlipTemplate(heading: 'DELIVERY RECEIPT');
+}
+
 class BillProfile {
   BillProfile({
     this.businessName = 'My Shop',
     this.address = '',
     this.phone = '',
     this.taxId = '',
-    this.footer = 'Thank you for your visit',
+    this.footer = 'THANK YOU!',
     this.currencySymbol = kDefaultCurrency,
     this.currencyPrefix = true,
     this.taxRate = 0,
     this.serviceRate = 0,
     this.logoBase64,
+    this.payQrBase64,
+    this.payQrLabel = '',
     this.managerPin = '',
-  });
+    SlipTemplate? kitchenSlip,
+    SlipTemplate? counterSlip,
+    SlipTemplate? takeawaySlip,
+    SlipTemplate? deliverySlip,
+  })  : kitchenSlip = kitchenSlip ?? SlipTemplate.kitchen(),
+        counterSlip = counterSlip ?? SlipTemplate.counter(),
+        takeawaySlip = takeawaySlip ?? SlipTemplate.takeaway(),
+        deliverySlip = deliverySlip ?? SlipTemplate.delivery();
 
   String businessName;
   String address;
@@ -103,7 +193,25 @@ class BillProfile {
   double taxRate;
   double serviceRate;
   String? logoBase64;
+  String? payQrBase64;
+  String payQrLabel;
   String managerPin;
+  SlipTemplate kitchenSlip;
+  SlipTemplate counterSlip;
+  SlipTemplate takeawaySlip;
+  SlipTemplate deliverySlip;
+
+  SlipTemplate slipFor(PosOrder order, {required bool kitchen}) {
+    if (kitchen) return kitchenSlip;
+    switch (order.type) {
+      case OrderType.takeaway:
+        return takeawaySlip;
+      case OrderType.delivery:
+        return deliverySlip;
+      default:
+        return counterSlip;
+    }
+  }
 
   BillProfile copy() => BillProfile(
         businessName: businessName,
@@ -116,7 +224,13 @@ class BillProfile {
         taxRate: taxRate,
         serviceRate: serviceRate,
         logoBase64: logoBase64,
+        payQrBase64: payQrBase64,
+        payQrLabel: payQrLabel,
         managerPin: managerPin,
+        kitchenSlip: kitchenSlip.copy(),
+        counterSlip: counterSlip.copy(),
+        takeawaySlip: takeawaySlip.copy(),
+        deliverySlip: deliverySlip.copy(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -130,7 +244,13 @@ class BillProfile {
         'taxRate': taxRate,
         'serviceRate': serviceRate,
         'logoBase64': logoBase64,
+        'payQrBase64': payQrBase64,
+        'payQrLabel': payQrLabel,
         'managerPin': managerPin,
+        'kitchenSlip': kitchenSlip.toJson(),
+        'counterSlip': counterSlip.toJson(),
+        'takeawaySlip': takeawaySlip.toJson(),
+        'deliverySlip': deliverySlip.toJson(),
       };
 
   factory BillProfile.fromJson(Map<String, dynamic>? j) {
@@ -140,13 +260,31 @@ class BillProfile {
       address: parseStr(m['address']) ?? '',
       phone: parseStr(m['phone']) ?? '',
       taxId: parseStr(m['taxId']) ?? '',
-      footer: parseStr(m['footer']) ?? 'Thank you for your visit',
+      footer: parseStr(m['footer']) ?? 'THANK YOU!',
       currencySymbol: parseStr(m['currencySymbol']) ?? kDefaultCurrency,
       currencyPrefix: parseBool(m['currencyPrefix'], true),
       taxRate: parseNum(m['taxRate']),
       serviceRate: parseNum(m['serviceRate']),
       logoBase64: parseStr(m['logoBase64']),
+      payQrBase64: parseStr(m['payQrBase64']),
+      payQrLabel: parseStr(m['payQrLabel']) ?? '',
       managerPin: parseStr(m['managerPin']) ?? '',
+      kitchenSlip: SlipTemplate.fromJson(
+        m['kitchenSlip'] is Map ? Map<String, dynamic>.from(m['kitchenSlip'] as Map) : null,
+        SlipTemplate.kitchen(),
+      ),
+      counterSlip: SlipTemplate.fromJson(
+        m['counterSlip'] is Map ? Map<String, dynamic>.from(m['counterSlip'] as Map) : null,
+        SlipTemplate.counter(),
+      ),
+      takeawaySlip: SlipTemplate.fromJson(
+        m['takeawaySlip'] is Map ? Map<String, dynamic>.from(m['takeawaySlip'] as Map) : null,
+        SlipTemplate.takeaway(),
+      ),
+      deliverySlip: SlipTemplate.fromJson(
+        m['deliverySlip'] is Map ? Map<String, dynamic>.from(m['deliverySlip'] as Map) : null,
+        SlipTemplate.delivery(),
+      ),
     );
   }
 }

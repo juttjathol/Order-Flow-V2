@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
@@ -176,6 +179,56 @@ Future<void> _changeModel(BuildContext context, WidgetRef ref) async {
   );
 }
 
+Future<String?> _pickB64() async {
+  final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 600, imageQuality: 70);
+  if (picked == null) return null;
+  return base64Encode(await picked.readAsBytes());
+}
+
+Widget _slipEditor(String title, String hint, SlipTemplate t, void Function(void Function()) setSt, dynamic s) {
+  Widget sw(String label, bool v, void Function(bool) on) =>
+      SwitchListTile(contentPadding: EdgeInsets.zero, value: v, onChanged: (x) => setSt(() => on(x)), title: Text(label));
+  return OfCard(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        Text(hint, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: TextEditingController(text: t.heading)..selection = TextSelection.collapsed(offset: t.heading.length),
+          decoration: InputDecoration(labelText: s.t('slip_heading')),
+          onChanged: (v) => t.heading = v,
+        ),
+        sw(s.t('slip_logo'), t.showLogo, (v) => t.showLogo = v),
+        sw(s.t('address'), t.showAddress, (v) => t.showAddress = v),
+        sw(s.t('phone'), t.showPhone, (v) => t.showPhone = v),
+        sw(s.t('slip_prices'), t.showPrices, (v) => t.showPrices = v),
+        sw(s.t('total'), t.showTotals, (v) => t.showTotals = v),
+        sw(s.t('payment'), t.showPayment, (v) => t.showPayment = v),
+        sw(s.t('slip_qr'), t.showQr, (v) => t.showQr = v),
+        sw(s.t('customer'), t.showCustomer, (v) => t.showCustomer = v),
+      ],
+    ),
+  );
+}
+
+Widget _b64Thumb(String? raw, {double h = 56}) {
+  if (raw == null || raw.isEmpty) {
+    return Container(
+      height: h,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: const Color(0x11000000), borderRadius: BorderRadius.circular(8)),
+      child: const Icon(Icons.add_photo_alternate_outlined),
+    );
+  }
+  try {
+    return Image.memory(base64Decode(raw.contains(',') ? raw.split(',').last : raw), height: h, fit: BoxFit.contain);
+  } catch (_) {
+    return SizedBox(height: h);
+  }
+}
+
 Future<void> _bill(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
   final p = ref.snap.store.profile.copy();
@@ -188,6 +241,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
   final tax = TextEditingController(text: p.taxRate.toString());
   final svc = TextEditingController(text: p.serviceRate.toString());
   final pin = TextEditingController(text: p.managerPin);
+  final qrLabel = TextEditingController(text: p.payQrLabel);
   var prefix = p.currencyPrefix;
   await showModalBottomSheet<void>(
     context: context,
@@ -195,35 +249,103 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setSt) => Padding(
         padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
-        child: SingleChildScrollView(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.9,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
               Text(s.t('bill_profile'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-              const SizedBox(height: 10),
-              TextField(controller: name, decoration: InputDecoration(labelText: s.t('business_name'))),
+              Text(s.t('bill_template_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
               const SizedBox(height: 8),
-              TextField(controller: address, decoration: InputDecoration(labelText: s.t('address'))),
-              const SizedBox(height: 8),
-              TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone'))),
-              const SizedBox(height: 8),
-              TextField(controller: taxId, decoration: InputDecoration(labelText: s.t('tax_id'))),
-              const SizedBox(height: 8),
-              TextField(controller: footer, decoration: InputDecoration(labelText: s.t('footer'))),
-              const SizedBox(height: 8),
-              TextField(controller: cur, decoration: InputDecoration(labelText: s.t('currency_symbol'))),
-              const SizedBox(height: 8),
-              TextField(controller: tax, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('tax_rate'))),
-              const SizedBox(height: 8),
-              TextField(controller: svc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('service_rate'))),
-              const SizedBox(height: 8),
-              TextField(
-                controller: pin,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: s.t('set_pin'), helperText: s.t('pin_required')),
+              Expanded(
+                child: ListView(
+                  children: [
+                    OfCard(
+                      child: Column(
+                        children: [
+                          Text(s.t('slip_preview'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            color: Colors.white,
+                            child: DefaultTextStyle(
+                              style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.35),
+                              child: Column(
+                                children: [
+                                  _b64Thumb(p.logoBase64, h: 48),
+                                  Text(name.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                  if (address.text.isNotEmpty) Text(address.text, textAlign: TextAlign.center),
+                                  if (phone.text.isNotEmpty) Text('Tel. ${phone.text}'),
+                                  const Text('* * * * * * * * * * * *'),
+                                  Text(p.counterSlip.heading.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                  const Text('* * * * * * * * * * * *'),
+                                  const Align(alignment: Alignment.centerLeft, child: Text('Items & prices come from the order')),
+                                  const Align(alignment: Alignment.centerLeft, child: Text('Date & time print when you print')),
+                                  const Text('* * * * * * * * * * * *'),
+                                  Text(footer.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                  _b64Thumb(p.payQrBase64, h: 72),
+                                  if (qrLabel.text.isNotEmpty) Text(qrLabel.text),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(s.t('slip_header'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final v = await _pickB64();
+                        if (v != null) setSt(() => p.logoBase64 = v);
+                      },
+                      icon: const Icon(Icons.storefront),
+                      label: Text(s.t('slip_logo')),
+                    ),
+                    _b64Thumb(p.logoBase64),
+                    const SizedBox(height: 8),
+                    TextField(controller: name, decoration: InputDecoration(labelText: s.t('business_name')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 8),
+                    TextField(controller: address, decoration: InputDecoration(labelText: s.t('address')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 8),
+                    TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 8),
+                    TextField(controller: taxId, decoration: InputDecoration(labelText: s.t('tax_id'))),
+                    const SizedBox(height: 8),
+                    TextField(controller: footer, decoration: InputDecoration(labelText: s.t('footer')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 8),
+                    TextField(controller: cur, decoration: InputDecoration(labelText: s.t('currency_symbol'))),
+                    const SizedBox(height: 8),
+                    TextField(controller: tax, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('tax_rate'))),
+                    const SizedBox(height: 8),
+                    TextField(controller: svc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('service_rate'))),
+                    const SizedBox(height: 8),
+                    TextField(controller: pin, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: s.t('set_pin'))),
+                    SwitchListTile(value: prefix, onChanged: (v) => setSt(() => prefix = v), title: Text(s.t('prefix_currency'))),
+                    const SizedBox(height: 12),
+                    Text(s.t('slip_pay_qr'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final v = await _pickB64();
+                        if (v != null) setSt(() => p.payQrBase64 = v);
+                      },
+                      icon: const Icon(Icons.qr_code_2),
+                      label: Text(s.t('slip_qr')),
+                    ),
+                    _b64Thumb(p.payQrBase64, h: 80),
+                    TextField(controller: qrLabel, decoration: InputDecoration(labelText: s.t('slip_qr_label')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 16),
+                    _slipEditor(s.t('role_kitchen'), s.t('slip_kitchen_hint'), p.kitchenSlip, setSt, s),
+                    const SizedBox(height: 10),
+                    _slipEditor(s.t('slip_counter'), s.t('slip_counter_hint'), p.counterSlip, setSt, s),
+                    const SizedBox(height: 10),
+                    _slipEditor(s.t('takeaway'), s.t('slip_takeaway_hint'), p.takeawaySlip, setSt, s),
+                    const SizedBox(height: 10),
+                    _slipEditor(s.t('delivery'), s.t('slip_delivery_hint'), p.deliverySlip, setSt, s),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
-              SwitchListTile(value: prefix, onChanged: (v) => setSt(() => prefix = v), title: Text(s.t('prefix_currency'))),
               FilledButton(
                 onPressed: () async {
                   final next = BillProfile(
@@ -231,13 +353,19 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     address: address.text.trim(),
                     phone: phone.text.trim(),
                     taxId: taxId.text.trim(),
-                    footer: footer.text.trim(),
+                    footer: footer.text.trim().isEmpty ? 'THANK YOU!' : footer.text.trim(),
                     currencySymbol: cur.text.trim().isEmpty ? kDefaultCurrency : cur.text.trim(),
                     currencyPrefix: prefix,
                     taxRate: double.tryParse(tax.text) ?? 0,
                     serviceRate: double.tryParse(svc.text) ?? 0,
                     logoBase64: p.logoBase64,
+                    payQrBase64: p.payQrBase64,
+                    payQrLabel: qrLabel.text.trim(),
                     managerPin: pin.text.trim(),
+                    kitchenSlip: p.kitchenSlip,
+                    counterSlip: p.counterSlip,
+                    takeawaySlip: p.takeawaySlip,
+                    deliverySlip: p.deliverySlip,
                   );
                   await ref.ctrl.dispatch(NetCommand(name: 'setProfile', payload: {'profile': next.toJson()}));
                   if (ctx.mounted) Navigator.pop(ctx);

@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:image/image.dart' as img;
 
 import '../core/money.dart';
 import '../models/models.dart';
@@ -33,106 +35,98 @@ class PrintService {
   }
 
   Future<void> kitchenTicket(AppStore store, PosOrder order, {AppRole? role}) {
-    final b = EscPos()
-      ..init()
-      ..align('center')
+    return send(store.printerForRole(role) ?? store.kitchenTarget(), _build(store, order, kitchen: true));
+  }
+
+  Future<void> receipt(AppStore store, PosOrder order, {AppRole? role}) {
+    return send(store.receiptTarget(role), _build(store, order, kitchen: false));
+  }
+
+  List<int> _build(AppStore store, PosOrder order, {required bool kitchen}) {
+    final p = store.profile;
+    final slip = p.slipFor(order, kitchen: kitchen);
+    final cur = p.currencySymbol;
+    final prefix = p.currencyPrefix;
+    String m(num n) => money(n, cur, prefix: prefix);
+    final now = DateTime.now();
+    final b = EscPos()..init()..align('center');
+    if (slip.showLogo) _raster(b, p.logoBase64);
+    b
       ..doubleSize(true)
-      ..text(store.profile.businessName)
-      ..doubleSize(false)
-      ..text('KITCHEN TICKET')
-      ..rule()
+      ..text(p.businessName.toUpperCase())
+      ..doubleSize(false);
+    if (slip.showAddress && p.address.isNotEmpty) b.text(p.address);
+    if (slip.showPhone && p.phone.isNotEmpty) b.text('Tel. ${p.phone}');
+    if (p.taxId.isNotEmpty && !kitchen) b.text('Tax ID: ${p.taxId}');
+    b
+      ..stars()
+      ..text(slip.heading.toUpperCase())
+      ..stars()
       ..align('left')
-      ..text('Ticket ${order.ticketNo}');
-    if (order.createdBy.isNotEmpty) b.text('Station: ${order.createdBy}');
-    b
-      ..text(order.tableName == null || order.tableName!.isEmpty
-          ? order.type.name.toUpperCase()
-          : 'TABLE ${order.tableName}');
-    if (order.customerName.isNotEmpty) b.text(order.customerName);
-    if (order.type == OrderType.delivery && order.address.isNotEmpty) {
-      b.text(order.address);
+      ..text('Ticket ${order.ticketNo}')
+      ..text(_fmt(now));
+    if (order.tableName?.isNotEmpty == true) {
+      b.text('Table ${order.tableName}');
+    } else {
+      b.text(order.type.name.toUpperCase());
     }
-    b
-      ..text(_fmt(order.createdAt))
-      ..rule();
-    final lines = [...order.lines]..sort((a, b) => a.course.compareTo(b.course));
+    if (slip.showCustomer) {
+      if (order.customerName.isNotEmpty) b.text(order.customerName);
+      if (order.customerPhone.isNotEmpty) b.text(order.customerPhone);
+      if (order.type == OrderType.delivery && order.address.isNotEmpty) {
+        b.text(order.address);
+      }
+    }
+    if (order.createdBy.isNotEmpty && kitchen) b.text('Station: ${order.createdBy}');
+    b.stars();
+    if (slip.showPrices) {
+      b.row('Description', 'Price');
+    }
+    final lines = [...order.lines]..sort((a, c) => a.course.compareTo(c.course));
     String? last;
     for (final line in lines) {
-      if (last != line.course) {
+      if (kitchen && last != line.course) {
         last = line.course;
         b.text('-- ${line.course.toUpperCase()} --');
       }
-      b.text('${line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1)} x ${line.name}');
+      final qty = line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1);
+      if (slip.showPrices) {
+        b.row('$qty ${line.name}', m(line.lineTotal));
+      } else {
+        b.text('$qty x ${line.name}');
+      }
       if (line.notes.isNotEmpty) b.text('  * ${line.notes}');
     }
     if (order.notes.isNotEmpty) {
       b
-        ..rule()
+        ..stars()
         ..text('NOTE: ${order.notes}');
     }
-    b
-      ..rule()
-      ..feed(4)
-      ..cut();
-    return send(store.printerForRole(role) ?? store.kitchenTarget(), b.bytes);
-  }
-
-  Future<void> receipt(AppStore store, PosOrder order, {AppRole? role}) {
-    final cur = store.profile.currencySymbol;
-    final prefix = store.profile.currencyPrefix;
-    String m(num n) => money(n, cur, prefix: prefix);
-    final b = EscPos()
-      ..init()
-      ..align('center')
-      ..doubleSize(true)
-      ..text(store.profile.businessName)
-      ..doubleSize(false);
-    if (store.profile.address.isNotEmpty) b.text(store.profile.address);
-    if (store.profile.phone.isNotEmpty) b.text(store.profile.phone);
-    if (store.profile.taxId.isNotEmpty) b.text('Tax ID: ${store.profile.taxId}');
-    b
-      ..rule()
-      ..align('left')
-      ..text('Receipt ${order.ticketNo}')
-      ..text(_fmt(order.updatedAt));
-    if (order.tableName?.isNotEmpty == true) b.text('Table ${order.tableName}');
-    b.text(order.type.name.toUpperCase());
-    if (order.customerName.isNotEmpty) b.text('Customer: ${order.customerName}');
-    if (order.customerPhone.isNotEmpty) b.text(order.customerPhone);
-    if (order.address.isNotEmpty) b.text(order.address);
-    b.rule();
-    for (final line in order.lines) {
-      b.row(
-        '${line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1)} ${line.name}',
-        m(line.lineTotal),
-      );
-    }
-    b
-      ..rule()
-      ..row('Subtotal', m(order.subtotal + order.discount));
-    if (order.discount > 0) b.row('Discount', '- ${m(order.discount)}');
-    if (order.service > 0) {
-      b.row('Service ${order.serviceRate.toStringAsFixed(1)}%', m(order.service));
-    }
-    if (order.tax > 0) {
-      b.row('Tax ${order.taxRate.toStringAsFixed(1)}%', m(order.tax));
-    }
-    if (order.tip > 0) b.row('Tip', m(order.tip));
-    b
-      ..doubleSize(true)
-      ..row('TOTAL', m(order.total))
-      ..doubleSize(false);
-    if (order.payment != null) b.text('Paid: ${order.payment!.name}');
-    if (store.profile.footer.isNotEmpty) {
+    if (slip.showTotals) {
       b
-        ..rule()
-        ..align('center')
-        ..text(store.profile.footer);
+        ..stars()
+        ..doubleSize(true)
+        ..row('Total', m(order.total))
+        ..doubleSize(false);
+      if (order.discount > 0) b.row('Discount', '- ${m(order.discount)}');
+      if (order.service > 0) b.row('Service', m(order.service));
+      if (order.tax > 0) b.row('Tax', m(order.tax));
+      if (order.tip > 0) b.row('Tip', m(order.tip));
+    }
+    if (slip.showPayment && order.payment != null) {
+      b.row(order.payment!.name, m(order.total));
+    }
+    b.stars();
+    b.align('center');
+    if (p.footer.isNotEmpty) b.text(p.footer.toUpperCase());
+    if (slip.showQr) {
+      _raster(b, p.payQrBase64);
+      if (p.payQrLabel.trim().isNotEmpty) b.text(p.payQrLabel.trim());
     }
     b
       ..feed(4)
       ..cut();
-    return send(store.receiptTarget(role), b.bytes);
+    return b.bytes;
   }
 
   Future<void> test(PrinterConfig cfg, String shop) {
@@ -145,6 +139,42 @@ class PrintService {
       ..feed(4)
       ..cut();
     return send(cfg, b.bytes);
+  }
+
+  void _raster(EscPos b, String? raw) {
+    if (raw == null || raw.trim().isEmpty) return;
+    try {
+      final data = base64Decode(raw.contains(',') ? raw.split(',').last : raw);
+      final decoded = img.decodeImage(data);
+      if (decoded == null) return;
+      var im = img.grayscale(decoded);
+      const maxW = 384;
+      if (im.width > maxW) {
+        im = img.copyResize(im, width: maxW);
+      }
+      final w = (im.width + 7) ~/ 8 * 8;
+      final h = im.height;
+      final out = <int>[];
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x += 8) {
+          var byte = 0;
+          for (var bit = 0; bit < 8; bit++) {
+            final xx = x + bit;
+            var dark = false;
+            if (xx < im.width) {
+              final p = im.getPixel(xx, y);
+              dark = img.getLuminance(p) < 160;
+            }
+            if (dark) byte |= 128 >> bit;
+          }
+          out.add(byte);
+        }
+      }
+      final widthBytes = w ~/ 8;
+      b.raw([0x1D, 0x76, 0x30, 0x00, widthBytes & 0xFF, (widthBytes >> 8) & 0xFF, h & 0xFF, (h >> 8) & 0xFF]);
+      b.raw(out);
+      b.raw(const [0x0A]);
+    } catch (_) {}
   }
 
   String _fmt(DateTime d) {
@@ -180,7 +210,9 @@ class EscPos {
     raw(const [0x0A]);
   }
 
-  void rule() => text('--------------------------------');
+  void stars() => text('* * * * * * * * * * * * * * * *');
+
+  void rule() => stars();
 
   void row(String left, String right) {
     const width = 32;
