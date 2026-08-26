@@ -10,6 +10,7 @@ import '../../core/l10n.dart';
 import '../../core/money.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../services/shop_keepalive.dart';
 import '../../state/app_controller.dart';
 
 extension OfX on WidgetRef {
@@ -413,6 +414,7 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
         ping();
         Timer(const Duration(milliseconds: 700), ping);
         Timer(const Duration(milliseconds: 1400), ping);
+        unawaited(ShopKeepAlive.alert(title: first.title, text: first.body));
         _hide?.cancel();
         _hide = Timer(const Duration(seconds: 10), () {
           if (mounted) ref.ctrl.dismissNotice(first.id);

@@ -19,4 +19,11 @@ class ShopKeepAlive {
       await _ch.invokeMethod('stop');
     } catch (_) {}
   }
+
+  static Future<void> alert({required String title, required String text}) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _ch.invokeMethod('alert', {'title': title, 'text': text});
+    } catch (_) {}
+  }
 }

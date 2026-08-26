@@ -181,6 +181,7 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 14),
                 child: OfCard(
                   onTap: () => context.push('/order/${o.id}'),
+                  onLongPress: () => _deleteTicket(context, ref, o),
                   padding: EdgeInsets.zero,
                   child: IntrinsicHeight(
                     child: Row(
@@ -231,6 +232,27 @@ class HomeScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _deleteTicket(BuildContext context, WidgetRef ref, PosOrder o) async {
+  final s = ref.s;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('cancel_order')),
+      content: Text('${o.ticketNo}  ·  ${s.t('confirm_cancel')}'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('delete'))),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
+    'id': o.id,
+    'status': OrderStatus.cancelled.name,
+    'voidReason': 'deleted',
+  }));
 }
 
 Future<void> _dayClose(BuildContext context, WidgetRef ref) async {

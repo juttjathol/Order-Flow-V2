@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../models/models.dart';
@@ -210,6 +211,28 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
+  Widget _fail() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.photo_camera_outlined, color: Colors.white70, size: 36),
+            const SizedBox(height: 10),
+            const Text(
+              'Allow camera permission, then tap Retry. You can still type or use a USB / Bluetooth scanner.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: _boot, child: const Text('Retry camera')),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _boot() async {
     await _ctrl?.dispose();
     final ctrl = MobileScannerController(
@@ -218,6 +241,11 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
       detectionSpeed: DetectionSpeed.normal,
     );
     try {
+      const ask = MethodChannel('jathol/shop_keepalive');
+      try {
+        await ask.invokeMethod('askCamera');
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       await ctrl.start();
       if (!mounted) {
         await ctrl.dispose();
