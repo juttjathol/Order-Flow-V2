@@ -9,10 +9,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -21,6 +23,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var cameraWait: MethodChannel.Result? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -37,18 +40,7 @@ class MainActivity : FlutterActivity() {
                         ShopKeepAliveService.stop(this)
                         result.success(true)
                     }
-                    "askCamera" -> {
-                        if (Build.VERSION.SDK_INT >= 23 &&
-                            checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            ActivityCompat.requestPermissions(
-                                this,
-                                arrayOf(Manifest.permission.CAMERA),
-                                9102,
-                            )
-                        }
-                        result.success(true)
-                    }
+                    "askCamera" -> askCamera(result)
                     "alert" -> {
                         maybeAskNotifications()
                         val title = call.argument<String>("title") ?: "Ready to serve"
@@ -61,6 +53,52 @@ class MainActivity : FlutterActivity() {
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PRINTER)
             .setMethodCallHandler(ShopPrinter(this))
+    }
+
+    private fun cameraGranted(): Boolean {
+        return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun askCamera(result: MethodChannel.Result) {
+        if (cameraGranted()) {
+            result.success(true)
+            return
+        }
+        if (cameraWait != null) {
+            result.success(false)
+            return
+        }
+        val prefs = getSharedPreferences("jathol_perm", MODE_PRIVATE)
+        val asked = prefs.getBoolean("camera_asked", false)
+        val showWhy = ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)
+        if (asked && !showWhy) {
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", packageName, null)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    },
+                )
+            } catch (_: Exception) {
+            }
+            result.success(false)
+            return
+        }
+        cameraWait = result
+        prefs.edit().putBoolean("camera_asked", true).apply()
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), CAM_REQ)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != CAM_REQ) return
+        val ok = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        cameraWait?.success(ok)
+        cameraWait = null
     }
 
     private fun postAlert(title: String, text: String) {
@@ -136,5 +174,6 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL = "jathol/shop_keepalive"
         private const val PRINTER = "jathol/printer"
         private const val ALERT_CH = "jathol_ready"
+        private const val CAM_REQ = 9102
     }
 }

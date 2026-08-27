@@ -200,14 +200,18 @@ class ShopCameraScan extends StatefulWidget {
   State<ShopCameraScan> createState() => _ShopCameraScanState();
 }
 
-class _ShopCameraScanState extends State<ShopCameraScan> {
+class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
   MobileScannerController? _ctrl;
   Object? _err;
   var _ready = false;
+  var _busy = false;
+
+  static const _ask = MethodChannel('jathol/shop_keepalive');
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
@@ -221,34 +225,60 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
             const Icon(Icons.photo_camera_outlined, color: Colors.white70, size: 36),
             const SizedBox(height: 10),
             const Text(
-              'Allow camera permission, then tap Retry. You can still type or use a USB / Bluetooth scanner.',
+              'Allow camera while using the app. If Android asks, choose While using the app. You can still type or use a USB / Bluetooth scanner.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 12),
-            FilledButton(onPressed: _boot, child: const Text('Retry camera')),
+            FilledButton(onPressed: _boot, child: const Text('Allow camera')),
           ],
         ),
       ),
     );
   }
 
+  Future<bool> _waitCameraPermission() async {
+    try {
+      final ok = await _ask.invokeMethod<dynamic>('askCamera');
+      return ok == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _boot() async {
+    if (_busy) return;
+    _busy = true;
+    setState(() {
+      _ready = false;
+      _err = null;
+    });
     await _ctrl?.dispose();
+    _ctrl = null;
+    final allowed = await _waitCameraPermission();
+    if (!mounted) {
+      _busy = false;
+      return;
+    }
+    if (!allowed) {
+      _busy = false;
+      setState(() {
+        _err = 'permission';
+        _ready = false;
+      });
+      return;
+    }
     final ctrl = MobileScannerController(
       autoStart: false,
       facing: CameraFacing.back,
       detectionSpeed: DetectionSpeed.normal,
+      torchEnabled: false,
     );
     try {
-      const ask = MethodChannel('jathol/shop_keepalive');
-      try {
-        await ask.invokeMethod('askCamera');
-      } catch (_) {}
-      await Future<void>.delayed(const Duration(milliseconds: 250));
       await ctrl.start();
       if (!mounted) {
         await ctrl.dispose();
+        _busy = false;
         return;
       }
       setState(() {
@@ -258,17 +288,28 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
       });
     } catch (e) {
       await ctrl.dispose();
-      if (!mounted) return;
-      setState(() {
-        _ctrl = null;
-        _ready = false;
-        _err = e;
-      });
+      if (mounted) {
+        setState(() {
+          _ctrl = null;
+          _ready = false;
+          _err = e;
+        });
+      }
+    } finally {
+      _busy = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_ready && !_busy) {
+      _boot();
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ctrl?.dispose();
     super.dispose();
   }
@@ -280,30 +321,13 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
       child: ColoredBox(
         color: Colors.black,
         child: _err != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.photo_camera_outlined, color: Colors.white70, size: 36),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Camera could not start. Allow camera permission, then retry. You can still type or use a USB / Bluetooth scanner above.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton(onPressed: _boot, child: const Text('Retry camera')),
-                    ],
-                  ),
-                ),
-              )
+            ? _fail()
             : !_ready || _ctrl == null
                 ? const Center(child: CircularProgressIndicator(color: Colors.white))
                 : MobileScanner(
                     controller: _ctrl,
                     fit: BoxFit.cover,
+                    errorBuilder: (context, error, child) => _fail(),
                     onDetect: (capture) {
                       final value = capture.barcodes.firstOrNull?.rawValue;
                       if (value == null || value.trim().isEmpty) return;
