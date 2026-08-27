@@ -272,7 +272,6 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       autoStart: false,
       facing: CameraFacing.back,
       detectionSpeed: DetectionSpeed.normal,
-      torchEnabled: false,
     );
     try {
       await ctrl.start();
