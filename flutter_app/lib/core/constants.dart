@@ -26,9 +26,9 @@ String kLicenseWhatsAppUrl({
   return 'https://wa.me/Jathol_Jutt?text=${Uri.encodeComponent(body)}';
 }
 const String kDefaultApiBase = 'https://order-flow-v2.pages.dev';
-const String kPrivacyUrl = 'https://order-flow-v2.pages.dev/privacy';
+const String kPrivacyUrl = 'https://jathol.pages.dev/privacy';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.1.13';
+const String kAppVersion = '1.1.14';
 const String kJoinScheme = 'orderflow';
 const String kDefaultCurrency = 'Rs';
