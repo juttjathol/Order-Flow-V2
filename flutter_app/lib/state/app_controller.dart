@@ -413,8 +413,7 @@ class AppController extends Notifier<AppSnapshot> {
       clients: _server?.clients.values.toList() ?? state.clients,
     );
     _schedulePersist();
-    if (state.isMain &&
-        result.notice != null &&
+    if (result.notice != null &&
         result.notice!.kind == 'kitchen' &&
         result.notice!.orderId != null) {
       unawaited(_autoKitchenPrint(result.notice!.orderId!));
@@ -521,9 +520,20 @@ class AppController extends Notifier<AppSnapshot> {
     }
   }
 
+  String? _kitchenPrintedId;
+  DateTime? _kitchenPrintedAt;
+
   Future<void> _autoKitchenPrint(String orderId) async {
+    final now = DateTime.now();
+    if (_kitchenPrintedId == orderId &&
+        _kitchenPrintedAt != null &&
+        now.difference(_kitchenPrintedAt!) < const Duration(seconds: 8)) {
+      return;
+    }
     final order = state.store.orderById(orderId);
     if (order == null || order.lines.isEmpty) return;
+    _kitchenPrintedId = orderId;
+    _kitchenPrintedAt = now;
     try {
       await printer.kitchenTicket(state.store, order, role: AppRole.kitchen);
     } catch (_) {}
@@ -569,6 +579,9 @@ class AppController extends Notifier<AppSnapshot> {
         state = state.copyWith(
           notices: [notice, ...state.notices].take(20).toList(),
         );
+        if (notice.kind == 'kitchen' && notice.orderId != null) {
+          unawaited(_autoKitchenPrint(notice.orderId!));
+        }
       },
       onStatus: (up) {
         state = state.copyWith(connected: up);

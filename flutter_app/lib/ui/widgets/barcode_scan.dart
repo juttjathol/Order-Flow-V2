@@ -11,30 +11,26 @@ import '../../models/models.dart';
 Future<String?> scanBarcode(BuildContext context, {required String title, required String hint}) {
   var handled = false;
   final gun = TextEditingController();
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(ctx).height * 0.78,
-        child: Column(
+  return Navigator.of(context).push<String>(
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (ctx) => Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))],
+        ),
+        body: Column(
           children: [
-            ListTile(
-              title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(hint),
-              trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
               child: TextField(
                 controller: gun,
                 autofocus: false,
                 textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'USB / Bluetooth scanner',
-                  hintText: 'Scan here or type SKU',
-                  prefixIcon: Icon(Icons.document_scanner),
+                  hintText: hint,
+                  prefixIcon: const Icon(Icons.document_scanner),
                 ),
                 onSubmitted: (v) {
                   final code = v.trim();
@@ -66,11 +62,14 @@ Future<void> scanLoop(
   required String hint,
   required Future<String?> Function(String code, double qty) onCommit,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    isDismissible: true,
-    builder: (ctx) => _ScanLoopSheet(title: title, hint: hint, onCommit: onCommit),
+  return Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (ctx) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: _ScanLoopSheet(title: title, hint: hint, onCommit: onCommit),
+      ),
+    ),
   );
 }
 
@@ -130,14 +129,10 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.82,
-        child: Column(
+      child: Column(
           children: [
             ListTile(
-              title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text(widget.hint),
-              trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+              title: Text(widget.hint, style: const TextStyle(fontSize: 13)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -188,7 +183,6 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
             ),
           ],
         ),
-      ),
     );
   }
 }
