@@ -9,12 +9,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.RingtoneManager
-import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.provider.Settings
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -24,6 +23,18 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var cameraWait: MethodChannel.Result? = null
+
+    private val camPerm = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val pending = cameraWait
+        cameraWait = null
+        try {
+            pending?.success(granted == true)
+        } catch (_: Exception) {
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -64,41 +75,15 @@ class MainActivity : FlutterActivity() {
             result.success(true)
             return
         }
-        if (cameraWait != null) {
-            result.success(false)
-            return
-        }
-        val prefs = getSharedPreferences("jathol_perm", MODE_PRIVATE)
-        val asked = prefs.getBoolean("camera_asked", false)
-        val showWhy = ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.CAMERA)
-        if (asked && !showWhy) {
+        val old = cameraWait
+        cameraWait = result
+        if (old != null) {
             try {
-                startActivity(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", packageName, null)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    },
-                )
+                old.success(false)
             } catch (_: Exception) {
             }
-            result.success(false)
-            return
         }
-        cameraWait = result
-        prefs.edit().putBoolean("camera_asked", true).apply()
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), CAM_REQ)
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != CAM_REQ) return
-        val ok = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-        cameraWait?.success(ok)
-        cameraWait = null
+        camPerm.launch(Manifest.permission.CAMERA)
     }
 
     private fun postAlert(title: String, text: String) {
@@ -174,6 +159,5 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL = "jathol/shop_keepalive"
         private const val PRINTER = "jathol/printer"
         private const val ALERT_CH = "jathol_ready"
-        private const val CAM_REQ = 9102
     }
 }

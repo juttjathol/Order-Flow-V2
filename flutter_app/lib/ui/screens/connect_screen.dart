@@ -65,73 +65,74 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
       title: s.t('connect_main'),
       body: BusyBarrier(
         busy: snap.busy,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Column(
           children: [
-            Text(s.t('same_wifi')),
-            const SizedBox(height: 6),
-            Text(s.t('manual_ip'), style: const TextStyle(color: OfColors.muted)),
-            const SizedBox(height: 14),
-            TextField(
-              controller: ip,
-              keyboardType: TextInputType.url,
-              decoration: InputDecoration(
-                labelText: s.t('enter_ip'),
-                hintText: '192.168.1.10',
-                prefixIcon: const Icon(Icons.lan),
-              ),
-            ),
-            const SizedBox(height: 10),
-            SwitchListTile(
-              value: asDriver,
-              onChanged: (v) => setState(() => asDriver = v),
-              title: Text(s.t('role_driver')),
-              subtitle: Text(s.t('role_driver_hint')),
-            ),
-            if (asDriver)
-              TextField(
-                controller: driverName,
-                decoration: InputDecoration(labelText: s.t('your_name')),
-              ),
-            if (snap.error != null && snap.error != 'queued_offline')
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(s.t(snap.error!), style: const TextStyle(color: OfColors.danger)),
-              ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () {
-                final host = _hostFrom(ip.text);
-                if (host == null || host.isEmpty) return;
-                _go(host);
-              },
-              icon: const Icon(Icons.link),
-              label: Text(s.t('continue')),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => setState(() => scan = !scan),
-              icon: Icon(scan ? Icons.close : Icons.qr_code_scanner),
-              label: Text(scan ? s.t('stop_scan') : s.t('scan_now')),
-            ),
-            if (scan) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: SizedBox(
-                  height: 280,
-                  child: ShopCameraScan(
-                    onCode: (value) {
-                      final host = _hostFrom(value);
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Text(s.t('same_wifi')),
+                  const SizedBox(height: 6),
+                  Text(s.t('manual_ip'), style: const TextStyle(color: OfColors.muted)),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: ip,
+                    keyboardType: TextInputType.url,
+                    decoration: InputDecoration(
+                      labelText: s.t('enter_ip'),
+                      hintText: '192.168.1.10',
+                      prefixIcon: const Icon(Icons.lan),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    value: asDriver,
+                    onChanged: (v) => setState(() => asDriver = v),
+                    title: Text(s.t('role_driver')),
+                    subtitle: Text(s.t('role_driver_hint')),
+                  ),
+                  if (asDriver)
+                    TextField(
+                      controller: driverName,
+                      decoration: InputDecoration(labelText: s.t('your_name')),
+                    ),
+                  if (snap.error != null && snap.error != 'queued_offline')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(s.t(snap.error!), style: const TextStyle(color: OfColors.danger)),
+                    ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () {
+                      final host = _hostFrom(ip.text);
                       if (host == null || host.isEmpty) return;
-                      setState(() => scan = false);
-                      ip.text = host;
                       _go(host);
                     },
+                    icon: const Icon(Icons.link),
+                    label: Text(s.t('continue')),
                   ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () => setState(() => scan = !scan),
+                    icon: Icon(scan ? Icons.close : Icons.qr_code_scanner),
+                    label: Text(scan ? s.t('stop_scan') : s.t('scan_now')),
+                  ),
+                ],
+              ),
+            ),
+            if (scan)
+              SizedBox(
+                height: 280,
+                child: ShopCameraScan(
+                  onCode: (value) {
+                    final host = _hostFrom(value);
+                    if (host == null || host.isEmpty) return;
+                    setState(() => scan = false);
+                    ip.text = host;
+                    _go(host);
+                  },
                 ),
               ),
-            ],
           ],
         ),
       ),

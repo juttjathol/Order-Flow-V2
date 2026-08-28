@@ -200,7 +200,7 @@ class ShopCameraScan extends StatefulWidget {
   State<ShopCameraScan> createState() => _ShopCameraScanState();
 }
 
-class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
+class _ShopCameraScanState extends State<ShopCameraScan> {
   MobileScannerController? _ctrl;
   Object? _err;
   var _ready = false;
@@ -211,7 +211,6 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
@@ -269,46 +268,24 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       return;
     }
     final ctrl = MobileScannerController(
-      autoStart: false,
       facing: CameraFacing.back,
       detectionSpeed: DetectionSpeed.normal,
     );
-    try {
-      await ctrl.start();
-      if (!mounted) {
-        await ctrl.dispose();
-        _busy = false;
-        return;
-      }
-      setState(() {
-        _ctrl = ctrl;
-        _ready = true;
-        _err = null;
-      });
-    } catch (e) {
+    if (!mounted) {
       await ctrl.dispose();
-      if (mounted) {
-        setState(() {
-          _ctrl = null;
-          _ready = false;
-          _err = e;
-        });
-      }
-    } finally {
       _busy = false;
+      return;
     }
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_ready && !_busy) {
-      _boot();
-    }
+    setState(() {
+      _ctrl = ctrl;
+      _ready = true;
+      _err = null;
+    });
+    _busy = false;
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _ctrl?.dispose();
     super.dispose();
   }
