@@ -21,9 +21,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("sideload") {
+            storeFile = rootProject.file("sideload/upload.p12")
+            storePassword = "JatholOrderFlowSideload"
+            keyAlias = "jathol"
+            keyPassword = "JatholOrderFlowSideload"
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("sideload")
         }
     }
 }
