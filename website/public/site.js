@@ -72,6 +72,27 @@ async function startDownload(ev) {
   }
 }
 
+document.getElementById("trial-form")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = document.getElementById("t-name").value.trim();
+  const model = document.getElementById("t-model").value.trim();
+  const email = document.getElementById("t-email").value.trim();
+  const phone = document.getElementById("t-phone").value.trim();
+  if (!name || !model || !email || !phone) return;
+  const body = [
+    "Name: " + name,
+    "Business model: " + model,
+    "Email: " + email,
+    "Phone number: " + phone,
+    "",
+    "Hello Jathol,",
+    "",
+    "I would like to request a 3-day trial of Order Flow for my business. Please issue a trial license key and share the steps to activate Main on our shop Wi‑Fi.",
+    "",
+    "Thank you.",
+  ].join("\n");
+  window.location.href = "https://wa.me/Jathol_Jutt?text=" + encodeURIComponent(body);
+});
 document.getElementById("dl-btn")?.addEventListener("click", startDownload);
 document.querySelectorAll("[data-apk]").forEach((el) => {
   el.addEventListener("click", (e) => {

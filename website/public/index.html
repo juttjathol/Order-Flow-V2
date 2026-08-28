@@ -21,10 +21,11 @@
         <a href="#stations">Stations</a>
         <a href="#how">How it works</a>
         <a href="#download">Download</a>
+        <a href="#trial">3-day trial</a>
         <a href="#contact">WhatsApp</a>
       </nav>
       <div class="nav-cta">
-        <a class="btn btn-ghost" href="#contact">Talk to Jathol</a>
+        <a class="btn btn-ghost" href="#trial">3-day trial</a>
         <a class="btn btn-mint" href="#download" data-apk>Get the app</a>
       </div>
     </div>
@@ -40,7 +41,7 @@
         <p class="lede reveal d2">A fully licensed Android POS for restaurants, cafés, retail and delivery. Main stays on your Wi‑Fi. Kitchen, cashier, takers and drivers join as stations. Your live sales never leave the shop.</p>
         <div class="hero-actions reveal d3">
           <a class="btn btn-mint" href="#download" data-apk>Download Android APK</a>
-          <a class="btn btn-ghost" id="wa-hero" target="_blank" rel="noopener">WhatsApp support @Jathol_Jutt</a>
+          <a class="btn btn-ghost" href="#trial">Request a 3-day trial</a>
         </div>
         <div class="meta-row reveal d3">
           <div><strong>LAN 8787</strong>Shop Main on Wi‑Fi</div>
@@ -155,8 +156,35 @@
           <details open><summary>Does my sales data go to the cloud?</summary><p>No. Tickets, menu and stock live on Main. The website only checks the license and serves this app file.</p></details>
           <details><summary>What if the internet drops?</summary><p>Selling continues on shop Wi‑Fi. Stations can queue work and flush when Main is reachable. License has an offline grace window.</p></details>
           <details><summary>How do I install the app?</summary><p>Download from this page on your Android phone, then allow install from this site when Android asks. Jathol will advise you when a store listing is available.</p></details>
+          <details><summary>Can I try before I buy?</summary><p>Yes. Use the 3-day trial form. WhatsApp opens with your details so Jathol can issue a trial key.</p></details>
           <details><summary>How do I buy a key?</summary><p>WhatsApp @Jathol_Jutt with your name, business, email and phone. Jathol issues the 16-character key.</p></details>
         </div>
+      </div>
+    </section>
+
+    <section id="trial">
+      <div class="wrap trial-grid">
+        <div>
+          <p class="kicker">Try it in the shop</p>
+          <h2 class="sec-title">Apply for a 3-day trial.</h2>
+          <p class="sec-sub">Run Order Flow on your floor for three days. Submit the form and WhatsApp opens with a ready message to @Jathol_Jutt. Send it, and we will issue a trial license key.</p>
+        </div>
+        <form class="trial-form" id="trial-form">
+          <label>Name<input id="t-name" name="name" autocomplete="name" required placeholder="Your name"/></label>
+          <label>Business model
+            <select id="t-model" name="model" required>
+              <option value="" disabled selected>Select one</option>
+              <option value="Restaurant">Restaurant</option>
+              <option value="Retail">Retail</option>
+              <option value="Fast food">Fast food</option>
+              <option value="Services">Services</option>
+            </select>
+          </label>
+          <label>Email<input id="t-email" name="email" type="email" autocomplete="email" required placeholder="you@business.com"/></label>
+          <label>Phone number<input id="t-phone" name="phone" type="tel" autocomplete="tel" required placeholder="Include country code"/></label>
+          <button class="btn btn-mint" type="submit">Submit on WhatsApp</button>
+          <p class="note">You will review the message in WhatsApp before you send it.</p>
+        </form>
       </div>
     </section>
 
