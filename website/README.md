@@ -6,12 +6,18 @@ Do not deploy this over the existing `order-flow-v2` Pages project. Create a **n
 
 ## Deploy
 
-```bash
-cd website
-npx wrangler pages deploy public --project-name=YOUR_NEW_PROJECT
-```
+Create a **new** Pages project. Do not use `order-flow-v2`.
 
-Or connect this `website/` directory in the Cloudflare dashboard as its own site.
+Preferred Cloudflare settings:
+
+- Production branch: `arena/01a01f91-order-flow-v2`
+- Root directory: **empty** (repository root)
+- Build command: empty
+- Build output directory: `website/public`
+
+The download worker lives in `/functions` at the repo root so `/download` is included even when the output folder is `website/public`.
+
+After deploy, the build log must mention **functions** (not “No functions dir”). Then retry **Download APK**.
 
 ## APK download
 

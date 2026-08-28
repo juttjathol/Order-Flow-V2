@@ -37,12 +37,18 @@ async function apkMeta() {
   try {
     const res = await fetch("/download?meta=1");
     const data = await res.json();
-    if (!data.ok) return;
     const tag = document.getElementById("apk-tag");
     const size = document.getElementById("apk-size");
+    if (!data.ok) {
+      if (tag) tag.textContent = "waiting for server";
+      return;
+    }
     if (tag) tag.textContent = data.tag || "latest";
     if (size && data.size) size.textContent = `${(data.size / (1024 * 1024)).toFixed(1)} MB`;
-  } catch (_) {}
+  } catch (_) {
+    const tag = document.getElementById("apk-tag");
+    if (tag) tag.textContent = "waiting for server";
+  }
 }
 apkMeta();
 
@@ -54,6 +60,7 @@ async function startDownload(ev) {
     const res = await fetch("/download");
     if (!res.ok) throw new Error("busy");
     const blob = await res.blob();
+    if (blob.size < 10000) throw new Error("empty");
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -64,7 +71,8 @@ async function startDownload(ev) {
     URL.revokeObjectURL(url);
     if (statusEl) statusEl.textContent = "Download started on this device.";
   } catch (_) {
-    if (statusEl) statusEl.textContent = "Could not start the download. Try again, or message WhatsApp.";
+    if (statusEl) statusEl.textContent = "Starting download…";
+    window.location.assign("/download");
   }
 }
 
