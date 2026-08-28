@@ -34,21 +34,17 @@ window.addEventListener(
 );
 
 async function apkMeta() {
+  const el = document.getElementById("apk-meta");
+  if (!el) return;
+  el.textContent = "Current official app for Android.";
   try {
     const res = await fetch("/download?meta=1");
     const data = await res.json();
-    const tag = document.getElementById("apk-tag");
-    const size = document.getElementById("apk-size");
-    if (!data.ok) {
-      if (tag) tag.textContent = "waiting for server";
-      return;
-    }
-    if (tag) tag.textContent = data.tag || "latest";
-    if (size && data.size) size.textContent = `${(data.size / (1024 * 1024)).toFixed(1)} MB`;
-  } catch (_) {
-    const tag = document.getElementById("apk-tag");
-    if (tag) tag.textContent = "waiting for server";
-  }
+    if (!data.ok || !data.tag) return;
+    const ver = String(data.tag).replace(/^v/i, "");
+    const mb = data.size ? ` · ${(data.size / (1024 * 1024)).toFixed(1)} MB` : "";
+    el.textContent = `Version ${ver}${mb}`;
+  } catch (_) {}
 }
 apkMeta();
 
