@@ -13,7 +13,6 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -23,17 +22,6 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var cameraWait: MethodChannel.Result? = null
-
-    private val camPerm = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        val pending = cameraWait
-        cameraWait = null
-        try {
-            pending?.success(granted == true)
-        } catch (_: Exception) {
-        }
-    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -80,10 +68,31 @@ class MainActivity : FlutterActivity() {
         if (old != null) {
             try {
                 old.success(false)
-            } catch (_: Exception) {
+            } catch (exc: Exception) {
             }
         }
-        camPerm.launch(Manifest.permission.CAMERA)
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.CAMERA),
+            CAM_REQ,
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        if (requestCode == CAM_REQ) {
+            val ok = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            val pending = cameraWait
+            cameraWait = null
+            try {
+                pending?.success(ok)
+            } catch (exc: Exception) {
+            }
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     private fun postAlert(title: String, text: String) {
@@ -119,7 +128,7 @@ class MainActivity : FlutterActivity() {
                 @Suppress("DEPRECATION")
                 vib.vibrate(longArrayOf(0, 400, 200, 400, 200, 400), -1)
             }
-        } catch (_: Exception) {
+        } catch (exc: Exception) {
         }
         val open = PendingIntent.getActivity(
             this,
@@ -159,5 +168,6 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL = "jathol/shop_keepalive"
         private const val PRINTER = "jathol/printer"
         private const val ALERT_CH = "jathol_ready"
+        private const val CAM_REQ = 9102
     }
 }
