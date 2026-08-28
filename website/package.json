@@ -1,0 +1,13 @@
+{
+  "name": "jathol-order-flow-site",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Public marketing site for Order Flow by Jathol. Deploy as its own Cloudflare Pages project — do not mix with the license SaaS dashboard.",
+  "scripts": {
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}
