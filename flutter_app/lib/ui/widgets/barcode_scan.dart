@@ -202,10 +202,10 @@ class ShopCameraScan extends StatefulWidget {
   State<ShopCameraScan> createState() => _ShopCameraScanState();
 }
 
-class _ShopCameraScanState extends State<ShopCameraScan> {
+class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
   MobileScannerController? _ctrl;
-  Object? _err;
-  var _ready = false;
+  var _live = false;
+  var _fail = false;
   var _busy = false;
 
   static const _ask = MethodChannel('jathol/shop_keepalive');
@@ -213,10 +213,11 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
-  Widget _fail() {
+  Widget _failPane() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -231,7 +232,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
               style: TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 12),
-            FilledButton(onPressed: _boot, child: const Text('Allow camera')),
+            FilledButton(onPressed: _boot, child: const Text('Open camera')),
           ],
         ),
       ),
@@ -247,15 +248,23 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
     }
   }
 
+  MobileScannerController _newCtrl() {
+    return MobileScannerController(
+      autoStart: false,
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.normal,
+    );
+  }
+
   Future<void> _boot() async {
     if (_busy) return;
     _busy = true;
     setState(() {
-      _ready = false;
-      _err = null;
+      _live = false;
+      _fail = false;
     });
     await _ctrl?.dispose();
-    _ctrl = null;
+    _ctrl = _newCtrl();
     final allowed = await _waitCameraPermission();
     if (!mounted) {
       _busy = false;
@@ -263,56 +272,62 @@ class _ShopCameraScanState extends State<ShopCameraScan> {
     }
     if (!allowed) {
       _busy = false;
-      setState(() {
-        _err = 'permission';
-        _ready = false;
-      });
+      setState(() => _fail = true);
       return;
     }
-    final ctrl = MobileScannerController(
-      facing: CameraFacing.back,
-      detectionSpeed: DetectionSpeed.normal,
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 450));
     if (!mounted) {
-      await ctrl.dispose();
       _busy = false;
       return;
     }
-    setState(() {
-      _ctrl = ctrl;
-      _ready = true;
-      _err = null;
-    });
+    await _ctrl?.dispose();
+    _ctrl = _newCtrl();
+    setState(() {});
+    try {
+      await _ctrl!.start();
+      if (mounted) setState(() => _live = true);
+    } catch (_) {
+      if (mounted) setState(() => _fail = true);
+    }
     _busy = false;
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final c = _ctrl;
+    if (c == null || !c.value.isInitialized) return;
+    if (state == AppLifecycleState.resumed) {
+      unawaited(c.start());
+    } else if (state == AppLifecycleState.inactive) {
+      unawaited(c.stop());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ctrl?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-      child: ColoredBox(
-        color: Colors.black,
-        child: _err != null
-            ? _fail()
-            : !_ready || _ctrl == null
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                : MobileScanner(
-                    controller: _ctrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, child) => _fail(),
-                    onDetect: (capture) {
-                      final value = capture.barcodes.firstOrNull?.rawValue;
-                      if (value == null || value.trim().isEmpty) return;
-                      widget.onCode(value.trim());
-                    },
-                  ),
-      ),
+    return ColoredBox(
+      color: Colors.black,
+      child: _fail
+          ? _failPane()
+          : !_live || _ctrl == null
+              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              : MobileScanner(
+                  controller: _ctrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, child) => _failPane(),
+                  onDetect: (capture) {
+                    final value = capture.barcodes.firstOrNull?.rawValue;
+                    if (value == null || value.trim().isEmpty) return;
+                    widget.onCode(value.trim());
+                  },
+                ),
     );
   }
 }
