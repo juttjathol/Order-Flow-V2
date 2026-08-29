@@ -197,18 +197,20 @@ class ShopCameraScan extends StatefulWidget {
 }
 
 class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
-  MobileScannerController? _ctrl;
-  var _live = false;
-  var _fail = false;
-  var _busy = false;
+  final MobileScannerController controller = MobileScannerController(
+    autoStart: false,
+    facing: CameraFacing.back,
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
 
-  static const _ask = MethodChannel('jathol/shop_keepalive');
+  var _permissionGranted = false;
+  var _starting = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
+    unawaited(_checkAndRequestPermission());
   }
 
   Widget _failPane() {
@@ -221,86 +223,70 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
             const Icon(Icons.photo_camera_outlined, color: Colors.white70, size: 36),
             const SizedBox(height: 10),
             const Text(
-              'Allow camera while using the app. If Android asks, choose While using the app. You can still type or use a USB / Bluetooth scanner.',
+              'Allow camera while using the app.\nIf Android asks, choose While using the app.\nYou can still type or use a USB / Bluetooth scanner.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 12),
-            FilledButton(onPressed: _boot, child: const Text('Open camera')),
+            FilledButton(onPressed: _checkAndRequestPermission, child: const Text('Open camera')),
+            TextButton(
+              onPressed: openAppSettings,
+              child: const Text('Open Settings', style: TextStyle(color: Colors.white70)),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<bool> _waitCameraPermission() async {
-    try {
-      final ok = await _ask.invokeMethod<dynamic>('askCamera');
-      return ok == true;
-    } catch (_) {
-      return false;
+  Future<void> _checkAndRequestPermission() async {
+    var status = await Permission.camera.status;
+    if (status.isDenied) {
+      status = await Permission.camera.request();
+    }
+    if (!mounted) return;
+    if (status.isPermanentlyDenied || status.isDenied || status.isRestricted) {
+      setState(() => _permissionGranted = false);
+      return;
+    }
+    if (status.isGranted) {
+      setState(() => _permissionGranted = true);
+      await _startCamera();
     }
   }
 
-  MobileScannerController _newCtrl() {
-    return MobileScannerController(
-      autoStart: false,
-      facing: CameraFacing.back,
-      detectionSpeed: DetectionSpeed.normal,
-    );
-  }
-
-  Future<void> _boot() async {
-    if (_busy) return;
-    _busy = true;
-    setState(() {
-      _live = false;
-      _fail = false;
-    });
-    await _ctrl?.dispose();
-    _ctrl = _newCtrl();
-    final allowed = await _waitCameraPermission();
-    if (!mounted) {
-      _busy = false;
-      return;
-    }
-    if (!allowed) {
-      _busy = false;
-      setState(() => _fail = true);
-      return;
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    if (!mounted) {
-      _busy = false;
-      return;
-    }
-    await _ctrl?.dispose();
-    _ctrl = _newCtrl();
-    setState(() {});
+  Future<void> _startCamera() async {
+    if (_starting) return;
+    _starting = true;
     try {
-      await _ctrl!.start();
-      if (mounted) setState(() => _live = true);
-    } catch (_) {
-      if (mounted) setState(() => _fail = true);
+      await controller.start();
+    } catch (e) {
+      debugPrint('Camera start error: $e');
+    } finally {
+      _starting = false;
     }
-    _busy = false;
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final c = _ctrl;
-    if (c == null || !c.value.isInitialized) return;
-    if (state == AppLifecycleState.resumed) {
-      unawaited(c.start());
-    } else if (state == AppLifecycleState.inactive) {
-      unawaited(c.stop());
+    if (!_permissionGranted) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(_startCamera());
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        unawaited(controller.stop());
+        break;
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _ctrl?.dispose();
+    controller.dispose();
     super.dispose();
   }
 
@@ -308,20 +294,18 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Colors.black,
-      child: _fail
+      child: !_permissionGranted
           ? _failPane()
-          : !_live || _ctrl == null
-              ? const Center(child: CircularProgressIndicator(color: Colors.white))
-              : MobileScanner(
-                  controller: _ctrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, child) => _failPane(),
-                  onDetect: (capture) {
-                    final value = capture.barcodes.firstOrNull?.rawValue;
-                    if (value == null || value.trim().isEmpty) return;
-                    widget.onCode(value.trim());
-                  },
-                ),
+          : MobileScanner(
+              controller: controller,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, child) => _failPane(),
+              onDetect: (capture) {
+                final value = capture.barcodes.firstOrNull?.rawValue;
+                if (value == null || value.trim().isEmpty) return;
+                widget.onCode(value.trim());
+              },
+            ),
     );
   }
 }
