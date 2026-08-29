@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 
-import 'package:collection/collection.dart';
+import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter/services.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/models.dart';
 
 /// Camera or a USB/Bluetooth HID gun (guns type the code and press Enter).
+/// Used by stock scan and station-join QR (Connect screen).
 Future<String?> scanBarcode(BuildContext context, {required String title, required String hint}) {
   var handled = false;
   final gun = TextEditingController();
@@ -173,6 +177,7 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
             ),
           Expanded(
             child: ShopCameraScan(
+              continuous: true,
               onCode: (value) {
                 final now = DateTime.now();
                 if (lastCam != null && now.difference(lastCam!).inMilliseconds < 900) return;
@@ -187,36 +192,72 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
   }
 }
 
+/// Live camera barcode/QR scanner using the same stack as the working reference:
+/// `camera` + `google_mlkit_barcode_scanning` (not mobile_scanner).
 class ShopCameraScan extends StatefulWidget {
-  const ShopCameraScan({super.key, required this.onCode, this.hint});
+  const ShopCameraScan({
+    super.key,
+    required this.onCode,
+    this.hint,
+    this.continuous = false,
+  });
+
   final void Function(String code) onCode;
   final String? hint;
+
+  /// When true (stock loop), keep scanning after each hit.
+  final bool continuous;
 
   @override
   State<ShopCameraScan> createState() => _ShopCameraScanState();
 }
 
 class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
-  late final MobileScannerController controller;
+  static const _orientations = <DeviceOrientation, int>{
+    DeviceOrientation.portraitUp: 0,
+    DeviceOrientation.landscapeLeft: 90,
+    DeviceOrientation.portraitDown: 180,
+    DeviceOrientation.landscapeRight: 270,
+  };
+
+  CameraController? _controller;
+  late final BarcodeScanner _scanner;
+  List<CameraDescription> _cameras = const [];
 
   var _starting = false;
+  var _processing = false;
+  var _ready = false;
   var _showHelp = false;
+  var _torchOn = false;
   String? _errorHint;
+  DateTime? _lastEmit;
 
   @override
   void initState() {
     super.initState();
-    controller = MobileScannerController(
-      autoStart: false,
-      facing: CameraFacing.back,
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      returnImage: false,
-    );
+    _scanner = BarcodeScanner(formats: [BarcodeFormat.all]);
     WidgetsBinding.instance.addObserver(this);
-    // Start after first frame so the platform view has a size.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_openCamera());
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_teardown());
+    _scanner.close();
+    super.dispose();
+  }
+
+  Future<void> _teardown() async {
+    final c = _controller;
+    _controller = null;
+    if (c == null) return;
+    try {
+      if (c.value.isStreamingImages) await c.stopImageStream();
+    } catch (_) {}
+    await c.dispose();
   }
 
   Future<void> _openCamera() async {
@@ -226,16 +267,15 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       setState(() {
         _showHelp = false;
         _errorHint = null;
+        _ready = false;
       });
     }
 
     try {
-      // Ask OS for camera if needed (permission_handler).
       var status = await Permission.camera.status;
       if (!status.isGranted) {
         status = await Permission.camera.request();
       }
-
       if (!status.isGranted) {
         if (mounted) {
           setState(() {
@@ -248,29 +288,57 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
         return;
       }
 
-      // Give Android a beat after the permission dialog closes.
-      await Future<void>.delayed(const Duration(milliseconds: 200));
-      if (!mounted) return;
+      await _teardown();
 
-      if (controller.value.isRunning) {
-        await controller.stop();
-        await Future<void>.delayed(const Duration(milliseconds: 150));
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _showHelp = true;
+            _errorHint = 'No camera found on this device.';
+          });
+        }
+        return;
       }
 
-      await controller.start();
+      final camera = _cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => _cameras.first,
+      );
+
+      final controller = CameraController(
+        camera,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
+      );
+      _controller = controller;
+
+      await controller.initialize();
+      if (!mounted) return;
+
+      await controller.startImageStream(_onFrame);
+
+      try {
+        await controller.setFocusMode(FocusMode.auto);
+        await controller.setFocusPoint(const Offset(0.5, 0.5));
+      } catch (_) {}
 
       if (mounted) {
         setState(() {
+          _ready = true;
           _showHelp = false;
           _errorHint = null;
+          _torchOn = false;
         });
       }
-    } catch (e) {
-      debugPrint('Camera open error: $e');
+    } catch (e, st) {
+      debugPrint('Camera open error: $e\n$st');
       if (mounted) {
         setState(() {
           _showHelp = true;
           _errorHint = 'Could not start camera. Tap Open camera to retry.';
+          _ready = false;
         });
       }
     } finally {
@@ -278,29 +346,113 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     }
   }
 
+  Future<void> _onFrame(CameraImage image) async {
+    if (_processing || !_ready) return;
+    _processing = true;
+    try {
+      final input = _toInputImage(image);
+      if (input == null) return;
+
+      final barcodes = await _scanner.processImage(input);
+      if (barcodes.isEmpty) return;
+
+      final raw = barcodes.first.rawValue?.trim();
+      if (raw == null || raw.isEmpty) return;
+
+      final now = DateTime.now();
+      if (_lastEmit != null && now.difference(_lastEmit!).inMilliseconds < 800) return;
+      _lastEmit = now;
+
+      HapticFeedback.mediumImpact();
+      widget.onCode(raw);
+
+      // One-shot scanners (join / single scan) stop the stream after first hit.
+      if (!widget.continuous) {
+        final c = _controller;
+        if (c != null && c.value.isStreamingImages) {
+          try {
+            await c.stopImageStream();
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      debugPrint('Frame process error: $e');
+    } finally {
+      _processing = false;
+    }
+  }
+
+  InputImage? _toInputImage(CameraImage image) {
+    final c = _controller;
+    if (c == null || _cameras.isEmpty) return null;
+
+    final camera = c.description;
+    final sensorOrientation = camera.sensorOrientation;
+    InputImageRotation? rotation;
+
+    if (Platform.isIOS) {
+      rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
+    } else if (Platform.isAndroid) {
+      final deviceOrientation = c.value.deviceOrientation;
+      var compensation = _orientations[deviceOrientation] ?? 0;
+      if (camera.lensDirection == CameraLensDirection.front) {
+        compensation = (sensorOrientation + compensation) % 360;
+      } else {
+        compensation = (sensorOrientation - compensation + 360) % 360;
+      }
+      rotation = InputImageRotationValue.fromRawValue(compensation);
+    }
+    if (rotation == null) return null;
+
+    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    if (format == null) return null;
+
+    // Android NV21 is a single plane; iOS BGRA has one plane used by ML Kit.
+    if (image.planes.isEmpty) return null;
+    final plane = image.planes.first;
+
+    return InputImage.fromBytes(
+      bytes: plane.bytes,
+      metadata: InputImageMetadata(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+        rotation: rotation,
+        format: format,
+        bytesPerRow: plane.bytesPerRow,
+      ),
+    );
+  }
+
+  Future<void> _toggleTorch() async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    try {
+      if (_torchOn) {
+        await c.setFlashMode(FlashMode.off);
+        if (mounted) setState(() => _torchOn = false);
+      } else {
+        await c.setFlashMode(FlashMode.torch);
+        if (mounted) setState(() => _torchOn = true);
+      }
+    } catch (_) {}
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final c = _controller;
     switch (state) {
       case AppLifecycleState.resumed:
-        // User may have enabled Camera in Settings.
         unawaited(_openCamera());
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
-        if (controller.value.isRunning) {
-          unawaited(controller.stop());
+        if (c != null) {
+          unawaited(_teardown());
+          if (mounted) setState(() => _ready = false);
         }
         break;
     }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    controller.dispose();
-    super.dispose();
   }
 
   Widget _helpOverlay() {
@@ -338,7 +490,6 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     );
   }
 
-  /// Simple scan frame like the reference video.
   Widget _scanFrame() {
     return IgnorePointer(
       child: Center(
@@ -356,44 +507,38 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    // Always mount MobileScanner so the platform camera view exists.
-    // Help overlay only covers it when permission/start failed.
+    final c = _controller;
+
     return ColoredBox(
       color: Colors.black,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: controller,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, child) {
-              // Surface plugin errors into our help UI on next frame.
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                final msg = switch (error.errorCode) {
-                  MobileScannerErrorCode.permissionDenied =>
-                    'Camera permission denied. Tap Open Settings, enable Camera, then return.',
-                  MobileScannerErrorCode.unsupported =>
-                    'Camera not supported on this device.',
-                  _ => 'Camera error. Tap Open camera to retry.',
-                };
-                if (!_showHelp || _errorHint != msg) {
-                  setState(() {
-                    _showHelp = true;
-                    _errorHint = msg;
-                  });
-                }
-              });
-              return const SizedBox.expand();
-            },
-            onDetect: (capture) {
-              final hit = capture.barcodes.firstOrNull;
-              final value = (hit?.rawValue ?? hit?.displayValue)?.trim();
-              if (value == null || value.isEmpty) return;
-              widget.onCode(value);
-            },
-          ),
-          if (!_showHelp) _scanFrame(),
+          if (c != null && c.value.isInitialized)
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: c.value.previewSize?.height ?? 1,
+                height: c.value.previewSize?.width ?? 1,
+                child: CameraPreview(c),
+              ),
+            )
+          else if (!_showHelp)
+            const Center(child: CircularProgressIndicator(color: Colors.white70)),
+          if (_ready && !_showHelp) _scanFrame(),
+          if (_ready && !_showHelp)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 28,
+              child: Center(
+                child: IconButton.filledTonal(
+                  onPressed: () => unawaited(_toggleTorch()),
+                  icon: Icon(_torchOn ? Icons.flash_on : Icons.flash_off),
+                  tooltip: 'Flash',
+                ),
+              ),
+            ),
           if (_showHelp) _helpOverlay(),
         ],
       ),
