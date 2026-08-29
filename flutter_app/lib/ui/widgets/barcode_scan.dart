@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
+import 'package:google_mlkit_commons/google_mlkit_commons.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/models.dart';
@@ -409,15 +411,16 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
     if (image.planes.isEmpty) return null;
     final plane = image.planes.first;
-    final bytes = image.planes.length == 1
-        ? plane.bytes
-        : () {
-            final all = WriteBuffer();
-            for (final p in image.planes) {
-              all.putUint8List(p.bytes);
-            }
-            return all.done().buffer.asUint8List();
-          }();
+    late final Uint8List bytes;
+    if (image.planes.length == 1) {
+      bytes = plane.bytes;
+    } else {
+      final all = WriteBuffer();
+      for (final p in image.planes) {
+        all.putUint8List(p.bytes);
+      }
+      bytes = all.done().buffer.asUint8List();
+    }
 
     return InputImage.fromBytes(
       bytes: bytes,
