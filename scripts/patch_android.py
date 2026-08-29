@@ -52,6 +52,15 @@ def insert_namespace(text: str, namespace: str, kts: bool) -> str:
     return re.sub(r"(android\s*\{)", r"\1\n" + injection, text, count=1)
 
 
+def strip_lint_blocks(text: str) -> str:
+    """AGP 9 cannot parse Groovy `lint { disable 'Foo' }` in camera_android_camerax."""
+    return re.sub(
+        r"\n[ \t]*lint(?:Options)?\s*\{(?:[^{}]|\{[^{}]*\})*\}",
+        "\n",
+        text,
+    )
+
+
 def force_compile_sdk(text: str, kts: bool) -> str:
     # Never rewrite `compileSdk { ... }` (AGP 9 / camera_android_camerax).
     # Only numeric compileSdk / compileSdkVersion assignments.
@@ -78,11 +87,6 @@ def force_compile_sdk(text: str, kts: bool) -> str:
 
 
 def patch_plugin_file(path: Path) -> bool:
-    # camera_android_camerax 0.6.x uses `compileSdk { }` / `lint { }`.
-    # Rewriting those files breaks AGP 9 (CI error at camerax build.gradle:69).
-    if "camera_android_camerax" in str(path).replace("\\", "/"):
-        print(f"skip plugin gradle: {path}")
-        return False
     text = path.read_text(encoding="utf-8", errors="ignore")
     original = text
     kts = path.suffix == ".kts"
@@ -91,6 +95,7 @@ def patch_plugin_file(path: Path) -> bool:
     if ns:
         text = insert_namespace(text, ns, kts)
     text = force_compile_sdk(text, kts)
+    text = strip_lint_blocks(text)
     if text != original:
         path.write_text(text, encoding="utf-8")
         print(f"patched plugin gradle: {path}")
