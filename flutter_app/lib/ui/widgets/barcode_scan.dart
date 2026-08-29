@@ -390,24 +390,31 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
     final camera = c.description;
     final sensorOrientation = camera.sensorOrientation;
-    InputImageRotation? rotation;
-
-    if (Platform.isIOS) {
-      rotation = InputImageRotationValue.fromRawValue(sensorOrientation);
-    } else if (Platform.isAndroid) {
-      final deviceOrientation = c.value.deviceOrientation;
-      var compensation = _orientations[deviceOrientation] ?? 0;
+    var deg = sensorOrientation;
+    if (Platform.isAndroid) {
+      final compensation = _orientations[c.value.deviceOrientation] ?? 0;
       if (camera.lensDirection == CameraLensDirection.front) {
-        compensation = (sensorOrientation + compensation) % 360;
+        deg = (sensorOrientation + compensation) % 360;
       } else {
-        compensation = (sensorOrientation - compensation + 360) % 360;
+        deg = (sensorOrientation - compensation + 360) % 360;
       }
-      rotation = InputImageRotationValue.fromRawValue(compensation);
     }
-    if (rotation == null) return null;
+    final InputImageRotation rotation;
+    switch (deg) {
+      case 90:
+        rotation = InputImageRotation.rotation90deg;
+        break;
+      case 180:
+        rotation = InputImageRotation.rotation180deg;
+        break;
+      case 270:
+        rotation = InputImageRotation.rotation270deg;
+        break;
+      default:
+        rotation = InputImageRotation.rotation0deg;
+    }
 
-    final format = InputImageFormatValue.fromRawValue(image.format.raw);
-    if (format == null) return null;
+    final format = Platform.isAndroid ? InputImageFormat.nv21 : InputImageFormat.bgra8888;
 
     if (image.planes.isEmpty) return null;
     final plane = image.planes.first;
@@ -468,7 +475,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
   Widget _helpOverlay() {
     return ColoredBox(
-      color: Colors.black.withValues(alpha: 0.92),
+      color: const Color(0xEB000000),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
