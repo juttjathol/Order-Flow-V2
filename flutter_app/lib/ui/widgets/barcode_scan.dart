@@ -197,111 +197,81 @@ class ShopCameraScan extends StatefulWidget {
 }
 
 class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
-  /// Empty formats list = QR and 1D barcodes (plugin default).
-  final MobileScannerController controller = MobileScannerController(
-    autoStart: false,
-    facing: CameraFacing.back,
-    detectionSpeed: DetectionSpeed.noDuplicates,
-  );
+  late final MobileScannerController controller;
 
-  var _permissionGranted = false;
   var _starting = false;
-  var _fail = false;
-  var _startedOnce = false;
+  var _showHelp = false;
+  String? _errorHint;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    unawaited(_checkAndRequestPermission(requestIfNeeded: true));
-  }
-
-  Widget _failPane() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.photo_camera_outlined, color: Colors.white70, size: 36),
-            const SizedBox(height: 10),
-            const Text(
-              'Allow camera while using the app.\nIf Android asks, choose While using the app.\nYou can still type or use a USB / Bluetooth scanner.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => unawaited(_checkAndRequestPermission(requestIfNeeded: true)),
-              child: const Text('Open camera'),
-            ),
-            TextButton(
-              onPressed: openAppSettings,
-              child: const Text('Open Settings', style: TextStyle(color: Colors.white70)),
-            ),
-          ],
-        ),
-      ),
+    controller = MobileScannerController(
+      autoStart: false,
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      returnImage: false,
     );
-  }
-
-  /// Checks camera permission, optionally requests it, then starts the camera when granted.
-  Future<void> _checkAndRequestPermission({bool requestIfNeeded = false}) async {
-    var status = await Permission.camera.status;
-
-    // If user already granted in Settings, treat as granted immediately.
-    if (status.isGranted) {
-      if (!mounted) return;
-      setState(() {
-        _permissionGranted = true;
-        _fail = false;
-      });
-      await _startCamera();
-      return;
-    }
-
-    if (requestIfNeeded && (status.isDenied || status.isRestricted)) {
-      status = await Permission.camera.request();
-    }
-
-    if (!mounted) return;
-
-    if (status.isGranted) {
-      setState(() {
-        _permissionGranted = true;
-        _fail = false;
-      });
-      await _startCamera();
-      return;
-    }
-
-    // Denied or permanently denied — show fail pane.
-    setState(() {
-      _permissionGranted = false;
-      _fail = true;
+    WidgetsBinding.instance.addObserver(this);
+    // Start after first frame so the platform view has a size.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_openCamera());
     });
   }
 
-  Future<void> _startCamera() async {
-    if (!_permissionGranted || _starting) return;
-    if (controller.value.isRunning) {
-      if (mounted) setState(() => _fail = false);
-      return;
+  Future<void> _openCamera() async {
+    if (_starting) return;
+    _starting = true;
+    if (mounted) {
+      setState(() {
+        _showHelp = false;
+        _errorHint = null;
+      });
     }
 
-    _starting = true;
     try {
-      // Small delay helps on some Android devices after permission dialog / Settings return.
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-      if (!mounted || !_permissionGranted) return;
+      // Ask OS for camera if needed (permission_handler).
+      var status = await Permission.camera.status;
+      if (!status.isGranted) {
+        status = await Permission.camera.request();
+      }
+
+      if (!status.isGranted) {
+        if (mounted) {
+          setState(() {
+            _showHelp = true;
+            _errorHint = status.isPermanentlyDenied
+                ? 'Camera blocked. Tap Open Settings, enable Camera, then return.'
+                : 'Camera permission needed. Tap Open camera again.';
+          });
+        }
+        return;
+      }
+
+      // Give Android a beat after the permission dialog closes.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      if (!mounted) return;
+
+      if (controller.value.isRunning) {
+        await controller.stop();
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
 
       await controller.start();
-      _startedOnce = true;
-      if (mounted) setState(() => _fail = false);
-    } catch (e) {
-      debugPrint('Camera start error: $e');
+
       if (mounted) {
-        setState(() => _fail = true);
+        setState(() {
+          _showHelp = false;
+          _errorHint = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Camera open error: $e');
+      if (mounted) {
+        setState(() {
+          _showHelp = true;
+          _errorHint = 'Could not start camera. Tap Open camera to retry.';
+        });
       }
     } finally {
       _starting = false;
@@ -312,8 +282,8 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
-        // Re-check permission in case user granted it in Settings, then start.
-        unawaited(_checkAndRequestPermission(requestIfNeeded: false));
+        // User may have enabled Camera in Settings.
+        unawaited(_openCamera());
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
@@ -333,43 +303,100 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     super.dispose();
   }
 
+  Widget _helpOverlay() {
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.92),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.photo_camera_outlined, color: Colors.white70, size: 40),
+              const SizedBox(height: 12),
+              Text(
+                _errorHint ??
+                    'Allow camera while using the app.\n'
+                        'If Android asks, choose While using the app.\n'
+                        'You can still type or use a USB / Bluetooth scanner.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, height: 1.35),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => unawaited(_openCamera()),
+                child: const Text('Open camera'),
+              ),
+              TextButton(
+                onPressed: openAppSettings,
+                child: const Text('Open Settings', style: TextStyle(color: Colors.white70)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Simple scan frame like the reference video.
+  Widget _scanFrame() {
+    return IgnorePointer(
+      child: Center(
+        child: Container(
+          width: 240,
+          height: 240,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.white70, width: 2.5),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Always mount MobileScanner so the platform camera view exists.
+    // Help overlay only covers it when permission/start failed.
     return ColoredBox(
       color: Colors.black,
-      child: !_permissionGranted || _fail
-          ? _failPane()
-          : LayoutBuilder(
-              builder: (context, box) {
-                // One-shot start after the scanner area has a real size.
-                if (!_startedOnce && box.maxWidth > 2 && box.maxHeight > 2) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted && _permissionGranted && !_fail) {
-                      unawaited(_startCamera());
-                    }
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          MobileScanner(
+            controller: controller,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, child) {
+              // Surface plugin errors into our help UI on next frame.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                final msg = switch (error.errorCode) {
+                  MobileScannerErrorCode.permissionDenied =>
+                    'Camera permission denied. Tap Open Settings, enable Camera, then return.',
+                  MobileScannerErrorCode.unsupported =>
+                    'Camera not supported on this device.',
+                  _ => 'Camera error. Tap Open camera to retry.',
+                };
+                if (!_showHelp || _errorHint != msg) {
+                  setState(() {
+                    _showHelp = true;
+                    _errorHint = msg;
                   });
                 }
-                return MobileScanner(
-                  controller: controller,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, child) {
-                    // Permission or camera error → show the same recovery UI.
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted && !_fail) {
-                        setState(() => _fail = true);
-                      }
-                    });
-                    return _failPane();
-                  },
-                  onDetect: (capture) {
-                    final hit = capture.barcodes.firstOrNull;
-                    final value = (hit?.rawValue ?? hit?.displayValue)?.trim();
-                    if (value == null || value.isEmpty) return;
-                    widget.onCode(value);
-                  },
-                );
-              },
-            ),
+              });
+              return const SizedBox.expand();
+            },
+            onDetect: (capture) {
+              final hit = capture.barcodes.firstOrNull;
+              final value = (hit?.rawValue ?? hit?.displayValue)?.trim();
+              if (value == null || value.isEmpty) return;
+              widget.onCode(value);
+            },
+          ),
+          if (!_showHelp) _scanFrame(),
+          if (_showHelp) _helpOverlay(),
+        ],
+      ),
     );
   }
 }
