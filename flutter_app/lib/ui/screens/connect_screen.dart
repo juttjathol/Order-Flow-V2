@@ -18,7 +18,6 @@ class ConnectScreen extends ConsumerStatefulWidget {
 class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   final ip = TextEditingController();
   final driverName = TextEditingController();
-  bool scan = false;
   bool asDriver = false;
 
   @override
