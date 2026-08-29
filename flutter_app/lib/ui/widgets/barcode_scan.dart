@@ -407,12 +407,20 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     final format = InputImageFormatValue.fromRawValue(image.format.raw);
     if (format == null) return null;
 
-    // Android NV21 is a single plane; iOS BGRA has one plane used by ML Kit.
     if (image.planes.isEmpty) return null;
     final plane = image.planes.first;
+    final bytes = image.planes.length == 1
+        ? plane.bytes
+        : () {
+            final all = WriteBuffer();
+            for (final p in image.planes) {
+              all.putUint8List(p.bytes);
+            }
+            return all.done().buffer.asUint8List();
+          }();
 
     return InputImage.fromBytes(
-      bytes: plane.bytes,
+      bytes: bytes,
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
