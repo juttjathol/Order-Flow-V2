@@ -78,6 +78,11 @@ def force_compile_sdk(text: str, kts: bool) -> str:
 
 
 def patch_plugin_file(path: Path) -> bool:
+    # camera_android_camerax 0.6.x uses `compileSdk { }` / `lint { }`.
+    # Rewriting those files breaks AGP 9 (CI error at camerax build.gradle:69).
+    if "camera_android_camerax" in str(path).replace("\\", "/"):
+        print(f"skip plugin gradle: {path}")
+        return False
     text = path.read_text(encoding="utf-8", errors="ignore")
     original = text
     kts = path.suffix == ".kts"
