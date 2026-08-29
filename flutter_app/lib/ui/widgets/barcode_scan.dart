@@ -246,7 +246,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
         BarcodeFormat.ean8,
         BarcodeFormat.upcA,
         BarcodeFormat.upcE,
-        BarcodeFormatitf,
+        BarcodeFormat.itf,
       ],
     );
     WidgetsBinding.instance.addObserver(this);
