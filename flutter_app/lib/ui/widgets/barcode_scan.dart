@@ -197,26 +197,16 @@ class ShopCameraScan extends StatefulWidget {
 }
 
 class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
+  /// Empty formats list = QR and 1D barcodes (plugin default).
   final MobileScannerController controller = MobileScannerController(
     autoStart: false,
     facing: CameraFacing.back,
     detectionSpeed: DetectionSpeed.noDuplicates,
-    formats: const [
-      BarcodeFormat.qrCode,
-      BarcodeFormat.code128,
-      BarcodeFormat.code39,
-      BarcodeFormat.code93,
-      BarcodeFormat.ean13,
-      BarcodeFormat.ean8,
-      BarcodeFormat.upcA,
-      BarcodeFormat.upcE,
-      BarcodeFormat.dataMatrix,
-      BarcodeFormat.itf,
-    ],
   );
 
   var _permissionGranted = false;
   var _starting = false;
+  var _fail = false;
 
   @override
   void initState() {
@@ -258,24 +248,29 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     }
     if (!mounted) return;
     if (status.isPermanentlyDenied || status.isDenied || status.isRestricted) {
-      setState(() => _permissionGranted = false);
+      setState(() {
+        _permissionGranted = false;
+        _fail = true;
+      });
       return;
     }
     if (status.isGranted) {
-      setState(() => _permissionGranted = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_startCamera());
+      setState(() {
+        _permissionGranted = true;
+        _fail = false;
       });
     }
   }
 
   Future<void> _startCamera() async {
-    if (_starting) return;
+    if (!_permissionGranted || _starting || controller.value.isRunning) return;
     _starting = true;
     try {
       await controller.start();
+      if (mounted) setState(() => _fail = false);
     } catch (e) {
       debugPrint('Camera start error: $e');
+      if (mounted) setState(() => _fail = true);
     } finally {
       _starting = false;
     }
@@ -308,16 +303,26 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Colors.black,
-      child: !_permissionGranted
+      child: !_permissionGranted || _fail
           ? _failPane()
-          : MobileScanner(
-              controller: controller,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, child) => _failPane(),
-              onDetect: (capture) {
-                final value = capture.barcodes.firstOrNull?.rawValue;
-                if (value == null || value.trim().isEmpty) return;
-                widget.onCode(value.trim());
+          : LayoutBuilder(
+              builder: (context, box) {
+                if (box.maxWidth > 2 && box.maxHeight > 2) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) unawaited(_startCamera());
+                  });
+                }
+                return MobileScanner(
+                  controller: controller,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, child) => _failPane(),
+                  onDetect: (capture) {
+                    final hit = capture.barcodes.firstOrNull;
+                    final value = (hit?.rawValue ?? hit?.displayValue)?.trim();
+                    if (value == null || value.isEmpty) return;
+                    widget.onCode(value);
+                  },
+                );
               },
             ),
     );

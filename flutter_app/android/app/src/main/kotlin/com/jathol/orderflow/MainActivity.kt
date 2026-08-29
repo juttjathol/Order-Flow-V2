@@ -113,6 +113,7 @@ class MainActivity : FlutterActivity() {
         permissions: Array<out String>,
         grantResults: IntArray,
     ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == CAM_REQ) {
             val ok = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
             val pending = cameraWait
@@ -122,7 +123,6 @@ class MainActivity : FlutterActivity() {
             } catch (exc: Exception) {
             }
         }
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
     private fun postAlert(title: String, text: String) {
