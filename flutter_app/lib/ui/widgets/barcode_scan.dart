@@ -15,50 +15,37 @@ Future<String?> scanBarcode(BuildContext context, {required String title, requir
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (ctx) => Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          fit: StackFit.expand,
+        appBar: AppBar(
+          title: Text(title),
+          actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))],
+        ),
+        body: Column(
           children: [
-            ShopCameraScan(
-              onCode: (value) {
-                if (handled) return;
-                handled = true;
-                Navigator.pop(ctx, value);
-              },
-            ),
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: IconButton(
-                  color: Colors.white,
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(ctx),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+              child: TextField(
+                controller: gun,
+                autofocus: false,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: 'USB / Bluetooth scanner',
+                  hintText: hint,
+                  prefixIcon: const Icon(Icons.document_scanner),
                 ),
+                onSubmitted: (v) {
+                  final code = v.trim();
+                  if (code.isEmpty) return;
+                  Navigator.pop(ctx, code);
+                },
               ),
             ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
-                child: TextField(
-                  controller: gun,
-                  style: const TextStyle(color: Colors.white),
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xCC051912),
-                    labelText: 'USB / Bluetooth scanner',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintText: hint,
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    prefixIcon: const Icon(Icons.document_scanner, color: Colors.white70),
-                  ),
-                  onSubmitted: (v) {
-                    final code = v.trim();
-                    if (code.isEmpty) return;
-                    Navigator.pop(ctx, code);
-                  },
-                ),
+            Expanded(
+              child: ShopCameraScan(
+                onCode: (value) {
+                  if (handled) return;
+                  handled = true;
+                  Navigator.pop(ctx, value);
+                },
               ),
             ),
           ],
@@ -79,7 +66,7 @@ Future<void> scanLoop(
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (ctx) => Scaffold(
-        backgroundColor: Colors.black,
+        appBar: AppBar(title: Text(title)),
         body: _ScanLoopSheet(title: title, hint: hint, onCommit: onCommit),
       ),
     ),
@@ -140,82 +127,62 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ShopCameraScan(
-          onCode: (value) {
-            final now = DateTime.now();
-            if (lastCam != null && now.difference(lastCam!).inMilliseconds < 900) return;
-            lastCam = now;
-            _take(value);
-          },
-        ),
-        SafeArea(
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: IconButton(
-              color: Colors.white,
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(context),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+          children: [
+            ListTile(
+              title: Text(widget.hint, style: const TextStyle(fontSize: 13)),
             ),
-          ),
-        ),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (status.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(status, style: const TextStyle(color: Colors.white)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: gun,
+                      autofocus: false,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'USB / Bluetooth / SKU',
+                        prefixIcon: Icon(Icons.document_scanner),
+                      ),
+                      onSubmitted: _take,
+                    ),
                   ),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: gun,
-                        style: const TextStyle(color: Colors.white),
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          filled: true,
-                          fillColor: Color(0xCC051912),
-                          labelText: 'USB / Bluetooth / SKU',
-                          labelStyle: TextStyle(color: Colors.white70),
-                          prefixIcon: Icon(Icons.document_scanner, color: Colors.white70),
-                        ),
-                        onSubmitted: _take,
-                      ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 88,
+                    child: TextField(
+                      controller: qty,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Qty'),
+                      onSubmitted: (_) => _commit(),
                     ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 88,
-                      child: TextField(
-                        controller: qty,
-                        style: const TextStyle(color: Colors.white),
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          filled: true,
-                          fillColor: Color(0xCC051912),
-                          labelText: 'Qty',
-                          labelStyle: TextStyle(color: Colors.white70),
-                        ),
-                        onSubmitted: (_) => _commit(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(onPressed: busy ? null : _commit, child: const Text('Add')),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(onPressed: busy ? null : _commit, child: const Text('Add')),
+                ],
+              ),
             ),
-          ),
+            if (status.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Align(alignment: Alignment.centerLeft, child: Text(status)),
+              ),
+            Expanded(
+              child: ShopCameraScan(
+                onCode: (value) {
+                  final now = DateTime.now();
+                  if (lastCam != null && now.difference(lastCam!).inMilliseconds < 900) return;
+                  lastCam = now;
+                  _take(value);
+                },
+              ),
+            ),
+          ],
         ),
-      ],
     );
   }
 }
@@ -234,7 +201,6 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   var _live = false;
   var _fail = false;
   var _busy = false;
-  var _sized = false;
 
   static const _ask = MethodChannel('jathol/shop_keepalive');
 
@@ -242,6 +208,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
   Widget _failPane() {
@@ -309,8 +276,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     }
     await _ctrl?.dispose();
     _ctrl = _newCtrl();
-    if (mounted) setState(() {});
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    setState(() {});
     try {
       await _ctrl!.start();
       if (mounted) setState(() => _live = true);
@@ -323,14 +289,12 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final c = _ctrl;
-    if (c == null) return;
-    try {
-      if (state == AppLifecycleState.resumed) {
-        unawaited(c.start());
-      } else if (state == AppLifecycleState.inactive) {
-        unawaited(c.stop());
-      }
-    } catch (_) {}
+    if (c == null || !c.value.isInitialized) return;
+    if (state == AppLifecycleState.resumed) {
+      unawaited(c.start());
+    } else if (state == AppLifecycleState.inactive) {
+      unawaited(c.stop());
+    }
   }
 
   @override
@@ -342,83 +306,24 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        if (box.maxWidth > 80 && box.maxHeight > 80 && !_sized) {
-          _sized = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _boot();
-          });
-        }
-        return ColoredBox(
-          color: Colors.black,
-          child: _fail
-              ? _failPane()
-              : Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (_live && _ctrl != null)
-                      MobileScanner(
-                        controller: _ctrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, child) => _failPane(),
-                        onDetect: (capture) {
-                          final value = capture.barcodes.firstOrNull?.rawValue;
-                          if (value == null || value.trim().isEmpty) return;
-                          widget.onCode(value.trim());
-                        },
-                      )
-                    else
-                      const Center(child: CircularProgressIndicator(color: Colors.white)),
-                    const IgnorePointer(child: _ScanFrame()),
-
-                  ],
+    return ColoredBox(
+      color: Colors.black,
+      child: _fail
+          ? _failPane()
+          : !_live || _ctrl == null
+              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              : MobileScanner(
+                  controller: _ctrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, child) => _failPane(),
+                  onDetect: (capture) {
+                    final value = capture.barcodes.firstOrNull?.rawValue;
+                    if (value == null || value.trim().isEmpty) return;
+                    widget.onCode(value.trim());
+                  },
                 ),
-        );
-      },
     );
   }
-}
-
-class _ScanFrame extends StatelessWidget {
-  const _ScanFrame();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(painter: _ScanFramePainter(), child: const SizedBox.expand());
-  }
-}
-
-class _ScanFramePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width * 0.72;
-    final h = w * 0.62;
-    final hole = Rect.fromCenter(center: Offset(size.width / 2, size.height * 0.42), width: w, height: h);
-    final overlay = Path()
-      ..fillType = PathFillType.evenOdd
-      ..addRect(Offset.zero & size)
-      ..addRRect(RRect.fromRectAndRadius(hole, const Radius.circular(18)));
-    canvas.drawPath(overlay, Paint()..color = const Color(0x99000000));
-    const arm = 28.0;
-    final p = Paint()
-      ..color = const Color(0xFF3DDC97)
-      ..strokeWidth = 5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    void corner(Offset a, Offset b, Offset c) {
-      canvas.drawLine(a, b, p);
-      canvas.drawLine(a, c, p);
-    }
-
-    corner(hole.topLeft, hole.topLeft + const Offset(arm, 0), hole.topLeft + const Offset(0, arm));
-    corner(hole.topRight, hole.topRight + const Offset(-arm, 0), hole.topRight + const Offset(0, arm));
-    corner(hole.bottomLeft, hole.bottomLeft + const Offset(arm, 0), hole.bottomLeft + const Offset(0, -arm));
-    corner(hole.bottomRight, hole.bottomRight + const Offset(-arm, 0), hole.bottomRight + const Offset(0, -arm));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 Future<double?> askScanQty(BuildContext context, {required String title, double initial = 1}) async {

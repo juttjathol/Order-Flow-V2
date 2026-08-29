@@ -112,26 +112,20 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                   ),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: () => setState(() => scan = !scan),
-                    icon: Icon(scan ? Icons.close : Icons.qr_code_scanner),
-                    label: Text(scan ? s.t('stop_scan') : s.t('scan_now')),
+                    onPressed: () async {
+                      final value = await scanBarcode(context, title: s.t('scan_now'), hint: s.t('manual_ip'));
+                      if (!context.mounted || value == null) return;
+                      final host = _hostFrom(value);
+                      if (host == null || host.isEmpty) return;
+                      ip.text = host;
+                      _go(host);
+                    },
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: Text(s.t('scan_now')),
                   ),
                 ],
               ),
             ),
-            if (scan)
-              SizedBox(
-                height: 280,
-                child: ShopCameraScan(
-                  onCode: (value) {
-                    final host = _hostFrom(value);
-                    if (host == null || host.isEmpty) return;
-                    setState(() => scan = false);
-                    ip.text = host;
-                    _go(host);
-                  },
-                ),
-              ),
           ],
         ),
       ),
