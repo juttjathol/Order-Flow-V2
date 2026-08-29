@@ -1,7 +1,7 @@
 name: order_flow
 description: Offline-first multi-device POS for restaurants, retail, fast food, and services.
 publish_to: "none"
-version: 1.1.29+29
+version: 1.1.30+30
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  camera: ^0.11.0
+  camera: 0.10.6
   collection: ^1.18.0
   connectivity_plus: ">=6.1.0 <7.0.0"
   file_picker: ">=8.1.0 <9.0.0"
@@ -38,10 +38,6 @@ dependencies:
   url_launcher: ^6.3.1
   uuid: ^4.5.1
   web_socket_channel: ^3.0.1
-
-dependency_overrides:
-  # 0.6.30's Gradle lint/compileSdk block fails on AGP 9 in CI.
-  camera_android_camerax: 0.6.21
 
 dev_dependencies:
   flutter_test:
