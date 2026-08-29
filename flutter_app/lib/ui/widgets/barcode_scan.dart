@@ -371,21 +371,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
                     else
                       const Center(child: CircularProgressIndicator(color: Colors.white)),
                     const IgnorePointer(child: _ScanFrame()),
-                    if (_live && _ctrl != null)
-                      SafeArea(
-                        child: Align(
-                          alignment: Alignment.topRight,
-                          child: IconButton(
-                            color: Colors.white,
-                            icon: const Icon(Icons.flash_on),
-                            onPressed: () async {
-                              try {
-                                await _ctrl?.toggleTorch();
-                              } catch (_) {}
-                            },
-                          ),
-                        ),
-                      ),
+
                   ],
                 ),
         );

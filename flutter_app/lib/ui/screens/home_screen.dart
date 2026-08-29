@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -517,16 +519,15 @@ Future<void> _openStat(BuildContext context, WidgetRef ref, String id) async {
   );
 }
 
-Future<Uint8List?> _joinQrPng(String data) async {
-  final painter = QrPainter(
-    data: data,
-    version: QrVersions.auto,
-  );
-  final img = await painter.toImageData(720);
-  return img?.buffer.asUint8List();
+Future<Uint8List?> _captureQr(GlobalKey key) async {
+  final ro = key.currentContext?.findRenderObject();
+  if (ro is! RenderRepaintBoundary) return null;
+  final img = await ro.toImage(pixelRatio: 4);
+  final data = await img.toByteData(format: ui.ImageByteFormat.png);
+  return data?.buffer.asUint8List();
 }
 
-Future<void> _joinQrMenu(BuildContext context, dynamic s, String join) async {
+Future<void> _joinQrMenu(BuildContext context, dynamic s, String join, GlobalKey qrKey) async {
   final pick = await showModalBottomSheet<String>(
     context: context,
     builder: (ctx) => SafeArea(
@@ -540,7 +541,7 @@ Future<void> _joinQrMenu(BuildContext context, dynamic s, String join) async {
     ),
   );
   if (pick == null) return;
-  final bytes = await _joinQrPng(join);
+  final bytes = await _captureQr(qrKey);
   if (bytes == null) return;
   if (pick == 'save') {
     try {
@@ -564,14 +565,24 @@ Future<void> _joinQrMenu(BuildContext context, dynamic s, String join) async {
   await Share.shareXFiles([XFile(file.path)], text: join);
 }
 
-class _ServerCard extends StatelessWidget {
+class _ServerCard extends StatefulWidget {
   const _ServerCard({required this.snap, required this.s, required this.onRefresh});
   final AppSnapshot snap;
   final dynamic s;
   final VoidCallback onRefresh;
 
   @override
+  State<_ServerCard> createState() => _ServerCardState();
+}
+
+class _ServerCardState extends State<_ServerCard> {
+  final qrKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
+    final snap = widget.snap;
+    final s = widget.s;
+    final onRefresh = widget.onRefresh;
     final ip = snap.lanIp ?? '—';
     final join = snap.lanIp == null ? 'orderflow://join?host=0.0.0.0&port=$kLanPort' : snap.session.role == AppRole.main
         ? 'orderflow://join?host=$ip&port=$kLanPort'
@@ -616,10 +627,16 @@ class _ServerCard extends StatelessWidget {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-              child: QrImageView(data: join, size: 112, backgroundColor: Colors.white),
+            GestureDetector(
+              onLongPress: () => _joinQrMenu(context, s, join, qrKey),
+              child: RepaintBoundary(
+                key: qrKey,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.white,
+                  child: QrImageView(data: join, size: 112, backgroundColor: Colors.white),
+                ),
+              ),
             ),
           ],
         ),
