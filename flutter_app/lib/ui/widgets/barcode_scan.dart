@@ -232,23 +232,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   @override
   void initState() {
     super.initState();
-    _scanner = BarcodeScanner(
-      formats: const [
-        BarcodeFormat.qrCode,
-        BarcodeFormat.aztec,
-        BarcodeFormat.dataMatrix,
-        BarcodeFormat.pdf417,
-        BarcodeFormat.code128,
-        BarcodeFormat.code39,
-        BarcodeFormat.code93,
-        BarcodeFormat.codabar,
-        BarcodeFormat.ean13,
-        BarcodeFormat.ean8,
-        BarcodeFormat.upcA,
-        BarcodeFormat.upcE,
-        BarcodeFormat.itf,
-      ],
-    );
+    _scanner = BarcodeScanner(formats: [BarcodeFormat.all]);
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_openCamera());
@@ -388,7 +372,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       final barcodes = await _scanner.processImage(input);
       if (barcodes.isEmpty) return;
 
-      final raw = (barcodes.first.rawValue ?? barcodes.first.displayValue)?.trim();
+      final raw = barcodes.first.rawValue?.trim();
       if (raw == null || raw.isEmpty) return;
 
       final now = DateTime.now();
