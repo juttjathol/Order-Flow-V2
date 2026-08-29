@@ -130,59 +130,59 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Column(
-          children: [
-            ListTile(
-              title: Text(widget.hint, style: const TextStyle(fontSize: 13)),
+        children: [
+          ListTile(
+            title: Text(widget.hint, style: const TextStyle(fontSize: 13)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: gun,
+                    autofocus: false,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'USB / Bluetooth / SKU',
+                      prefixIcon: Icon(Icons.document_scanner),
+                    ),
+                    onSubmitted: _take,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 88,
+                  child: TextField(
+                    controller: qty,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Qty'),
+                    onSubmitted: (_) => _commit(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(onPressed: busy ? null : _commit, child: const Text('Add')),
+              ],
             ),
+          ),
+          if (status.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: TextField(
-                      controller: gun,
-                      autofocus: false,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'USB / Bluetooth / SKU',
-                        prefixIcon: Icon(Icons.document_scanner),
-                      ),
-                      onSubmitted: _take,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 88,
-                    child: TextField(
-                      controller: qty,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Qty'),
-                      onSubmitted: (_) => _commit(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(onPressed: busy ? null : _commit, child: const Text('Add')),
-                ],
-              ),
+              child: Align(alignment: Alignment.centerLeft, child: Text(status)),
             ),
-            if (status.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Align(alignment: Alignment.centerLeft, child: Text(status)),
-              ),
-            Expanded(
-              child: ShopCameraScan(
-                onCode: (value) {
-                  final now = DateTime.now();
-                  if (lastCam != null && now.difference(lastCam!).inMilliseconds < 900) return;
-                  lastCam = now;
-                  _take(value);
-                },
-              ),
+          Expanded(
+            child: ShopCameraScan(
+              onCode: (value) {
+                final now = DateTime.now();
+                if (lastCam != null && now.difference(lastCam!).inMilliseconds < 900) return;
+                lastCam = now;
+                _take(value);
+              },
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -207,12 +207,13 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   var _permissionGranted = false;
   var _starting = false;
   var _fail = false;
+  var _startedOnce = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_checkAndRequestPermission());
+    unawaited(_checkAndRequestPermission(requestIfNeeded: true));
   }
 
   Widget _failPane() {
@@ -230,7 +231,10 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
               style: TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 12),
-            FilledButton(onPressed: _checkAndRequestPermission, child: const Text('Open camera')),
+            FilledButton(
+              onPressed: () => unawaited(_checkAndRequestPermission(requestIfNeeded: true)),
+              child: const Text('Open camera'),
+            ),
             TextButton(
               onPressed: openAppSettings,
               child: const Text('Open Settings', style: TextStyle(color: Colors.white70)),
@@ -241,36 +245,64 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     );
   }
 
-  Future<void> _checkAndRequestPermission() async {
+  /// Checks camera permission, optionally requests it, then starts the camera when granted.
+  Future<void> _checkAndRequestPermission({bool requestIfNeeded = false}) async {
     var status = await Permission.camera.status;
-    if (status.isDenied) {
-      status = await Permission.camera.request();
-    }
-    if (!mounted) return;
-    if (status.isPermanentlyDenied || status.isDenied || status.isRestricted) {
+
+    // If user already granted in Settings, treat as granted immediately.
+    if (status.isGranted) {
+      if (!mounted) return;
       setState(() {
-        _permissionGranted = false;
-        _fail = true;
+        _permissionGranted = true;
+        _fail = false;
       });
+      await _startCamera();
       return;
     }
+
+    if (requestIfNeeded && (status.isDenied || status.isRestricted)) {
+      status = await Permission.camera.request();
+    }
+
+    if (!mounted) return;
+
     if (status.isGranted) {
       setState(() {
         _permissionGranted = true;
         _fail = false;
       });
+      await _startCamera();
+      return;
     }
+
+    // Denied or permanently denied — show fail pane.
+    setState(() {
+      _permissionGranted = false;
+      _fail = true;
+    });
   }
 
   Future<void> _startCamera() async {
-    if (!_permissionGranted || _starting || controller.value.isRunning) return;
+    if (!_permissionGranted || _starting) return;
+    if (controller.value.isRunning) {
+      if (mounted) setState(() => _fail = false);
+      return;
+    }
+
     _starting = true;
     try {
+      // Small delay helps on some Android devices after permission dialog / Settings return.
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!mounted || !_permissionGranted) return;
+
       await controller.start();
+      _startedOnce = true;
       if (mounted) setState(() => _fail = false);
     } catch (e) {
       debugPrint('Camera start error: $e');
-      if (mounted) setState(() => _fail = true);
+      if (mounted) {
+        setState(() => _fail = true);
+      }
     } finally {
       _starting = false;
     }
@@ -278,16 +310,18 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_permissionGranted) return;
     switch (state) {
       case AppLifecycleState.resumed:
-        unawaited(_startCamera());
+        // Re-check permission in case user granted it in Settings, then start.
+        unawaited(_checkAndRequestPermission(requestIfNeeded: false));
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
-        unawaited(controller.stop());
+        if (controller.value.isRunning) {
+          unawaited(controller.stop());
+        }
         break;
     }
   }
@@ -307,15 +341,26 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
           ? _failPane()
           : LayoutBuilder(
               builder: (context, box) {
-                if (box.maxWidth > 2 && box.maxHeight > 2) {
+                // One-shot start after the scanner area has a real size.
+                if (!_startedOnce && box.maxWidth > 2 && box.maxHeight > 2) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) unawaited(_startCamera());
+                    if (mounted && _permissionGranted && !_fail) {
+                      unawaited(_startCamera());
+                    }
                   });
                 }
                 return MobileScanner(
                   controller: controller,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, child) => _failPane(),
+                  errorBuilder: (context, error, child) {
+                    // Permission or camera error → show the same recovery UI.
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted && !_fail) {
+                        setState(() => _fail = true);
+                      }
+                    });
+                    return _failPane();
+                  },
                   onDetect: (capture) {
                     final hit = capture.barcodes.firstOrNull;
                     final value = (hit?.rawValue ?? hit?.displayValue)?.trim();
