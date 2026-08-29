@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
-import 'package:google_mlkit_commons/google_mlkit_commons.dart';
+import 'package:google_mlkit_commons/google_mlkit_commons.dart' as ml;
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/models.dart';
@@ -384,7 +384,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     }
   }
 
-  InputImage? _toInputImage(CameraImage image) {
+  ml.InputImage? _toInputImage(CameraImage image) {
     final c = _controller;
     if (c == null || _cameras.isEmpty) return null;
 
@@ -399,22 +399,22 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
         deg = (sensorOrientation - compensation + 360) % 360;
       }
     }
-    final InputImageRotation rotation;
+    final ml.InputImageRotation rotation;
     switch (deg) {
       case 90:
-        rotation = InputImageRotation.rotation90deg;
+        rotation = ml.InputImageRotation.rotation90deg;
         break;
       case 180:
-        rotation = InputImageRotation.rotation180deg;
+        rotation = ml.InputImageRotation.rotation180deg;
         break;
       case 270:
-        rotation = InputImageRotation.rotation270deg;
+        rotation = ml.InputImageRotation.rotation270deg;
         break;
       default:
-        rotation = InputImageRotation.rotation0deg;
+        rotation = ml.InputImageRotation.rotation0deg;
     }
 
-    final format = Platform.isAndroid ? InputImageFormat.nv21 : InputImageFormat.bgra8888;
+    final format = Platform.isAndroid ? ml.InputImageFormat.nv21 : ml.InputImageFormat.bgra8888;
 
     if (image.planes.isEmpty) return null;
     final plane = image.planes.first;
@@ -429,9 +429,9 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       bytes = all.done().buffer.asUint8List();
     }
 
-    return InputImage.fromBytes(
+    return ml.InputImage.fromBytes(
       bytes: bytes,
-      metadata: InputImageMetadata(
+      metadata: ml.InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
         format: format,
