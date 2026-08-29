@@ -521,8 +521,6 @@ Future<Uint8List?> _joinQrPng(String data) async {
   final painter = QrPainter(
     data: data,
     version: QrVersions.auto,
-    gapless: true,
-    errorCorrectionLevel: QrErrorCorrectLevel.M,
   );
   final img = await painter.toImageData(720);
   return img?.buffer.asUint8List();

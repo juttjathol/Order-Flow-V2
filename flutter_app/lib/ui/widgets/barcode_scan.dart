@@ -378,9 +378,9 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
                           child: IconButton(
                             color: Colors.white,
                             icon: const Icon(Icons.flash_on),
-                            onPressed: () {
+                            onPressed: () async {
                               try {
-                                _ctrl?.toggleTorch();
+                                await _ctrl?.toggleTorch();
                               } catch (_) {}
                             },
                           ),
