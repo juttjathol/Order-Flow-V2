@@ -201,6 +201,18 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     autoStart: false,
     facing: CameraFacing.back,
     detectionSpeed: DetectionSpeed.noDuplicates,
+    formats: const [
+      BarcodeFormat.qrCode,
+      BarcodeFormat.code128,
+      BarcodeFormat.code39,
+      BarcodeFormat.code93,
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
+      BarcodeFormat.dataMatrix,
+      BarcodeFormat.itf,
+    ],
   );
 
   var _permissionGranted = false;
@@ -251,7 +263,9 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     }
     if (status.isGranted) {
       setState(() => _permissionGranted = true);
-      await _startCamera();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_startCamera());
+      });
     }
   }
 
