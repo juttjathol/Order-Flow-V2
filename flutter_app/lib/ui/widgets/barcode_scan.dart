@@ -323,12 +323,14 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final c = _ctrl;
-    if (c == null || !c.value.isInitialized) return;
-    if (state == AppLifecycleState.resumed) {
-      unawaited(c.start());
-    } else if (state == AppLifecycleState.inactive) {
-      unawaited(c.stop());
-    }
+    if (c == null) return;
+    try {
+      if (state == AppLifecycleState.resumed) {
+        unawaited(c.start());
+      } else if (state == AppLifecycleState.inactive) {
+        unawaited(c.stop());
+      }
+    } catch (_) {}
   }
 
   @override

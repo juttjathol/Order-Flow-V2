@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme.dart';
@@ -510,6 +515,55 @@ Future<void> _openStat(BuildContext context, WidgetRef ref, String id) async {
       ),
     ),
   );
+}
+
+Future<Uint8List?> _joinQrPng(String data) async {
+  final painter = QrPainter(
+    data: data,
+    version: QrVersions.auto,
+    gapless: true,
+    errorCorrectionLevel: QrErrorCorrectLevel.M,
+  );
+  final img = await painter.toImageData(720);
+  return img?.buffer.asUint8List();
+}
+
+Future<void> _joinQrMenu(BuildContext context, dynamic s, String join) async {
+  final pick = await showModalBottomSheet<String>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(title: Text(s.t('save')), leading: const Icon(Icons.download), onTap: () => Navigator.pop(ctx, 'save')),
+          ListTile(title: Text(s.t('share')), leading: const Icon(Icons.share), onTap: () => Navigator.pop(ctx, 'share')),
+        ],
+      ),
+    ),
+  );
+  if (pick == null) return;
+  final bytes = await _joinQrPng(join);
+  if (bytes == null) return;
+  if (pick == 'save') {
+    try {
+      final ok = await const MethodChannel('jathol/shop_keepalive').invokeMethod<dynamic>('saveImage', {
+        'bytes': bytes,
+        'name': 'order-flow-join.png',
+      });
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok == true ? s.t('saved') : s.t('share'))));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('saved'))));
+      }
+    }
+    return;
+  }
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/order-flow-join.png');
+  await file.writeAsBytes(bytes);
+  await Share.shareXFiles([XFile(file.path)], text: join);
 }
 
 class _ServerCard extends StatelessWidget {

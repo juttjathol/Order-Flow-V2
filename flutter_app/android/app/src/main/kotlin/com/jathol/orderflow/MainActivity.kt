@@ -4,9 +4,11 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.MediaStore
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
@@ -40,6 +42,9 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
                     "askCamera" -> askCamera(result)
+                    "saveImage" -> {
+                        result.success(savePng(call.argument<ByteArray>("bytes"), call.argument<String>("name")))
+                    }
                     "alert" -> {
                         maybeAskNotifications()
                         val title = call.argument<String>("title") ?: "Ready to serve"
@@ -52,6 +57,31 @@ class MainActivity : FlutterActivity() {
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PRINTER)
             .setMethodCallHandler(ShopPrinter(this))
+    }
+
+    private fun savePng(bytes: ByteArray?, name: String?): Boolean {
+        if (bytes == null || bytes.isEmpty()) return false
+        val fileName = if (name.isNullOrBlank()) "order-flow-join.png" else name
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            if (Build.VERSION.SDK_INT >= 29) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/OrderFlow")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+        val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+        return try {
+            contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: return false
+            if (Build.VERSION.SDK_INT >= 29) {
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+            }
+            true
+        } catch (exc: Exception) {
+            false
+        }
     }
 
     private fun cameraGranted(): Boolean {
