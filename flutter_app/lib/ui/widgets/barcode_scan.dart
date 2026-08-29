@@ -194,8 +194,7 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
   }
 }
 
-/// Live camera barcode/QR scanner using the same stack as the working reference:
-/// `camera` + `google_mlkit_barcode_scanning` (not mobile_scanner).
+/// Live camera barcode/QR scanner using camera + google_mlkit_barcode_scanning.
 class ShopCameraScan extends StatefulWidget {
   const ShopCameraScan({
     super.key,
@@ -308,6 +307,8 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
         orElse: () => _cameras.first,
       );
 
+      // Android: request NV21 so ML Kit can decode. Some devices still give
+      // 3-plane YUV420 — we convert that to NV21 in _toInputImage.
       final controller = CameraController(
         camera,
         ResolutionPreset.high,
@@ -358,7 +359,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       final barcodes = await _scanner.processImage(input);
       if (barcodes.isEmpty) return;
 
-      final raw = barcodes.first.rawValue?.trim();
+      final raw = (barcodes.first.rawValue ?? barcodes.first.displayValue)?.trim();
       if (raw == null || raw.isEmpty) return;
 
       final now = DateTime.now();
@@ -368,7 +369,6 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       HapticFeedback.mediumImpact();
       widget.onCode(raw);
 
-      // One-shot scanners (join / single scan) stop the stream after first hit.
       if (!widget.continuous) {
         final c = _controller;
         if (c != null && c.value.isStreamingImages) {
@@ -386,58 +386,100 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
   ml.InputImage? _toInputImage(CameraImage image) {
     final c = _controller;
-    if (c == null || _cameras.isEmpty) return null;
+    if (c == null) return null;
 
     final camera = c.description;
     final sensorOrientation = camera.sensorOrientation;
-    var deg = sensorOrientation;
-    if (Platform.isAndroid) {
-      final compensation = _orientations[c.value.deviceOrientation] ?? 0;
+
+    ml.InputImageRotation? rotation;
+    if (Platform.isIOS) {
+      rotation = ml.InputImageRotationValue.fromRawValue(sensorOrientation);
+    } else if (Platform.isAndroid) {
+      final deviceOrientation = c.value.deviceOrientation;
+      var compensation = _orientations[deviceOrientation] ?? 0;
       if (camera.lensDirection == CameraLensDirection.front) {
-        deg = (sensorOrientation + compensation) % 360;
+        compensation = (sensorOrientation + compensation) % 360;
       } else {
-        deg = (sensorOrientation - compensation + 360) % 360;
+        compensation = (sensorOrientation - compensation + 360) % 360;
       }
+      rotation = ml.InputImageRotationValue.fromRawValue(compensation);
     }
-    final ml.InputImageRotation rotation;
-    switch (deg) {
-      case 90:
-        rotation = ml.InputImageRotation.rotation90deg;
-        break;
-      case 180:
-        rotation = ml.InputImageRotation.rotation180deg;
-        break;
-      case 270:
-        rotation = ml.InputImageRotation.rotation270deg;
-        break;
-      default:
-        rotation = ml.InputImageRotation.rotation0deg;
+    if (rotation == null) return null;
+
+    if (Platform.isIOS) {
+      if (image.planes.length != 1) return null;
+      final plane = image.planes.first;
+      return ml.InputImage.fromBytes(
+        bytes: plane.bytes,
+        metadata: ml.InputImageMetadata(
+          size: Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: rotation,
+          format: ml.InputImageFormat.bgra8888,
+          bytesPerRow: plane.bytesPerRow,
+        ),
+      );
     }
 
-    final format = Platform.isAndroid ? ml.InputImageFormat.nv21 : ml.InputImageFormat.bgra8888;
-
-    if (image.planes.isEmpty) return null;
-    final plane = image.planes.first;
-    late final Uint8List bytes;
-    if (image.planes.length == 1) {
-      bytes = plane.bytes;
-    } else {
-      final all = WriteBuffer();
-      for (final p in image.planes) {
-        all.putUint8List(p.bytes);
-      }
-      bytes = all.done().buffer.asUint8List();
-    }
+    // Android: ML Kit only accepts single-plane NV21.
+    final bytes = _androidNv21Bytes(image);
+    if (bytes == null) return null;
 
     return ml.InputImage.fromBytes(
       bytes: bytes,
       metadata: ml.InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
-        format: format,
-        bytesPerRow: plane.bytesPerRow,
+        format: ml.InputImageFormat.nv21,
+        bytesPerRow: image.width,
       ),
     );
+  }
+
+  /// True NV21 buffer for ML Kit (same approach as the working reference app).
+  Uint8List? _androidNv21Bytes(CameraImage image) {
+    if (image.planes.isEmpty) return null;
+
+    // Already one plane (real NV21 from camera plugin).
+    if (image.planes.length == 1) {
+      return image.planes.first.bytes;
+    }
+
+    // YUV_420_888 (3 planes) → NV21 (Y + interleaved VU).
+    if (image.planes.length < 3) return null;
+
+    final width = image.width;
+    final height = image.height;
+    final yPlane = image.planes[0];
+    final uPlane = image.planes[1];
+    final vPlane = image.planes[2];
+
+    final yRowStride = yPlane.bytesPerRow;
+    final uvRowStride = uPlane.bytesPerRow;
+    final uvPixelStride = uPlane.bytesPerPixel ?? 1;
+
+    final out = WriteBuffer();
+
+    // Y plane, tightly packed width * height.
+    for (var row = 0; row < height; row++) {
+      final start = row * yRowStride;
+      final end = start + width;
+      if (end > yPlane.bytes.length) return null;
+      out.putUint8List(yPlane.bytes.sublist(start, end));
+    }
+
+    // VU interleaved (NV21), half resolution.
+    for (var row = 0; row < height ~/ 2; row++) {
+      for (var col = 0; col < width ~/ 2; col++) {
+        final offset = row * uvRowStride + col * uvPixelStride;
+        if (offset >= vPlane.bytes.length || offset >= uPlane.bytes.length) {
+          return null;
+        }
+        out.putUint8(vPlane.bytes[offset]);
+        out.putUint8(uPlane.bytes[offset]);
+      }
+    }
+
+    return out.done().buffer.asUint8List();
   }
 
   Future<void> _toggleTorch() async {
