@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
-import 'package:google_mlkit_commons/google_mlkit_commons.dart' as ml;
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/models.dart';
@@ -194,7 +192,11 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
   }
 }
 
-/// Live camera barcode/QR scanner using camera + google_mlkit_barcode_scanning.
+/// Live camera preview + barcode/QR decode.
+///
+/// Android Camera2 often cannot feed ML Kit a valid NV21 image stream, so we
+/// decode from short JPEG captures (InputImage.fromFilePath) on a timer.
+/// That path is reliable across devices while still showing a live preview.
 class ShopCameraScan extends StatefulWidget {
   const ShopCameraScan({
     super.key,
@@ -214,20 +216,14 @@ class ShopCameraScan extends StatefulWidget {
 }
 
 class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObserver {
-  static const _orientations = <DeviceOrientation, int>{
-    DeviceOrientation.portraitUp: 0,
-    DeviceOrientation.landscapeLeft: 90,
-    DeviceOrientation.portraitDown: 180,
-    DeviceOrientation.landscapeRight: 270,
-  };
-
   CameraController? _controller;
   late final BarcodeScanner _scanner;
-  List<CameraDescription> _cameras = const [];
 
+  Timer? _poll;
   var _starting = false;
-  var _processing = false;
+  var _busy = false;
   var _ready = false;
+  var _stopped = false;
   var _showHelp = false;
   var _torchOn = false;
   String? _errorHint;
@@ -236,7 +232,23 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   @override
   void initState() {
     super.initState();
-    _scanner = BarcodeScanner(formats: [BarcodeFormat.all]);
+    _scanner = BarcodeScanner(
+      formats: const [
+        BarcodeFormat.qrCode,
+        BarcodeFormat.aztec,
+        BarcodeFormat.dataMatrix,
+        BarcodeFormat.pdf417,
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.code93,
+        BarcodeFormat.codabar,
+        BarcodeFormat.ean13,
+        BarcodeFormat.ean8,
+        BarcodeFormat.upcA,
+        BarcodeFormat.upcE,
+        BarcodeFormatitf,
+      ],
+    );
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_openCamera());
@@ -245,6 +257,8 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
   @override
   void dispose() {
+    _stopped = true;
+    _poll?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_teardown());
     _scanner.close();
@@ -252,6 +266,8 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   }
 
   Future<void> _teardown() async {
+    _poll?.cancel();
+    _poll = null;
     final c = _controller;
     _controller = null;
     if (c == null) return;
@@ -262,7 +278,7 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
   }
 
   Future<void> _openCamera() async {
-    if (_starting) return;
+    if (_starting || _stopped) return;
     _starting = true;
     if (mounted) {
       setState(() {
@@ -291,8 +307,8 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
       await _teardown();
 
-      _cameras = await availableCameras();
-      if (_cameras.isEmpty) {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
         if (mounted) {
           setState(() {
             _showHelp = true;
@@ -302,29 +318,27 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
         return;
       }
 
-      final camera = _cameras.firstWhere(
+      final camera = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => _cameras.first,
+        orElse: () => cameras.first,
       );
 
-      // Android: request NV21 so ML Kit can decode. Some devices still give
-      // 3-plane YUV420 — we convert that to NV21 in _toInputImage.
+      // Medium JPEG stills are enough for barcodes and avoid NV21 stream bugs.
       final controller = CameraController(
         camera,
-        ResolutionPreset.high,
+        ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
+        imageFormatGroup: ImageFormatGroup.jpeg,
       );
       _controller = controller;
 
       await controller.initialize();
-      if (!mounted) return;
-
-      await controller.startImageStream(_onFrame);
+      if (!mounted || _stopped) return;
 
       try {
         await controller.setFocusMode(FocusMode.auto);
         await controller.setFocusPoint(const Offset(0.5, 0.5));
+        await controller.setExposurePoint(const Offset(0.5, 0.5));
       } catch (_) {}
 
       if (mounted) {
@@ -335,6 +349,8 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
           _torchOn = false;
         });
       }
+
+      _startPoll();
     } catch (e, st) {
       debugPrint('Camera open error: $e\n$st');
       if (mounted) {
@@ -349,13 +365,26 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
     }
   }
 
-  Future<void> _onFrame(CameraImage image) async {
-    if (_processing || !_ready) return;
-    _processing = true;
-    try {
-      final input = _toInputImage(image);
-      if (input == null) return;
+  void _startPoll() {
+    _poll?.cancel();
+    // ~2 captures / second is enough for POS scanning without overheating.
+    _poll = Timer.periodic(const Duration(milliseconds: 550), (_) {
+      unawaited(_captureAndScan());
+    });
+  }
 
+  Future<void> _captureAndScan() async {
+    if (_busy || _stopped || !_ready) return;
+    final c = _controller;
+    if (c == null || !c.value.isInitialized || c.value.isTakingPicture) return;
+
+    _busy = true;
+    XFile? shot;
+    try {
+      shot = await c.takePicture();
+      if (_stopped) return;
+
+      final input = InputImage.fromFilePath(shot.path);
       final barcodes = await _scanner.processImage(input);
       if (barcodes.isEmpty) return;
 
@@ -363,123 +392,28 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
       if (raw == null || raw.isEmpty) return;
 
       final now = DateTime.now();
-      if (_lastEmit != null && now.difference(_lastEmit!).inMilliseconds < 800) return;
+      if (_lastEmit != null && now.difference(_lastEmit!).inMilliseconds < 900) return;
       _lastEmit = now;
 
       HapticFeedback.mediumImpact();
       widget.onCode(raw);
 
       if (!widget.continuous) {
-        final c = _controller;
-        if (c != null && c.value.isStreamingImages) {
-          try {
-            await c.stopImageStream();
-          } catch (_) {}
-        }
+        _stopped = true;
+        _poll?.cancel();
+        _poll = null;
       }
     } catch (e) {
-      debugPrint('Frame process error: $e');
+      debugPrint('Capture scan error: $e');
     } finally {
-      _processing = false;
-    }
-  }
-
-  ml.InputImage? _toInputImage(CameraImage image) {
-    final c = _controller;
-    if (c == null) return null;
-
-    final camera = c.description;
-    final sensorOrientation = camera.sensorOrientation;
-
-    ml.InputImageRotation? rotation;
-    if (Platform.isIOS) {
-      rotation = ml.InputImageRotationValue.fromRawValue(sensorOrientation);
-    } else if (Platform.isAndroid) {
-      final deviceOrientation = c.value.deviceOrientation;
-      var compensation = _orientations[deviceOrientation] ?? 0;
-      if (camera.lensDirection == CameraLensDirection.front) {
-        compensation = (sensorOrientation + compensation) % 360;
-      } else {
-        compensation = (sensorOrientation - compensation + 360) % 360;
+      if (shot != null) {
+        try {
+          final f = File(shot.path);
+          if (await f.exists()) await f.delete();
+        } catch (_) {}
       }
-      rotation = ml.InputImageRotationValue.fromRawValue(compensation);
+      _busy = false;
     }
-    if (rotation == null) return null;
-
-    if (Platform.isIOS) {
-      if (image.planes.length != 1) return null;
-      final plane = image.planes.first;
-      return ml.InputImage.fromBytes(
-        bytes: plane.bytes,
-        metadata: ml.InputImageMetadata(
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          rotation: rotation,
-          format: ml.InputImageFormat.bgra8888,
-          bytesPerRow: plane.bytesPerRow,
-        ),
-      );
-    }
-
-    // Android: ML Kit only accepts single-plane NV21.
-    final bytes = _androidNv21Bytes(image);
-    if (bytes == null) return null;
-
-    return ml.InputImage.fromBytes(
-      bytes: bytes,
-      metadata: ml.InputImageMetadata(
-        size: Size(image.width.toDouble(), image.height.toDouble()),
-        rotation: rotation,
-        format: ml.InputImageFormat.nv21,
-        bytesPerRow: image.width,
-      ),
-    );
-  }
-
-  /// True NV21 buffer for ML Kit (same approach as the working reference app).
-  Uint8List? _androidNv21Bytes(CameraImage image) {
-    if (image.planes.isEmpty) return null;
-
-    // Already one plane (real NV21 from camera plugin).
-    if (image.planes.length == 1) {
-      return image.planes.first.bytes;
-    }
-
-    // YUV_420_888 (3 planes) → NV21 (Y + interleaved VU).
-    if (image.planes.length < 3) return null;
-
-    final width = image.width;
-    final height = image.height;
-    final yPlane = image.planes[0];
-    final uPlane = image.planes[1];
-    final vPlane = image.planes[2];
-
-    final yRowStride = yPlane.bytesPerRow;
-    final uvRowStride = uPlane.bytesPerRow;
-    final uvPixelStride = uPlane.bytesPerPixel ?? 1;
-
-    final out = WriteBuffer();
-
-    // Y plane, tightly packed width * height.
-    for (var row = 0; row < height; row++) {
-      final start = row * yRowStride;
-      final end = start + width;
-      if (end > yPlane.bytes.length) return null;
-      out.putUint8List(yPlane.bytes.sublist(start, end));
-    }
-
-    // VU interleaved (NV21), half resolution.
-    for (var row = 0; row < height ~/ 2; row++) {
-      for (var col = 0; col < width ~/ 2; col++) {
-        final offset = row * uvRowStride + col * uvPixelStride;
-        if (offset >= vPlane.bytes.length || offset >= uPlane.bytes.length) {
-          return null;
-        }
-        out.putUint8(vPlane.bytes[offset]);
-        out.putUint8(uPlane.bytes[offset]);
-      }
-    }
-
-    return out.done().buffer.asUint8List();
   }
 
   Future<void> _toggleTorch() async {
@@ -498,19 +432,18 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final c = _controller;
     switch (state) {
       case AppLifecycleState.resumed:
-        unawaited(_openCamera());
+        if (!_stopped) unawaited(_openCamera());
         break;
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
-        if (c != null) {
-          unawaited(_teardown());
-          if (mounted) setState(() => _ready = false);
-        }
+        _poll?.cancel();
+        _poll = null;
+        unawaited(_teardown());
+        if (mounted) setState(() => _ready = false);
         break;
     }
   }
@@ -536,7 +469,10 @@ class _ShopCameraScanState extends State<ShopCameraScan> with WidgetsBindingObse
               ),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: () => unawaited(_openCamera()),
+                onPressed: () {
+                  _stopped = false;
+                  unawaited(_openCamera());
+                },
                 child: const Text('Open camera'),
               ),
               TextButton(
