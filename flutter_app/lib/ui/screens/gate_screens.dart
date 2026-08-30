@@ -59,11 +59,36 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset('assets/brand/bolt.png', width: 56, height: 72, fit: BoxFit.contain, filterQuality: FilterQuality.high,
-                errorBuilder: (_, __, ___) => const SizedBox(width: 56, height: 72)),
+              Image.asset(
+                'assets/brand/bolt.png',
+                width: 56,
+                height: 72,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                color: null,
+                isAntiAlias: true,
+                errorBuilder: (_, __, ___) => const SizedBox(width: 56, height: 72),
+              ),
               const SizedBox(width: 12),
-              Text(_typed, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 42, letterSpacing: -0.6, height: 1)),
-              FadeTransition(opacity: _blink, child: Container(margin: const EdgeInsets.only(left: 3), width: 3, height: 36, color: Colors.white)),
+              Text(
+                _typed,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 42,
+                  letterSpacing: -0.6,
+                  height: 1,
+                ),
+              ),
+              FadeTransition(
+                opacity: _blink,
+                child: Container(
+                  margin: const EdgeInsets.only(left: 3),
+                  width: 3,
+                  height: 36,
+                  color: Colors.white,
+                ),
+              ),
             ],
           ),
         ),
