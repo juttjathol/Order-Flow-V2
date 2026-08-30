@@ -103,6 +103,54 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 20),
+          OfCard(
+            color: OfColors.isDark(context) ? const Color(0xFF12352A) : const Color(0xFFE8F7EF),
+            onTap: () => _openStat(context, ref, 'sales'),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s.t('today_sales'), style: TextStyle(color: OfColors.mute(context), fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          moneyOf(snap, today),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 32, letterSpacing: -0.8),
+                        ),
+                      ),
+                      if (delta != null)
+                        Text(
+                          '${delta >= 0 ? '↑' : '↓'} ${delta.abs().toStringAsFixed(1)}% ${s.t('vs_yesterday')}',
+                          style: TextStyle(
+                            color: delta >= 0 ? OfColors.mint : OfColors.danger,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.show_chart, size: 48, color: OfColors.mint.withValues(alpha: 0.7)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: _QuickTile(icon: Icons.add, label: s.t('new_order'), onTap: () => context.push('/taker'))),
+              const SizedBox(width: 8),
+              Expanded(child: _QuickTile(icon: Icons.qr_code_scanner, label: s.t('scan_sku'), onTap: () => scanStock(context, ref))),
+              const SizedBox(width: 8),
+              Expanded(child: _QuickTile(icon: Icons.wifi, label: s.t('connect_main'), onTap: () => context.push('/connect'))),
+              const SizedBox(width: 8),
+              Expanded(child: _QuickTile(icon: Icons.outdoor_grill, label: s.t('role_kitchen'), onTap: () => context.go('/kitchen'))),
+            ],
+          ),
+          const SizedBox(height: 16),
           if (snap.isMain)
             _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
           if (snap.isMain || snap.isManager) ...[
@@ -376,6 +424,28 @@ class _ChartsFoldState extends State<_ChartsFold> {
           ],
         ],
       ],
+    );
+  }
+}
+
+class _QuickTile extends StatelessWidget {
+  const _QuickTile({required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    final dark = OfColors.isDark(context);
+    return OfCard(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, color: dark ? OfColors.mint : OfColors.forest),
+          const SizedBox(height: 8),
+          Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11)),
+        ],
+      ),
     );
   }
 }

@@ -92,15 +92,10 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                     action: () => editStock(context, ref),
                     actionLabel: s.t('add_stock'),
                   )
-                : GridView.builder(
+                : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: gridCount(context, phone: 1, tablet: 2),
-                      mainAxisExtent: 132,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                    ),
                     itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, i) => StockCard(
                       item: items[i],
                       onTap: () => editStock(context, ref, existing: items[i]),
@@ -127,49 +122,37 @@ class StockCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.s;
     final color = stockColor(item.level);
+    final qty = item.quantity.toStringAsFixed(item.quantity % 1 == 0 ? 0 : 1);
     return OfCard(
       onTap: onTap,
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           Container(
-            width: 8,
-            height: 88,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: OfColors.mute(context).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.inventory_2_outlined, color: OfColors.mute(context)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(item.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                Text('${s.t('sku')}: ${item.sku.isEmpty ? '—' : item.sku}', style: const TextStyle(color: OfColors.muted)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    StatusChip(
-                      item.level == StockLevel.ok
-                          ? s.t('ok_stock')
-                          : item.level == StockLevel.low
-                              ? s.t('low')
-                              : s.t('out'),
-                      color: color,
-                    ),
-                    const SizedBox(width: 8),
-                    Text('${item.quantity.toStringAsFixed(item.quantity % 1 == 0 ? 0 : 1)} ${item.unit}'),
-                  ],
-                ),
+                Text(item.sku.isEmpty ? '—' : item.sku, style: TextStyle(color: OfColors.mute(context), fontSize: 13)),
               ],
             ),
           ),
-          if (onAdjust != null)
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton.filledTonal(onPressed: () => onAdjust!(1), icon: const Icon(Icons.add)),
-                IconButton.filledTonal(onPressed: () => onAdjust!(-1), icon: const Icon(Icons.remove)),
-              ],
-            ),
+          StatusChip('$qty ${item.unit}', color: color),
+          if (onAdjust != null) ...[
+            const SizedBox(width: 4),
+            IconButton(onPressed: () => onAdjust!(-1), icon: const Icon(Icons.remove)),
+            IconButton(onPressed: () => onAdjust!(1), icon: const Icon(Icons.add)),
+          ],
         ],
       ),
     );

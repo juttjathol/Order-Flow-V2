@@ -281,14 +281,17 @@ class _ShopCameraScanState extends State<ShopCameraScan>
         camera,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
+        imageFormatGroup: ImageFormatGroup.jpeg,
       );
       _controller = controller;
       await controller.initialize();
       if (!mounted) return;
-      // JPEG capture loop — reliable decode path on Android.
+      try {
+        await controller.setFocusMode(FocusMode.auto);
+        await controller.setFocusPoint(const Offset(0.5, 0.5));
+      } catch (_) {}
       _photoTimer?.cancel();
-      _photoTimer = Timer.periodic(const Duration(milliseconds: 750), (_) {
+      _photoTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
         unawaited(_scanPhoto());
       });
       if (mounted) {
@@ -320,7 +323,19 @@ class _ShopCameraScanState extends State<ShopCameraScan>
     if (c == null || !c.value.isInitialized) return;
     _busy = true;
     try {
-      final shot = await c.takePicture();
+      try {
+        await c.setFocusMode(FocusMode.auto);
+        await c.setFocusPoint(const Offset(0.5, 0.5));
+      } catch (_) {}
+      XFile shot;
+      try {
+        shot = await c.takePicture();
+      } catch (_) {
+        try {
+          if (c.value.isStreamingImages) await c.stopImageStream();
+        } catch (_) {}
+        shot = await c.takePicture();
+      }
       final barcodes = await _scanner.processImage(InputImage.fromFilePath(shot.path));
       try { await File(shot.path).delete(); } catch (_) {}
       if (barcodes.isEmpty) return;

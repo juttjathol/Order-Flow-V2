@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 /// Hybrid POS: forest night + Suzlon cream day. Same layout language.
 class OfColors {
   static const forest = Color(0xFF0B3D2E);
-  static const deep = Color(0xFF051912);
-  static const cardDark = Color(0xFF0C261D);
-  static const cardDarkAlt = Color(0xFF134233);
+  static const deep = Color(0xFF0A0F0D);
+  static const cardDark = Color(0xFF151C19);
+  static const cardDarkAlt = Color(0xFF1C2622);
   static const emerald = Color(0xFF1B8F62);
   static const mint = Color(0xFF3DDC97);
   static const gold = Color(0xFFE6C35C);

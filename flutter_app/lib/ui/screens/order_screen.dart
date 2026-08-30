@@ -57,6 +57,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${order.ticketNo}  ${_typeLabel(s, order)}'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(2),
+          child: Container(height: 2, color: OfColors.mint.withValues(alpha: 0.55)),
+        ),
         actions: [
           if (!locked)
             IconButton(
