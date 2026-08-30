@@ -356,27 +356,26 @@ class _ShopCameraScanState extends State<ShopCameraScan>
     final cam = _camera;
     final c = _controller;
     if (cam == null || c == null) return null;
-    final format = InputImageFormatValue.fromRawValue(image.format.raw);
-    if (format == null) return null;
-    if (Platform.isAndroid && format != InputImageFormat.nv21) return null;
-    if (Platform.isIOS && format != InputImageFormat.bgra8888) return null;
     if (image.planes.isEmpty) return null;
     final plane = image.planes.first;
-    var rotation = InputImageRotationValue.fromRawValue(cam.sensorOrientation);
-    if (Platform.isAndroid) {
-      final orient = _orients[c.value.deviceOrientation] ?? 0;
-      var deg = cam.lensDirection == CameraLensDirection.front
-          ? (cam.sensorOrientation + orient) % 360
-          : (cam.sensorOrientation - orient + 360) % 360;
-      rotation = InputImageRotationValue.fromRawValue(deg);
-    }
-    if (rotation == null) return null;
+    final orient = _orients[c.value.deviceOrientation] ?? 0;
+    final deg = Platform.isAndroid
+        ? (cam.lensDirection == CameraLensDirection.front
+            ? (cam.sensorOrientation + orient) % 360
+            : (cam.sensorOrientation - orient + 360) % 360)
+        : cam.sensorOrientation;
+    final rotation = switch (deg) {
+      90 => InputImageRotation.rotation90deg,
+      180 => InputImageRotation.rotation180deg,
+      270 => InputImageRotation.rotation270deg,
+      _ => InputImageRotation.rotation0deg,
+    };
     return InputImage.fromBytes(
       bytes: plane.bytes,
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
-        format: format,
+        format: Platform.isAndroid ? InputImageFormat.nv21 : InputImageFormat.bgra8888,
         bytesPerRow: plane.bytesPerRow,
       ),
     );
