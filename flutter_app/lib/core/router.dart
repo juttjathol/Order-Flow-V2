@@ -58,6 +58,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           p.startsWith('/desk') ||
           p.startsWith('/specialist') ||
           p.startsWith('/driver');
+      if (loc == '/connect' || loc == '/role') return null;
       switch (snap.session.role) {
         case AppRole.main:
           if (loc.startsWith('/main') || loc.startsWith('/order') || cover(loc)) return null;

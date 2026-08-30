@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/models.dart';
@@ -16,36 +16,51 @@ Future<String?> scanBarcode(BuildContext context, {required String title, requir
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (ctx) => Scaffold(
-        appBar: AppBar(
-          title: Text(title),
-          actions: [IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx))],
-        ),
-        body: Column(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-              child: TextField(
-                controller: gun,
-                textInputAction: TextInputAction.done,
-                decoration: InputDecoration(
-                  labelText: 'USB / Bluetooth scanner',
-                  hintText: hint,
-                  prefixIcon: const Icon(Icons.document_scanner),
+            ShopCameraScan(
+              onCode: (value) {
+                if (handled) return;
+                handled = true;
+                Navigator.pop(ctx, value);
+              },
+            ),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: IconButton(
+                  color: Colors.white,
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
                 ),
-                onSubmitted: (v) {
-                  final code = v.trim();
-                  if (code.isEmpty) return;
-                  Navigator.pop(ctx, code);
-                },
               ),
             ),
-            Expanded(
-              child: ShopCameraScan(
-                onCode: (value) {
-                  if (handled) return;
-                  handled = true;
-                  Navigator.pop(ctx, value);
-                },
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + MediaQuery.viewInsetsOf(ctx).bottom),
+                child: TextField(
+                  controller: gun,
+                  style: const TextStyle(color: Colors.white),
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xCC1A1A1A),
+                    labelText: 'USB / Bluetooth scanner',
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    hintText: hint,
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    prefixIcon: const Icon(Icons.document_scanner, color: Colors.white70),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+                  ),
+                  onSubmitted: (v) {
+                    final code = v.trim();
+                    if (code.isEmpty) return;
+                    Navigator.pop(ctx, code);
+                  },
+                ),
               ),
             ),
           ],
@@ -182,7 +197,7 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
   }
 }
 
-/// Preview + JPEG photo decode (reliable on Android) with scan-line overlay.
+/// Live CameraX preview + ML Kit stream decode (Lens-style).
 class ShopCameraScan extends StatefulWidget {
   const ShopCameraScan({super.key, required this.onCode, this.hint, this.continuous = false});
   final void Function(String code) onCode;
@@ -195,9 +210,9 @@ class ShopCameraScan extends StatefulWidget {
 class _ShopCameraScanState extends State<ShopCameraScan>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   CameraController? _controller;
+  CameraDescription? _camera;
   late final BarcodeScanner _scanner;
   late final AnimationController _scanLineCtrl;
-  Timer? _photoTimer;
   var _starting = false;
   var _busy = false;
   var _ready = false;
@@ -207,6 +222,13 @@ class _ShopCameraScanState extends State<ShopCameraScan>
   String? _errorHint;
   String? _lastCode;
   DateTime? _lastEmit;
+
+  static const _orients = {
+    DeviceOrientation.portraitUp: 0,
+    DeviceOrientation.landscapeLeft: 90,
+    DeviceOrientation.portraitDown: 180,
+    DeviceOrientation.landscapeRight: 270,
+  };
 
   @override
   void initState() {
@@ -223,7 +245,6 @@ class _ShopCameraScanState extends State<ShopCameraScan>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _photoTimer?.cancel();
     _scanLineCtrl.dispose();
     unawaited(_teardown());
     _scanner.close();
@@ -231,8 +252,6 @@ class _ShopCameraScanState extends State<ShopCameraScan>
   }
 
   Future<void> _teardown() async {
-    _photoTimer?.cancel();
-    _photoTimer = null;
     final c = _controller;
     _controller = null;
     if (c == null) return;
@@ -277,10 +296,12 @@ class _ShopCameraScanState extends State<ShopCameraScan>
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cameras.first,
       );
+      _camera = camera;
       final controller = CameraController(
         camera,
-        ResolutionPreset.medium,
+        ResolutionPreset.high,
         enableAudio: false,
+        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
       );
       _controller = controller;
       await controller.initialize();
@@ -289,10 +310,7 @@ class _ShopCameraScanState extends State<ShopCameraScan>
         await controller.setFocusMode(FocusMode.auto);
         await controller.setFocusPoint(const Offset(0.5, 0.5));
       } catch (_) {}
-      _photoTimer?.cancel();
-      _photoTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
-        unawaited(_scanPhoto());
-      });
+      await controller.startImageStream(_onStream);
       if (mounted) {
         setState(() {
           _ready = true;
@@ -316,55 +334,89 @@ class _ShopCameraScanState extends State<ShopCameraScan>
     }
   }
 
-  Future<void> _scanPhoto() async {
+  Future<void> _onStream(CameraImage image) async {
     if (_busy || !_ready || _hit) return;
-    final c = _controller;
-    if (c == null || !c.value.isInitialized) return;
+    final input = _toInputImage(image);
+    if (input == null) return;
     _busy = true;
     try {
-      try {
-        await c.setFocusMode(FocusMode.auto);
-        await c.setFocusPoint(const Offset(0.5, 0.5));
-      } catch (_) {}
-      var path = '';
-      try {
-        path = (await c.takePicture()).path;
-      } catch (_) {
-        try {
-          if (c.value.isStreamingImages) await c.stopImageStream();
-        } catch (_) {}
-        path = (await c.takePicture()).path;
-      }
-      if (path.isEmpty) return;
-      final barcodes = await _scanner.processImage(InputImage.fromFilePath(path));
-      try { await File(path).delete(); } catch (_) {}
+      final barcodes = await _scanner.processImage(input);
       if (barcodes.isEmpty) return;
       final raw = barcodes.first.rawValue?.trim();
       if (raw == null || raw.isEmpty) return;
-      final now = DateTime.now();
-      if (_lastEmit != null && now.difference(_lastEmit!).inMilliseconds < 900) return;
-      _lastEmit = now;
-      _lastCode = raw;
-      if (mounted) setState(() => _hit = true);
-      HapticFeedback.mediumImpact();
-      _scanLineCtrl.stop();
-      _photoTimer?.cancel();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      widget.onCode(raw);
-      if (widget.continuous) {
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        if (!mounted) return;
-        setState(() => _hit = false);
-        _scanLineCtrl.repeat(reverse: true);
-        _photoTimer = Timer.periodic(const Duration(milliseconds: 750), (_) {
-          unawaited(_scanPhoto());
-        });
-      }
+      await _emit(raw);
     } catch (e) {
-      debugPrint('photo scan error: $e');
+      debugPrint('stream scan error: $e');
     } finally {
       _busy = false;
+    }
+  }
+
+  InputImage? _toInputImage(CameraImage image) {
+    final cam = _camera;
+    final c = _controller;
+    if (cam == null || c == null) return null;
+    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    if (format == null) return null;
+    if (Platform.isAndroid && format != InputImageFormat.nv21) return null;
+    if (Platform.isIOS && format != InputImageFormat.bgra8888) return null;
+    if (image.planes.isEmpty) return null;
+    final plane = image.planes.first;
+    var rotation = InputImageRotationValue.fromRawValue(cam.sensorOrientation);
+    if (Platform.isAndroid) {
+      final orient = _orients[c.value.deviceOrientation] ?? 0;
+      var deg = cam.lensDirection == CameraLensDirection.front
+          ? (cam.sensorOrientation + orient) % 360
+          : (cam.sensorOrientation - orient + 360) % 360;
+      rotation = InputImageRotationValue.fromRawValue(deg);
+    }
+    if (rotation == null) return null;
+    return InputImage.fromBytes(
+      bytes: plane.bytes,
+      metadata: InputImageMetadata(
+        size: Size(image.width.toDouble(), image.height.toDouble()),
+        rotation: rotation,
+        format: format,
+        bytesPerRow: plane.bytesPerRow,
+      ),
+    );
+  }
+
+  Future<void> _emit(String raw) async {
+    final now = DateTime.now();
+    if (_lastEmit != null && now.difference(_lastEmit!).inMilliseconds < 900) return;
+    _lastEmit = now;
+    _lastCode = raw;
+    if (mounted) setState(() => _hit = true);
+    HapticFeedback.mediumImpact();
+    _scanLineCtrl.stop();
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    if (!mounted) return;
+    widget.onCode(raw);
+    if (widget.continuous) {
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (!mounted) return;
+      setState(() => _hit = false);
+      _scanLineCtrl.repeat(reverse: true);
+    }
+  }
+
+  Future<void> _pickGallery() async {
+    try {
+      final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 95);
+      if (file == null) return;
+      final barcodes = await _scanner.processImage(InputImage.fromFilePath(file.path));
+      if (barcodes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No barcode in photo')));
+        }
+        return;
+      }
+      final raw = barcodes.first.rawValue?.trim();
+      if (raw == null || raw.isEmpty) return;
+      await _emit(raw);
+    } catch (e) {
+      debugPrint('gallery scan error: $e');
     }
   }
 
@@ -421,30 +473,32 @@ class _ShopCameraScanState extends State<ShopCameraScan>
             IgnorePointer(
               child: Center(
                 child: SizedBox(
-                  width: 240,
-                  height: 240,
-                  child: AnimatedBuilder(
-                    animation: _scanLineCtrl,
-                    builder: (_, __) {
-                      final y = 12.0 + _scanLineCtrl.value * 216;
-                      return CustomPaint(
-                        painter: _FramePainter(lineY: y, hit: _hit),
-                      );
-                    },
-                  ),
+                  width: MediaQuery.sizeOf(context).shortestSide * 0.72,
+                  height: MediaQuery.sizeOf(context).shortestSide * 0.72,
+                  child: CustomPaint(painter: _FramePainter(hit: _hit)),
                 ),
+              ),
+            ),
+          if (_lastCode != null && _hit)
+            Align(
+              alignment: const Alignment(0, 0.18),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(color: const Color(0xE61A1A1A), borderRadius: BorderRadius.circular(24)),
+                child: Text(_lastCode!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               ),
             ),
           if (_ready && !_showHelp)
             Positioned(
-              left: 0,
-              right: 0,
-              bottom: 28,
-              child: Center(
-                child: IconButton.filledTonal(
-                  onPressed: () => unawaited(_toggleTorch()),
-                  icon: Icon(_torchOn ? Icons.flash_on : Icons.flash_off),
-                ),
+              left: 28,
+              right: 28,
+              bottom: 88,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _roundBtn(Icons.photo_library_outlined, () => unawaited(_pickGallery())),
+                  _roundBtn(_torchOn ? Icons.flash_on : Icons.flash_off, () => unawaited(_toggleTorch()), filled: true),
+                ],
               ),
             ),
           if (_showHelp)
@@ -470,12 +524,31 @@ class _ShopCameraScanState extends State<ShopCameraScan>
                         onPressed: openAppSettings,
                         child: const Text('Open Settings', style: TextStyle(color: Colors.white70)),
                       ),
+                      TextButton(
+                        onPressed: () => unawaited(_pickGallery()),
+                        child: const Text('Choose photo', style: TextStyle(color: Colors.white70)),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _roundBtn(IconData icon, VoidCallback onTap, {bool filled = false}) {
+    return Material(
+      color: filled ? Colors.white : const Color(0xCC2A2A2A),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Icon(icon, color: filled ? Colors.black : Colors.white, size: 28),
+        ),
       ),
     );
   }
@@ -494,7 +567,7 @@ class _FramePainter extends CustomPainter {
       ..strokeWidth = 3.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    const c = 28.0;
+    const c = 36.0;
     final r = Rect.fromLTWH(2, 2, size.width - 4, size.height - 4);
     canvas.drawLine(Offset(r.left, r.top + c), Offset(r.left, r.top), paint);
     canvas.drawLine(Offset(r.left, r.top), Offset(r.left + c, r.top), paint);
@@ -504,14 +577,10 @@ class _FramePainter extends CustomPainter {
     canvas.drawLine(Offset(r.left, r.bottom), Offset(r.left + c, r.bottom), paint);
     canvas.drawLine(Offset(r.right - c, r.bottom), Offset(r.right, r.bottom), paint);
     canvas.drawLine(Offset(r.right, r.bottom), Offset(r.right, r.bottom - c), paint);
-    if (!hit) {
-      final y = lineY.clamp(r.top + 4, r.bottom - 4);
-      canvas.drawLine(Offset(r.left + 8, y), Offset(r.right - 8, y), paint..strokeWidth = 2.5);
-    }
   }
 
   @override
-  bool shouldRepaint(covariant _FramePainter old) => old.lineY != lineY || old.hit != hit;
+  bool shouldRepaint(covariant _FramePainter old) => old.hit != hit;
 }
 
 Future<double?> askScanQty(BuildContext context, {required String title, double initial = 1}) async {

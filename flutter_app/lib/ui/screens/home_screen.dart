@@ -77,10 +77,7 @@ class HomeScreen extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.asset('assets/brand/logo.png', width: 40, height: 40, fit: BoxFit.cover),
-              ),
+              const BrandMark(size: 40),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -700,9 +697,20 @@ class _ServerCardState extends State<_ServerCard> {
                   Text('${s.t('wifi_ip')}: $ip'),
                   Text('${s.t('port')}: $kLanPort'),
                   if (snap.session.role == AppRole.main && snap.lanIp != null)
-                    SelectableText(
-                      'http://$ip:$kLanPort',
-                      style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800),
+                    GestureDetector(
+                      onTap: () async {
+                        final url = 'http://$ip:$kLanPort';
+                        await Clipboard.setData(ClipboardData(text: url));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Copied $url — paste in Chrome (include http://)')),
+                          );
+                        }
+                      },
+                      child: Text(
+                        'http://$ip:$kLanPort',
+                        style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800, decoration: TextDecoration.underline),
+                      ),
                     ),
                   const SizedBox(height: 6),
                   StatusChip(
