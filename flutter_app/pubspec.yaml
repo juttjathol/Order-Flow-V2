@@ -1,7 +1,7 @@
 name: order_flow
 description: Offline-first multi-device POS for restaurants, retail, fast food, and services.
 publish_to: "none"
-version: 1.1.39+39
+version: 1.1.40+40
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -13,7 +13,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   # Pin Camera2 implementation so AGP 9 CI can assemble (CameraX gradle broke builds).
-  camera: ^0.11.0
+  camera: 0.11.2
   camera_android: 0.10.10+5
   collection: ^1.18.0
   connectivity_plus: ">=6.1.0 <7.0.0"
