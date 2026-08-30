@@ -1,4 +1,6 @@
 const REPO = "juttjathol/Order-Flow-V2";
+const FALLBACK_TAG = "v1.1.37";
+const FALLBACK_APK = `https://github.com/${REPO}/releases/download/${FALLBACK_TAG}/app-release.apk`;
 
 function ghHeaders(env, extra = {}) {
   const headers = {
@@ -10,28 +12,59 @@ function ghHeaders(env, extra = {}) {
   return headers;
 }
 
+function apkAsset(release) {
+  return (release.assets || []).find((a) => String(a.name || "").toLowerCase().endsWith(".apk"));
+}
+
 async function latestApk(env) {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+  const listRes = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
     headers: ghHeaders(env),
   });
-  if (!res.ok) throw new Error(`github_latest_${res.status}`);
-  const data = await res.json();
-  const asset = (data.assets || []).find((a) =>
-    String(a.name || "").toLowerCase().endsWith(".apk"),
-  );
-  if (!asset) throw new Error("no_apk");
-  return { release: data, asset };
+  if (listRes.ok) {
+    const list = await listRes.json();
+    if (Array.isArray(list)) {
+      for (const release of list) {
+        if (release.draft) continue;
+        const asset = apkAsset(release);
+        if (asset) return { release, asset };
+      }
+    }
+  }
+
+  const latestRes = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    headers: ghHeaders(env),
+  });
+  if (latestRes.ok) {
+    const release = await latestRes.json();
+    const asset = apkAsset(release);
+    if (asset) return { release, asset };
+  }
+
+  return {
+    release: { tag_name: FALLBACK_TAG, published_at: null },
+    asset: {
+      name: "app-release.apk",
+      size: 0,
+      url: "",
+      browser_download_url: FALLBACK_APK,
+    },
+  };
 }
 
 async function fetchApk(env, asset) {
-  const viaApi = await fetch(asset.url, {
-    headers: ghHeaders(env, { Accept: "application/octet-stream" }),
-    redirect: "follow",
-  });
-  if (viaApi.ok) return viaApi;
-  const viaBrowser = await fetch(asset.browser_download_url, { redirect: "follow" });
-  if (viaBrowser.ok) return viaBrowser;
-  throw new Error(`apk_fetch_${viaApi.status}_${viaBrowser.status}`);
+  const urls = [asset.browser_download_url, FALLBACK_APK].filter(Boolean);
+  for (const url of urls) {
+    const res = await fetch(url, { redirect: "follow" });
+    if (res.ok) return res;
+  }
+  if (asset.url) {
+    const viaApi = await fetch(asset.url, {
+      headers: ghHeaders(env, { Accept: "application/octet-stream" }),
+      redirect: "follow",
+    });
+    if (viaApi.ok) return viaApi;
+  }
+  throw new Error("apk_fetch");
 }
 
 export async function onRequest(context) {
