@@ -25,7 +25,7 @@ class KitchenScreen extends ConsumerWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(s.t('kitchen_queue')),
+            Text(s.t('kitchen_queue'), style: const TextStyle(fontWeight: FontWeight.w800)),
             Text(
               '${orders.length}  ·  ${ref.snap.session.displayName}',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
@@ -33,6 +33,15 @@ class KitchenScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Center(
+              child: StatusChip(
+                ref.snap.connected || ref.snap.isMain ? 'ONLINE' : 'OFFLINE',
+                color: (ref.snap.connected || ref.snap.isMain) ? OfColors.mint : OfColors.warn,
+              ),
+            ),
+          ),
           const StationActions(),
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
