@@ -281,7 +281,6 @@ class _ShopCameraScanState extends State<ShopCameraScan>
         camera,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
       );
       _controller = controller;
       await controller.initialize();
@@ -327,19 +326,20 @@ class _ShopCameraScanState extends State<ShopCameraScan>
         await c.setFocusMode(FocusMode.auto);
         await c.setFocusPoint(const Offset(0.5, 0.5));
       } catch (_) {}
-      XFile shot;
+      var path = '';
       try {
-        shot = await c.takePicture();
+        path = (await c.takePicture()).path;
       } catch (_) {
         try {
           if (c.value.isStreamingImages) await c.stopImageStream();
         } catch (_) {}
-        shot = await c.takePicture();
+        path = (await c.takePicture()).path;
       }
-      final barcodes = await _scanner.processImage(InputImage.fromFilePath(shot.path));
-      try { await File(shot.path).delete(); } catch (_) {}
+      if (path.isEmpty) return;
+      final barcodes = await _scanner.processImage(InputImage.fromFilePath(path));
+      try { await File(path).delete(); } catch (_) {}
       if (barcodes.isEmpty) return;
-      final raw = (barcodes.first.rawValue ?? barcodes.first.displayValue)?.trim();
+      final raw = barcodes.first.rawValue?.trim();
       if (raw == null || raw.isEmpty) return;
       final now = DateTime.now();
       if (_lastEmit != null && now.difference(_lastEmit!).inMilliseconds < 900) return;
