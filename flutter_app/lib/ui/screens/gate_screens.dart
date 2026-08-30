@@ -308,3 +308,222 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
     );
   }
 }
+
+class LockedScreen extends ConsumerWidget {
+  const LockedScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.s;
+    return Scaffold(
+      backgroundColor: OfColors.deep,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock, size: 72, color: OfColors.danger),
+              const SizedBox(height: 18),
+              Text(
+                s.t('locked_title'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                s.t('locked_body'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                onPressed: () => launchUrl(
+                  Uri.parse(kWhatsAppUrl),
+                  mode: LaunchMode.externalApplication,
+                ),
+                icon: const Icon(Icons.chat),
+                label: Text(s.t('open_whatsapp')),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                kWhatsAppHandle,
+                style: const TextStyle(color: OfColors.mint, fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RoleScreen extends ConsumerStatefulWidget {
+  const RoleScreen({super.key});
+  @override
+  ConsumerState<RoleScreen> createState() => _RoleScreenState();
+}
+
+class _RoleScreenState extends ConsumerState<RoleScreen> {
+  final name = TextEditingController();
+  final pin = TextEditingController();
+  AppRole? selected;
+
+  @override
+  void dispose() {
+    name.dispose();
+    pin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.s;
+    final model = ref.snap.store.model;
+    final roles = _rolesFor(model);
+    return OfScaffold(
+      title: s.t('choose_role'),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: name,
+            decoration: InputDecoration(labelText: s.t('your_name')),
+          ),
+          if (selected != null && selected != AppRole.manager) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: pin,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: s.t('staff_pin')),
+            ),
+          ],
+          const SizedBox(height: 12),
+          ...roles.map((r) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: OfCard(
+                color: selected == r.$1 ? OfColors.emerald.withValues(alpha: 0.15) : null,
+                onTap: () => setState(() => selected = r.$1),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(r.$2, color: OfColors.emerald),
+                  title: Text(s.t(r.$3), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(s.t(r.$4)),
+                ),
+              ),
+            );
+          }),
+          FilledButton(
+            onPressed: selected == null
+                ? null
+                : () async {
+                    if (selected == AppRole.manager) {
+                      final ok = await confirmManagerPin(context, ref, requiredForCashier: true);
+                      if (!ok) return;
+                      await ref.ctrl.chooseClientRole(selected!, name.text);
+                      return;
+                    }
+                    final n = name.text.trim();
+                    final p = pin.text.trim();
+                    if (n.isEmpty || p.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('staff_login_need')));
+                      return;
+                    }
+                    StaffMember? match;
+                    for (final st in ref.snap.store.staff) {
+                      if (st.active &&
+                          st.name.toLowerCase() == n.toLowerCase() &&
+                          st.pin == p) {
+                        match = st;
+                        break;
+                      }
+                    }
+                    if (match == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('staff_pin_wrong')));
+                      return;
+                    }
+                    await ref.ctrl.chooseClientRole(selected!, match.name, staffId: match.id);
+                  },
+            child: Text(s.t('continue')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<(AppRole, IconData, String, String)> _rolesFor(BusinessModel model) {
+    switch (model) {
+      case BusinessModel.restaurant:
+        return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
+          (AppRole.orderTaker, Icons.room_service, 'role_taker', 'role_taker_hint'),
+          (AppRole.kitchen, Icons.soup_kitchen, 'role_kitchen', 'role_kitchen_hint'),
+          (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),
+          (AppRole.driver, Icons.delivery_dining, 'role_driver', 'role_driver_hint'),
+        ];
+      case BusinessModel.retail:
+        return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
+          (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),
+          (AppRole.stockClerk, Icons.inventory_2, 'role_stock', 'role_stock_hint'),
+        ];
+      case BusinessModel.fastfood:
+        return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
+          (AppRole.orderTaker, Icons.fastfood, 'role_taker', 'role_taker_hint'),
+          (AppRole.kitchen, Icons.soup_kitchen, 'role_kitchen', 'role_kitchen_hint'),
+          (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),
+        ];
+      case BusinessModel.services:
+        return const [
+          (AppRole.manager, Icons.manage_accounts, 'role_manager', 'role_manager_hint'),
+          (AppRole.frontDesk, Icons.desk, 'role_desk', 'role_desk_hint'),
+          (AppRole.specialist, Icons.badge, 'role_specialist', 'role_specialist_hint'),
+          (AppRole.cashier, Icons.point_of_sale, 'role_cashier', 'role_cashier_hint'),
+        ];
+    }
+  }
+}
+
+class SetupScreen extends ConsumerWidget {
+  const SetupScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.s;
+    final models = <(BusinessModel, String, String, IconData)>[
+      (BusinessModel.restaurant, 'restaurant', 'model_restaurant_hint', Icons.restaurant),
+      (BusinessModel.retail, 'retail', 'model_retail_hint', Icons.storefront),
+      (BusinessModel.fastfood, 'fastfood', 'model_fastfood_hint', Icons.fastfood),
+      (BusinessModel.services, 'services_model', 'model_services_hint', Icons.spa),
+    ];
+    return OfScaffold(
+      title: s.t('pick_model'),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(s.t('get_started'), style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          ...models.map((m) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: OfCard(
+                onTap: () => ref.ctrl.pickModel(m.$1),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(m.$4, color: OfColors.emerald, size: 32),
+                  title: Text(s.t(m.$2), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(s.t(m.$3)),
+                  trailing: const Icon(Icons.chevron_right),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
