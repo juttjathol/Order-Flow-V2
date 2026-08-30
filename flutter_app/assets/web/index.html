@@ -6,9 +6,9 @@
   <title>Order Flow · Jathol</title>
   <style>
     :root {
-      --bg: #eef3ef;
+      --bg: #f3f6f2;
       --panel: #ffffff;
-      --panel2: #e7f0ea;
+      --panel2: #eef4ef;
       --line: rgba(11,61,46,.12);
       --mint: #3ddc97;
       --green: #1b8f62;
@@ -24,9 +24,7 @@
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Segoe UI", Inter, system-ui, sans-serif; }
     header {
       display: flex; align-items: center; gap: 20px; padding: 14px 24px;
-      background: linear-gradient(120deg, var(--deep), var(--forest) 55%, #0e4a38);
-      color: #fff; position: sticky; top: 0; z-index: 5;
-      border-bottom: 2px solid rgba(61,220,151,.45);
+      background: linear-gradient(90deg, var(--forest), var(--deep)); color: #fff; position: sticky; top: 0; z-index: 5;
     }
     .brand { font-weight: 800; letter-spacing: -.3px; font-size: 20px; }
     .brand span { color: var(--mint); }
@@ -49,26 +47,34 @@
     .g2 { grid-template-columns: 1.4fr 1fr; }
     .g4 { grid-template-columns: repeat(4, 1fr); }
     .g3 { grid-template-columns: repeat(3, 1fr); }
-    .kpi { background: var(--panel2); border-radius: 18px; padding: 18px; border: 1px solid var(--line); box-shadow: 0 6px 16px rgba(11,61,46,.04); }
-    .kpi:first-child { background: linear-gradient(145deg, rgba(61,220,151,.22), var(--panel2)); border-color: rgba(61,220,151,.35); }
+    .kpi { background: var(--panel2); border-radius: 18px; padding: 18px; }
     .kpi i { color: var(--green); font-style: normal; font-size: 22px; }
     .bar { display: flex; align-items: end; gap: 10px; height: 180px; padding-top: 10px; }
-    .bar span { flex: 1; background: linear-gradient(#3ddc97, #0b3d2e); border-radius: 8px 8px 0 0; min-height: 4px; }
+    .bar span { flex: 1; background: linear-gradient(#3ddc97, #0b3d2e); border-radius: 10px 10px 4px 4px; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: 12px 8px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; }
+    .tcard { border-radius: 28px; padding: 22px; min-height: 140px; cursor: pointer; border: 3px solid var(--green); background: #fff; }
+    .tcard b { font-size: 28px; display:block; letter-spacing: -.6px; }
+    .tcard.free { border-color: var(--green); }
+    .tcard.ordered { border-color: #f0a202; background: #fff8e8; }
+    .tcard.ready { border-color: var(--mint); background: #eefaf4; }
+    .tcard.busy { border-color: var(--red); }
+    .menu { display: grid; grid-template-columns: 200px 1fr; gap: 18px; }
+    .cats { display: flex; flex-direction: column; gap: 8px; }
+    .cats button { text-align: left; }
+    .products { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+    .pimg { height: 140px; border-radius: 16px; background: #e8efe9 center/cover no-repeat; margin-bottom: 10px; }
+    input, textarea, select {
+      width: 100%; background: #fff; color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: 6px 0 12px;
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .hidden { display: none !important; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-    .products { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-    .product { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; cursor: pointer; }
-    .product:hover { border-color: var(--mint); }
-    .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
-    .table { border-radius: 16px; padding: 18px; text-align: center; font-weight: 700; cursor: pointer; border: 2px solid transparent; }
-    .table.free { background: #e8f7ef; color: var(--forest); }
-    .table.ordered { background: #fff3d6; color: #7a5a00; }
-    .table.ready { background: #d9f7ea; color: var(--green); }
-    input, select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); font: inherit; }
-    .cats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    .cats button { background: var(--panel2); border: 1px solid var(--line); border-radius: 20px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
-    .cats button.active { background: var(--forest); color: #fff; }
-    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } .g4, .g2, .g3 { grid-template-columns: 1fr 1fr; } }
+    #tRail { background: var(--paper); }
+    footer { text-align: center; color: var(--forest); padding: 12px 0 22px; font-weight: 800; letter-spacing: 1.4px; }
+    @media (max-width: 980px) {
+      .wrap, .g2, .g4, .g3, .menu, .row { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -79,6 +85,9 @@
       <button data-page="ticket">Ticket</button>
       <button data-page="tables">Tables</button>
       <button data-page="items">Items</button>
+      <button data-page="people">People</button>
+      <button data-page="sales">Sales</button>
+      <button data-page="settings">Settings</button>
       <button data-page="orders">Orders</button>
     </nav>
     <div style="margin-left:auto" class="muted" id="live"></div>
@@ -127,30 +136,352 @@
           <input id="search" placeholder="Search item" oninput="renderItems()" style="max-width:320px" />
           <button class="btn green" onclick="showAddItem()">Upload item</button>
         </div>
-        <div class="products" id="itemGrid" style="margin-top:16px"></div>
+        <div class="products" id="products"></div>
       </div>
     </div>
   </div>
 
-  <div class="wrap hidden" id="page-orders" style="grid-template-columns:1fr">
-    <div class="card" id="orderList"></div>
+  <div class="wrap hidden" id="page-people" style="grid-template-columns:1fr 1fr">
+    <div class="card"><b>Staff</b><div id="staff"></div></div>
+    <div class="card"><b>Drivers</b><div id="drivers"></div></div>
   </div>
 
+  <div class="wrap hidden" id="page-sales" style="grid-template-columns:1fr">
+    <div class="card"><b>Highest selling</b><div class="grid g4" id="hiSell"></div><div class="bar" id="weekBar2"></div></div>
+  </div>
+
+  <div class="wrap hidden" id="page-settings" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <b>Settings</b>
+      <label>Company name</label><input id="sName" />
+      <label>Phone</label><input id="sPhone" />
+      <label>Address</label><input id="sAddr" />
+      <label>Tax ID</label><input id="sTax" />
+      <button class="btn green" onclick="saveProfile()">Submit</button>
+    </div>
+    <div class="card">
+      <b>Receipt</b>
+      <label>Footer</label><textarea id="sFoot" rows="3"></textarea>
+      <label>Currency</label><input id="sCur" />
+      <label>Tax rate %</label><input id="sRate" />
+      <label>Service charge %</label><input id="sSvc" />
+      <label>Business model</label>
+      <select id="sModel">
+        <option value="restaurant">Restaurant</option>
+        <option value="retail">Retail</option>
+        <option value="fastfood">Fast food</option>
+        <option value="services">Services</option>
+      </select>
+      <button class="btn green" onclick="saveProfile()">Submit</button>
+    </div>
+  </div>
+
+  <div class="wrap hidden" id="page-orders" style="grid-template-columns:1fr">
+    <div class="card"><table><thead><tr><th>Ticket</th><th>Table</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody id="orderRows"></tbody></table></div>
+  </div>
+
+  <div class="wrap hidden" id="page-add" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <button class="btn ghost" onclick="show('items')">Back</button>
+      <h3>Upload an item</h3>
+      <label>Item name</label><input id="iName" />
+      <div class="row"><div><label>SKU</label><input id="iSku" /></div><div><label>Price</label><input id="iPrice" /></div></div>
+      <label>Category</label><select id="iCat"></select>
+      <label>Description</label><textarea id="iDesc" rows="3"></textarea>
+      <button class="btn green" onclick="saveItem()">Upload item</button>
+    </div>
+    <div class="card">
+      <b>In stock</b>
+      <p class="muted">New items are available immediately on all stations on this Wi‑Fi.</p>
+    </div>
+  </div>
+
+  <footer>Jathol</footer>
   <script>
-  // Keep existing dashboard JS behaviour from the app server injection / sync layer.
-  // This file is the visual shell; live data is bound by the Flutter LAN host.
-  function show(page) {
-    document.querySelectorAll('[id^=page-]').forEach(el => el.classList.add('hidden'));
-    const target = document.getElementById('page-' + page);
-    if (target) target.classList.remove('hidden');
-    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.page === page));
-  }
-  document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.page)));
-  // Placeholder hooks used by host injection
-  window.__ofRender = window.__ofRender || function(){};
-  window.newOrder = window.newOrder || function(){};
-  window.showAddItem = window.showAddItem || function(){};
-  window.renderItems = window.renderItems || function(){};
+    let store = null, catId = null, unlocked = false, activeOrderId = null;
+    function needPin() {
+      const pin = store?.profile?.managerPin || '';
+      if (!pin || unlocked) return true;
+      const typed = prompt('Manager PIN') || '';
+      if (typed !== pin) { alert('Wrong PIN'); return false; }
+      unlocked = true;
+      return true;
+    }
+    const $ = (id) => document.getElementById(id);
+    const money = (n) => {
+      const p = store?.profile || {};
+      const s = p.currencySymbol || 'Rs';
+      const v = (Number(n)||0).toFixed(2);
+      return p.currencyPrefix === false ? (v + ' ' + s) : (s + ' ' + v);
+    };
+    async function load() {
+      const r = await fetch('/state');
+      const j = await r.json();
+      store = j.store;
+      render();
+    }
+    async function cmd(name, payload) {
+      await fetch('/command', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, payload, actor:'web' }) });
+      await load();
+    }
+    function show(page) {
+      document.querySelectorAll('[id^=page-]').forEach(el => el.classList.add('hidden'));
+      $('page-'+page).classList.remove('hidden');
+      document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.page===page));
+    }
+    document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+      if (b.dataset.page === 'settings' && !needPin()) return;
+      show(b.dataset.page);
+    });
+
+    function weekSales() {
+      const days = [];
+      for (let i=6;i>=0;i--) {
+        const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+        const next = new Date(d); next.setDate(d.getDate()+1);
+        const sum = (store.orders||[]).filter(o => o.status==='paid' && new Date(o.updatedAt)>=d && new Date(o.updatedAt)<next)
+          .reduce((a,o)=>a+(o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0),0);
+        days.push({d, sum});
+      }
+      return days;
+    }
+    function bars(el) {
+      const days = weekSales();
+      const max = Math.max(1, ...days.map(x=>x.sum));
+      el.innerHTML = days.map(x => `<span title="${x.sum}" style="height:${8+92*x.sum/max}%"></span>`).join('');
+    }
+    function renderPos() {
+      const orders = store.orders||[];
+      const open = orders.filter(o => !['paid','cancelled'].includes(o.status));
+      const tables = store.tables||[];
+      const occ = tables.length ? Math.round(100*tables.filter(t=>t.status!=='free').length/tables.length) : 0;
+      const today = weekSales().at(-1).sum;
+      $('openCount').textContent = open.length;
+      $('occ').textContent = occ + '%';
+      $('today').textContent = money(today);
+      $('live').textContent = (store.profile?.businessName||'Shop') + ' · local';
+      bars($('weekBar'));
+      const paid = orders.filter(o=>o.status==='paid');
+      const items = paid.reduce((n,o)=>n+(o.lines||[]).reduce((a,l)=>a+(l.qty||1),0),0);
+      $('kpis').innerHTML = `
+        <div class="kpi"><i>🍽</i><div class="muted">Total order</div><b>${paid.length}</b></div>
+        <div class="kpi"><i>🔥</i><div class="muted">Revenue</div><b>${money(today)}</b></div>
+        <div class="kpi"><i>🍴</i><div class="muted">Items sold</div><b>${items}</b></div>
+        <div class="kpi"><i>📦</i><div class="muted">Open</div><b>${open.length}</b></div>`;
+      const counts = {};
+      paid.forEach(o => (o.lines||[]).forEach(l => { counts[l.name]=(counts[l.name]||0)+(l.qty||1); }));
+      const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+      $('topItems').innerHTML = top.map(([n,c])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a3832"><span>${n}</span><span class="muted">${c}</span></div>`).join('') || '<p class="muted">No paid orders yet</p>';
+      const dine = orders.filter(o=>o.type==='dineIn').length;
+      const take = orders.filter(o=>o.type==='takeaway').length;
+      const del = orders.filter(o=>o.type==='delivery').length;
+      const tot = Math.max(1, dine+take+del);
+      $('fromBars').innerHTML = `Tables ${dine}<div style="height:8px;background:#14532d;width:${100*dine/tot}%;border-radius:8px;margin:6px 0"></div>Takeaway ${take}<div style="height:8px;background:#166534;width:${100*take/tot}%;border-radius:8px;margin:6px 0"></div>Delivery ${del}<div style="height:8px;background:#0ea5e9;width:${100*del/tot}%;border-radius:8px;margin:6px 0"></div>`;
+      const pay = {cash:0,card:0,wallet:0,other:0};
+      paid.forEach(o => { const k=o.payment||'cash'; pay[k]=(pay[k]||0)+1; });
+      $('payBars').innerHTML = Object.entries(pay).map(([k,v])=>`${k} ${v}`).join(' · ');
+    }
+    function renderTables() {
+      const orders = store.orders||[];
+      $('tableGrid').innerHTML = (store.tables||[]).map(t => {
+        const o = orders.find(x => x.id===t.currentOrderId);
+        const cls = t.status==='ready' ? 'ready' : t.status==='ordered' ? 'ordered' : 'free';
+        const n = o ? (o.lines||[]).length : 0;
+        const tot = o ? money((o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0)) : '';
+        return `<div class="tcard ${cls}" onclick="openTable('${t.id}')"><b>${t.name}</b><div>${o?((o.ticketNo||'')+' · '+n+' items'):'Free'}</div>${tot?`<div style="font-weight:800;margin-top:6px">${tot}</div>`:''}</div>`;
+      }).join('');
+    }
+    function renderItems() {
+      const q = ($('search').value||'').toLowerCase();
+      const cats = store.categories||[];
+      if (!catId && cats[0]) catId = cats[0].id;
+      $('cats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${c.id}';renderItems()">${c.name}</button>`).join('');
+      const list = (store.products||[]).filter(p => (!catId || p.categoryId===catId) && (!q || p.name.toLowerCase().includes(q)));
+      $('products').innerHTML = list.map(p => {
+        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${p.imageBase64})` : '';
+        return `<div class="card" onclick="addLine('${p.id}')"><div class="pimg" style="${img}"></div><b>${p.name}</b><div class="muted">${money(p.price)}</div></div>`;
+      }).join('');
+    }
+    function renderPeople() {
+      $('staff').innerHTML = (store.staff||[]).map(s=>`<div>${s.name} · ${s.roleLabel||''}</div>`).join('') || '<p class="muted">No staff</p>';
+      $('drivers').innerHTML = (store.drivers||[]).map(d=>`<div>${d.name} · ${d.status}</div>`).join('') || '<p class="muted">No drivers</p>';
+    }
+    function renderSales() {
+      bars($('weekBar2'));
+      const counts = {};
+      (store.orders||[]).filter(o=>o.status==='paid').forEach(o => (o.lines||[]).forEach(l => { counts[l.name]=(counts[l.name]||0)+(l.qty||1); }));
+      const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,4);
+      $('hiSell').innerHTML = top.map(([n,c])=>`<div class="kpi"><b>${n}</b><div class="muted">${c} times</div></div>`).join('') || '<p class="muted">No sales yet</p>';
+    }
+    function fillSettings() {
+      const p = store.profile||{};
+      $('sName').value = p.businessName||'';
+      $('sPhone').value = p.phone||'';
+      $('sAddr').value = p.address||'';
+      $('sTax').value = p.taxId||'';
+      $('sFoot').value = p.footer||'';
+      $('sCur').value = p.currencySymbol||'Rs';
+      $('sRate').value = p.taxRate||0;
+      $('sSvc').value = p.serviceRate||0;
+      $('sModel').value = store.model||'restaurant';
+    }
+    function renderOrders() {
+      $('orderRows').innerHTML = (store.orders||[]).slice(0,40).map(o => `<tr>
+        <td>${o.ticketNo}</td><td>${o.tableName||o.type}</td><td>${o.status}</td>
+        <td>${money((o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0))}</td>
+        <td>${['paid','cancelled'].includes(o.status)?'':`<button class="btn green" onclick="pay('${o.id}')">Pay</button>`}</td>
+      </tr>`).join('');
+    }
+    function orderTotal(o) {
+      return (o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0);
+    }
+    function activeOrder() {
+      return (store.orders||[]).find(o => o.id===activeOrderId && !['paid','cancelled'].includes(o.status))
+        || (store.orders||[]).find(o => !['paid','cancelled'].includes(o.status));
+    }
+    function renderTicket() {
+      const cats = store.categories||[];
+      if (!catId && cats[0]) catId = cats[0].id;
+      $('tCats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${c.id}';renderTicket()">${c.name}</button>`).join('');
+      const list = (store.products||[]).filter(p => (!catId || p.categoryId===catId) && p.available!==false);
+      $('tProducts').innerHTML = list.map(p => {
+        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${p.imageBase64})` : '';
+        return `<div class="card" onclick="addLine('${p.id}')"><div class="pimg" style="${img}"></div><b>${p.name}</b><div class="muted">${money(p.price)}</div></div>`;
+      }).join('');
+      const o = activeOrder();
+      if (!o) {
+        $('tRail').innerHTML = '<p class="muted">No open ticket. Start dine-in, takeaway or delivery.</p><button class="btn green" style="width:100%" onclick="newOrder(\'dineIn\')">New ticket</button>';
+        return;
+      }
+      activeOrderId = o.id;
+      const lines = (o.lines||[]).map(l => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div><b>${l.qty||1}× ${l.name}</b></div><div>${money((l.unitPrice||0)*(l.qty||1))}</div></div>`).join('');
+      $('tRail').innerHTML = `<div class="muted">${o.ticketNo||''} · ${o.tableName||o.type} · ${o.status}</div>
+        <b style="font-size:28px">${money(dueOf(o))}</b>
+        <div class="muted">incl. service ${o.serviceRate||store.profile?.serviceRate||0}%</div>
+        <div style="max-height:46vh;overflow:auto;margin:10px 0">${lines||'<p class="muted">Add items</p>'}</div>
+        <button class="btn green" style="width:100%" onclick="cmd('setOrderStatus',{id:'${o.id}',status:'preparing'})">Send kitchen</button>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="pay('${o.id}')">Pay</button>`;
+    }
+    function render() {
+      if (!store) return;
+      renderPos(); renderTables(); renderItems(); renderPeople(); renderSales(); fillSettings(); renderOrders(); renderTicket();
+    }
+    async function saveProfile() {
+      if (!needPin()) return;
+      const profile = {
+        ...(store.profile||{}),
+        businessName: $('sName').value,
+        phone: $('sPhone').value,
+        address: $('sAddr').value,
+        taxId: $('sTax').value,
+        footer: $('sFoot').value,
+        currencySymbol: $('sCur').value,
+        taxRate: Number($('sRate').value||0),
+        serviceRate: Number($('sSvc').value||0),
+      };
+      await cmd('setProfile', { profile });
+      if ($('sModel').value !== store.model) await cmd('setModel', { model: $('sModel').value });
+    }
+    function showAddItem() {
+      $('iCat').innerHTML = (store.categories||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+      show('add');
+    }
+    async function saveItem() {
+      await cmd('upsertProduct', { product: {
+        id: crypto.randomUUID(),
+        categoryId: $('iCat').value,
+        name: $('iName').value,
+        sku: $('iSku').value,
+        price: Number($('iPrice').value||0),
+        description: $('iDesc').value,
+        available: true,
+      }});
+      show('items');
+    }
+    async function newOrder(kind) {
+      kind = kind || 'takeaway';
+      let customerName = '', customerPhone = '', address = '', tableId, tableName;
+      if (kind === 'dineIn') {
+        const t = (store.tables||[]).find(x=>x.status==='free') || (store.tables||[])[0];
+        tableId = t?.id; tableName = t?.name;
+        if (!t) kind = 'takeaway';
+      } else {
+        customerName = prompt(kind === 'delivery' ? 'Customer name' : 'Pickup name') || 'Guest';
+        customerPhone = prompt('Phone') || '';
+        if (kind === 'delivery') {
+          address = prompt('Delivery address') || '';
+          if (!address) { alert('Address required'); return; }
+        }
+      }
+      const nid = crypto.randomUUID();
+      await cmd('createOrder', { order: {
+        id: nid, ticketNo:'', type: kind, status:'open',
+        tableId, tableName, customerName, customerPhone, address, lines: [], createdBy: 'web'
+      }});
+      activeOrderId = nid;
+      show('ticket');
+    }
+    async function openTable(id) {
+      const t = (store.tables||[]).find(x=>x.id===id);
+      if (t && t.currentOrderId) { activeOrderId = t.currentOrderId; show('ticket'); return; }
+      const nid = crypto.randomUUID();
+      await cmd('createOrder', { order: {
+        id: nid, ticketNo:'', type:'dineIn', status:'open',
+        tableId: t.id, tableName: t.name, lines: [], createdBy: 'web'
+      }});
+      activeOrderId = nid;
+      show('ticket');
+    }
+    async function addLine(pid) {
+      const p = (store.products||[]).find(x=>x.id===pid);
+      let o = activeOrder();
+      if (!o) { await newOrder('dineIn'); o = activeOrder(); }
+      if (!p || !o) return;
+      activeOrderId = o.id;
+      let name = p.name, price = Number(p.price||0), notes = '';
+      const mods = p.mods || [];
+      if (mods.length) {
+        const picked = [];
+        for (const g of ['size','spice']) {
+          const opts = mods.filter(m => m.group===g);
+          if (!opts.length) continue;
+          const labels = opts.map((m,i)=>`${i+1}:${m.name}${m.price?(' +'+m.price):''}`).join('  ');
+          const n = Number(prompt((g==='size'?'Size':'Spice')+'  '+labels, '1')||1) - 1;
+          if (opts[n]) picked.push(opts[n]);
+        }
+        mods.filter(m => m.group==='extra').forEach(m => {
+          if (confirm((m.name||'Add-on') + (m.price?(' +'+m.price):'') + '?')) picked.push(m);
+        });
+        if (picked.length) {
+          name = name + ' · ' + picked.map(m=>m.name).join(', ');
+          price += picked.reduce((a,m)=>a+Number(m.price||0),0);
+          notes = picked.map(m=>m.name).join(', ');
+        }
+      }
+      await cmd('addLine', { orderId: o.id, line: { id: crypto.randomUUID(), productId: p.id, name, unitPrice: price, qty: 1, notes } });
+      show('ticket');
+    }
+    function dueOf(o) {
+      const net = Math.max(0, orderTotal(o) - (o.discount||0));
+      const svc = net * ((o.serviceRate||store.profile?.serviceRate||0)/100);
+      const tax = net * ((o.taxRate||0)/100);
+      return net + svc + tax + (o.tip||0);
+    }
+    async function pay(id) {
+      if (!needPin()) return;
+      const o = (store.orders||[]).find(x=>x.id===id);
+      if (!o) return;
+      const tip = Number(prompt('Tip amount (0 for none)', '0') || 0);
+      const due = dueOf({...o, tip});
+      const method = (prompt('Payment: cash / card / wallet / other', 'cash') || 'cash').toLowerCase();
+      if (method === 'cash') {
+        const tender = Number(prompt('Cash received', String(due)) || 0);
+        if (tender + 0.001 < due) { alert('Amount is less than the total'); return; }
+      }
+      await cmd('setOrderStatus', { id, status: 'paid', payment: method, tip });
+    }
+    load();
+    setInterval(load, 2500);
   </script>
 </body>
 </html>
