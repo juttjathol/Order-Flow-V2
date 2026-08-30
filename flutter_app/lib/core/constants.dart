@@ -29,6 +29,6 @@ const String kDefaultApiBase = 'https://order-flow-v2.pages.dev';
 const String kPrivacyUrl = 'https://jathol.pages.dev/privacy';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.1.48';
+const String kAppVersion = '1.1.49';
 const String kJoinScheme = 'orderflow';
 const String kDefaultCurrency = 'Rs';

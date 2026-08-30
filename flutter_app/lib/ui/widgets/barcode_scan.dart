@@ -554,8 +554,7 @@ class _ShopCameraScanState extends State<ShopCameraScan>
 }
 
 class _FramePainter extends CustomPainter {
-  _FramePainter({required this.lineY, required this.hit});
-  final double lineY;
+  _FramePainter({required this.hit});
   final bool hit;
 
   @override
