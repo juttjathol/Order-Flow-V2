@@ -1,7 +1,7 @@
 name: order_flow
 description: Offline-first multi-device POS for restaurants, retail, fast food, and services.
 publish_to: "none"
-version: 1.1.37+37
+version: 1.1.38+38
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -12,8 +12,8 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  camera: ^0.11.0
-  camera_android: 0.10.10+5
+  # Match working reference: https://github.com/horlengg/barcode_scanner_animation
+  camera: 0.11.2
   collection: ^1.18.0
   connectivity_plus: ">=6.1.0 <7.0.0"
   file_picker: ">=8.1.0 <9.0.0"
