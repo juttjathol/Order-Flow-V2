@@ -16,6 +16,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import 'stock_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
