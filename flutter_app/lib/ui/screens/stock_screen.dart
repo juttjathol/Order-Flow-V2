@@ -65,10 +65,24 @@ class _StockScreenState extends ConsumerState<StockScreen> {
               onChanged: (v) => setState(() => q = v),
             ),
           ),
-          SwitchListTile(
-            value: onlyLow,
-            onChanged: (v) => setState(() => onlyLow = v),
-            title: Text(s.t('low_stock')),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                FilterChip(
+                  label: const Text('All'),
+                  selected: !onlyLow,
+                  onSelected: (_) => setState(() => onlyLow = false),
+                ),
+                FilterChip(
+                  label: Text(s.t('low_stock')),
+                  selected: onlyLow,
+                  onSelected: (_) => setState(() => onlyLow = true),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: items.isEmpty
