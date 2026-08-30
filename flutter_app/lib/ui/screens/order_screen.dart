@@ -356,8 +356,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                           child: Text(order.held ? s.t('unhold') : s.t('hold')),
                         ),
                         const SizedBox(width: 8),
-                        if (order.status == OrderStatus.open && !order.held)
-                          Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(s.t('send_kitchen')))),
+                        if ((order.status == OrderStatus.open || order.status == OrderStatus.served) && !order.held)
+                          Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(order.status == OrderStatus.served ? s.t('add_more') : s.t('send_kitchen')))),
                         if (order.status == OrderStatus.preparing && canPay)
                           Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.ready), child: Text(s.t('mark_ready')))),
                         if (order.status == OrderStatus.ready && order.type == OrderType.takeaway)
@@ -655,6 +655,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 
   Future<void> _status(PosOrder order, OrderStatus status) async {
+    if (status == OrderStatus.preparing && order.lines.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ref.s.t('ticket_empty'))));
+      return;
+    }
     await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
       'id': order.id,
       'status': status.name,

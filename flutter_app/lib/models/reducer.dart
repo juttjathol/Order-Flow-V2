@@ -310,8 +310,19 @@ class StoreReducer {
         if (order != null) {
           order.lines.add(OrderLine.fromJson(mapOf(p['line'])));
           order.updatedAt = DateTime.now();
-          if (order.status == OrderStatus.ready) {
+          if (order.status == OrderStatus.ready || order.status == OrderStatus.served) {
             order.status = OrderStatus.preparing;
+            final label = order.tableName?.isNotEmpty == true
+                ? 'Table ${order.tableName}'
+                : 'Ticket ${order.ticketNo}';
+            notice = AppNotice(
+              id: newId(),
+              title: 'Kitchen order',
+              body: '$label extra items sent to kitchen',
+              tableId: order.tableId,
+              orderId: order.id,
+              kind: 'kitchen',
+            );
           }
           _syncTable(store, order);
         }

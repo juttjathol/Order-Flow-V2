@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n.dart';
 import '../../core/money.dart';
@@ -138,7 +140,20 @@ class BrandMark extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
-    return Image.asset('assets/brand/mark.png', width: size, height: size, errorBuilder: (_, __, ___) => Icon(Icons.bolt, size: size, color: OfColors.mint));
+    return InkWell(
+      onTap: () => unawaited(launchUrl(Uri.parse('https://jathol.pages.dev'), mode: LaunchMode.externalApplication)),
+      borderRadius: BorderRadius.circular(10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.asset(
+          'assets/brand/logo.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Icon(Icons.flash_on, size: size, color: OfColors.mint),
+        ),
+      ),
+    );
   }
 }
 
@@ -183,10 +198,15 @@ class OfCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(22));
-    if (onTap == null && onLongPress == null) {
-      return Card(color: color, shape: shape, clipBehavior: Clip.antiAlias, child: Padding(padding: padding, child: child));
-    }
-    return Card(color: color, shape: shape, clipBehavior: Clip.antiAlias, child: InkWell(borderRadius: BorderRadius.circular(22), onTap: onTap, onLongPress: onLongPress, splashColor: OfColors.mint.withValues(alpha: 0.18), child: Padding(padding: padding, child: child)));
+    final inner = onTap == null && onLongPress == null
+        ? Padding(padding: padding, child: child)
+        : InkWell(borderRadius: BorderRadius.circular(22), onTap: onTap, onLongPress: onLongPress, splashColor: OfColors.mint.withValues(alpha: 0.18), child: Padding(padding: padding, child: child));
+    return Card(
+      color: color,
+      shape: shape,
+      clipBehavior: Clip.antiAlias,
+      child: AnimatedSize(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, child: inner),
+    );
   }
 }
 
