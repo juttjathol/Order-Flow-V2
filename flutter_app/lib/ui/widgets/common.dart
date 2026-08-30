@@ -252,8 +252,59 @@ class ReadyBannerHost extends ConsumerStatefulWidget {
 }
 
 class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
+  String? _alertedId;
+
   @override
-  Widget build(BuildContext context) => widget.child;
+  void initState() {
+    super.initState();
+    unawaited(Permission.notification.request());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notices = ref.watch(appControllerProvider.select((s) => s.notices));
+    final top = notices.isEmpty ? null : notices.first;
+    if (top != null && top.id != _alertedId) {
+      _alertedId = top.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(ShopKeepAlive.alert(title: top.title, text: top.body));
+        HapticFeedback.heavyImpact();
+        SystemSound.play(SystemSoundType.alert);
+      });
+    }
+    return Stack(
+      children: [
+        widget.child,
+        if (top != null)
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: Material(
+                  color: top.kind == 'kitchen' ? const Color(0xFFE6A23C) : OfColors.mint,
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(16),
+                  child: ListTile(
+                    leading: Icon(top.kind == 'kitchen' ? Icons.outdoor_grill : Icons.notifications_active, color: Colors.black87),
+                    title: Text(top.title, style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.black87)),
+                    subtitle: Text(top.body, style: const TextStyle(color: Colors.black87)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.black87),
+                      onPressed: () => ref.read(appControllerProvider.notifier).dismissNotice(top.id),
+                    ),
+                    onTap: () {
+                      ref.read(appControllerProvider.notifier).dismissNotice(top.id);
+                      if (top.orderId != null) context.push('/order/${top.orderId}');
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 Color statusColor(OrderStatus s) => switch (s) {

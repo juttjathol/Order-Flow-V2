@@ -413,10 +413,11 @@ class AppController extends Notifier<AppSnapshot> {
       clients: _server?.clients.values.toList() ?? state.clients,
     );
     _schedulePersist();
-    if (result.notice != null &&
-        result.notice!.kind == 'kitchen' &&
-        result.notice!.orderId != null) {
-      unawaited(_autoKitchenPrint(result.notice!.orderId!));
+    if (result.notice != null) {
+      unawaited(ShopKeepAlive.alert(title: result.notice!.title, text: result.notice!.body));
+      if (result.notice!.kind == 'kitchen' && result.notice!.orderId != null) {
+        unawaited(_autoKitchenPrint(result.notice!.orderId!));
+      }
     }
     return result;
   }
@@ -579,6 +580,7 @@ class AppController extends Notifier<AppSnapshot> {
         state = state.copyWith(
           notices: [notice, ...state.notices].take(20).toList(),
         );
+        unawaited(ShopKeepAlive.alert(title: notice.title, text: notice.body));
         if (notice.kind == 'kitchen' && notice.orderId != null) {
           unawaited(_autoKitchenPrint(notice.orderId!));
         }
