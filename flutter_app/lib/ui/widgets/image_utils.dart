@@ -1,19 +1,15 @@
-import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Size;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
 
-/// Frame helpers copied from
-/// https://github.com/horlengg/barcode_scanner_animation (image_utils.dart).
-/// This is what makes ML Kit actually receive a valid Android NV21 buffer.
+/// Frame helpers from https://github.com/horlengg/barcode_scanner_animation
+/// (image_utils.dart). Builds a valid NV21 buffer for ML Kit on Android.
 class ImageUtils {
   ImageUtils._();
 
-  /// Android: ML Kit needs single-plane NV21.
-  /// Camera may deliver 1 plane (true NV21) or 3 planes (YUV_420_888).
   static InputImage? buildAndroidInputImage(
     CameraImage image,
     InputImageRotation rotation,
@@ -21,7 +17,6 @@ class ImageUtils {
     final width = image.width;
     final height = image.height;
 
-    // Already NV21 (one plane) — same path as official google_ml_kit example.
     if (image.planes.length == 1) {
       final plane = image.planes.first;
       return InputImage.fromBytes(
@@ -47,7 +42,6 @@ class ImageUtils {
 
     final buffer = WriteBuffer();
 
-    // Tightly packed Y (width * height).
     for (var row = 0; row < height; row++) {
       final offset = row * yRowStride;
       final end = offset + width;
@@ -55,7 +49,6 @@ class ImageUtils {
       buffer.putUint8List(yPlane.bytes.sublist(offset, end));
     }
 
-    // NV21 = interleaved VU at half resolution.
     for (var row = 0; row < height ~/ 2; row++) {
       for (var col = 0; col < width ~/ 2; col++) {
         final offset = row * uvRowStride + col * uvPixelStride;
@@ -67,10 +60,8 @@ class ImageUtils {
       }
     }
 
-    final bytes = buffer.done().buffer.asUint8List();
-
     return InputImage.fromBytes(
-      bytes: bytes,
+      bytes: buffer.done().buffer.asUint8List(),
       metadata: InputImageMetadata(
         size: Size(width.toDouble(), height.toDouble()),
         rotation: rotation,
