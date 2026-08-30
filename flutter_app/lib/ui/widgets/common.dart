@@ -235,3 +235,24 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
   @override
   Widget build(BuildContext context) => widget.child;
 }
+
+Color statusColor(OrderStatus s) => switch (s) {
+      OrderStatus.open => OfColors.info,
+      OrderStatus.preparing => OfColors.warn,
+      OrderStatus.ready => OfColors.mint,
+      OrderStatus.served => OfColors.emerald,
+      OrderStatus.paid => OfColors.forest,
+      OrderStatus.cancelled => OfColors.danger,
+    };
+
+Color tableColor(TableStatus s) => switch (s) {
+      TableStatus.free => OfColors.emerald,
+      TableStatus.ordered => OfColors.warn,
+      TableStatus.ready => OfColors.mint,
+    };
+
+Color stockColor(StockLevel s) => switch (s) {
+      StockLevel.ok => OfColors.emerald,
+      StockLevel.low => OfColors.warn,
+      StockLevel.out => OfColors.danger,
+    };
