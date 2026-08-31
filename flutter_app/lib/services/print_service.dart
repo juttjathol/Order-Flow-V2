@@ -34,12 +34,28 @@ class PrintService {
     }
   }
 
-  Future<void> kitchenTicket(AppStore store, PosOrder order, {AppRole? role}) {
-    return send(store.printerForRole(role) ?? store.kitchenTarget(), _build(store, order, kitchen: true));
+  Future<void> kitchenTicket(
+    AppStore store,
+    PosOrder order, {
+    AppRole? role,
+    PrinterConfig? prefer,
+  }) {
+    return send(
+      prefer ?? store.printerForRole(role) ?? store.kitchenTarget(),
+      _build(store, order, kitchen: true),
+    );
   }
 
-  Future<void> receipt(AppStore store, PosOrder order, {AppRole? role}) {
-    return send(store.receiptTarget(role), _build(store, order, kitchen: false));
+  Future<void> receipt(
+    AppStore store,
+    PosOrder order, {
+    AppRole? role,
+    PrinterConfig? prefer,
+  }) {
+    return send(
+      prefer ?? store.receiptTarget(role),
+      _build(store, order, kitchen: false),
+    );
   }
 
   List<int> _build(AppStore store, PosOrder order, {required bool kitchen}) {
@@ -70,62 +86,43 @@ class PrintService {
     } else {
       b.text(order.type.name.toUpperCase());
     }
-    if (slip.showCustomer) {
-      if (order.customerName.isNotEmpty) b.text(order.customerName);
-      if (order.customerPhone.isNotEmpty) b.text(order.customerPhone);
-      if (order.type == OrderType.delivery && order.address.isNotEmpty) {
-        b.text(order.address);
-      }
-    }
-    if (order.createdBy.isNotEmpty && kitchen) b.text('Station: ${order.createdBy}');
-    b.stars();
-    if (slip.showPrices) {
-      b.row('Description', 'Price');
-    }
-    final lines = [...order.lines]..sort((a, c) => a.course.compareTo(c.course));
-    String? last;
-    for (final line in lines) {
-      if (kitchen && last != line.course) {
-        last = line.course;
-        b.text('-- ${line.course.toUpperCase()} --');
-      }
-      final qty = line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1);
-      if (slip.showPrices) {
-        b.row('$qty ${line.name}', m(line.lineTotal));
+    if (order.customerName?.isNotEmpty == true) b.text(order.customerName!);
+    if (order.customerPhone?.isNotEmpty == true) b.text(order.customerPhone!);
+    if (order.note?.isNotEmpty == true) b.text('Note: ${order.note}');
+    b.rule();
+    for (final line in order.lines) {
+      final name = line.productName;
+      final qty = line.qty;
+      final price = line.unitPrice;
+      final total = line.lineTotal;
+      if (kitchen) {
+        b.row('${qty}x $name', '');
+        if (line.note?.isNotEmpty == true) b.text('  ${line.note}');
       } else {
-        b.text('$qty x ${line.name}');
+        b.row('${qty}x $name', m(total));
+        if (slip.showUnitPrices) b.text('  ${m(price)} each');
+        if (line.note?.isNotEmpty == true) b.text('  ${line.note}');
       }
-      if (line.notes.isNotEmpty) b.text('  * ${line.notes}');
     }
-    if (order.notes.isNotEmpty) {
-      b
-        ..stars()
-        ..text('NOTE: ${order.notes}');
-    }
-    if (slip.showTotals) {
-      b
-        ..stars()
-        ..doubleSize(true)
-        ..row('Total', m(order.total))
-        ..doubleSize(false);
-      if (order.discount > 0) b.row('Discount', '- ${m(order.discount)}');
-      if (order.service > 0) b.row('Service', m(order.service));
+    b.rule();
+    if (!kitchen) {
+      b.row('Subtotal', m(order.subtotal));
+      if (order.discount > 0) b.row('Discount', '-${m(order.discount)}');
       if (order.tax > 0) b.row('Tax', m(order.tax));
-      if (order.tip > 0) b.row('Tip', m(order.tip));
+      b.doubleSize(true);
+      b.row('TOTAL', m(order.total));
+      b.doubleSize(false);
+      if (order.paymentMethod != null) b.text('Paid: ${order.paymentMethod}');
+      if (slip.footer.isNotEmpty) {
+        b.align('center');
+        b.text(slip.footer);
+      }
+    } else {
+      b.align('center');
+      b.text('--- KITCHEN ---');
     }
-    if (slip.showPayment && order.payment != null) {
-      b.row(order.payment!.name, m(order.total));
-    }
-    b.stars();
-    b.align('center');
-    if (p.footer.isNotEmpty) b.text(p.footer.toUpperCase());
-    if (slip.showQr) {
-      _raster(b, p.payQrBase64);
-      if (p.payQrLabel.trim().isNotEmpty) b.text(p.payQrLabel.trim());
-    }
-    b
-      ..feed(4)
-      ..cut();
+    b.feed(3);
+    b.cut();
     return b.bytes;
   }
 
