@@ -50,43 +50,63 @@ class KitchenScreen extends ConsumerWidget {
           ? EmptyState(icon: Icons.soup_kitchen, message: s.t('no_orders'))
           : GridView.builder(
               padding: const EdgeInsets.all(20),
-              gridDelegate: finalGrid(context),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: gridCount(context, phone: 1, tablet: 3),
+                mainAxisExtent: 380,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+              ),
               itemCount: orders.length,
               itemBuilder: (_, i) {
                 final o = orders[i];
                 final mins = DateTime.now().difference(o.sentAt ?? o.createdAt).inMinutes;
-                final ageColor = mins >= 15 ? OfColors.danger : mins >= 8 ? OfColors.warn : OfColors.mint;
+                final ageColor = mins >= 15
+                    ? OfColors.danger
+                    : mins >= 8
+                        ? OfColors.warn
+                        : OfColors.mint;
                 final lines = (List<OrderLine>.from(o.lines))
                   ..sort((a, b) => a.course.compareTo(b.course));
-                return OfCard(
+                return Card(
+                  clipBehavior: Clip.antiAlias,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ListTile(
-                        contentPadding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
-                        title: Text('${o.ticketNo}${o.tableName == null || o.tableName!.isEmpty ? '' : ' · ${o.tableName}'}',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                        subtitle: Text(_age(o), style: TextStyle(color: ageColor, fontWeight: FontWeight.w700)),
-                        trailing: StatusChip(o.status.name.toUpperCase(), color: ageColor),
+                      Container(
+                        color: ageColor.withValues(alpha: 0.15),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${o.ticketNo}${o.tableName == null || o.tableName!.isEmpty ? '' : '  ·  ${o.tableName}'}',
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                              ),
+                            ),
+                            StatusChip(_age(o), color: ageColor),
+                          ],
+                        ),
                       ),
                       Expanded(
                         child: ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                           children: lines
-                              .map((l) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 6),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}',
-                                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                                          ),
+                              .map(
+                                (l) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}',
+                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                         ),
-                                      ],
-                                    ),
-                                  ))
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
                               .toList(),
                         ),
                       ),
@@ -95,15 +115,35 @@ class KitchenScreen extends ConsumerWidget {
                         child: Row(
                           children: [
                             if (o.status == OrderStatus.open)
-                              Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.preparing), child: Text(s.t('mark_preparing')))),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => _set(ref, o, OrderStatus.preparing),
+                                  child: Text(s.t('mark_preparing')),
+                                ),
+                              ),
                             if (o.status == OrderStatus.preparing)
-                              Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.ready), child: Text(s.t('mark_ready')))),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => _set(ref, o, OrderStatus.ready),
+                                  child: Text(s.t('mark_ready')),
+                                ),
+                              ),
                             if (o.status == OrderStatus.ready)
-                              Expanded(child: FilledButton.tonal(onPressed: () => _set(ref, o, OrderStatus.served), child: Text(s.t('mark_served')))),
+                              Expanded(
+                                child: FilledButton.tonal(
+                                  onPressed: () => _set(ref, o, OrderStatus.served),
+                                  child: Text(s.t('mark_served')),
+                                ),
+                              ),
                             IconButton(
                               onPressed: () async {
                                 try {
-                                  await ref.ctrl.printer.kitchenTicket(ref.snap.store, o, role: ref.snap.session.role, prefer: ref.ctrl.deviceLocalPrinter());
+                                  await ref.ctrl.printer.kitchenTicket(
+                                    ref.snap.store,
+                                    o,
+                                    role: ref.snap.session.role,
+                                    prefer: ref.ctrl.deviceLocalPrinter(),
+                                  );
                                 } catch (_) {}
                               },
                               icon: const Icon(Icons.print),
@@ -116,19 +156,6 @@ class KitchenScreen extends ConsumerWidget {
                 );
               },
             ),
-    );
-  }
-
-  SliverGridDelegateWithFixedCrossAxisCount finalGrid(BuildContext context) {
-    return remainingGrid(context);
-  }
-
-  SliverGridDelegateWithFixedCrossAxisCount remainingGrid(BuildContext context) {
-    return SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: gridCount(context, phone: 1, tablet: 3),
-      mainAxisExtent: 380,
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
     );
   }
 
