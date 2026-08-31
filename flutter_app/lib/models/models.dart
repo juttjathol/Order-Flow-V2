@@ -80,3 +80,84 @@ bool parseBool(Object? raw, [bool fallback = false]) {
   }
   return fallback;
 }
+
+class SlipTemplate {
+  SlipTemplate({
+    this.heading = 'CASH RECEIPT',
+    this.showLogo = true,
+    this.showAddress = true,
+    this.showPhone = true,
+    this.showPrices = true,
+    this.showTotals = true,
+    this.showPayment = true,
+    this.showQr = true,
+    this.showCustomer = true,
+  });
+
+  String heading;
+  bool showLogo;
+  bool showAddress;
+  bool showPhone;
+  bool showPrices;
+  bool showTotals;
+  bool showPayment;
+  bool showQr;
+  bool showCustomer;
+
+  SlipTemplate copy() => SlipTemplate(
+        heading: heading,
+        showLogo: showLogo,
+        showAddress: showAddress,
+        showPhone: showPhone,
+        showPrices: showPrices,
+        showTotals: showTotals,
+        showPayment: showPayment,
+        showQr: showQr,
+        showCustomer: showCustomer,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'heading': heading,
+        'showLogo': showLogo,
+        'showAddress': showAddress,
+        'showPhone': showPhone,
+        'showPrices': showPrices,
+        'showTotals': showTotals,
+        'showPayment': showPayment,
+        'showQr': showQr,
+        'showCustomer': showCustomer,
+      };
+
+  factory SlipTemplate.fromJson(Map<String, dynamic>? j, SlipTemplate fallback) {
+    final m = j ?? const {};
+    return SlipTemplate(
+      heading: parseStr(m['heading']) ?? fallback.heading,
+      showLogo: parseBool(m['showLogo'], fallback.showLogo),
+      showAddress: parseBool(m['showAddress'], fallback.showAddress),
+      showPhone: parseBool(m['showPhone'], fallback.showPhone),
+      showPrices: parseBool(m['showPrices'], fallback.showPrices),
+      showTotals: parseBool(m['showTotals'], fallback.showTotals),
+      showPayment: parseBool(m['showPayment'], fallback.showPayment),
+      showQr: parseBool(m['showQr'], fallback.showQr),
+      showCustomer: parseBool(m['showCustomer'], fallback.showCustomer),
+    );
+  }
+
+  static SlipTemplate kitchen() => SlipTemplate(
+        heading: 'KITCHEN TICKET',
+        showLogo: false,
+        showAddress: false,
+        showPhone: false,
+        showPrices: false,
+        showTotals: false,
+        showPayment: false,
+        showQr: false,
+        showCustomer: true,
+      );
+
+  static SlipTemplate counter() => SlipTemplate(heading: 'CASH RECEIPT');
+
+  static SlipTemplate takeaway() => SlipTemplate(heading: 'TAKEAWAY RECEIPT');
+
+  static SlipTemplate delivery() => SlipTemplate(heading: 'DELIVERY RECEIPT');
+}
