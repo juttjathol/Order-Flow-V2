@@ -91,17 +91,12 @@ class PrintService {
     if (order.note?.isNotEmpty == true) b.text('Note: ${order.note}');
     b.rule();
     for (final line in order.lines) {
-      final name = line.productName;
-      final qty = line.qty;
-      final price = line.unitPrice;
-      final total = line.lineTotal;
       if (kitchen) {
-        b.row('${qty}x $name', '');
-        if (line.note?.isNotEmpty == true) b.text('  ${line.note}');
+        b.row('${line.qty % 1 == 0 ? line.qty.toInt() : line.qty}x ${line.name}', '');
+        if (line.notes.isNotEmpty) b.text('  ${line.notes}');
       } else {
-        b.row('${qty}x $name', m(total));
-        if (slip.showUnitPrices) b.text('  ${m(price)} each');
-        if (line.note?.isNotEmpty == true) b.text('  ${line.note}');
+        b.row('${line.qty % 1 == 0 ? line.qty.toInt() : line.qty}x ${line.name}', m(line.lineTotal));
+        if (line.notes.isNotEmpty) b.text('  ${line.notes}');
       }
     }
     b.rule();
