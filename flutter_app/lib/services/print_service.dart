@@ -86,38 +86,62 @@ class PrintService {
     } else {
       b.text(order.type.name.toUpperCase());
     }
-    if (order.customerName?.isNotEmpty == true) b.text(order.customerName!);
-    if (order.customerPhone?.isNotEmpty == true) b.text(order.customerPhone!);
-    if (order.note?.isNotEmpty == true) b.text('Note: ${order.note}');
-    b.rule();
-    for (final line in order.lines) {
-      if (kitchen) {
-        b.row('${line.qty % 1 == 0 ? line.qty.toInt() : line.qty}x ${line.name}', '');
-        if (line.notes.isNotEmpty) b.text('  ${line.notes}');
+    if (slip.showCustomer) {
+      if (order.customerName.isNotEmpty) b.text(order.customerName);
+      if (order.customerPhone.isNotEmpty) b.text(order.customerPhone);
+      if (order.type == OrderType.delivery && order.address.isNotEmpty) {
+        b.text(order.address);
+      }
+    }
+    if (order.createdBy.isNotEmpty && kitchen) b.text('Station: ${order.createdBy}');
+    b.stars();
+    if (slip.showPrices) {
+      b.row('Description', 'Price');
+    }
+    final lines = [...order.lines]..sort((a, c) => a.course.compareTo(c.course));
+    String? last;
+    for (final line in lines) {
+      if (kitchen && last != line.course) {
+        last = line.course;
+        b.text('-- ${line.course.toUpperCase()} --');
+      }
+      final qty = line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1);
+      if (slip.showPrices) {
+        b.row('$qty ${line.name}', m(line.lineTotal));
       } else {
-        b.row('${line.qty % 1 == 0 ? line.qty.toInt() : line.qty}x ${line.name}', m(line.lineTotal));
-        if (line.notes.isNotEmpty) b.text('  ${line.notes}');
+        b.text('$qty x ${line.name}');
       }
+      if (line.notes.isNotEmpty) b.text('  * ${line.notes}');
     }
-    b.rule();
-    if (!kitchen) {
-      b.row('Subtotal', m(order.subtotal));
-      if (order.discount > 0) b.row('Discount', '-${m(order.discount)}');
+    if (order.notes.isNotEmpty) {
+      b
+        ..stars()
+        ..text('NOTE: ${order.notes}');
+    }
+    if (slip.showTotals) {
+      b
+        ..stars()
+        ..doubleSize(true)
+        ..row('Total', m(order.total))
+        ..doubleSize(false);
+      if (order.discount > 0) b.row('Discount', '- ${m(order.discount)}');
+      if (order.service > 0) b.row('Service', m(order.service));
       if (order.tax > 0) b.row('Tax', m(order.tax));
-      b.doubleSize(true);
-      b.row('TOTAL', m(order.total));
-      b.doubleSize(false);
-      if (order.paymentMethod != null) b.text('Paid: ${order.paymentMethod}');
-      if (slip.footer.isNotEmpty) {
-        b.align('center');
-        b.text(slip.footer);
-      }
-    } else {
-      b.align('center');
-      b.text('--- KITCHEN ---');
+      if (order.tip > 0) b.row('Tip', m(order.tip));
     }
-    b.feed(3);
-    b.cut();
+    if (slip.showPayment && order.payment != null) {
+      b.row(order.payment!.name, m(order.total));
+    }
+    b.stars();
+    b.align('center');
+    if (p.footer.isNotEmpty) b.text(p.footer.toUpperCase());
+    if (slip.showQr) {
+      _raster(b, p.payQrBase64);
+      if (p.payQrLabel.trim().isNotEmpty) b.text(p.payQrLabel.trim());
+    }
+    b
+      ..feed(4)
+      ..cut();
     return b.bytes;
   }
 
