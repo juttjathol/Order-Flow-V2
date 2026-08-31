@@ -21,6 +21,8 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
                 if (!ensureConnectPermission(result)) return
                 try {
                     result.success(bondedList())
+                } catch (e: SecurityException) {
+                    result.error("bt_permission", "Bluetooth permission needed", null)
                 } catch (e: Exception) {
                     result.error("bt_list", e.message, null)
                 }
@@ -67,6 +69,11 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
 
     private fun bondedList(): List<Map<String, String>> {
         val ad = adapter() ?: return emptyList()
+        if (Build.VERSION.SDK_INT >= 31) {
+            val ok = activity.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+                PackageManager.PERMISSION_GRANTED
+            if (!ok) throw SecurityException("BLUETOOTH_CONNECT")
+        }
         return ad.bondedDevices.orEmpty().map { d ->
             mapOf(
                 "name" to (d.name ?: "Printer"),

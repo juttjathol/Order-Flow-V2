@@ -11,16 +11,22 @@ class BtDevice {
 class BluetoothPrinter {
   static const _ch = MethodChannel('jathol/printer');
 
+  /// Paired Classic Bluetooth devices. Throws [PlatformException] with code
+  /// `bt_permission` when Android 12+ needs Nearby devices permission.
   Future<List<BtDevice>> bonded() async {
-    final raw = await _ch.invokeMethod<List<dynamic>>('bonded');
-    return (raw ?? const [])
-        .whereType<Map>()
-        .map((e) => BtDevice(
-              name: (e['name'] ?? 'Printer').toString(),
-              address: (e['address'] ?? '').toString(),
-            ))
-        .where((d) => d.address.isNotEmpty)
-        .toList();
+    try {
+      final raw = await _ch.invokeMethod<List<dynamic>>('bonded');
+      return (raw ?? const [])
+          .whereType<Map>()
+          .map((e) => BtDevice(
+                name: (e['name'] ?? 'Printer').toString(),
+                address: (e['address'] ?? '').toString(),
+              ))
+          .where((d) => d.address.isNotEmpty)
+          .toList();
+    } on PlatformException {
+      rethrow;
+    }
   }
 
   Future<void> printBytes(String address, List<int> bytes) async {
