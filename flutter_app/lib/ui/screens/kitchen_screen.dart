@@ -50,68 +50,44 @@ class KitchenScreen extends ConsumerWidget {
           ? EmptyState(icon: Icons.soup_kitchen, message: s.t('no_orders'))
           : GridView.builder(
               padding: const EdgeInsets.all(20),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: gridCount(context, phone: 1, tablet: 3),
-                mainAxisExtent: 380,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-              ),
+              gridDelegate: finalGrid(context),
               itemCount: orders.length,
               itemBuilder: (_, i) {
                 final o = orders[i];
                 final mins = DateTime.now().difference(o.sentAt ?? o.createdAt).inMinutes;
                 final ageColor = mins >= 15 ? OfColors.danger : mins >= 8 ? OfColors.warn : OfColors.mint;
-                final lines = ([...o.lines.where((l) => o.lines.every((x) => !x.fired) || l.fired)]
-                  ..sort((a, b) => a.course.compareTo(b.course)));
+                final lines = (List<OrderLine>.from(o.lines))
+                  ..sort((a, b) => a.course.compareTo(b.course));
                 return OfCard(
-                  onTap: () => context.push('/order/${o.id}'),
-                  padding: EdgeInsets.zero,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                        decoration: BoxDecoration(
-                          color: ageColor.withValues(alpha: 0.18),
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(o.ticketNo, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 28, color: ageColor)),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                o.tableName ?? (o.type == OrderType.dineIn ? s.t('dine_in') : s.t(o.type.name)),
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                              ),
-                            ),
-                            StatusChip('${mins}m', color: ageColor),
-                          ],
-                        ),
+                      ListTile(
+                        contentPadding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+                        title: Text('${o.ticketNo}${o.tableName == null || o.tableName!.isEmpty ? '' : ' · ${o.tableName}'}',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                        subtitle: Text(_age(o), style: TextStyle(color: ageColor, fontWeight: FontWeight.w700)),
+                        trailing: StatusChip(o.status.name.toUpperCase(), color: ageColor),
                       ),
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                          child: ListView(
-                            children: lines
-                                .map((l) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 8),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          StatusChip(s.t('course_${l.course}'), color: OfColors.gold),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              '${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}',
-                                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                                            ),
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          children: lines
+                              .map((l) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}',
+                                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                           ),
-                                        ],
-                                      ),
-                                    ))
-                                .toList(),
-                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ))
+                              .toList(),
                         ),
                       ),
                       Padding(
@@ -127,7 +103,7 @@ class KitchenScreen extends ConsumerWidget {
                             IconButton(
                               onPressed: () async {
                                 try {
-                                  await ref.ctrl.printer.kitchenTicket(ref.snap.store, o, role: ref.snap.session.role);
+                                  await ref.ctrl.printer.kitchenTicket(ref.snap.store, o, role: ref.snap.session.role, prefer: ref.ctrl.deviceLocalPrinter());
                                 } catch (_) {}
                               },
                               icon: const Icon(Icons.print),
@@ -140,6 +116,19 @@ class KitchenScreen extends ConsumerWidget {
                 );
               },
             ),
+    );
+  }
+
+  SliverGridDelegateWithFixedCrossAxisCount finalGrid(BuildContext context) {
+    return remainingGrid(context);
+  }
+
+  SliverGridDelegateWithFixedCrossAxisCount remainingGrid(BuildContext context) {
+    return SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: gridCount(context, phone: 1, tablet: 3),
+      mainAxisExtent: 380,
+      mainAxisSpacing: 16,
+      crossAxisSpacing: 16,
     );
   }
 
