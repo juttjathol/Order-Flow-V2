@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
@@ -394,55 +395,75 @@ const _printRoles = <(AppRole, String)>[
   (AppRole.specialist, 'role_specialist'),
 ];
 
-Future<void> _savePrinters(
-  WidgetRef ref,
-  List<PrinterConfig> printers,
-  Map<String, String> rolePrinters,
-) async {
-  PrinterConfig? kitchen;
-  PrinterConfig? receipt;
-  final kid = rolePrinters[AppRole.kitchen.name];
-  final rid = rolePrinters[AppRole.cashier.name] ?? rolePrinters[AppRole.main.name];
-  for (final p in printers) {
-    if (p.id == kid) kitchen = p;
-    if (p.id == rid) receipt = p;
-  }
-  await ref.ctrl.dispatch(NetCommand(name: 'setPrinters', payload: {
-    'printers': printers.map((e) => e.toJson()).toList(),
-    'rolePrinters': rolePrinters,
-    if (kitchen != null) 'kitchen': kitchen.toJson(),
-    if (receipt != null) 'receipt': receipt.toJson(),
-  }));
-}
 
 Future<void> _printers(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
-  ref.snap.store.ensurePrinters();
-  var printers = ref.snap.store.printers.map((e) => e.copy()).toList();
-  var roleMap = Map<String, String>.from(ref.snap.store.rolePrinters);
   List<BtDevice> bonded = const [];
   var btErr = '';
+  var loading = true;
+  var started = false;
+  var selectedAddress = ref.read(appControllerProvider).session.localBtAddress;
+  var selectedName = ref.read(appControllerProvider).session.localBtName;
+  var enabled = ref.read(appControllerProvider).session.localBtEnabled;
+
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setSt) {
         Future<void> loadBt() async {
-          try {
-            bonded = await BluetoothPrinter().bonded();
+          setSt(() {
+            loading = true;
             btErr = '';
+          });
+          try {
+            final connect = await Permission.bluetoothConnect.request();
+            if (connect.isPermanentlyDenied) {
+              btErr = s.t('bt_permission_settings');
+              bonded = const [];
+              if (ctx.mounted) setSt(() => loading = false);
+              return;
+            }
+            if (!connect.isGranted && !connect.isLimited) {
+            }
+            bonded = await BluetoothPrinter().bonded();
+            btErr = bonded.isEmpty ? s.t('no_bt_printers') : '';
+          } on PlatformException catch (e) {
+            bonded = const [];
+            if (e.code == 'bt_permission') {
+              btErr = s.t('bt_permission_retry');
+            } else {
+              btErr = e.message?.isNotEmpty == true ? e.message! : s.t('bluetooth_off');
+            }
           } catch (_) {
             bonded = const [];
             btErr = s.t('bluetooth_off');
           }
-          if (ctx.mounted) setSt(() {});
+          if (ctx.mounted) setSt(() => loading = false);
         }
 
-        Future<void> testOne(PrinterConfig p) async {
+        if (!started) {
+          started = true;
+          Future.microtask(loadBt);
+        }
+
+        Future<void> testLocal() async {
+          final addr = selectedAddress.trim();
+          if (addr.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('no_bt_printers'))));
+            return;
+          }
           try {
-            await ref.ctrl.printer.test(p.copy()..enabled = true, ref.snap.store.profile.businessName);
+            final cfg = PrinterConfig(
+              name: selectedName.isEmpty ? 'Bluetooth' : selectedName,
+              enabled: true,
+              transport: 'bluetooth',
+              btAddress: addr,
+              btName: selectedName,
+            );
+            await ref.ctrl.printer.test(cfg, ref.snap.store.profile.businessName);
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok')));
             }
           } catch (_) {
             if (context.mounted) {
@@ -454,148 +475,108 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
           child: SizedBox(
-            height: MediaQuery.sizeOf(ctx).height * 0.86,
+            height: MediaQuery.sizeOf(ctx).height * 0.75,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(s.t('printers'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-                const SizedBox(height: 4),
-                Text(s.t('printers_hint'), style: const TextStyle(color: OfColors.muted)),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      ...printers.map((p) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: OfCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                SwitchListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  value: p.enabled,
-                                  onChanged: (v) => setSt(() => p.enabled = v),
-                                  title: TextField(
-                                    controller: TextEditingController(text: p.name)
-                                      ..selection = TextSelection.collapsed(offset: p.name.length),
-                                    decoration: InputDecoration(labelText: s.t('printer_name')),
-                                    onChanged: (v) => p.name = v,
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    ChoiceChip(
-                                      label: Text(s.t('printer_lan')),
-                                      selected: !p.isBluetooth,
-                                      onSelected: (_) => setSt(() => p.transport = 'lan'),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ChoiceChip(
-                                      label: Text(s.t('printer_bluetooth')),
-                                      selected: p.isBluetooth,
-                                      onSelected: (_) async {
-                                        setSt(() => p.transport = 'bluetooth');
-                                        await loadBt();
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                if (!p.isBluetooth)
-                                  TextField(
-                                    controller: TextEditingController(text: p.host)
-                                      ..selection = TextSelection.collapsed(offset: p.host.length),
-                                    decoration: const InputDecoration(hintText: '192.168.1.50'),
-                                    onChanged: (v) => p.host = v.trim(),
-                                  )
-                                else ...[
-                                  Text(s.t('bt_pair_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
-                                  if (btErr.isNotEmpty) Text(btErr, style: const TextStyle(color: Colors.orange)),
-                                  TextButton(onPressed: loadBt, child: Text(s.t('pick_bt_printer'))),
-                                  if (bonded.isEmpty) Text(s.t('no_bt_printers'), style: const TextStyle(color: OfColors.muted)),
-                                  ...bonded.map((d) {
-                                    final sel = p.btAddress == d.address;
-                                    return ListTile(
-                                      dense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      title: Text(d.name),
-                                      subtitle: Text(d.address),
-                                      trailing: sel ? const Icon(Icons.check, color: OfColors.emerald) : null,
-                                      onTap: () => setSt(() {
-                                        p.btAddress = d.address;
-                                        p.btName = d.name;
-                                        if (p.name.trim().isEmpty) p.name = d.name;
-                                      }),
-                                    );
-                                  }),
-                                ],
-                                Row(
-                                  children: [
-                                    TextButton(onPressed: () => testOne(p), child: Text(s.t('test_print'))),
-                                    const Spacer(),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline),
-                                      onPressed: () => setSt(() {
-                                        printers = printers.where((e) => e.id != p.id).toList();
-                                        roleMap.removeWhere((_, id) => id == p.id);
-                                      }),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                      OutlinedButton.icon(
-                        onPressed: () => setSt(() {
-                          printers = [
-                            ...printers,
-                            PrinterConfig(name: '${s.t('printers')} ${printers.length + 1}', enabled: true),
-                          ];
-                        }),
-                        icon: const Icon(Icons.add),
-                        label: Text(s.t('add_printer')),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(s.t('role_printers'), style: const TextStyle(fontWeight: FontWeight.w800)),
-                      Text(s.t('role_printers_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
-                      const SizedBox(height: 8),
-                      ..._printRoles.map((row) {
-                        final role = row.$1;
-                        final current = roleMap[role.name] ?? '';
-                        final ids = printers.map((e) => e.id).toSet();
-                        final value = ids.contains(current) ? current : '';
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: DropdownButtonFormField<String>(
-                            value: value,
-                            decoration: InputDecoration(labelText: s.t(row.$2)),
-                            items: [
-                              DropdownMenuItem(value: '', child: Text(s.t('none'))),
-                              ...printers.map(
-                                (p) => DropdownMenuItem(value: p.id, child: Text(p.label)),
-                              ),
-                            ],
-                            onChanged: (id) => setSt(() {
-                              if (id == null || id.isEmpty) {
-                                roleMap.remove(role.name);
-                              } else {
-                                roleMap[role.name] = id;
-                              }
-                            }),
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
+                Text(s.t('station_bt_printer'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                const SizedBox(height: 6),
+                Text(
+                  s.t('station_bt_printer_hint'),
+                  style: const TextStyle(color: OfColors.muted, height: 1.35),
                 ),
-                FilledButton(
-                  onPressed: () async {
-                    await _savePrinters(ref, printers, roleMap);
-                    if (ctx.mounted) Navigator.pop(ctx);
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(s.t('use_this_bt_printer')),
+                  subtitle: Text(
+                    selectedAddress.isEmpty
+                        ? s.t('no_bt_selected')
+                        : (selectedName.isEmpty ? selectedAddress : '$selectedName · $selectedAddress'),
+                  ),
+                  value: enabled && selectedAddress.isNotEmpty,
+                  onChanged: (v) async {
+                    if (v && selectedAddress.isEmpty) {
+                      setSt(() => btErr = s.t('pick_bt_first'));
+                      return;
+                    }
+                    enabled = v;
+                    setSt(() {});
+                    if (v) {
+                      await ref.ctrl.setLocalBluetoothPrinter(
+                        address: selectedAddress,
+                        name: selectedName,
+                        enabled: true,
+                      );
+                    } else {
+                      await ref.ctrl.clearLocalBluetoothPrinter();
+                    }
                   },
-                  child: Text(s.t('save')),
+                ),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: loading ? null : loadBt,
+                      icon: loading
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.refresh),
+                      label: Text(s.t('pick_bt_printer')),
+                    ),
+                    const Spacer(),
+                    TextButton(onPressed: testLocal, child: Text(s.t('test_print'))),
+                  ],
+                ),
+                if (btErr.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(btErr, style: const TextStyle(color: Colors.orange, height: 1.3)),
+                  ),
+                if (btErr == s.t('bt_permission_settings') || btErr == s.t('bt_permission_retry'))
+                  TextButton(
+                    onPressed: () => openAppSettings(),
+                    child: Text(s.t('open_app_settings')),
+                  ),
+                Expanded(
+                  child: loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : bonded.isEmpty
+                          ? Center(child: Text(s.t('no_bt_printers'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)))
+                          : ListView.builder(
+                              itemCount: bonded.length,
+                              itemBuilder: (_, i) {
+                                final d = bonded[i];
+                                final sel = selectedAddress == d.address;
+                                return ListTile(
+                                  leading: Icon(Icons.print, color: sel ? OfColors.emerald : OfColors.muted),
+                                  title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  subtitle: Text(d.address),
+                                  trailing: sel ? const Icon(Icons.check_circle, color: OfColors.emerald) : null,
+                                  onTap: () async {
+                                    selectedAddress = d.address;
+                                    selectedName = d.name;
+                                    enabled = true;
+                                    setSt(() {});
+                                    await ref.ctrl.setLocalBluetoothPrinter(
+                                      address: d.address,
+                                      name: d.name,
+                                      enabled: true,
+                                    );
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(s.t('bt_printer_saved'))),
+                                      );
+                                    }
+                                  },
+                                );
+                              },
+                            ),
+                ),
+                const SizedBox(height: 8),
+                Text(s.t('station_bt_note'), style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.35)),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(s.t('done')),
                 ),
               ],
             ),
