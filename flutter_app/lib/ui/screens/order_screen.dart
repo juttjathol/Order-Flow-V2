@@ -199,6 +199,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             itemCount: products.length,
             itemBuilder: (_, i) {
               final p = products[i];
+              final picked = order.lines.where((l) => l.productId == p.id).fold<double>(0, (a, l) => a + l.qty);
               return OfCard(
                 padding: const EdgeInsets.all(8),
                 onTap: locked || !p.available ? null : () => _add(order, p),
@@ -210,7 +211,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                         fit: StackFit.expand,
                         children: [
                           Center(child: ProductImage(p.imageBase64, size: 72)),
-                          if (!p.available) Align(alignment: Alignment.topRight, child: StatusChip('86', color: OfColors.danger)),
+                          if (!p.available) Align(alignment: Alignment.topLeft, child: StatusChip('86', color: OfColors.danger)),
+                          if (picked > 0)
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: _PickBadge(qty: picked),
+                            ),
                         ],
                       ),
                     ),
@@ -853,5 +859,34 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
     }
+  }
+}
+
+class _PickBadge extends StatelessWidget {
+  const _PickBadge({required this.qty});
+  final double qty;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(1);
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 260),
+      switchInCurve: Curves.elasticOut,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: FadeTransition(opacity: anim, child: child)),
+      child: Container(
+        key: ValueKey(label),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: OfColors.mint,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 8, offset: Offset(0, 2))],
+        ),
+        child: Text(
+          '×$label',
+          style: const TextStyle(color: Color(0xFF051912), fontWeight: FontWeight.w900, fontSize: 13),
+        ),
+      ),
+    );
   }
 }
