@@ -334,6 +334,8 @@ class ShopCustomer {
     this.phone = '',
     this.address = '',
     this.notes = '',
+    this.points = 0,
+    this.credit = 0,
   });
 
   String id;
@@ -341,6 +343,8 @@ class ShopCustomer {
   String phone;
   String address;
   String notes;
+  double points;
+  double credit;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -348,6 +352,8 @@ class ShopCustomer {
         'phone': phone,
         'address': address,
         'notes': notes,
+        'points': points,
+        'credit': credit,
       };
 
   factory ShopCustomer.fromJson(Map<String, dynamic> j) => ShopCustomer(
@@ -356,6 +362,8 @@ class ShopCustomer {
         phone: parseStr(j['phone']) ?? '',
         address: parseStr(j['address']) ?? '',
         notes: parseStr(j['notes']) ?? '',
+        points: parseNum(j['points']),
+        credit: parseNum(j['credit']),
       );
 }
 

@@ -88,6 +88,39 @@ Future<void> moveTicket(BuildContext context, WidgetRef ref, PosOrder order) asy
   }
 }
 
+Future<void> evenSplit(BuildContext context, WidgetRef ref, PosOrder order) async {
+  final s = ref.s;
+  var n = 2;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSt) {
+        final each = n <= 0 ? 0.0 : order.total / n;
+        return AlertDialog(
+          title: Text(s.t('even_split')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<int>(
+                value: n,
+                items: [2, 3, 4, 5, 6, 7, 8].map((v) => DropdownMenuItem(value: v, child: Text('$v'))).toList(),
+                onChanged: (v) => setSt(() => n = v ?? 2),
+              ),
+              const SizedBox(height: 12),
+              Text(moneyOf(ref.snap, each), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 22)),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('ok'))),
+          ],
+        );
+      },
+    ),
+  );
+  if (ok != true) return;
+}
+
 Future<void> mergeTicket(BuildContext context, WidgetRef ref, PosOrder order) async {
   final s = ref.s;
   final others = ref.snap.store.openOrders.where((o) => o.id != order.id).toList();

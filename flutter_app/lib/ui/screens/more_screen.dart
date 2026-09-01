@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -32,6 +33,8 @@ class MoreScreen extends ConsumerWidget {
         _row(Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
       if (model == BusinessModel.services)
         _row(Icons.spa, s.t('services'), () => _services(context, ref)),
+      if (model == BusinessModel.restaurant || model == BusinessModel.services)
+        _row(Icons.event, s.t('appointments'), () => _reservations(context, ref)),
     ];
     final shop = <Widget>[
       if (snap.isMain) _row(Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
@@ -40,6 +43,10 @@ class MoreScreen extends ConsumerWidget {
     final reports = <Widget>[
       _row(Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
       _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
+      _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false)),
+      _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true)),
+      _row(Icons.block, s.t('eighty_six_board'), () => _eightySixBoard(context, ref)),
+      _row(Icons.hourglass_bottom, s.t('unpaid_tabs'), () => _unpaidTabs(context, ref)),
       if (snap.isMain || snap.isManager) _row(Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
     ];
     final data = <Widget>[
@@ -616,7 +623,12 @@ Future<void> _customers(BuildContext context, WidgetRef ref) async {
                         children: list
                             .map((c) => ListTile(
                                   title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  subtitle: Text([c.phone, c.address].where((e) => e.isNotEmpty).join(' · ')),
+                                  subtitle: Text([
+                                    c.phone,
+                                    c.address,
+                                    if (c.points > 0) '${s.t('loyalty')} ${c.points.toStringAsFixed(0)}',
+                                    if (c.credit > 0) '${s.t('store_credit')} ${moneyOf(ref.snap, c.credit)}',
+                                  ].where((e) => e.isNotEmpty).join(' · ')),
                                   onTap: () => _editCustomer(ctx, ref, existing: c),
                                   trailing: IconButton(
                                     icon: const Icon(Icons.delete_outline),
@@ -639,17 +651,23 @@ Future<void> _editCustomer(BuildContext context, WidgetRef ref, {ShopCustomer? e
   final name = TextEditingController(text: existing?.name ?? '');
   final phone = TextEditingController(text: existing?.phone ?? '');
   final address = TextEditingController(text: existing?.address ?? '');
+  final points = TextEditingController(text: (existing?.points ?? 0).toStringAsFixed(0));
+  final credit = TextEditingController(text: (existing?.credit ?? 0).toString());
   final ok = await showDialog<bool>(
     context: context,
     builder: (d) => AlertDialog(
       title: Text(s.t('customers_book')),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(controller: name, decoration: InputDecoration(labelText: s.t('customer_name'))),
-          TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone'))),
-          TextField(controller: address, decoration: InputDecoration(labelText: s.t('address'))),
-        ],
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: name, decoration: InputDecoration(labelText: s.t('customer_name'))),
+            TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone'))),
+            TextField(controller: address, decoration: InputDecoration(labelText: s.t('address'))),
+            TextField(controller: points, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: s.t('loyalty'))),
+            TextField(controller: credit, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('store_credit'))),
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
@@ -664,6 +682,9 @@ Future<void> _editCustomer(BuildContext context, WidgetRef ref, {ShopCustomer? e
         name: name.text.trim(),
         phone: phone.text.trim(),
         address: address.text.trim(),
+        notes: existing?.notes ?? '',
+        points: double.tryParse(points.text) ?? 0,
+        credit: double.tryParse(credit.text) ?? 0,
       ).toJson(),
     }));
   }
@@ -1041,6 +1062,155 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
           ),
         ],
       ),
+    ),
+  );
+}
+
+
+Future<void> _eightySixBoard(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final off = ref.snap.store.products.where((p) => !p.available).toList();
+        return SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.62,
+          child: Column(
+            children: [
+              ListTile(title: Text(s.t('eighty_six_board'), style: const TextStyle(fontWeight: FontWeight.w800))),
+              Expanded(
+                child: off.isEmpty
+                    ? EmptyState(icon: Icons.check_circle, message: s.t('empty'))
+                    : ListView(
+                        children: off
+                            .map((p) => ListTile(
+                                  title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  trailing: TextButton(
+                                    onPressed: () => eightySix(ctx, ref, p),
+                                    child: Text(s.t('available')),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _unpaidTabs(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final list = ref.snap.store.orders
+            .where((o) => o.status == OrderStatus.served || o.status == OrderStatus.ready)
+            .toList();
+        return SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.62,
+          child: Column(
+            children: [
+              ListTile(title: Text(s.t('unpaid_tabs'), style: const TextStyle(fontWeight: FontWeight.w800))),
+              Expanded(
+                child: list.isEmpty
+                    ? EmptyState(icon: Icons.payments, message: s.t('empty'))
+                    : ListView(
+                        children: list
+                            .map((o) => ListTile(
+                                  title: Text('${o.ticketNo}  ${o.tableName ?? o.customerName}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  subtitle: Text(s.t(o.status.name)),
+                                  trailing: Text(moneyOf(ref.snap, o.total), style: const TextStyle(fontWeight: FontWeight.w800)),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    context.push('/order/${o.id}');
+                                  },
+                                ))
+                            .toList(),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _reservations(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final list = [...ref.snap.store.appointments]..sort((a, b) => a.start.compareTo(b.start));
+        return SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.7,
+          child: Column(
+            children: [
+              ListTile(
+                title: Text(s.t('appointments'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () async {
+                    final name = TextEditingController();
+                    final phone = TextEditingController();
+                    final ok = await showDialog<bool>(
+                      context: ctx,
+                      builder: (d) => AlertDialog(
+                        title: Text(s.t('add_appointment')),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextField(controller: name, decoration: InputDecoration(labelText: s.t('customer_name'))),
+                            TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone'))),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+                          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('book'))),
+                        ],
+                      ),
+                    );
+                    if (ok != true || name.text.trim().isEmpty) return;
+                    final staffId = ref.snap.store.staff.isEmpty ? '' : ref.snap.store.staff.first.id;
+                    final serviceId = ref.snap.store.services.isEmpty ? '' : ref.snap.store.services.first.id;
+                    await ref.ctrl.dispatch(NetCommand(name: 'upsertAppointment', payload: {
+                      'appointment': Appointment(
+                        id: newId(),
+                        serviceId: serviceId,
+                        staffId: staffId,
+                        customerName: name.text.trim(),
+                        customerPhone: phone.text.trim(),
+                      ).toJson(),
+                    }));
+                  },
+                ),
+              ),
+              Expanded(
+                child: list.isEmpty
+                    ? EmptyState(icon: Icons.event_busy, message: s.t('no_appts'))
+                    : ListView(
+                        children: list
+                            .map((a) => ListTile(
+                                  title: Text(a.customerName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                  subtitle: Text('${a.start.hour.toString().padLeft(2, '0')}:${a.start.minute.toString().padLeft(2, '0')}  ${a.customerPhone}'),
+                                  trailing: StatusChip(a.status, color: OfColors.emerald),
+                                ))
+                            .toList(),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
 }

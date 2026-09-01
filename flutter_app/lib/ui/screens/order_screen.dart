@@ -709,6 +709,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           children: [
             ListTile(title: Text(order.held ? s.t('unhold') : s.t('hold')), leading: const Icon(Icons.pause_circle), onTap: () { Navigator.pop(ctx); _toggleHold(order); }),
             if (canPay) ListTile(title: Text(s.t('split_bill')), leading: const Icon(Icons.call_split), onTap: () { Navigator.pop(ctx); _split(order); }),
+            if (canPay) ListTile(title: Text(s.t('even_split')), leading: const Icon(Icons.pie_chart), onTap: () { Navigator.pop(ctx); evenSplit(context, ref, order); }),
             if (canPay) ListTile(title: Text(s.t('discount')), leading: const Icon(Icons.percent), onTap: () { Navigator.pop(ctx); applyDiscount(context, ref, order); }),
             if (canPay) ListTile(title: Text(s.t('comp_meal')), leading: const Icon(Icons.card_giftcard), onTap: () { Navigator.pop(ctx); compTicket(context, ref, order); }),
             ListTile(title: Text(s.t('move_table')), leading: const Icon(Icons.swap_horiz), onTap: () { Navigator.pop(ctx); moveTicket(context, ref, order); }),

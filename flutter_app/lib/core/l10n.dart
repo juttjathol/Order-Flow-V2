@@ -484,6 +484,11 @@ class L10n {
     'license_enter_key': 'Enter your 16-character license key to activate',
     'server_keep_title': 'Shop server running',
     'server_keep_body': 'Stations can stay connected. Do not swipe this app away.',
+    'loyalty': 'Loyalty points',
+    'store_credit': 'Store credit',
+    'eighty_six_board': '86 board',
+    'unpaid_tabs': 'Unpaid tabs',
+    'even_split': 'Split evenly',
   };
 
   static const _ur = {
@@ -903,6 +908,11 @@ class L10n {
     'mod_extra': 'ایڈ آن',
     'server_keep_title': 'شاپ سرور چل رہا ہے',
     'server_keep_body': 'سٹیشنز جڑی رہ سکتی ہیں۔ اس ایپ کو سوائپ کر کے بند نہ کریں۔',
+    'loyalty': 'وفاداری پوائنٹس',
+    'store_credit': 'اسٹور کریڈٹ',
+    'eighty_six_board': '۸۶ بورڈ',
+    'unpaid_tabs': 'غیر ادا شدہ ٹیب',
+    'even_split': 'برابر تقسیم',
   };
 
   static const _table = {'en': _en, 'ur': _ur};
