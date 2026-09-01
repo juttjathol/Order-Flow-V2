@@ -98,7 +98,15 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       child: SegmentedButton<int>(
                         segments: [
                           ButtonSegment(value: 0, label: Text(s.t('menu')), icon: const Icon(Icons.restaurant_menu)),
-                          ButtonSegment(value: 1, label: Text(s.t('ticket')), icon: const Icon(Icons.receipt_long)),
+                          ButtonSegment(
+                            value: 1,
+                            label: Text(
+                              order.lines.isEmpty
+                                  ? s.t('ticket')
+                                  : '${s.t('ticket')} (${order.lines.fold<int>(0, (n, l) => n + l.qty.round())})',
+                            ),
+                            icon: const Icon(Icons.receipt_long),
+                          ),
                         ],
                         selected: {phoneTab},
                         onSelectionChanged: (v) => setState(() => phoneTab = v.first),

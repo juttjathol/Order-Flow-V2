@@ -23,45 +23,34 @@ class MoreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.s;
     final snap = ref.snap;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        OfCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.storefront, color: OfColors.emerald),
-            title: Text(snap.store.profile.businessName, style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text('${s.t(snap.store.model.name == 'services' ? 'services_model' : snap.store.model.name)} · ${s.t('currency')} ${snap.currency}'),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _h(s.t('shop_section')),
-        if (snap.isMain)
-          _tile(context, Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
-        if (snap.isMain || snap.isManager)
-          _tile(context, Icons.receipt_long, s.t('bill_profile'), () => _bill(context, ref)),
-        _h(s.t('hardware_section')),
-        _tile(context, Icons.print, s.t('printers'), () => _printers(context, ref)),
-        _h(s.t('people_section')),
-        _tile(context, Icons.people, s.t('customers_book'), () => _customers(context, ref)),
-        _tile(context, Icons.account_balance_wallet, s.t('shift'), () => _shiftCash(context, ref)),
-        _tile(context, Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
-        _tile(context, Icons.badge, s.t('staff'), () => _staff(context, ref)),
-        _tile(context, Icons.spa, s.t('services'), () => _services(context, ref)),
-        _h(s.t('reports_section')),
-        _tile(context, Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
-        _tile(context, Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
-        if (snap.isMain || snap.isManager) _tile(context, Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
-        _h(s.t('account_section')),
-        _tile(context, Icons.backup, s.t('export_backup'), () async {
-          await ref.ctrl.backup.exportAndShare(snap.store);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('backup_ok'))));
-          }
-        }),
-        if (snap.isMain)
-        _tile(context, Icons.unarchive, s.t('import_backup'), () async {
-          if (!snap.isMain) return;
+    final model = snap.store.model;
+    final people = <Widget>[
+      _row(Icons.people, s.t('customers_book'), () => _customers(context, ref)),
+      _row(Icons.account_balance_wallet, s.t('shift'), () => _shiftCash(context, ref)),
+      _row(Icons.badge, s.t('staff'), () => _staff(context, ref)),
+      if (model == BusinessModel.restaurant || model == BusinessModel.fastfood)
+        _row(Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
+      if (model == BusinessModel.services)
+        _row(Icons.spa, s.t('services'), () => _services(context, ref)),
+    ];
+    final shop = <Widget>[
+      if (snap.isMain) _row(Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
+      if (snap.isMain || snap.isManager) _row(Icons.receipt_long, s.t('bill_profile'), () => _bill(context, ref)),
+    ];
+    final reports = <Widget>[
+      _row(Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
+      _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
+      if (snap.isMain || snap.isManager) _row(Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
+    ];
+    final data = <Widget>[
+      _row(Icons.ios_share, s.t('export_backup'), () async {
+        await ref.ctrl.backup.exportAndShare(snap.store);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('backup_ok'))));
+        }
+      }),
+      if (snap.isMain)
+        _row(Icons.unarchive, s.t('import_backup'), () async {
           final ok = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -88,50 +77,85 @@ class MoreScreen extends ConsumerWidget {
             }
           }
         }),
-        if (snap.isMain) _tile(context, Icons.vpn_key, s.t('license'), () => _license(context, ref)),
-        _tile(context, Icons.manage_accounts, s.t('roles'), () => leaveRoleWithPin(context, ref)),
-        _tile(context, Icons.language, s.t('language'), () {
-          ref.ctrl.setLocale(snap.session.locale == 'en' ? 'ur' : 'en');
-        }),
-        _tile(context, Icons.brightness_6, s.t('theme'), () {
-          final next = switch (snap.session.theme) {
-            ThemeChoice.system => ThemeChoice.dark,
-            ThemeChoice.dark => ThemeChoice.light,
-            ThemeChoice.light => ThemeChoice.system,
-          };
-          ref.ctrl.setTheme(next);
-        }),
-        _tile(context, Icons.support_agent, s.t('whatsapp_support'), () {
-          launchUrl(Uri.parse(kWhatsAppUrl), mode: LaunchMode.externalApplication);
-        }),
-        _tile(context, Icons.privacy_tip_outlined, s.t('privacy_policy'), () {
-          launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication);
-        }),
+    ];
+    final account = <Widget>[
+      if (snap.isMain) _row(Icons.vpn_key, s.t('license'), () => _license(context, ref)),
+      _row(Icons.manage_accounts, s.t('roles'), () => leaveRoleWithPin(context, ref)),
+      _row(Icons.language, s.t('language'), () {
+        ref.ctrl.setLocale(snap.session.locale == 'en' ? 'ur' : 'en');
+      }),
+      _row(Icons.brightness_6, s.t('theme'), () {
+        final next = switch (snap.session.theme) {
+          ThemeChoice.system => ThemeChoice.dark,
+          ThemeChoice.dark => ThemeChoice.light,
+          ThemeChoice.light => ThemeChoice.system,
+        };
+        ref.ctrl.setTheme(next);
+      }),
+      _row(Icons.support_agent, s.t('whatsapp_support'), () {
+        launchUrl(Uri.parse(kWhatsAppUrl), mode: LaunchMode.externalApplication);
+      }),
+      _row(Icons.privacy_tip_outlined, s.t('privacy_policy'), () {
+        launchUrl(Uri.parse(kPrivacyUrl), mode: LaunchMode.externalApplication);
+      }),
+    ];
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.94, end: 1),
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+          builder: (_, v, child) => Opacity(opacity: v.clamp(0.4, 1), child: Transform.scale(scale: v, child: child)),
+          child: OfCard(
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.storefront, color: OfColors.emerald),
+              title: Text(snap.store.profile.businessName, style: const TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text('${s.t(snap.store.model.name == 'services' ? 'services_model' : snap.store.model.name)} · ${s.t('currency')} ${snap.currency}'),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (shop.isNotEmpty) _folder(context, Icons.storefront, s.t('shop_section'), shop),
+        _folder(context, Icons.print, s.t('hardware_section'), [
+          _row(Icons.print, s.t('printers'), () => _printers(context, ref)),
+        ]),
+        _folder(context, Icons.groups, s.t('people_section'), people),
+        _folder(context, Icons.insights, s.t('reports_section'), reports),
+        _folder(context, Icons.backup, s.t('backup'), data),
+        _folder(context, Icons.settings, s.t('account_section'), account),
         const SizedBox(height: 16),
         Text('${s.t('version')} $kAppVersion', textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)),
       ],
     );
   }
 
-  Widget _h(String title) {
+  Widget _folder(BuildContext context, IconData icon, String title, List<Widget> children) {
+    if (children.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-      child: Text(title, style: const TextStyle(color: OfColors.muted, fontWeight: FontWeight.w800, letterSpacing: 0.4)),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: OfCard(
+        padding: EdgeInsets.zero,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            leading: Icon(icon, color: OfColors.emerald),
+            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+            childrenPadding: const EdgeInsets.only(bottom: 6),
+            children: children,
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _tile(BuildContext context, IconData icon, String title, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: OfCard(
-        onTap: onTap,
-        child: ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(icon, color: OfColors.emerald),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-          trailing: const Icon(Icons.chevron_right),
-        ),
-      ),
+  Widget _row(IconData icon, String title, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon, color: OfColors.emerald),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }
@@ -940,6 +964,28 @@ Future<void> _reports(BuildContext context, WidgetRef ref) async {
           ListTile(title: Text(s.t('items_sold')), trailing: Text('$items')),
           ListTile(title: Text(s.t('avg_ticket')), trailing: Text(moneyOf(ref.snap, avg))),
           ListTile(title: Text(s.t('low_stock')), trailing: Text('${store.lowStock.length}')),
+          ListTile(
+            title: Text(s.t('x_report')),
+            subtitle: Text(s.t('cash')),
+            trailing: Text(
+              moneyOf(
+                ref.snap,
+                paid.where((o) {
+                  final d = DateTime.now();
+                  return o.updatedAt.year == d.year && o.updatedAt.month == d.month && o.updatedAt.day == d.day && o.payment == PaymentMethod.cash;
+                }).fold<double>(0, (a, o) => a + o.total),
+              ),
+            ),
+          ),
+          ListTile(
+            title: Text(s.t('z_report')),
+            subtitle: Text(s.t('day_close')),
+            trailing: Text(moneyOf(ref.snap, today)),
+          ),
+          ListTile(
+            title: Text(s.t('void_report')),
+            trailing: Text('${store.orders.where((o) => o.status == OrderStatus.cancelled).length}'),
+          ),
         ],
       ),
     ),
