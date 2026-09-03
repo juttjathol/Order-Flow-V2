@@ -339,7 +339,7 @@ class AppController extends Notifier<AppSnapshot> {
   /// (WhatsApp, SMS, email, …).
   Future<void> shareReceipt(PosOrder order) async {
     final text = printer.receiptText(state.store, order);
-    await SharePlus.instance.share(ShareParams(text: text));
+    await Share.share(text);
   }
 
   Future<void> setApiBase(String url) async {
