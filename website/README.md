@@ -10,12 +10,14 @@ Create a **new** Pages project. Do not use `order-flow-v2`.
 
 Preferred Cloudflare settings:
 
-- Production branch: `arena/01a01f91-order-flow-v2`
+- Production branch: `main` (the `jathol` Pages project serves the public site from `main`)
 - Root directory: **empty** (repository root)
 - Build command: empty
 - Build output directory: `website/public`
 
 The download worker lives in `/functions` at the repo root so `/download` is included even when the output folder is `website/public`.
+
+If the live site looks stale after a merge to `main`, open the Cloudflare dashboard → Workers & Pages → `jathol` → Settings → Builds & deployments → Production branch → select `main` → Save, then retry the deployment. The repo must never be deployed over the `order-flow-v2` Pages project (that one is the license SaaS dashboard).
 
 After deploy, the build log must mention **functions** (not “No functions dir”). Then retry **Download APK**.
 
