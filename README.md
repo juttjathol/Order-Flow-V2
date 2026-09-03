@@ -4,9 +4,10 @@ Offline-first multi-device POS for restaurants, retail, fast food, and services,
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke
-- **APK** — create a GitHub Release tag `v1.0.0` (or any `v*`) and download `app-release.apk`
+- **APK** — create a GitHub Release tag `v1.1.58` (or any `v*`) and download `app-release.apk`
+- **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.0.0+1**.
+Version **1.1.58+58**.
 
 You only need two things after this repo is on GitHub:
 
@@ -76,6 +77,8 @@ GitHub Actions (`.github/workflows/build-release.yml`) then:
 - Builds `flutter build apk --release --no-tree-shake-icons`
 - Attaches **`app-release.apk`** to that Release
 
+Every push to an `arena/**` branch also runs `.github/workflows/build-arena.yml` (analyze → tests → release APK → downloadable artifact), so changes are verified green before they ever reach a release tag.
+
 Refresh the Release page after the Action finishes (Actions tab → **Build Release APK**).
 
 Later versions: publish `v1.0.1`, `v1.1.0`, …
@@ -124,7 +127,9 @@ License screen → **Connect to Main** → same Wi‑Fi → IP or QR from Main �
 
 Kitchen **ready** notifies every Order Taker and Main. English + Urdu. Dark / light green theme.
 
-Printing is network ESC/POS on **TCP 9100**. Backup is JSON export / import.
+Printing is network ESC/POS on **TCP 9100** or Bluetooth. **Every station can use its own printer** (printer icon in the station top bar — Bluetooth or LAN), independent of Main. A **cash drawer** (RJ11 kick port on the receipt printer) opens automatically on cash payments only; card / wallet / other never open it. Payments support **split tender** (two methods on one sale), receipts can be **shared on WhatsApp/SMS**, paid orders can be **refunded** (stock returns), saved customers earn **loyalty points** automatically, and any screen can become a **customer display** with a giant animated total. Backup is JSON export / import.
+
+The full walkthrough lives on the website: **https://jathol.pages.dev/guide** (English + Urdu).
 
 ---
 

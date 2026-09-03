@@ -6,6 +6,8 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
+import '../widgets/station_printer.dart';
 import 'floor_screen.dart';
 
 class FrontDeskScreen extends ConsumerWidget {
@@ -16,11 +18,24 @@ class FrontDeskScreen extends ConsumerWidget {
     final s = ref.s;
     return Scaffold(
       appBar: AppBar(
-        title: Text(s.t('role_desk')),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t('role_desk')),
+            Text(
+              ref.snap.session.displayName,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            ),
+          ],
+        ),
         actions: [
-          StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
-              color: ref.snap.connected ? OfColors.mint : OfColors.danger),
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          const StationActions(),
+          IconButton(
+            tooltip: s.t('station_printer'),
+            onPressed: () => showStationPrinterSheet(context, ref),
+            icon: const Icon(Icons.print),
+          ),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -38,7 +53,7 @@ class FrontDeskScreen extends ConsumerWidget {
         icon: const Icon(Icons.receipt_long),
         label: Text(s.t('walk_in')),
       ),
-      body: const FloorScreen(),
+      body: const FloorScreen(manage: false),
     );
   }
 }

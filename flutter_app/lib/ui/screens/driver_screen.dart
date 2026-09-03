@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
 
 class DriverScreen extends ConsumerWidget {
   const DriverScreen({super.key});
@@ -29,9 +30,19 @@ class DriverScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(s.t('role_driver')),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t('role_driver')),
+            Text(
+              snap.session.displayName.isEmpty ? s.t('delivery_queue') : snap.session.displayName,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          const StationActions(),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       body: ListView(
@@ -81,14 +92,31 @@ class DriverScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text('${o.ticketNo}  ${o.customerName.isEmpty ? s.t('guest') : o.customerName}',
                         style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text(o.address.isEmpty ? o.customerPhone : o.address),
+                    subtitle: Text([
+                      if (o.customerPhone.isNotEmpty) o.customerPhone,
+                      if (o.address.isNotEmpty) o.address,
+                      s.t(o.status.name),
+                    ].join(' · ')),
                     trailing: MoneyText(o.total),
                     onTap: () async {
+                      final next = o.driverId == null
+                          ? o.status
+                          : o.status == OrderStatus.ready
+                              ? OrderStatus.served
+                              : o.status == OrderStatus.served
+                                  ? OrderStatus.paid
+                                  : o.status;
                       await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
                         'id': o.id,
-                        'status': o.status == OrderStatus.ready ? OrderStatus.served.name : OrderStatus.ready.name,
+                        'status': next.name,
                         'driverId': me?.id,
                       }));
+                      if (next == OrderStatus.served || o.driverId == null) {
+                        await ref.ctrl.setDriverStatus(DriverStatus.busy);
+                      }
+                      if (next == OrderStatus.paid) {
+                        await ref.ctrl.setDriverStatus(DriverStatus.free);
+                      }
                     },
                   ),
                 ),

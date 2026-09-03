@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
@@ -9,6 +10,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/constants.dart';
+import '../core/role_access.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
 
@@ -37,6 +39,8 @@ class LanServer {
   Future<void> start({int port = kLanPort}) async {
     if (_server != null) return;
     final router = Router()
+      ..get('/', _dashboard)
+      ..get('/index.html', _dashboard)
       ..get('/health', _health)
       ..get('/join', _join)
       ..get('/state', _state)
@@ -67,8 +71,12 @@ class LanServer {
       'type': 'state',
       'store': readStore().toJson(),
     });
-    for (final s in _sockets) {
-      s.sink.add(msg);
+    for (final s in _sockets.toList()) {
+      try {
+        s.sink.add(msg);
+      } catch (_) {
+        _sockets.remove(s);
+      }
     }
   }
 
@@ -82,19 +90,37 @@ class LanServer {
   Middleware get _cors => (inner) {
         return (request) async {
           if (request.method == 'OPTIONS') {
-            return Response.ok('', headers: _headers);
+            return Response.ok('', headers: _corsHeaders);
           }
           final res = await inner(request);
-          return res.change(headers: _headers);
+          return res.change(headers: _corsHeaders);
         };
       };
 
-  static const _headers = {
+  static const _corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  static const _headers = {
+    ..._corsHeaders,
     'Content-Type': 'application/json; charset=utf-8',
   };
+
+  String? _dashboardHtml;
+
+  Future<Response> _dashboard(Request req) async {
+    _dashboardHtml ??= await rootBundle.loadString('assets/web/index.html');
+    return Response.ok(
+      _dashboardHtml,
+      headers: {
+        ..._corsHeaders,
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
+    );
+  }
 
   Response _json(Map<String, dynamic> body, {int status = 200}) =>
       Response(status, body: jsonEncode(body), headers: _headers);
@@ -123,6 +149,9 @@ class LanServer {
         return _json({'ok': false, 'error': 'invalid'}, status: 400);
       }
       final cmd = NetCommand.fromJson(Map<String, dynamic>.from(body));
+      if (!RoleAccess.allow(cmd.role, cmd)) {
+        return _json({'ok': false, 'error': 'forbidden'}, status: 403);
+      }
       final result = onCommand(cmd);
       broadcastState();
       if (result.notice != null) broadcastNotice(result.notice!);

@@ -45,14 +45,32 @@ class StoreReducer {
         store.profile = BillProfile.fromJson(mapOf(p['profile']));
         bump();
         break;
+      case 'setDrawer':
+        store.drawerAuto = parseBool(p['on'], store.drawerAuto);
+        bump();
+        break;
       case 'setPrinters':
+        if (p['printers'] is List) {
+          store.printers = (p['printers'] as List)
+              .whereType<Map>()
+              .map((e) => PrinterConfig.fromJson(Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        if (p['rolePrinters'] is Map) {
+          store.rolePrinters = Map<String, dynamic>.from(p['rolePrinters'] as Map)
+              .map((k, v) => MapEntry(k.toString(), v.toString()));
+        }
         if (p['kitchen'] is Map) {
           store.kitchenPrinter =
               PrinterConfig.fromJson(Map<String, dynamic>.from(p['kitchen'] as Map));
+        } else {
+          store.kitchenPrinter = store.kitchenTarget();
         }
         if (p['receipt'] is Map) {
           store.receiptPrinter =
               PrinterConfig.fromJson(Map<String, dynamic>.from(p['receipt'] as Map));
+        } else {
+          store.receiptPrinter = store.receiptTarget();
         }
         bump();
         break;
@@ -125,6 +143,7 @@ class StoreReducer {
         final order = PosOrder.fromJson(mapOf(p['order']));
         order.ticketNo = store.nextTicket();
         order.taxRate = store.profile.taxRate;
+        order.serviceRate = store.profile.serviceRate;
         store.orders.insert(0, order);
         _syncTable(store, order);
         bump();
@@ -139,6 +158,95 @@ class StoreReducer {
         }
         bump();
         break;
+      case 'closeDay':
+        store.lastDayClose = DateTime.now();
+        bump();
+        break;
+      case 'startShift':
+        store.shiftCashier = parseStr(p['name']) ?? '';
+        store.shiftStartedAt = DateTime.now();
+        store.shiftFloat = parseNum(p['float']);
+        store.shiftEndCash = 0;
+        bump();
+        break;
+      case 'endShift':
+        store.shiftEndCash = parseNum(p['endCash']);
+        store.shiftCashier = '';
+        store.shiftStartedAt = null;
+        bump();
+        break;
+      case 'upsertCustomer':
+        final c = ShopCustomer.fromJson(mapOf(p['customer']));
+        final i = store.customers.indexWhere((e) => e.id == c.id);
+        if (i >= 0) {
+          store.customers[i] = c;
+        } else {
+          final byPhone = store.customers.indexWhere(
+            (e) => e.phone.isNotEmpty && e.phone == c.phone,
+          );
+          if (byPhone >= 0) {
+            store.customers[byPhone] = c..id = store.customers[byPhone].id;
+          } else {
+            store.customers.add(c);
+          }
+        }
+        bump();
+        break;
+      case 'deleteCustomer':
+        store.customers.removeWhere((e) => e.id == p['id']);
+        bump();
+        break;
+      case 'moveOrder':
+        final order = store.orderById(parseStr(p['orderId']));
+        final table = store.tableById(parseStr(p['tableId']));
+        if (order != null && table != null) {
+          final old = store.tableById(order.tableId);
+          if (old != null && old.currentOrderId == order.id) {
+            old.currentOrderId = null;
+            old.status = TableStatus.free;
+          }
+          order.tableId = table.id;
+          order.tableName = table.name;
+          table.currentOrderId = order.id;
+          table.status = order.status == OrderStatus.ready ? TableStatus.ready : TableStatus.ordered;
+        }
+        bump();
+        break;
+      case 'mergeOrders':
+        final keep = store.orderById(parseStr(p['keepId']));
+        final drop = store.orderById(parseStr(p['dropId']));
+        if (keep != null && drop != null && keep.id != drop.id) {
+          keep.lines.addAll(drop.lines);
+          drop.status = OrderStatus.cancelled;
+          drop.voidReason = 'merged into ${keep.ticketNo}';
+          _syncTable(store, drop);
+          _syncTable(store, keep);
+        }
+        bump();
+        break;
+      case 'fireCourse':
+        final order = store.orderById(parseStr(p['orderId']));
+        final course = parseStr(p['course']) ?? '';
+        if (order != null) {
+          for (final l in order.lines) {
+            if (course.isEmpty || l.course == course) l.fired = true;
+          }
+          order.sentAt ??= DateTime.now();
+          if (order.status == OrderStatus.open) order.status = OrderStatus.preparing;
+          final label = order.tableName?.isNotEmpty == true
+              ? 'Table ${order.tableName}'
+              : 'Ticket ${order.ticketNo}';
+          notice = AppNotice(
+            id: newId(),
+            title: 'Kitchen order',
+            body: '$label sent to kitchen',
+            tableId: order.tableId,
+            orderId: order.id,
+            kind: 'kitchen',
+          );
+        }
+        bump();
+        break;
       case 'setOrderStatus':
         final order = store.orderById(parseStr(p['id']));
         if (order != null) {
@@ -147,9 +255,28 @@ class StoreReducer {
           final prev = order.status;
           order.status = next;
           order.updatedAt = DateTime.now();
+          if (next == OrderStatus.preparing && order.sentAt == null) {
+            order.sentAt = DateTime.now();
+          }
+          if (p['voidReason'] != null) {
+            order.voidReason = parseStr(p['voidReason']) ?? '';
+          }
           if (p['payment'] != null) {
             order.payment =
                 enumParse(PaymentMethod.values, p['payment'], PaymentMethod.cash);
+          }
+          if (p['splitPayment'] != null) {
+            order.splitPayment =
+                enumParse(PaymentMethod.values, p['splitPayment'], PaymentMethod.cash);
+          }
+          if (p['splitAmount'] != null) {
+            order.splitAmount = parseNum(p['splitAmount']).clamp(0, double.infinity).toDouble();
+          }
+          if (p['loyaltyAwarded'] != null) {
+            order.loyaltyAwarded = parseBool(p['loyaltyAwarded']);
+          }
+          if (p['tip'] != null) {
+            order.tip = parseNum(p['tip']);
           }
           if (p['driverId'] != null) {
             order.driverId = parseStr(p['driverId']);
@@ -163,6 +290,19 @@ class StoreReducer {
             order.stockDeducted = false;
           }
           _syncTable(store, order);
+          if (next == OrderStatus.preparing && prev != OrderStatus.preparing) {
+            final label = order.tableName?.isNotEmpty == true
+                ? 'Table ${order.tableName}'
+                : 'Ticket ${order.ticketNo}';
+            notice = AppNotice(
+              id: newId(),
+              title: 'Kitchen order',
+              body: '$label sent to kitchen',
+              tableId: order.tableId,
+              orderId: order.id,
+              kind: 'kitchen',
+            );
+          }
           if (next == OrderStatus.ready && prev != OrderStatus.ready) {
             final label = order.tableName?.isNotEmpty == true
                 ? 'Table ${order.tableName}'
@@ -173,6 +313,7 @@ class StoreReducer {
               body: '$label order is ready to serve',
               tableId: order.tableId,
               orderId: order.id,
+              kind: 'ready',
             );
           }
         }
@@ -183,8 +324,19 @@ class StoreReducer {
         if (order != null) {
           order.lines.add(OrderLine.fromJson(mapOf(p['line'])));
           order.updatedAt = DateTime.now();
-          if (order.status == OrderStatus.ready) {
+          if (order.status == OrderStatus.ready || order.status == OrderStatus.served) {
             order.status = OrderStatus.preparing;
+            final label = order.tableName?.isNotEmpty == true
+                ? 'Table ${order.tableName}'
+                : 'Ticket ${order.ticketNo}';
+            notice = AppNotice(
+              id: newId(),
+              title: 'Kitchen order',
+              body: '$label extra items sent to kitchen',
+              tableId: order.tableId,
+              orderId: order.id,
+              kind: 'kitchen',
+            );
           }
           _syncTable(store, order);
         }
@@ -280,6 +432,14 @@ class StoreReducer {
         break;
       case 'deleteStaff':
         store.staff.removeWhere((e) => e.id == p['id']);
+        bump();
+        break;
+      case 'setStaffDuty':
+        final st = store.staffById(parseStr(p['id']));
+        if (st != null) {
+          st.duty = enumParse(StaffDuty.values, p['duty'], st.duty);
+          st.lastSeen = DateTime.now();
+        }
         bump();
         break;
       case 'upsertService':

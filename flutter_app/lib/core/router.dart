@@ -50,10 +50,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (snap.gate == LicenseGate.setup) {
         return loc == '/setup' ? null : '/setup';
       }
+      bool cover(String p) =>
+          p.startsWith('/taker') ||
+          p.startsWith('/kitchen') ||
+          p.startsWith('/cashier') ||
+          p.startsWith('/clerk') ||
+          p.startsWith('/desk') ||
+          p.startsWith('/specialist') ||
+          p.startsWith('/driver');
+      if (loc == '/connect' || loc == '/role') return null;
       switch (snap.session.role) {
         case AppRole.main:
-          if (loc.startsWith('/main') || loc.startsWith('/order')) return null;
+          if (loc.startsWith('/main') || loc.startsWith('/order') || cover(loc)) return null;
           return '/main';
+        case AppRole.manager:
+          if (loc.startsWith('/manager') || loc.startsWith('/order') || cover(loc)) return null;
+          return '/manager';
         case AppRole.orderTaker:
           if (loc.startsWith('/taker') || loc.startsWith('/order')) return null;
           return '/taker';
@@ -84,6 +96,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/role', builder: (_, __) => const RoleScreen()),
       GoRoute(path: '/setup', builder: (_, __) => const SetupScreen()),
       GoRoute(path: '/main', builder: (_, __) => const MainShell()),
+      GoRoute(path: '/manager', builder: (_, __) => const MainShell()),
       GoRoute(path: '/taker', builder: (_, __) => const TakerScreen()),
       GoRoute(path: '/kitchen', builder: (_, __) => const KitchenScreen()),
       GoRoute(path: '/cashier', builder: (_, __) => const CashierScreen()),
@@ -93,7 +106,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/specialist', builder: (_, __) => const SpecialistScreen()),
       GoRoute(
         path: '/order/:id',
-        builder: (_, state) => OrderScreen(orderId: state.pathParameters['id']!),
+        pageBuilder: (_, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: OrderScreen(orderId: state.pathParameters['id']!),
+          transitionDuration: const Duration(milliseconds: 280),
+          transitionsBuilder: (_, anim, __, child) => FadeTransition(
+            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+            child: child,
+          ),
+        ),
       ),
     ],
   );

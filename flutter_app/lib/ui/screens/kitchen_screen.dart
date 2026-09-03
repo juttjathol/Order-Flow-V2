@@ -6,6 +6,8 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
+import '../widgets/station_printer.dart';
 
 class KitchenScreen extends ConsumerWidget {
   const KitchenScreen({super.key});
@@ -21,65 +23,139 @@ class KitchenScreen extends ConsumerWidget {
         .toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text(s.t('kitchen_queue')),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t('kitchen_queue'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text(
+              '${orders.length}  ·  ${ref.snap.session.displayName}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            ),
+          ],
+        ),
         actions: [
-          StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
-              color: ref.snap.connected ? OfColors.mint : OfColors.danger),
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Center(
+              child: StatusChip(
+                ref.snap.connected || ref.snap.isMain ? 'ONLINE' : 'OFFLINE',
+                color: (ref.snap.connected || ref.snap.isMain) ? OfColors.mint : OfColors.warn,
+              ),
+            ),
+          ),
+          const StationActions(),
+          IconButton(
+            tooltip: s.t('station_printer'),
+            onPressed: () => showStationPrinterSheet(context, ref),
+            icon: const Icon(Icons.print),
+          ),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       body: orders.isEmpty
           ? EmptyState(icon: Icons.soup_kitchen, message: s.t('no_orders'))
           : GridView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: gridCount(context, phone: 1, tablet: 3),
-                mainAxisExtent: 240,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
+                mainAxisExtent: 380,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
               ),
               itemCount: orders.length,
               itemBuilder: (_, i) {
                 final o = orders[i];
-                return OfCard(
-                  onTap: () => context.push('/order/${o.id}'),
+                final mins = DateTime.now().difference(o.sentAt ?? o.createdAt).inMinutes;
+                final ageColor = mins >= 15
+                    ? OfColors.danger
+                    : mins >= 8
+                        ? OfColors.warn
+                        : OfColors.mint;
+                final lines = (List<OrderLine>.from(o.lines))
+                  ..sort((a, b) => a.course.compareTo(b.course));
+                return Card(
+                  clipBehavior: Clip.antiAlias,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          Text(o.ticketNo, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
-                          const SizedBox(width: 8),
-                          Text(o.tableName ?? o.type.name),
-                          const Spacer(),
-                          StatusChip(s.t(o.status.name), color: statusColor(o.status)),
-                        ],
+                      Container(
+                        color: ageColor.withValues(alpha: 0.15),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${o.ticketNo}${o.tableName == null || o.tableName!.isEmpty ? '' : '  ·  ${o.tableName}'}',
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                              ),
+                            ),
+                            StatusChip(_age(o), color: ageColor),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
                       Expanded(
                         child: ListView(
-                          children: o.lines
-                              .map((l) => Text('${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}'))
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                          children: lines
+                              .map(
+                                (l) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '${l.qty % 1 == 0 ? l.qty.toInt() : l.qty}  ${l.name}${l.notes.isEmpty ? '' : ' — ${l.notes}'}',
+                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
                               .toList(),
                         ),
                       ),
-                      Row(
-                        children: [
-                          if (o.status == OrderStatus.open)
-                            Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.preparing), child: Text(s.t('mark_preparing')))),
-                          if (o.status == OrderStatus.preparing)
-                            Expanded(child: FilledButton(onPressed: () => _set(ref, o, OrderStatus.ready), child: Text(s.t('mark_ready')))),
-                          if (o.status == OrderStatus.ready)
-                            Expanded(child: FilledButton.tonal(onPressed: () => _set(ref, o, OrderStatus.served), child: Text(s.t('mark_served')))),
-                          IconButton(
-                            onPressed: () async {
-                              try {
-                                await ref.ctrl.printer.kitchenTicket(ref.snap.store, o);
-                              } catch (_) {}
-                            },
-                            icon: const Icon(Icons.print),
-                          ),
-                        ],
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        child: Row(
+                          children: [
+                            if (o.status == OrderStatus.open)
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => _set(ref, o, OrderStatus.preparing),
+                                  child: Text(s.t('mark_preparing')),
+                                ),
+                              ),
+                            if (o.status == OrderStatus.preparing)
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => _set(ref, o, OrderStatus.ready),
+                                  child: Text(s.t('mark_ready')),
+                                ),
+                              ),
+                            if (o.status == OrderStatus.ready)
+                              Expanded(
+                                child: FilledButton.tonal(
+                                  onPressed: () => _set(ref, o, OrderStatus.served),
+                                  child: Text(s.t('mark_served')),
+                                ),
+                              ),
+                            IconButton(
+                              onPressed: () async {
+                                try {
+                                  await ref.ctrl.printer.kitchenTicket(
+                                    ref.snap.store,
+                                    o,
+                                    role: ref.snap.session.role,
+                                    prefer: ref.ctrl.deviceLocalPrinter(),
+                                  );
+                                } catch (_) {}
+                              },
+                              icon: const Icon(Icons.print),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -87,6 +163,12 @@ class KitchenScreen extends ConsumerWidget {
               },
             ),
     );
+  }
+
+  String _age(PosOrder o) {
+    final start = o.sentAt ?? o.createdAt;
+    final m = DateTime.now().difference(start).inMinutes;
+    return '${m}m';
   }
 
   Future<void> _set(WidgetRef ref, PosOrder o, OrderStatus status) {

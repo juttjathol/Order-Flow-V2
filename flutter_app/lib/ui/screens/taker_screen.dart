@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
+import '../widgets/offsite_order.dart';
+import '../widgets/station_printer.dart';
 import 'floor_screen.dart';
 
 class TakerScreen extends ConsumerWidget {
@@ -18,11 +21,24 @@ class TakerScreen extends ConsumerWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(s.t('role_taker')),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(s.t('role_taker')),
+              Text(
+                snap.session.displayName.isEmpty ? s.t('tables') : snap.session.displayName,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+              ),
+            ],
+          ),
           actions: [
-            StatusChip(snap.connected ? s.t('connected') : s.t('disconnected'),
-                color: snap.connected ? const Color(0xFF3DDC97) : const Color(0xFFE85D4C)),
-            IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+            const StationActions(),
+            IconButton(
+              tooltip: s.t('station_printer'),
+              onPressed: () => showStationPrinterSheet(context, ref),
+              icon: const Icon(Icons.print),
+            ),
+            IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
           ],
           bottom: TabBar(tabs: [
             Tab(text: s.t('tables')),
@@ -31,7 +47,7 @@ class TakerScreen extends ConsumerWidget {
         ),
         body: TabBarView(
           children: [
-            const FloorScreen(),
+            const FloorScreen(manage: false),
             const _QuickTickets(),
           ],
         ),
@@ -50,16 +66,36 @@ class _QuickTickets extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         FilledButton.icon(
-          onPressed: () => _make(context, ref, OrderType.takeaway),
+          onPressed: () => startOffsiteOrder(context, ref, OrderType.takeaway),
           icon: const Icon(Icons.takeout_dining),
           label: Text(s.t('takeaway')),
         ),
         const SizedBox(height: 10),
         FilledButton.tonalIcon(
-          onPressed: () => _make(context, ref, OrderType.delivery),
+          onPressed: () => startOffsiteOrder(context, ref, OrderType.delivery),
           icon: const Icon(Icons.delivery_dining),
           label: Text(s.t('delivery')),
         ),
+        const SizedBox(height: 18),
+        Text(s.t('recall'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        const SizedBox(height: 8),
+        ...ref.snap.store.openOrders.where((o) => o.held).map(
+              (o) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: OfCard(
+                  onTap: () async {
+                    o.held = false;
+                    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': o.toJson()}));
+                    if (context.mounted) context.push('/order/${o.id}');
+                  },
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${o.ticketNo}  ${o.tableName ?? o.customerName}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    trailing: StatusChip(s.t('held'), color: const Color(0xFFF0A202)),
+                  ),
+                ),
+              ),
+            ),
         const SizedBox(height: 18),
         Text(s.t('ready_to_serve'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         const SizedBox(height: 8),
@@ -78,18 +114,5 @@ class _QuickTickets extends ConsumerWidget {
             ),
       ],
     );
-  }
-
-  Future<void> _make(BuildContext context, WidgetRef ref, OrderType type) async {
-    final store = ref.snap.store;
-    final order = PosOrder(
-      id: newId(),
-      ticketNo: '',
-      type: type,
-      taxRate: store.profile.taxRate,
-      createdBy: ref.snap.session.displayName,
-    );
-    await ref.ctrl.dispatch(NetCommand(name: 'createOrder', payload: {'order': order.toJson()}));
-    if (context.mounted) context.push('/order/${order.id}');
   }
 }

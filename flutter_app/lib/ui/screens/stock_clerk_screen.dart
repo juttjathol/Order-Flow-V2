@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../widgets/common.dart';
+import '../widgets/pin_gate.dart';
+import '../widgets/station_printer.dart';
 import 'stock_screen.dart';
 
 class StockClerkScreen extends ConsumerWidget {
@@ -15,9 +17,13 @@ class StockClerkScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(s.t('role_stock')),
         actions: [
-          StatusChip(ref.snap.connected ? s.t('connected') : s.t('disconnected'),
-              color: ref.snap.connected ? OfColors.mint : OfColors.danger),
-          IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
+          const StationActions(),
+          IconButton(
+            tooltip: s.t('station_printer'),
+            onPressed: () => showStationPrinterSheet(context, ref),
+            icon: const Icon(Icons.print),
+          ),
+          IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
       body: const StockScreen(),

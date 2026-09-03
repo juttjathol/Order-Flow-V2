@@ -9,6 +9,14 @@ import 'models/models.dart';
 import 'state/app_controller.dart';
 import 'ui/widgets/common.dart';
 
+class _OfScroll extends ScrollBehavior {
+  const _OfScroll();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const BouncingScrollPhysics();
+}
+
 class OrderFlowApp extends ConsumerWidget {
   const OrderFlowApp({super.key});
 
@@ -24,9 +32,9 @@ class OrderFlowApp extends ConsumerWidget {
       theme: OfTheme.light(),
       darkTheme: OfTheme.dark(),
       themeMode: switch (theme) {
-        ThemeChoice.light => ThemeMode.light,
         ThemeChoice.dark => ThemeMode.dark,
-        ThemeChoice.system => ThemeMode.system,
+        ThemeChoice.light => ThemeMode.light,
+        ThemeChoice.system => ThemeMode.light,
       },
       locale: Locale(snap.session.locale),
       supportedLocales: L10n.supported,
@@ -37,9 +45,12 @@ class OrderFlowApp extends ConsumerWidget {
       ],
       routerConfig: router,
       builder: (context, child) {
-        return Directionality(
-          textDirection: l10n.direction,
-          child: ReadyBannerHost(child: child ?? const SizedBox.shrink()),
+        return ScrollConfiguration(
+          behavior: const _OfScroll(),
+          child: Directionality(
+            textDirection: l10n.direction,
+            child: ReadyBannerHost(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );

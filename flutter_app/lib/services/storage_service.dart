@@ -15,6 +15,8 @@ class StorageService {
   final Directory _docs;
 
   static const _sessionKey = 'of_session_v1';
+  static const _queueKey = 'of_cmd_queue_v1';
+  static const _seenKey = 'of_cmd_seen_v1';
   static const _stateName = 'app_state.json';
 
   static Future<StorageService> open() async {
@@ -68,6 +70,44 @@ class StorageService {
       } catch (_) {}
     }
     return AppStore();
+  }
+
+  List<NetCommand> loadQueue() {
+    final raw = prefs.getString(_queueKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is! List) return [];
+      return list
+          .whereType<Map>()
+          .map((e) => NetCommand.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveQueue(List<NetCommand> cmds) async {
+    await prefs.setString(
+      _queueKey,
+      jsonEncode(cmds.map((c) => c.toJson()).toList()),
+    );
+  }
+
+  List<String> loadSeenIds() {
+    final raw = prefs.getString(_seenKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is! List) return [];
+      return list.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveSeenIds(Iterable<String> ids) async {
+    await prefs.setString(_seenKey, jsonEncode(ids.toList()));
   }
 
   Future<void> saveStore(AppStore store) async {

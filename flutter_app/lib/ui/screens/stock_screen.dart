@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
+import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
 
 class StockScreen extends ConsumerStatefulWidget {
@@ -29,24 +30,59 @@ class _StockScreenState extends ConsumerState<StockScreen> {
     }).toList();
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => editStock(context, ref),
-        icon: const Icon(Icons.add),
-        label: Text(s.t('add_stock')),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'scan_stock',
+            onPressed: () => scanStock(context, ref),
+            icon: const Icon(Icons.qr_code_scanner),
+            label: Text(s.t('scan_sku')),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton.extended(
+            heroTag: 'add_stock',
+            onPressed: () => editStock(context, ref),
+            icon: const Icon(Icons.add),
+            label: Text(s.t('add_stock')),
+          ),
+        ],
       ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: TextField(
-              decoration: InputDecoration(hintText: s.t('sku_or_name'), prefixIcon: const Icon(Icons.search)),
+              decoration: InputDecoration(
+                hintText: s.t('sku_or_name'),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  tooltip: s.t('scan_sku'),
+                  onPressed: () => scanStock(context, ref),
+                  icon: const Icon(Icons.qr_code_scanner),
+                ),
+              ),
               onChanged: (v) => setState(() => q = v),
             ),
           ),
-          SwitchListTile(
-            value: onlyLow,
-            onChanged: (v) => setState(() => onlyLow = v),
-            title: Text(s.t('low_stock')),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                FilterChip(
+                  label: const Text('All'),
+                  selected: !onlyLow,
+                  onSelected: (_) => setState(() => onlyLow = false),
+                ),
+                FilterChip(
+                  label: Text(s.t('low_stock')),
+                  selected: onlyLow,
+                  onSelected: (_) => setState(() => onlyLow = true),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: items.isEmpty
@@ -56,15 +92,10 @@ class _StockScreenState extends ConsumerState<StockScreen> {
                     action: () => editStock(context, ref),
                     actionLabel: s.t('add_stock'),
                   )
-                : GridView.builder(
+                : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: gridCount(context, phone: 1, tablet: 2),
-                      mainAxisExtent: 132,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                    ),
                     itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, i) => StockCard(
                       item: items[i],
                       onTap: () => editStock(context, ref, existing: items[i]),
@@ -91,49 +122,37 @@ class StockCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.s;
     final color = stockColor(item.level);
+    final qty = item.quantity.toStringAsFixed(item.quantity % 1 == 0 ? 0 : 1);
     return OfCard(
       onTap: onTap,
+      padding: const EdgeInsets.all(14),
       child: Row(
         children: [
           Container(
-            width: 8,
-            height: 88,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: OfColors.mute(context).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.inventory_2_outlined, color: OfColors.mute(context)),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(item.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                Text('${s.t('sku')}: ${item.sku.isEmpty ? '—' : item.sku}', style: const TextStyle(color: OfColors.muted)),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    StatusChip(
-                      item.level == StockLevel.ok
-                          ? s.t('ok_stock')
-                          : item.level == StockLevel.low
-                              ? s.t('low')
-                              : s.t('out'),
-                      color: color,
-                    ),
-                    const SizedBox(width: 8),
-                    Text('${item.quantity.toStringAsFixed(item.quantity % 1 == 0 ? 0 : 1)} ${item.unit}'),
-                  ],
-                ),
+                Text(item.sku.isEmpty ? '—' : item.sku, style: TextStyle(color: OfColors.mute(context), fontSize: 13)),
               ],
             ),
           ),
-          if (onAdjust != null)
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton.filledTonal(onPressed: () => onAdjust!(1), icon: const Icon(Icons.add)),
-                IconButton.filledTonal(onPressed: () => onAdjust!(-1), icon: const Icon(Icons.remove)),
-              ],
-            ),
+          StatusChip('$qty ${item.unit}', color: color),
+          if (onAdjust != null) ...[
+            const SizedBox(width: 4),
+            IconButton(onPressed: () => onAdjust!(-1), icon: const Icon(Icons.remove)),
+            IconButton(onPressed: () => onAdjust!(1), icon: const Icon(Icons.add)),
+          ],
         ],
       ),
     );
@@ -200,4 +219,36 @@ Future<void> editStock(BuildContext context, WidgetRef ref, {StockItem? existing
     );
     await ref.ctrl.dispatch(NetCommand(name: 'upsertStock', payload: {'stock': item.toJson()}));
   }
+}
+
+Future<void> scanStock(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final code = await scanBarcode(context, title: s.t('scan_stock'), hint: s.t('scan_stock_hint'));
+  if (code == null || !context.mounted) return;
+  final existing = stockBySku(ref.snap.store, code);
+  final qty = await askScanQty(context, title: existing?.name ?? code, initial: 1);
+  if (qty == null || !context.mounted) return;
+  if (existing != null) {
+    await ref.ctrl.dispatch(NetCommand(name: 'adjustStock', payload: {'id': existing.id, 'delta': qty}));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${existing.name}  +$qty')));
+    }
+    return;
+  }
+  final name = TextEditingController(text: code);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('add_stock')),
+      content: TextField(controller: name, decoration: InputDecoration(labelText: s.t('name'))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('save'))),
+      ],
+    ),
+  );
+  if (ok != true || name.text.trim().isEmpty) return;
+  await ref.ctrl.dispatch(NetCommand(name: 'upsertStock', payload: {
+    'stock': StockItem(id: newId(), name: name.text.trim(), sku: code, quantity: qty).toJson(),
+  }));
 }

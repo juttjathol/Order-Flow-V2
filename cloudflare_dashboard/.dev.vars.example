@@ -1,3 +1,4 @@
 ADMIN_PASSWORD=change-me-now
 ADMIN_SECRET=change-this-long-random-string
 LICENSE_DEFAULT_DAYS=365
+GITHUB_TOKEN=github_pat_with_repo_read_for_private_releases

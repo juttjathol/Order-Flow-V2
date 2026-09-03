@@ -21,11 +21,31 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("debug")
+    signingConfigs {
+        create("sideload") {
+            storeFile = rootProject.file("sideload/upload.p12")
+            storePassword = "JatholOrderFlowSideload"
+            keyAlias = "jathol"
+            keyPassword = "JatholOrderFlowSideload"
         }
     }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("sideload")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
+    }
+}
+
+dependencies {
+    // Bundled barcode model so sideload APKs decode without waiting on Play download.
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 }
 
 kotlin {

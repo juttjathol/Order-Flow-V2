@@ -52,15 +52,36 @@ def insert_namespace(text: str, namespace: str, kts: bool) -> str:
     return re.sub(r"(android\s*\{)", r"\1\n" + injection, text, count=1)
 
 
+def strip_lint_blocks(text: str) -> str:
+    """AGP 9 cannot parse Groovy `lint { disable 'Foo' }` in camera_android_camerax."""
+    return re.sub(
+        r"\n[ \t]*lint(?:Options)?\s*\{(?:[^{}]|\{[^{}]*\})*\}",
+        "\n",
+        text,
+    )
+
+
 def force_compile_sdk(text: str, kts: bool) -> str:
-    if kts:
-        text = re.sub(r"compileSdk\s*=\s*[^\n]+", f"compileSdk = {COMPILE_SDK}", text)
-        if "compileSdk" not in text and re.search(r"android\s*\{", text):
+    # Never rewrite `compileSdk { ... }` (AGP 9 / camera_android_camerax).
+    # Only numeric compileSdk / compileSdkVersion assignments.
+    text = re.sub(r"compileSdkVersion\s+\d+", f"compileSdkVersion {COMPILE_SDK}", text)
+    text = re.sub(r"compileSdk\s*=\s*\d+", f"compileSdk = {COMPILE_SDK}", text)
+    text = re.sub(r"compileSdk\s+\d+\b", f"compileSdk {COMPILE_SDK}", text)
+    text = re.sub(
+        r"(compileSdk\s*\{[^}]*?\bversion\s*=\s*(?:release\s*\(\s*)?)\d+",
+        rf"\g<1>{COMPILE_SDK}",
+        text,
+    )
+    # Repair a previous bad replace: `compileSdk 36` + leftover `version = … }`
+    text = re.sub(
+        r"compileSdk\s+36\s*\n\s*version\s*=\s*[^\n]+\n\s*\}\s*\n",
+        f"compileSdk {COMPILE_SDK}\n",
+        text,
+    )
+    if "compileSdk" not in text and re.search(r"android\s*\{", text):
+        if kts:
             text = re.sub(r"(android\s*\{)", rf"\1\n    compileSdk = {COMPILE_SDK}\n", text, count=1)
-    else:
-        text = re.sub(r"compileSdkVersion\s+[^\n]+", f"compileSdkVersion {COMPILE_SDK}", text)
-        text = re.sub(r"compileSdk\s+[^\n]+", f"compileSdk {COMPILE_SDK}", text)
-        if "compileSdk" not in text and re.search(r"android\s*\{", text):
+        else:
             text = re.sub(r"(android\s*\{)", rf"\1\n    compileSdkVersion {COMPILE_SDK}\n", text, count=1)
     return text
 
@@ -74,6 +95,7 @@ def patch_plugin_file(path: Path) -> bool:
     if ns:
         text = insert_namespace(text, ns, kts)
     text = force_compile_sdk(text, kts)
+    text = strip_lint_blocks(text)
     if text != original:
         path.write_text(text, encoding="utf-8")
         print(f"patched plugin gradle: {path}")
