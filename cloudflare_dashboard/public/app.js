@@ -33,14 +33,21 @@ function toast(msg) {
 function showApp(on) {
   $("login").classList.toggle("hidden", on);
   $("app").classList.toggle("hidden", !on);
+  const bar = $("bottom-tab-bar");
+  if (bar) bar.classList.toggle("hidden", !on);
 }
 
 function setView(name) {
   ["home", "customers", "licenses"].forEach((v) => {
     $(`view-${v}`).classList.toggle("hidden", v !== name);
   });
+  // Sidebar links (desktop/tablet)
   document.querySelectorAll(".side a").forEach((a) => {
     a.classList.toggle("active", a.dataset.view === name);
+  });
+  // Bottom tab buttons (mobile)
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === name);
   });
   $("view-title").textContent =
     name === "home" ? "Overview" : name === "customers" ? "Customers" : "License keys";
@@ -50,7 +57,16 @@ function badge(kind, label) {
   return `<span class="badge ${kind}">${label}</span>`;
 }
 
+function esc(v) {
+  return String(v ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function renderCustomers() {
+  // Desktop table
   $("c-body").innerHTML = state.customers
     .map(
       (c) => `<tr>
@@ -65,12 +81,42 @@ function renderCustomers() {
       </tr>`,
     )
     .join("");
+
+  // Mobile card list
+  const cards = $("c-cards");
+  if (cards) {
+    if (state.customers.length === 0) {
+      cards.innerHTML = `<p class="muted" style="text-align:center;padding:24px 0">No customers yet.</p>`;
+    } else {
+      cards.innerHTML = state.customers
+        .map(
+          (c) => `<div class="m-card">
+            <div class="m-card-row">
+              <span class="m-card-label">Name</span>
+              <span class="m-card-val"><strong>${esc(c.name)}</strong></span>
+            </div>
+            ${c.business_name ? `<div class="m-card-row"><span class="m-card-label">Business</span><span class="m-card-val">${esc(c.business_name)}</span></div>` : ""}
+            ${c.email ? `<div class="m-card-row"><span class="m-card-label">Email</span><span class="m-card-val">${esc(c.email)}</span></div>` : ""}
+            ${c.phone ? `<div class="m-card-row"><span class="m-card-label">Phone</span><span class="m-card-val">${esc(c.phone)}</span></div>` : ""}
+            <div class="m-card-row"><span class="m-card-label">Created</span><span class="m-card-val muted">${esc((c.created_at || "").slice(0, 10))}</span></div>
+            <div class="m-card-actions">
+              <button class="secondary" data-issue="${c.id}">Issue key</button>
+              <button class="danger" data-delc="${c.id}">Delete</button>
+            </div>
+          </div>`,
+        )
+        .join("");
+    }
+  }
+
+  // Customer dropdown in license form
   $("l-customer").innerHTML = state.customers
     .map((c) => `<option value="${c.id}">${esc(c.name)} — ${esc(c.business_name || "shop")}</option>`)
     .join("");
 }
 
 function renderLicenses() {
+  // Desktop table
   $("l-body").innerHTML = state.licenses
     .map((l) => {
       const bind = l.boundDeviceId
@@ -94,14 +140,53 @@ function renderLicenses() {
       </tr>`;
     })
     .join("");
-}
 
-function esc(v) {
-  return String(v ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+  // Mobile card list
+  const cards = $("l-cards");
+  if (cards) {
+    if (state.licenses.length === 0) {
+      cards.innerHTML = `<p class="muted" style="text-align:center;padding:24px 0">No license keys yet.</p>`;
+    } else {
+      cards.innerHTML = state.licenses
+        .map((l) => {
+          const statusBadge =
+            l.status === "revoked" ? badge("revoked", "Revoked") : badge("bound", "Active");
+          const deviceBadge = l.boundDeviceId
+            ? `${badge("bound", "Bound")}<div class="mono" style="margin-top:4px;font-size:11px">${esc(l.boundDeviceId)}</div>`
+            : badge("unbound", "Unbound");
+          return `<div class="m-card">
+            <div class="m-card-row">
+              <span class="m-card-label">Key</span>
+              <span class="m-card-key">${esc(l.licenseKey)}</span>
+            </div>
+            <div class="m-card-row">
+              <span class="m-card-label">Customer</span>
+              <span class="m-card-val">${esc(l.customer?.name || "—")}</span>
+            </div>
+            <div class="m-card-row">
+              <span class="m-card-label">Status</span>
+              <span>${statusBadge}</span>
+            </div>
+            <div class="m-card-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+              <span class="m-card-label">Device</span>
+              <span>${deviceBadge}</span>
+            </div>
+            <div class="m-card-row">
+              <span class="m-card-label">Expires</span>
+              <span class="m-card-val muted">${esc((l.expiresAt || "").slice(0, 10))}</span>
+            </div>
+            <div class="m-card-actions">
+              <button class="secondary" data-copy="${esc(l.licenseKey)}">Copy</button>
+              <button class="secondary" data-reset="${l.id}">Reset device</button>
+              <button class="secondary" data-extend="${l.id}">+30 days</button>
+              <button class="secondary" data-revoke="${l.id}">Revoke</button>
+              <button class="danger" data-dell="${l.id}">Delete</button>
+            </div>
+          </div>`;
+        })
+        .join("");
+    }
+  }
 }
 
 async function refresh() {
@@ -119,6 +204,7 @@ async function refresh() {
   renderCustomers();
   renderLicenses();
 }
+
 const APK_STABLE = `${location.origin}/download`;
 
 async function loadGithubRelease() {
@@ -145,8 +231,9 @@ async function loadGithubRelease() {
     statusEl.textContent = "Set GITHUB_TOKEN on Pages if the repo is private";
   }
 }
+
 async function boot() {
-   loadGithubRelease();
+  loadGithubRelease();
   document.getElementById("apk-copy")?.addEventListener("click", () => {
     navigator.clipboard.writeText(window.__apkUrl || `${location.origin}/download`);
   });
@@ -194,10 +281,18 @@ $("theme-btn").addEventListener("click", () => {
   document.documentElement.dataset.theme = state.theme;
 });
 
+// Desktop/tablet sidebar navigation
 document.querySelectorAll(".side a").forEach((a) => {
   a.addEventListener("click", (e) => {
     e.preventDefault();
     setView(a.dataset.view);
+  });
+});
+
+// Mobile bottom tab bar navigation
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setView(btn.dataset.view);
   });
 });
 

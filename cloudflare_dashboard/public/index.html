@@ -13,7 +13,7 @@
         <div class="mark">OF</div>
         <div>
           <h1>Order Flow</h1>
-          <div class="muted">License & customer dashboard</div>
+          <div class="muted">License &amp; customer dashboard</div>
         </div>
       </div>
       <label for="password">Admin password</label>
@@ -24,6 +24,7 @@
   </div>
 
   <div id="app" class="app hidden">
+    <!-- Desktop / tablet sidebar -->
     <aside class="side">
       <div class="brand">
         <div class="mark">OF</div>
@@ -38,6 +39,7 @@
         <a href="#licenses" data-view="licenses">License keys</a>
       </nav>
     </aside>
+
     <main class="main">
       <div class="top">
         <div>
@@ -50,6 +52,7 @@
         </div>
       </div>
 
+      <!-- ── Overview ───────────────────────────────────────────────── -->
       <section id="view-home">
         <div class="stats">
           <div class="stat"><span class="muted">Customers</span><b id="stat-customers">0</b></div>
@@ -76,6 +79,7 @@
         </div>
       </section>
 
+      <!-- ── Customers ──────────────────────────────────────────────── -->
       <section id="view-customers" class="hidden">
         <div class="panel" style="padding:18px;margin-bottom:16px">
           <h3>New customer</h3>
@@ -90,12 +94,16 @@
             <button id="c-save" type="button">Create customer</button>
           </div>
         </div>
-        <table>
+        <!-- Desktop table -->
+        <table class="mobile-hide">
           <thead><tr><th>Name</th><th>Business</th><th>Contact</th><th>Created</th><th></th></tr></thead>
           <tbody id="c-body"></tbody>
         </table>
+        <!-- Mobile card list (populated by app.js alongside the table) -->
+        <div class="card-list" id="c-cards"></div>
       </section>
 
+      <!-- ── License keys ───────────────────────────────────────────── -->
       <section id="view-licenses" class="hidden">
         <div class="panel" style="padding:18px;margin-bottom:16px">
           <h3>Issue license key</h3>
@@ -114,7 +122,8 @@
             <button id="l-save" type="button">Generate key</button>
           </div>
         </div>
-        <table>
+        <!-- Desktop table -->
+        <table class="mobile-hide">
           <thead>
             <tr>
               <th>Key</th><th>Customer</th><th>Status</th><th>Device</th><th>Expires</th><th></th>
@@ -122,9 +131,36 @@
           </thead>
           <tbody id="l-body"></tbody>
         </table>
+        <!-- Mobile card list -->
+        <div class="card-list" id="l-cards"></div>
       </section>
     </main>
   </div>
+
+  <!-- Mobile bottom tab bar (hidden on desktop via CSS) -->
+  <nav class="bottom-tab-bar" id="bottom-tab-bar" aria-label="Main navigation">
+    <button class="tab-btn active" data-view="home" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12L12 3l9 9"/><path d="M9 21V12h6v9"/>
+      </svg>
+      Overview
+    </button>
+    <button class="tab-btn" data-view="customers" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/>
+      </svg>
+      Customers
+    </button>
+    <button class="tab-btn" data-view="licenses" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
+        <path d="M7 15h.01M11 15h2"/>
+      </svg>
+      Keys
+    </button>
+  </nav>
+
   <div id="toast" class="toast hidden"></div>
   <script src="./app.js"></script>
 </body>
