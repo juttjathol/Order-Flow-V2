@@ -76,6 +76,9 @@ class PosOrder {
     this.serviceRate = 0,
     this.tip = 0,
     this.payment,
+    this.splitPayment,
+    this.splitAmount = 0,
+    this.loyaltyAwarded = false,
     this.notes = '',
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -104,6 +107,9 @@ class PosOrder {
   double serviceRate;
   double tip;
   PaymentMethod? payment;
+  PaymentMethod? splitPayment;
+  double splitAmount;
+  bool loyaltyAwarded;
   String notes;
   DateTime createdAt;
   DateTime updatedAt;
@@ -118,6 +124,19 @@ class PosOrder {
   double get service => (subtotal * (serviceRate / 100.0)).clamp(0, double.infinity);
   double get tax => subtotal * (taxRate / 100.0);
   double get total => (subtotal + service + tax + tip).clamp(0, double.infinity);
+
+  /// Amount paid with the primary method; the rest is [splitPayment].
+  double get primaryAmount => (total - splitAmount).clamp(0, double.infinity);
+
+  /// True when any part of this sale was tendered in cash.
+  bool get cashInvolved => payment == PaymentMethod.cash || splitPayment == PaymentMethod.cash;
+
+  double paidBy(PaymentMethod m) {
+    var sum = 0.0;
+    if (payment == m) sum += primaryAmount;
+    if (splitPayment == m) sum += splitAmount;
+    return sum;
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -136,6 +155,9 @@ class PosOrder {
         'serviceRate': serviceRate,
         'tip': tip,
         'payment': payment?.name,
+        'splitPayment': splitPayment?.name,
+        'splitAmount': splitAmount,
+        'loyaltyAwarded': loyaltyAwarded,
         'notes': notes,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
@@ -168,6 +190,11 @@ class PosOrder {
         payment: j['payment'] == null
             ? null
             : enumParse(PaymentMethod.values, j['payment'], PaymentMethod.cash),
+        splitPayment: j['splitPayment'] == null
+            ? null
+            : enumParse(PaymentMethod.values, j['splitPayment'], PaymentMethod.cash),
+        splitAmount: parseNum(j['splitAmount']),
+        loyaltyAwarded: parseBool(j['loyaltyAwarded']),
         notes: parseStr(j['notes']) ?? '',
         createdAt: parseTime(j['createdAt']),
         updatedAt: parseTime(j['updatedAt']),
@@ -377,6 +404,7 @@ class PrinterConfig {
     this.transport = 'lan',
     this.btAddress = '',
     this.btName = '',
+    this.drawer = false,
   }) : id = id ?? newId();
 
   String id;
@@ -388,6 +416,8 @@ class PrinterConfig {
   String transport;
   String btAddress;
   String btName;
+  /// Cash drawer attached to this printer's kick port (RJ11).
+  bool drawer;
 
   bool get isBluetooth => transport == 'bluetooth';
 
@@ -408,6 +438,7 @@ class PrinterConfig {
         transport: transport,
         btAddress: btAddress,
         btName: btName,
+        drawer: drawer,
       );
 
   Map<String, dynamic> toJson() => {
@@ -419,6 +450,7 @@ class PrinterConfig {
         'transport': transport,
         'btAddress': btAddress,
         'btName': btName,
+        'drawer': drawer,
       };
 
   factory PrinterConfig.fromJson(Map<String, dynamic>? j) {
@@ -432,6 +464,7 @@ class PrinterConfig {
       transport: parseStr(m['transport']) ?? 'lan',
       btAddress: parseStr(m['btAddress']) ?? '',
       btName: parseStr(m['btName']) ?? '',
+      drawer: parseBool(m['drawer']),
     );
   }
 }

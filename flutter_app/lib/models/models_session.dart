@@ -127,6 +127,9 @@ class SessionPrefs {
     this.localBtAddress = '',
     this.localBtName = '',
     this.localBtEnabled = false,
+    this.localNetHost = '',
+    this.localNetPort = kEscPosPort,
+    this.localNetEnabled = false,
     LicenseRecord? license,
   }) : license = license ?? LicenseRecord();
 
@@ -144,10 +147,16 @@ class SessionPrefs {
   String localBtAddress;
   String localBtName;
   bool localBtEnabled;
+  String localNetHost;
+  int localNetPort;
+  bool localNetEnabled;
   LicenseRecord license;
 
   bool get hasLocalBtPrinter =>
       localBtEnabled && localBtAddress.trim().isNotEmpty;
+
+  bool get hasLocalNetPrinter =>
+      localNetEnabled && localNetHost.trim().isNotEmpty;
 
   Map<String, dynamic> toJson() => {
         'deviceId': deviceId,
@@ -164,6 +173,9 @@ class SessionPrefs {
         'localBtAddress': localBtAddress,
         'localBtName': localBtName,
         'localBtEnabled': localBtEnabled,
+        'localNetHost': localNetHost,
+        'localNetPort': localNetPort,
+        'localNetEnabled': localNetEnabled,
         'license': license.toJson(),
       };
 
@@ -184,6 +196,9 @@ class SessionPrefs {
       localBtAddress: parseStr(m['localBtAddress']) ?? '',
       localBtName: parseStr(m['localBtName']) ?? '',
       localBtEnabled: parseBool(m['localBtEnabled']),
+      localNetHost: parseStr(m['localNetHost']) ?? '',
+      localNetPort: parseInt(m['localNetPort'], kEscPosPort),
+      localNetEnabled: parseBool(m['localNetEnabled']),
       license: LicenseRecord.fromJson(
         m['license'] is Map ? Map<String, dynamic>.from(m['license'] as Map) : null,
       ),

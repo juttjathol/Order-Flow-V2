@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/station_printer.dart';
 
 class KitchenScreen extends ConsumerWidget {
   const KitchenScreen({super.key});
@@ -43,6 +44,11 @@ class KitchenScreen extends ConsumerWidget {
             ),
           ),
           const StationActions(),
+          IconButton(
+            tooltip: s.t('station_printer'),
+            onPressed: () => showStationPrinterSheet(context, ref),
+            icon: const Icon(Icons.print),
+          ),
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),

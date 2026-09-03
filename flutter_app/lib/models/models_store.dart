@@ -33,6 +33,7 @@ class AppStore {
     this.shiftFloat = 0,
     this.shiftEndCash = 0,
     List<ShopCustomer>? customers,
+    this.drawerAuto = false,
   })  : profile = profile ?? BillProfile(),
         tables = tables ?? <FloorTable>[],
         categories = categories ?? <MenuCategory>[],
@@ -75,6 +76,7 @@ class AppStore {
   double shiftFloat;
   double shiftEndCash;
   List<ShopCustomer> customers;
+  bool drawerAuto;
 
   String get currency => profile.currencySymbol;
 
@@ -104,6 +106,7 @@ class AppStore {
         'shiftFloat': shiftFloat,
         'shiftEndCash': shiftEndCash,
         'customers': customers.map((e) => e.toJson()).toList(),
+        'drawerAuto': drawerAuto,
       };
 
   factory AppStore.fromJson(Map<String, dynamic>? j) {
@@ -153,6 +156,7 @@ class AppStore {
       shiftFloat: parseNum(m['shiftFloat']),
       shiftEndCash: parseNum(m['shiftEndCash']),
       customers: list('customers', ShopCustomer.fromJson),
+      drawerAuto: parseBool(m['drawerAuto']),
     );
   }
 

@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/station_printer.dart';
 
 class SpecialistScreen extends ConsumerWidget {
   const SpecialistScreen({super.key});
@@ -35,6 +36,11 @@ class SpecialistScreen extends ConsumerWidget {
         ),
         actions: [
           const StationActions(),
+          IconButton(
+            tooltip: s.t('station_printer'),
+            onPressed: () => showStationPrinterSheet(context, ref),
+            icon: const Icon(Icons.print),
+          ),
           IconButton(onPressed: () => ref.ctrl.leaveRole(), icon: const Icon(Icons.logout)),
         ],
       ),

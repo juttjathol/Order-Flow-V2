@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Order Flow — Full User Guide (English + اردو)</title>
+  <meta name="description" content="Step-by-step guide for every Order Flow feature: setup, stations, menu, orders, payments, cash drawer, printers, loyalty, reports, refunds and more. English and Urdu."/>
+  <link rel="icon" href="./media/logo.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>
+    .guide-head { padding: 90px 0 40px; }
+    .guide-head .sec-sub { color: var(--muted); }
+    .toc { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 28px 0 10px; }
+    .toc a { display: block; padding: 14px 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-weight: 700; font-size: 14px; }
+    .toc a:hover { border-color: var(--mint); transform: translateY(-2px); }
+    .section { padding: 30px 0; border-top: 1px solid var(--line); }
+    .section h2 { font-family: var(--display); font-size: clamp(26px, 3vw, 38px); margin-bottom: 8px; }
+    .lang-block { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
+    @media (max-width: 860px) { .lang-block { grid-template-columns: 1fr; } }
+    .lang-card { padding: 18px 20px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+    .lang-card.ur { direction: rtl; text-align: right; }
+    .lang-card h4 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--mint); margin-bottom: 10px; }
+    .lang-card h4.en { direction: ltr; text-align: left; }
+    .lang-card ol, .lang-card ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 8px; line-height: 1.6; }
+    .lang-card p { margin: 0 0 8px; line-height: 1.6; }
+    .lang-card li::marker { color: var(--gold); font-weight: 800; }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: rgba(61,220,151,.14); border: 1px solid rgba(61,220,151,.4); color: var(--mint); font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .version-note { padding: 12px 16px; border-radius: 14px; background: rgba(230,195,92,.12); border: 1px solid rgba(230,195,92,.4); color: var(--gold); font-weight: 700; font-size: 14px; display: inline-block; }
+    .back-top { display: inline-block; margin-top: 14px; font-weight: 700; color: var(--mint); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="./index.html#top"><img src="./media/logo.png" alt="Jathol"/><div>ORDER FLOW <span>|</span></div></a>
+      <nav class="nav-links">
+        <a href="./index.html#product">Product</a>
+        <a href="./index.html#download">Download</a>
+        <a href="#toc">Contents</a>
+        <a href="#contact">WhatsApp</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-mint" href="./index.html#download" data-apk>Get the app</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="guide-head">
+      <div class="wrap">
+        <p class="kicker">User guide · رہنمائے صارف</p>
+        <h1 class="sec-title">Every feature, step by step.<br/>ہر فیچر، قدم بہ قدم۔</h1>
+        <p class="sec-sub">The complete manual for Order Flow — how to set up the shop, run every station, handle payments, printers, the cash drawer, loyalty, reports and refunds. English and Urdu on one page.</p>
+        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.58 · ایپ ورژن 1.1.58 کے مطابق</p>
+      </div>
+    </section>
+
+    <div class="wrap" id="toc">
+      <h2 class="sec-title" style="font-size:26px">Contents</h2>
+      <div class="toc">
+        <a href="#start">1 · Install &amp; license</a>
+        <a href="#stations">2 · Stations &amp; roles</a>
+        <a href="#models">3 · Business models</a>
+        <a href="#menu">4 · Menu &amp; modifiers</a>
+        <a href="#stock">5 · Stock &amp; 86 board</a>
+        <a href="#orders">6 · Orders &amp; tables</a>
+        <a href="#pay">7 · Payments &amp; split</a>
+        <a href="#drawer">8 · Cash drawer</a>
+        <a href="#print">9 · Printers &amp; receipts</a>
+        <a href="#display">10 · Customer display</a>
+        <a href="#share">11 · Share &amp; notify</a>
+        <a href="#loyalty">12 · Loyalty &amp; customers</a>
+        <a href="#reports">13 · Reports &amp; shifts</a>
+        <a href="#refund">14 · Refunds &amp; voids</a>
+        <a href="#drivers">15 · Drivers &amp; delivery</a>
+        <a href="#reserve">16 · Reservations</a>
+        <a href="#settings">17 · Settings &amp; backup</a>
+        <a href="#hardware">18 · Hardware tips</a>
+        <a href="#fix">19 · Troubleshooting</a>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <section class="section" id="start">
+        <h2>1 · Install &amp; license <span style="color:var(--muted);font-size:.6em">انسٹال اور لائسنس</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ol>
+              <li>Download the APK from the <a href="./index.html#download">homepage</a> on the Android phone that will be <b>Main</b> (the shop server).</li>
+              <li>Allow installs from this site when Android asks.</li>
+              <li>Open Order Flow → tap the WhatsApp button or paste your 16-character license key.</li>
+              <li>The first phone that activates the key becomes Main — the key binds to it.</li>
+              <li>Main runs the shop server on Wi-Fi port 8787. Keep the app open; do not swipe it away.</li>
+              <li>Main works up to 48 hours offline after a valid check. If the key is revoked, Main locks and shows WhatsApp support.</li>
+            </ol>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ol>
+              <li>ہوم پیج سے APK اس اینڈرائیڈ فون پر ڈاؤن لوڈ کریں جو <b>Main</b> (دکان کا سرور) بنے گا۔</li>
+              <li>اینڈرائیڈ پوچھے تو اس سائٹ سے انسٹال کی اجازت دیں۔</li>
+              <li>آرڈر فلو کھولیں → واٹس ایپ بٹن دبائیں یا اپنی 16 حرفی لائسنس کی پیسٹ کریں۔</li>
+              <li>جو پہلا فون کی ایکٹیویٹ کرے گا وہ Main بن جاتا ہے — کی اسی فون سے بندھ جاتی ہے۔</li>
+              <li>Main وائی فائی پر پورٹ 8787 پر دکان کا سرور چلاتا ہے۔ ایپ کھلی رکھیں، بند نہ کریں۔</li>
+              <li>درست تصدیق کے بعد Main آف لائن بھی 48 گھنٹے چلتا ہے۔ کی منسوخ ہو تو Main لاک ہو جاتا ہے اور واٹس ایپ سپورٹ دکھاتا ہے۔</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="stations">
+        <h2>2 · Stations &amp; roles <span style="color:var(--muted);font-size:.6em">اسٹیشنز اور کردار</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <p>Other phones on the same Wi-Fi join free — they do not need a key.</p>
+            <ol>
+              <li>On the new phone: License screen → <b>Connect to Main</b>.</li>
+              <li>Type the IP shown on Main's Home screen, or scan the QR code.</li>
+              <li>Pick a role: <b>Manager, Order taker, Kitchen, Cashier, Stock clerk, Front desk, Specialist, Driver</b>.</li>
+              <li>Each station has its own queue and syncs live with Main. If the connection drops, the station queues its work and flushes when Main is reachable.</li>
+              <li>Switch roles anytime from a station with the logout button, or cover any role from Main's account-switch menu.</li>
+            </ol>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <p>اسی وائی فائی پر موجود دوسرے فون مفت جڑتے ہیں — انہیں کی کی ضرورت نہیں۔</p>
+            <ol>
+              <li>نئے فون پر: لائسنس اسکرین → <b>Connect to Main</b> دبائیں۔</li>
+              <li>Main کی ہوم اسکرین پر دکھایا گیا IP لکھیں، یا QR سکین کریں۔</li>
+              <li>کردار منتخب کریں: <b>مینیجر، آرڈر ٹیکر، کچن، کیشیئر، اسٹاک کلرک، فرنٹ ڈیسک، اسپیشلسٹ، ڈرائیور</b>۔</li>
+              <li>ہر اسٹیشن کی اپنی قطار ہے اور Main سے لائیو جڑتا ہے۔ رابطہ ٹوٹے تو کام قطار میں جمع رہتا ہے اور Main ملتے ہی بھیج دیا جاتا ہے۔</li>
+              <li>کسی بھی اسٹیشن سے لاگ آؤٹ کر کے کردار بدلیں، یا Main کے اکاؤنٹ مینو سے کوئی بھی کردار سنبھالیں۔</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="models">
+        <h2>3 · Business models <span style="color:var(--muted);font-size:.6em">کاروباری ماڈل</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <p>More → Business model (Main only). The app reshapes itself for each business:</p>
+            <ul>
+              <li><b>Restaurant</b> — table map, kitchen tickets, courses (starter / main / dessert), reservations.</li>
+              <li><b>Retail</b> — register queue, SKU barcode scanning, stock cards, quick retail sale.</li>
+              <li><b>Fast food</b> — queue numbers, takeaway, kitchen fire.</li>
+              <li><b>Services</b> — appointments, specialists, service menu with duration.</li>
+            </ul>
+            <p>Changing the model keeps your menu, stock and customers.</p>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <p>More → کاروباری ماڈل (صرف Main پر)۔ ایپ ہر کاروبار کے مطابق خود کو ڈھال لیتی ہے:</p>
+            <ul>
+              <li><b>ریسٹورنٹ</b> — ٹیبل نقشہ، کچن ٹکٹ، کورسز (اسٹارٹر / مین / ڈیزرٹ)، ریزرویشن۔</li>
+              <li><b>ریٹیل</b> — رجسٹر قطار، SKU بارکوڈ سکین، اسٹاک کارڈز، فوری سیل۔</li>
+              <li><b>فاسٹ فوڈ</b> — قطار نمبر، ٹیک اوے، کچن فائر۔</li>
+              <li><b>سروسز</b> — اپائنٹمنٹ، اسپیشلسٹ، دورانیے کے ساتھ سروس مینیو۔</li>
+            </ul>
+            <p>ماڈل بدلنے سے مینیو، اسٹاک اور کسٹمر محفوظ رہتے ہیں۔</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="menu">
+        <h2>4 · Menu &amp; modifiers <span style="color:var(--muted);font-size:.6em">مینیو اور موڈیفائر</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ol>
+              <li>Menu tab → add categories (e.g. Drinks, Mains) and products with photo, price and SKU.</li>
+              <li>Add <b>modifiers</b> per product: Size (small / large), Spice level, and priced Add-ons.</li>
+              <li>Link a product to a stock item so sales deduct inventory automatically.</li>
+              <li>Long-press a product on the order screen to 86 it (mark unavailable) — it greys out everywhere instantly.</li>
+              <li>Currency symbol is configurable in Bill profile; every price uses it.</li>
+            </ol>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ol>
+              <li>مینیو ٹیب → کیٹگریز (مثلاً ڈرنکس، مینز) اور پروڈکٹس تصویر، قیمت اور SKU کے ساتھ بنائیں۔</li>
+              <li>ہر پروڈکٹ پر <b>موڈیفائر</b> لگائیں: سائز (چھوٹا / بڑا)، مصالحہ، اور قیمت والے ایڈ آن۔</li>
+              <li>پروڈکٹ کو اسٹاک آئٹم سے جوڑیں تاکہ سیل پر انوینٹری خود کم ہو۔</li>
+              <li>آرڈر اسکرین پر پروڈکٹ کو دیر تک دبائیں تو 86 ہو جاتی ہے (دستیاب نہیں) — ہر جگہ فوراً۔</li>
+              <li>کرنسی کا نشان بل پروفائل میں بدلیں؛ ہر قیمت اسی میں دکھتی ہے۔</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="stock">
+        <h2>5 · Stock &amp; 86 board <span style="color:var(--muted);font-size:.6em">اسٹاک اور 86 بورڈ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Stock tab: cards with quantity; low-stock and out-of-stock show automatically.</li>
+              <li>Paid orders deduct stock once per order (never double-deducted). Refunding returns it.</li>
+              <li>Scan a stock barcode to add quantity quickly.</li>
+              <li>More → 86 board lists every unavailable item with a one-tap restore.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>اسٹاک ٹیب: کارڈز مقدار کے ساتھ؛ کم اسٹاک اور ختم اسٹاک خود دکھ جاتا ہے۔</li>
+              <li>ادا شدہ آرڈر اسٹاک ایک بار کم کرتا ہے (دوبارہ نہیں)۔ رقم واپسی پر واپس آ جاتا ہے۔</li>
+              <li>اسٹاک بارکوڈ سکین کر کے مقدار فوراً بڑھائیں۔</li>
+              <li>More → 86 بورڈ میں ہر غیر دستیاب آئٹم ایک ٹیپ پر واپس دستیاب ہو جاتا ہے۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="orders">
+        <h2>6 · Orders &amp; tables <span style="color:var(--muted);font-size:.6em">آرڈرز اور ٹیبلز</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Tables / Queue tab: tap a table to open its ticket; live colors = free / ordered / ready.</li>
+              <li><b>Send to kitchen</b> prints the kitchen slip and alerts the pass with sound + vibration.</li>
+              <li><b>Hold</b> pauses a ticket; un-hold resumes. <b>Fire course</b> sends only one course to kitchen.</li>
+              <li><b>Move / merge tables</b>, <b>split bill</b> or <b>split evenly</b> from the ticket's More menu.</li>
+              <li>Discounts and complimentary tickets need the manager PIN.</li>
+              <li>Takeaway and delivery tickets carry customer name, phone and address.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>ٹیبلز / قطار ٹیب: ٹیبل دبا کر ٹکٹ کھولیں؛ زندہ رنگ = خالی / آرڈر / تیار۔</li>
+              <li><b>Send to kitchen</b> کچن پرچہ پرنٹ کرتا ہے اور پاس کو آواز + وائبریشن سے خبردار کرتا ہے۔</li>
+              <li><b>Hold</b> ٹکٹ روکتا ہے؛ دوبارہ کھولنے پر جاری۔ <b>Fire course</b> صرف ایک کورس کچن بھیجتا ہے۔</li>
+              <li>ٹکٹ کے More مینو سے <b>ٹیبل بدلیں / جوڑیں</b>، <b>بل تقسیم کریں</b> یا <b>برابر تقسیم کریں</b>۔</li>
+              <li>رعایت اور مفت ٹکٹ کے لیے مینیجر PIN درکار ہے۔</li>
+              <li>ٹیک اوے اور ڈیلیوری ٹکٹ پر کسٹمر کا نام، فون اور پتہ ہوتا ہے۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="pay">
+        <h2>7 · Payments &amp; split payment <span style="color:var(--muted);font-size:.6em">ادائیگیاں اور تقسیم ادائیگی</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ol>
+              <li>Tap <b>Pay</b> on the ticket → pick the method: Cash, Card, Wallet, Other or Complimentary.</li>
+              <li>Cash: use the keypad, <b>Exact</b> fills the due, change is shown. Card/wallet: tap and close.</li>
+              <li>Tip can be added (none / 5% / 10% / 15%) before closing.</li>
+              <li><b>Split payment</b>: switch it on, choose a second method and its amount — e.g. cash 300 + card 500.</li>
+              <li>Both methods print on the receipt and appear in the payment breakdown reports.</li>
+              <li>The cash drawer opens only if any part of the sale is cash.</li>
+            </ol>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ol>
+              <li>ٹکٹ پر <b>Pay</b> دبائیں → طریقہ چنیں: کیش، کارڈ، والٹ، دیگر یا مفت۔</li>
+              <li>کیش: کی پیڈ استعمال کریں، <b>Exact</b> پوری رقم بھرتا ہے، باقی رقم دکھتی ہے۔ کارڈ/والٹ: دبا کر بند کریں۔</li>
+              <li>بند کرنے سے پہلے ٹپ شامل کریں (نہیں / 5% / 10% / 15%)۔</li>
+              <li><b>تقسیم ادائیگی</b>: آن کریں، دوسرا طریقہ اور اس کی رقم لکھیں — مثلاً کیش 300 + کارڈ 500۔</li>
+              <li>دونوں طریقے رسید پر پرنٹ ہوتے ہیں اور رپورٹس کی ادائیگی تفصیل میں آتے ہیں۔</li>
+              <li>کیش دراز صرف اس وقت کھلتی ہے جب سیل کا کوئی حصہ کیش ہو۔</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="drawer">
+        <h2>8 · Cash drawer <span style="color:var(--muted);font-size:.6em">کیش دراز</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ol>
+              <li>Plug the drawer's cable into the <b>receipt printer's RJ11 (kick) port</b>. No extra app or driver is needed.</li>
+              <li>Main → More → Hardware → <b>Cash drawer</b> → switch on <b>Open on cash payments</b>.</li>
+              <li>Tap <b>Open drawer now</b> to test.</li>
+              <li>From now on: cash sale → drawer pops before the receipt prints. Card / wallet / other → drawer stays shut.</li>
+              <li>If a station uses its own printer (section 9), the drawer kick goes through that printer.</li>
+            </ol>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ol>
+              <li>دراز کی کیبل <b>رسید والے پرنٹر کے RJ11 (کِک) پورٹ</b> میں لگائیں۔ کوئی الگ ایپ یا ڈرائیور نہیں چاہیے۔</li>
+              <li>Main → More → ہارڈویئر → <b>کیش دراز</b> → <b>کیش ادائیگی پر خود کھلے</b> آن کریں۔</li>
+              <li><b>ابھی دراز کھولیں</b> دبا کر ٹیسٹ کریں۔</li>
+              <li>اب: کیش سیل → رسید سے پہلے دراز کھلتی ہے۔ کارڈ / والٹ / دیگر → دراز بند رہتی ہے۔</li>
+              <li>اگر کوئی اسٹیشن اپنا پرنٹر استعمال کرے (سیکشن 9) تو دراز اسی پرنٹر سے کھلتی ہے۔</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="print">
+        <h2>9 · Printers &amp; receipts <span style="color:var(--muted);font-size:.6em">پرنٹرز اور رسیدیں</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>Shop printers (Main):</b> More → Hardware → Printers. Add LAN (IP + port 9100) or Bluetooth ESC/POS printers and assign each to a role (kitchen, cashier…).</li>
+              <li><b>Every station's own printer:</b> tap the printer icon in the station's top bar. Pick a Bluetooth printer or type a LAN IP. The station then prints everything itself, independent of Main.</li>
+              <li><b>Bill profile:</b> shop name, address, phone, tax ID, footer, logo image, pay QR — all print on the receipt.</li>
+              <li>Separate slip templates for kitchen / counter / takeaway / delivery — choose what each shows.</li>
+              <li>Test button on every printer screen sends a test page. Reprint any ticket from More → Reprint.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>دکان کے پرنٹرز (Main):</b> More → ہارڈویئر → پرنٹرز۔ LAN (IP + پورٹ 9100) یا بلوٹوتھ ESC/POS پرنٹر شامل کریں اور ہر کردار (کچن، کیشیئر…) کو پرنٹر تفویض کریں۔</li>
+              <li><b>ہر اسٹیشن کا اپنا پرنٹر:</b> اسٹیشن کی اوپری بار میں پرنٹر آئیکن دبائیں۔ بلوٹوتھ پرنٹر چنیں یا LAN IP لکھیں۔ پھر یہ اسٹیشن سب کچھ خود پرنٹ کرتا ہے، Main سے آزاد۔</li>
+              <li><b>بل پروفائل:</b> دکان کا نام، پتہ، فون، ٹیکس ID، فوٹر، لوگو تصویر، پے QR — سب رسید پر پرنٹ ہوتا ہے۔</li>
+              <li>کچن / کاؤنٹر / ٹیک اوے / ڈیلیوری کے لیے الگ سلپ ٹیمپلیٹس — جو دکھانا ہو منتخب کریں۔</li>
+              <li>ہر پرنٹر اسکرین پر ٹیسٹ بٹن سے ٹیسٹ صفحہ نکلتا ہے۔ More → دوبارہ پرنٹ سے کوئی بھی ٹکٹ دوبارہ نکالیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="display">
+        <h2>10 · Customer display <span style="color:var(--muted);font-size:.6em">کسٹمر ڈسپلے</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <p>Tap the <b>TV icon</b> in any ticket's top bar. The screen becomes a customer-facing display: shop name, giant animated total that jumps on every item, and the latest item added. Great on a tablet facing the customer or cast to a TV. Tap back to return.</p>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <p>کسی بھی ٹکٹ کی اوپری بار میں <b>ٹی وی آئیکن</b> دبائیں۔ اسکرین کسٹمر کے سامنے والا ڈسپلے بن جاتی ہے: دکان کا نام، بڑی حرکت کرتی کل رقم جو ہر آئٹم پر اچھلتی ہے، اور سب سے نیا آئٹم۔ کسٹمر کی طرف رکھی ٹیبلٹ یا ٹی وی پر بہترین۔ واپسی کے لیے بیک دبائیں۔</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="share">
+        <h2>11 · Share receipt &amp; notify customer <span style="color:var(--muted);font-size:.6em">رسید شیئر اور اطلاع</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>After payment the celebration screen offers <b>Share receipt</b> — or use the share icon on any paid ticket. Send it on WhatsApp, SMS or email.</li>
+              <li>Tap the <b>chat icon</b> on a ticket with a customer phone number to open WhatsApp with a ready "your order is ready" message.</li>
+              <li>Delivery customers can be told the order is out for delivery the same way.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>ادائیگی کے بعد جشن والی اسکرین پر <b>رسید شیئر</b> کا بٹن ہے — یا کسی بھی ادا شدہ ٹکٹ پر شیئر آئیکن استعمال کریں۔ واٹس ایپ، SMS یا ای میل پر بھیجیں۔</li>
+              <li>جس ٹکٹ پر کسٹمر کا فون نمبر ہو اس پر <b>چیٹ آئیکن</b> دبائیں — واٹس ایپ پر تیار پیغام کھلتا ہے کہ "آپ کا آرڈر تیار ہے"۔</li>
+              <li>ڈیلیوری کسٹمر کو اسی طرح بتایا جا سکتا ہے کہ آرڈر روانہ ہو گیا۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="loyalty">
+        <h2>12 · Loyalty &amp; customers <span style="color:var(--muted);font-size:.6em">لائلٹی اور کسٹمر</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>More → Customers: keep a book with name, phone, address, loyalty points and store credit.</li>
+              <li>When a ticket's customer phone matches a saved customer, paying awards <b>1 point per whole currency unit</b> automatically (e.g. Rs 450 → 450 points).</li>
+              <li>Points never double-award: each paid order earns once. Refunds do not remove points.</li>
+              <li>Attach a customer to takeaway/delivery tickets with the edit button on the ticket.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>More → کسٹمرز: نام، فون، پتہ، لائلٹی پوائنٹس اور اسٹور کریڈٹ کی کتاب رکھیں۔</li>
+              <li>جب ٹکٹ کا فون کسی محفوظ کسٹمر سے ملے تو ادائیگی پر خودکار <b>ہر مکمل کرنسی یونٹ پر 1 پوائنٹ</b> ملتا ہے (مثلاً 450 روپے → 450 پوائنٹس)۔</li>
+              <li>پوائنٹس کبھی ڈبل نہیں ملتے: ہر ادا شدہ آرڈر ایک بار کماتا ہے۔ رقم واپسی سے پوائنٹس نہیں کٹتے۔</li>
+              <li>ٹیک اوے/ڈیلیوری ٹکٹ پر ایڈٹ بٹن سے کسٹمر جوڑیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="reports">
+        <h2>13 · Reports &amp; shifts <span style="color:var(--muted);font-size:.6em">رپورٹس اور شفٹ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>X report</b> (More → X): today's sales, payment breakdown per method (split-aware), hourly sales, voids, refunds — without closing anything.</li>
+              <li><b>Z report / Day close</b>: finalises the day and records the closing time.</li>
+              <li><b>Shifts:</b> cashier opens with a float, ends with counted cash; reports show who worked.</li>
+              <li>Home shows sales, open orders and charts live.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>X رپورٹ</b> (More → X): آج کی سیل، ہر طریقے کی ادائیگی کی تفصیل (تقسیم ادائیگی سمیت)، گھنٹہ وار سیل، منسوخ، رقم واپسیاں — بغیر کچھ بند کیے۔</li>
+              <li><b>Z رپورٹ / دن بند</b>: دن مکمل کرتا ہے اور بند ہونے کا وقت محفوظ کرتا ہے۔</li>
+              <li><b>شفٹس:</b> کیشیئر فلوٹ سے شروع کرتا ہے، گنی ہوئی کیش پر ختم کرتا ہے؛ رپورٹس دکھاتی ہیں کس نے کام کیا۔</li>
+              <li>ہوم پر سیل، کھلے آرڈر اور چارٹس لائیو دکھتے ہیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="refund">
+        <h2>14 · Refunds &amp; voids <span style="color:var(--muted);font-size:.6em">رقم واپسی اور منسوخی</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>Void</b> an open order from its More menu with a reason — it moves to the void report.</li>
+              <li><b>Refund</b> a paid order: tap the exchange icon on the paid ticket, confirm the manager PIN. Stock returns to inventory automatically and the refund shows in reports.</li>
+              <li>Every void and refund keeps a written reason on the ticket.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>کھلے آرڈر کو اس کے More مینو سے وجہ کے ساتھ <b>منسوخ</b> کریں — یہ منسوخی رپورٹ میں آتا ہے۔</li>
+              <li>ادا شدہ آرڈر کی <b>رقم واپس</b> کریں: ادا شدہ ٹکٹ پر ایکسچینج آئیکن دبائیں، مینیجر PIN دیں۔ اسٹاک خود واپس آتا ہے اور رپورٹس میں واپسی نظر آتی ہے۔</li>
+              <li>ہر منسوخی اور واپسی کی وجہ ٹکٹ پر لکھی رہتی ہے۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="drivers">
+        <h2>15 · Drivers &amp; delivery <span style="color:var(--muted);font-size:.6em">ڈرائیور اور ڈیلیوری</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ol>
+              <li>More → Drivers: add drivers with name and phone.</li>
+              <li>The driver pairs once from his own phone (Connect to Main → Driver role, then the name match).</li>
+              <li>On a delivery ticket choose <b>Assign driver</b>. The driver sets free / busy / offline — even away from the shop Wi-Fi.</li>
+              <li>Out for delivery marks the ticket served; the cashier closes the payment.</li>
+            </ol>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ol>
+              <li>More → ڈرائیورز: نام اور فون کے ساتھ ڈرائیور شامل کریں۔</li>
+              <li>ڈرائیور اپنے فون سے ایک بار جوڑا بناتا ہے (Connect to Main → ڈرائیور کردار، پھر نام ملائیں)۔</li>
+              <li>ڈیلیوری ٹکٹ پر <b>ڈرائیور تفویض کریں</b>۔ ڈرائیور free / busy / offline سیٹ کرتا ہے — دکان کے وائی فائی سے دور بھی۔</li>
+              <li>روانگی پر ٹکٹ served ہو جاتا ہے؛ کیشیئر ادائیگی بند کرتا ہے۔</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="reserve">
+        <h2>16 · Reservations <span style="color:var(--muted);font-size:.6em">ریزرویشن</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <p>More → Reservations (restaurant and services models): book a customer with phone and time. Appointments show on the floor map and in the specialist's queue. Book a walk-in from the front desk with one tap.</p>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <p>More → ریزرویشن (ریسٹورنٹ اور سروسز ماڈل): کسٹمر کو فون اور وقت کے ساتھ بک کریں۔ اپائنٹمنٹس فلور نقشے اور اسپیشلسٹ کی قطار میں دکھتی ہیں۔ فرنٹ ڈیسک سے ایک ٹیپ پر واک اِن بک کریں۔</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="settings">
+        <h2>17 · Settings, backup &amp; language <span style="color:var(--muted);font-size:.6em">سیٹنگز، بیک اپ اور زبان</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>Language:</b> English / اردو per device, from More.</li>
+              <li><b>Theme:</b> light / dark / system.</li>
+              <li><b>Backup:</b> More → Export backup shares a JSON file; import restores everything on Main.</li>
+              <li><b>Staff &amp; PIN:</b> staff list with duty (on shift / meal break / tea break / offline) and manager PIN for discounts, refunds and role changes.</li>
+              <li><b>License:</b> view key, device ID and expiry; WhatsApp button for support.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>زبان:</b> ہر ڈیوائس پر English / اردو، More سے۔</li>
+              <li><b>تھیم:</b> لائٹ / ڈارک / سسٹم۔</li>
+              <li><b>بیک اپ:</b> More → ایکسپورٹ بیک اپ JSON فائل شیئر کرتا ہے؛ امپورٹ سے Main پر سب بحال ہو جاتا ہے۔</li>
+              <li><b>اسٹاف اور PIN:</b> ڈیوٹی کے ساتھ اسٹاف (آن شفٹ / کھانا / چائے / آف لائن) اور رعایت، واپسی اور کردار بدلنے کے لیے مینیجر PIN۔</li>
+              <li><b>لائسنس:</b> کی، ڈیوائس ID اور میعاد دیکھیں؛ سپورٹ کے لیے واٹس ایپ بٹن۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="hardware">
+        <h2>18 · Hardware tips <span style="color:var(--muted);font-size:.6em">ہارڈویئر مشورے</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>Printers:</b> any ESC/POS 58/80mm thermal printer — LAN (TCP 9100) or Bluetooth. Keep the printer on the same Wi-Fi as Main.</li>
+              <li><b>Cash drawer:</b> any RJ11 kick drawer — plugs into the receipt printer, never directly into the phone.</li>
+              <li><b>Barcode guns:</b> USB/Bluetooth guns work as keyboards — just focus the search or scan box. The built-in camera scanner does the same without hardware.</li>
+              <li><b>Kitchen sound:</b> station notifications + vibration announce ready orders; keep the kitchen device's volume up.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>پرنٹرز:</b> کوئی بھی ESC/POS 58/80mm تھرمل پرنٹر — LAN (TCP 9100) یا بلوٹوتھ۔ پرنٹر اسی وائی فائی پر رکھیں جس پر Main ہے۔</li>
+              <li><b>کیش دراز:</b> کوئی بھی RJ11 کِک دراز — رسید والے پرنٹر میں لگتی ہے، فون میں کبھی نہیں۔</li>
+              <li><b>بارکوڈ گن:</b> USB/بلوٹوتھ گنیں کی بورڈ کی طرح کام کرتی ہیں — سرچ یا سکین باکس پر توجہ رکھیں۔ بلٹ ان کیمرہ سکینر بغیر ہارڈویئر یہی کام کرتا ہے۔</li>
+              <li><b>کچن کی آواز:</b> اسٹیشن نوٹیفکیشن + وائبریشن تیار آرڈر بتاتے ہیں؛ کچن ڈیوائس کی آواز اونچی رکھیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="fix">
+        <h2>19 · Troubleshooting <span style="color:var(--muted);font-size:.6em">مسائل کا حل</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>Station won't connect:</b> same Wi-Fi as Main? Is Main's server on (Home → Server ON)? Re-type the IP.</li>
+              <li><b>Print fails:</b> run the printer's Test page. LAN: check IP/port 9100 and same network. Bluetooth: pair in Android settings first, allow Nearby devices permission.</li>
+              <li><b>Drawer won't open:</b> is it plugged into the receipt printer's kick port? Try Open drawer now. Some printers need the drawer enabled in their own settings.</li>
+              <li><b>Offline queue:</b> the station chip shows queued work; it flushes automatically when Main is back.</li>
+              <li><b>License locked:</b> the key was reset or revoked — WhatsApp @Jathol_Jutt from the lock screen.</li>
+              <li>Anything else: WhatsApp <strong>@Jathol_Jutt</strong>.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>اسٹیشن نہیں جڑتا:</b> کیا اسی وائی فائی پر ہے جس پر Main؟ کیا Main کا سرور آن ہے (ہوم → سرور آن)؟ IP دوبارہ لکھیں۔</li>
+              <li><b>پرنٹ ناکام:</b> پرنٹر کا ٹیسٹ صفحہ چلائیں۔ LAN: IP/پورٹ 9100 اور وہی نیٹ ورک چیک کریں۔ بلوٹوتھ: پہلے اینڈرائیڈ سیٹنگز میں پیئر کریں، Nearby devices اجازت دیں۔</li>
+              <li><b>دراز نہیں کھلتی:</b> کیا کیبل رسید والے پرنٹر کے کِک پورٹ میں ہے؟ ابھی دراز کھولیں آزمائیں۔ کچھ پرنٹرز میں دراز اپنی سیٹنگز سے آن کرنی پڑتی ہے۔</li>
+              <li><b>آف لائن قطار:</b> اسٹیشن چپ پر جمع کام دکھاتی ہے؛ Main واپس آتے ہی خود بھیج دیتی ہے۔</li>
+              <li><b>لائسنس لاک:</b> کی ری سیٹ یا منسوخ ہوئی — لاک اسکرین سے واٹس ایپ @Jathol_Jutt کریں۔</li>
+              <li>کوئی اور مسئلہ: واٹس ایپ <strong>@Jathol_Jutt</strong>۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div style="padding:20px 0 60px">
+        <a class="back-top" href="#top">↑ Back to top</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div>© <span id="y"></span> Jathol · Order Flow</div>
+      <div>
+        <a href="./index.html">Home</a>
+        ·
+        <a href="./privacy.html">Privacy</a>
+        ·
+        <a href="./index.html#download">Download</a>
+        ·
+        <a id="wa-foot" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+    </div>
+  </footer>
+  <script src="./site.js"></script>
+</body>
+</html>

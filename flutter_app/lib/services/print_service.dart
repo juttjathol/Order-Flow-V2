@@ -9,6 +9,10 @@ import 'bluetooth_printer.dart';
 class PrintService {
   final bluetooth = BluetoothPrinter();
 
+  /// ESC/POS drawer kick: pulse pin 2 for 50ms (most drawers open on 25).
+  /// Harmless on printers without a drawer port — the printer just ignores it.
+  static const drawerKickBytes = [0x1B, 0x70, 0x00, 0x19, 0xFA];
+
   Future<void> send(PrinterConfig cfg, List<int> bytes) async {
     if (!cfg.enabled) throw Exception('Printer is not configured');
     if (cfg.isBluetooth) {
@@ -32,6 +36,56 @@ class PrintService {
     } finally {
       await socket.close();
     }
+  }
+
+  /// Kicks the cash drawer through the given printer (ESC/POS pin-2 pulse).
+  Future<void> openDrawer(PrinterConfig cfg) {
+    return send(cfg, List<int>.from(drawerKickBytes));
+  }
+
+  /// Plain-text receipt, used for WhatsApp / SMS sharing.
+  String receiptText(AppStore store, PosOrder order) {
+    final p = store.profile;
+    final cur = p.currencySymbol;
+    final prefix = p.currencyPrefix;
+    String m(num n) => money(n, cur, prefix: prefix);
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final w = StringBuffer();
+    w.writeln('* * * ${p.businessName.toUpperCase()} * * *');
+    if (p.address.isNotEmpty) w.writeln(p.address);
+    if (p.phone.isNotEmpty) w.writeln('Tel. ${p.phone}');
+    w.writeln('--------------------------------');
+    w.writeln('Ticket ${order.ticketNo}  ${'${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}:${two(now.minute)}'}');
+    if (order.tableName?.isNotEmpty == true) {
+      w.writeln('Table ${order.tableName}');
+    } else {
+      w.writeln(order.type.name.toUpperCase());
+    }
+    if (order.customerName.isNotEmpty) w.writeln(order.customerName);
+    w.writeln('--------------------------------');
+    for (final line in order.lines) {
+      final qty = line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1);
+      w.writeln('$qty x ${line.name}   ${m(line.lineTotal)}');
+      if (line.notes.isNotEmpty) w.writeln('   * ${line.notes}');
+    }
+    w.writeln('--------------------------------');
+    if (order.discount > 0) w.writeln('Discount: - ${m(order.discount)}');
+    if (order.service > 0) w.writeln('Service: ${m(order.service)}');
+    if (order.tax > 0) w.writeln('Tax: ${m(order.tax)}');
+    if (order.tip > 0) w.writeln('Tip: ${m(order.tip)}');
+    w.writeln('TOTAL: ${m(order.total)}');
+    if (order.payment != null) {
+      if (order.splitPayment != null && order.splitAmount > 0) {
+        w.writeln('${order.payment!.name.toUpperCase()}: ${m(order.primaryAmount)}');
+        w.writeln('${order.splitPayment!.name.toUpperCase()}: ${m(order.splitAmount)}');
+      } else {
+        w.writeln('PAID BY ${order.payment!.name.toUpperCase()}: ${m(order.total)}');
+      }
+    }
+    if (p.footer.isNotEmpty) w.writeln(p.footer.toUpperCase());
+    w.writeln('* * * * * * * * * * * * * * * *');
+    return w.toString();
   }
 
   Future<void> kitchenTicket(
@@ -130,7 +184,12 @@ class PrintService {
       if (order.tip > 0) b.row('Tip', m(order.tip));
     }
     if (slip.showPayment && order.payment != null) {
-      b.row(order.payment!.name, m(order.total));
+      if (order.splitPayment != null && order.splitAmount > 0) {
+        b.row(order.payment!.name, m(order.primaryAmount));
+        b.row(order.splitPayment!.name, m(order.splitAmount));
+      } else {
+        b.row(order.payment!.name, m(order.total));
+      }
     }
     b.stars();
     b.align('center');

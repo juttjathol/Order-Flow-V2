@@ -87,6 +87,9 @@ class MoreScreen extends ConsumerWidget {
     ];
     final account = <Widget>[
       if (snap.isMain) _row(Icons.vpn_key, s.t('license'), () => _license(context, ref)),
+      _row(Icons.menu_book, s.t('user_guide'), () {
+        launchUrl(Uri.parse(kGuideUrl), mode: LaunchMode.externalApplication);
+      }),
       _row(Icons.manage_accounts, s.t('roles'), () => leaveRoleWithPin(context, ref)),
       _row(Icons.language, s.t('language'), () {
         ref.ctrl.setLocale(snap.session.locale == 'en' ? 'ur' : 'en');
@@ -127,6 +130,7 @@ class MoreScreen extends ConsumerWidget {
         if (shop.isNotEmpty) _folder(context, Icons.storefront, s.t('shop_section'), shop),
         _folder(context, Icons.print, s.t('hardware_section'), [
           _row(Icons.print, s.t('printers'), () => _printers(context, ref)),
+          _row(Icons.savings, s.t('cash_drawer'), () => _drawer(context, ref)),
         ]),
         _folder(context, Icons.groups, s.t('people_section'), people),
         _folder(context, Icons.insights, s.t('reports_section'), reports),
@@ -600,6 +604,64 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
   );
 }
 
+Future<void> _drawer(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final on = ref.snap.store.drawerAuto;
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(s.t('cash_drawer'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+              const SizedBox(height: 6),
+              Text(s.t('drawer_hint'), style: const TextStyle(color: OfColors.muted, height: 1.35)),
+              const SizedBox(height: 10),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: on,
+                title: Text(s.t('drawer_auto')),
+                subtitle: Text(s.t('drawer_auto_hint')),
+                onChanged: (v) async {
+                  await ref.ctrl.setDrawerAuto(v);
+                },
+              ),
+              const SizedBox(height: 6),
+              FilledButton.icon(
+                onPressed: () async {
+                  try {
+                    await ref.ctrl.openDrawer();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(s.t('drawer_opened'))),
+                      );
+                    }
+                  } catch (_) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(s.t('drawer_failed'))),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.unarchive),
+                label: Text(s.t('drawer_open_now')),
+              ),
+              const SizedBox(height: 8),
+              Text(s.t('drawer_note'), style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.35)),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
 Future<void> _customers(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
   await showModalBottomSheet<void>(
@@ -966,48 +1028,54 @@ Future<void> _closeDay(BuildContext context, WidgetRef ref) async {
 Future<void> _reports(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
   final store = ref.snap.store;
-  final today = store.salesOn(DateTime.now());
+  final now = DateTime.now();
+  final today = store.salesOn(now);
   final paid = store.orders.where((o) => o.status == OrderStatus.paid).toList();
+  final paidToday = paid.where((o) {
+    final d = o.updatedAt;
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }).toList();
   final items = paid.fold<int>(0, (n, o) => n + o.lines.fold<int>(0, (a, l) => a + l.qty.round()));
-  final avg = paid.isEmpty ? 0.0 : today / (paid.where((o) {
-        final d = DateTime.now();
-        return o.updatedAt.year == d.year && o.updatedAt.month == d.month && o.updatedAt.day == d.day;
-      }).length.clamp(1, 9999));
+  final avg = paidToday.isEmpty ? 0.0 : today / paidToday.length.clamp(1, 9999);
+  final refunds = store.orders.where((o) => o.status == OrderStatus.cancelled && o.voidReason == 'refund').length;
   await showModalBottomSheet<void>(
     context: context,
     builder: (ctx) => Padding(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(s.t('reports'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-          ListTile(title: Text(s.t('today_sales')), trailing: Text(moneyOf(ref.snap, today), style: const TextStyle(fontWeight: FontWeight.w800))),
-          ListTile(title: Text(s.t('items_sold')), trailing: Text('$items')),
-          ListTile(title: Text(s.t('avg_ticket')), trailing: Text(moneyOf(ref.snap, avg))),
-          ListTile(title: Text(s.t('low_stock')), trailing: Text('${store.lowStock.length}')),
-          ListTile(
-            title: Text(s.t('x_report')),
-            subtitle: Text(s.t('cash')),
-            trailing: Text(
-              moneyOf(
-                ref.snap,
-                paid.where((o) {
-                  final d = DateTime.now();
-                  return o.updatedAt.year == d.year && o.updatedAt.month == d.month && o.updatedAt.day == d.day && o.payment == PaymentMethod.cash;
-                }).fold<double>(0, (a, o) => a + o.total),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(s.t('reports'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            ListTile(title: Text(s.t('today_sales')), trailing: Text(moneyOf(ref.snap, today), style: const TextStyle(fontWeight: FontWeight.w800))),
+            ListTile(title: Text(s.t('items_sold')), trailing: Text('$items')),
+            ListTile(title: Text(s.t('avg_ticket')), trailing: Text(moneyOf(ref.snap, avg))),
+            ListTile(title: Text(s.t('low_stock')), trailing: Text('${store.lowStock.length}')),
+            const SizedBox(height: 4),
+            Text(s.t('payment_breakdown'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            for (final m in PaymentMethod.values)
+              ListTile(
+                dense: true,
+                title: Text(s.t(m.name)),
+                trailing: Text(moneyOf(ref.snap, paidToday.fold<double>(0, (a, o) => a + o.paidBy(m)))),
               ),
+            const SizedBox(height: 4),
+            ListTile(
+              title: Text(s.t('z_report')),
+              subtitle: Text(s.t('day_close')),
+              trailing: Text(moneyOf(ref.snap, today)),
             ),
-          ),
-          ListTile(
-            title: Text(s.t('z_report')),
-            subtitle: Text(s.t('day_close')),
-            trailing: Text(moneyOf(ref.snap, today)),
-          ),
-          ListTile(
-            title: Text(s.t('void_report')),
-            trailing: Text('${store.orders.where((o) => o.status == OrderStatus.cancelled).length}'),
-          ),
-        ],
+            ListTile(
+              title: Text(s.t('void_report')),
+              trailing: Text('${store.orders.where((o) => o.status == OrderStatus.cancelled && o.voidReason != 'refund').length}'),
+            ),
+            ListTile(
+              title: Text(s.t('refunds')),
+              trailing: Text('$refunds'),
+            ),
+          ],
+        ),
       ),
     ),
   );

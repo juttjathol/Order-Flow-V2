@@ -261,10 +261,11 @@ Future<void> showSalesReports(BuildContext context, WidgetRef ref, {required boo
   final s = ref.s;
   final store = ref.snap.store;
   final now = DateTime.now();
-  final paid = store.orders.where((o) => o.status == OrderStatus.paid && o.updatedAt.year == now.year && o.updatedAt.month == now.month && o.updatedAt.day == now.day);
-  final cash = paid.where((o) => o.payment == PaymentMethod.cash).fold<double>(0, (a, o) => a + o.total);
-  final card = paid.where((o) => o.payment == PaymentMethod.card).fold<double>(0, (a, o) => a + o.total);
-  final voids = store.orders.where((o) => o.status == OrderStatus.cancelled && o.updatedAt.year == now.year && o.updatedAt.month == now.month && o.updatedAt.day == now.day).toList();
+  final today = store.orders.where((o) =>
+      o.updatedAt.year == now.year && o.updatedAt.month == now.month && o.updatedAt.day == now.day);
+  final paid = today.where((o) => o.status == OrderStatus.paid);
+  final voids = today.where((o) => o.status == OrderStatus.cancelled && o.voidReason != 'refund').toList();
+  final refunds = today.where((o) => o.status == OrderStatus.cancelled && o.voidReason == 'refund').toList();
   final hours = List.generate(24, (h) {
     final sum = paid.where((o) => o.updatedAt.hour == h).fold<double>(0, (a, o) => a + o.total);
     return MapEntry(h, sum);
@@ -280,14 +281,25 @@ Future<void> showSalesReports(BuildContext context, WidgetRef ref, {required boo
             Text(zReport ? s.t('z_report') : s.t('x_report'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
             if (store.shiftCashier.isNotEmpty) Text('${s.t('shift')}: ${store.shiftCashier}'),
             ListTile(title: Text(s.t('today_sales')), trailing: Text(moneyOf(ref.snap, store.salesOn(now)))),
-            ListTile(title: Text(s.t('cash')), trailing: Text(moneyOf(ref.snap, cash))),
-            ListTile(title: Text(s.t('card')), trailing: Text(moneyOf(ref.snap, card))),
+            const SizedBox(height: 4),
+            Text(s.t('payment_breakdown'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            for (final m in PaymentMethod.values)
+              ListTile(
+                dense: true,
+                title: Text(s.t(m.name)),
+                trailing: Text(moneyOf(ref.snap, paid.fold<double>(0, (a, o) => a + o.paidBy(m)))),
+              ),
+            const SizedBox(height: 4),
             Text(s.t('hourly_sales'), style: const TextStyle(fontWeight: FontWeight.w800)),
             ...hours.map((e) => Text('${e.key.toString().padLeft(2, '0')}:00  ${moneyOf(ref.snap, e.value)}')),
             const SizedBox(height: 10),
             Text(s.t('void_report'), style: const TextStyle(fontWeight: FontWeight.w800)),
             if (voids.isEmpty) Text(s.t('none'), style: const TextStyle(color: OfColors.muted)),
             ...voids.map((o) => Text('${o.ticketNo}  ${o.voidReason.isEmpty ? o.notes : o.voidReason}')),
+            const SizedBox(height: 10),
+            Text(s.t('refunds'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            if (refunds.isEmpty) Text(s.t('none'), style: const TextStyle(color: OfColors.muted)),
+            ...refunds.map((o) => Text('${o.ticketNo}  ${moneyOf(ref.snap, o.total)}')),
           ],
         ),
       ),

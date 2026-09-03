@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../core/constants.dart';
 import '../core/role_access.dart';
@@ -254,17 +255,34 @@ class AppController extends Notifier<AppSnapshot> {
     _emit(state.copyWith(session: state.session));
   }
 
+  /// The printer attached to THIS device (station or Main): LAN first,
+  /// then Bluetooth. Falls back to null so shop-level targets apply.
   PrinterConfig? deviceLocalPrinter() {
     final s = state.session;
-    if (!s.hasLocalBtPrinter) return null;
-    return PrinterConfig(
-      name: s.localBtName.trim().isEmpty ? 'Bluetooth printer' : s.localBtName.trim(),
-      enabled: true,
-      transport: 'bluetooth',
-      btAddress: s.localBtAddress.trim(),
-      btName: s.localBtName.trim(),
-    );
+    if (s.hasLocalNetPrinter) {
+      return PrinterConfig(
+        name: 'LAN printer',
+        enabled: true,
+        transport: 'lan',
+        host: s.localNetHost.trim(),
+        port: s.localNetPort,
+      );
+    }
+    if (s.hasLocalBtPrinter) {
+      return PrinterConfig(
+        name: s.localBtName.trim().isEmpty ? 'Bluetooth printer' : s.localBtName.trim(),
+        enabled: true,
+        transport: 'bluetooth',
+        btAddress: s.localBtAddress.trim(),
+        btName: s.localBtName.trim(),
+      );
+    }
+    return null;
   }
+
+  /// Printer this device uses for receipts / drawer kicks.
+  PrinterConfig localReceiptTarget() =>
+      deviceLocalPrinter() ?? state.store.receiptTarget(state.session.role);
 
   Future<void> setLocalBluetoothPrinter({
     required String address,
@@ -274,6 +292,24 @@ class AppController extends Notifier<AppSnapshot> {
     state.session.localBtAddress = address.trim();
     state.session.localBtName = name.trim();
     state.session.localBtEnabled = enabled && address.trim().isNotEmpty;
+    if (state.session.localBtEnabled) {
+      state.session.localNetEnabled = false;
+    }
+    _emit(state.copyWith(session: state.session));
+    await persist();
+  }
+
+  Future<void> setLocalLanPrinter({
+    required String host,
+    int port = kEscPosPort,
+    bool enabled = true,
+  }) async {
+    state.session.localNetHost = host.trim();
+    state.session.localNetPort = port <= 0 ? kEscPosPort : port;
+    state.session.localNetEnabled = enabled && host.trim().isNotEmpty;
+    if (state.session.localNetEnabled) {
+      state.session.localBtEnabled = false;
+    }
     _emit(state.copyWith(session: state.session));
     await persist();
   }
@@ -282,8 +318,28 @@ class AppController extends Notifier<AppSnapshot> {
     state.session.localBtAddress = '';
     state.session.localBtName = '';
     state.session.localBtEnabled = false;
+    state.session.localNetHost = '';
+    state.session.localNetPort = kEscPosPort;
+    state.session.localNetEnabled = false;
     _emit(state.copyWith(session: state.session));
     await persist();
+  }
+
+  /// Kicks the cash drawer on the device-local receipt printer
+  /// (or the shop receipt printer when this device has none).
+  Future<void> openDrawer() async {
+    await printer.openDrawer(localReceiptTarget());
+  }
+
+  Future<void> setDrawerAuto(bool on) async {
+    await dispatch(NetCommand(name: 'setDrawer', payload: {'on': on}));
+  }
+
+  /// Shares a plain-text receipt via the Android share sheet
+  /// (WhatsApp, SMS, email, …).
+  Future<void> shareReceipt(PosOrder order) async {
+    final text = printer.receiptText(state.store, order);
+    await SharePlus.instance.share(ShareParams(text: text));
   }
 
   Future<void> setApiBase(String url) async {

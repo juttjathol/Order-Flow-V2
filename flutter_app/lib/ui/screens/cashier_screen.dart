@@ -9,6 +9,7 @@ import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
 import '../widgets/offsite_order.dart';
 import '../widgets/pos_ops.dart';
+import '../widgets/station_printer.dart';
 
 class CashierScreen extends ConsumerStatefulWidget {
   const CashierScreen({super.key});
@@ -41,6 +42,11 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
         ),
         actions: [
           const StationActions(),
+          IconButton(
+            tooltip: s.t('station_printer'),
+            onPressed: () => showStationPrinterSheet(context, ref),
+            icon: const Icon(Icons.print),
+          ),
           IconButton(tooltip: s.t('start_shift'), onPressed: () => startShift(context, ref), icon: const Icon(Icons.badge)),
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],

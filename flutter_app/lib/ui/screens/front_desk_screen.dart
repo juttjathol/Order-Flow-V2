@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/station_printer.dart';
 import 'floor_screen.dart';
 
 class FrontDeskScreen extends ConsumerWidget {
@@ -29,6 +30,11 @@ class FrontDeskScreen extends ConsumerWidget {
         ),
         actions: [
           const StationActions(),
+          IconButton(
+            tooltip: s.t('station_printer'),
+            onPressed: () => showStationPrinterSheet(context, ref),
+            icon: const Icon(Icons.print),
+          ),
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),

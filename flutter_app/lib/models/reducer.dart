@@ -45,6 +45,10 @@ class StoreReducer {
         store.profile = BillProfile.fromJson(mapOf(p['profile']));
         bump();
         break;
+      case 'setDrawer':
+        store.drawerAuto = parseBool(p['on'], store.drawerAuto);
+        bump();
+        break;
       case 'setPrinters':
         if (p['printers'] is List) {
           store.printers = (p['printers'] as List)
@@ -260,6 +264,16 @@ class StoreReducer {
           if (p['payment'] != null) {
             order.payment =
                 enumParse(PaymentMethod.values, p['payment'], PaymentMethod.cash);
+          }
+          if (p['splitPayment'] != null) {
+            order.splitPayment =
+                enumParse(PaymentMethod.values, p['splitPayment'], PaymentMethod.cash);
+          }
+          if (p['splitAmount'] != null) {
+            order.splitAmount = parseNum(p['splitAmount']).clamp(0, double.infinity);
+          }
+          if (p['loyaltyAwarded'] != null) {
+            order.loyaltyAwarded = parseBool(p['loyaltyAwarded']);
           }
           if (p['tip'] != null) {
             order.tip = parseNum(p['tip']);

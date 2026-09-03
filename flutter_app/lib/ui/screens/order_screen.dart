@@ -2,14 +2,17 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
+import '../widgets/confetti.dart';
 import '../widgets/offsite_order.dart';
 import '../widgets/pin_gate.dart';
 import '../widgets/pos_ops.dart';
+import 'customer_display_screen.dart';
 
 class OrderScreen extends ConsumerStatefulWidget {
   const OrderScreen({super.key, required this.orderId});
@@ -67,6 +70,29 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               tooltip: s.t('scan_sku'),
               onPressed: () => _scanSku(order),
               icon: const Icon(Icons.qr_code_scanner),
+            ),
+          IconButton(
+            tooltip: s.t('customer_display'),
+            onPressed: () => _showCustomerDisplay(order),
+            icon: const Icon(Icons.tv),
+          ),
+          if (order.customerPhone.isNotEmpty)
+            IconButton(
+              tooltip: s.t('notify_customer'),
+              onPressed: () => _notifyCustomer(order),
+              icon: const Icon(Icons.chat),
+            ),
+          if (order.status == OrderStatus.paid)
+            IconButton(
+              tooltip: s.t('share_receipt'),
+              onPressed: () => _shareReceipt(order),
+              icon: const Icon(Icons.share),
+            ),
+          if (order.status == OrderStatus.paid && canPay)
+            IconButton(
+              tooltip: s.t('refund'),
+              onPressed: () => _refund(order),
+              icon: const Icon(Icons.currency_exchange),
             ),
           IconButton(
             tooltip: s.t('print_kitchen'),
@@ -715,6 +741,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             ListTile(title: Text(s.t('move_table')), leading: const Icon(Icons.swap_horiz), onTap: () { Navigator.pop(ctx); moveTicket(context, ref, order); }),
             ListTile(title: Text(s.t('merge_table')), leading: const Icon(Icons.merge_type), onTap: () { Navigator.pop(ctx); mergeTicket(context, ref, order); }),
             ListTile(title: Text(s.t('fire_course')), leading: const Icon(Icons.local_fire_department), onTap: () { Navigator.pop(ctx); fireCourse(context, ref, order); }),
+            if (order.status == OrderStatus.paid && canPay)
+              ListTile(title: Text(s.t('refund')), leading: const Icon(Icons.currency_exchange, color: OfColors.warn), onTap: () { Navigator.pop(ctx); _refund(order); }),
             ListTile(title: Text(s.t('cancel_order')), leading: const Icon(Icons.cancel, color: OfColors.danger), onTap: () { Navigator.pop(ctx); _voidOrder(order); }),
           ],
         ),
@@ -725,6 +753,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<void> _pay(PosOrder order) async {
     final s = ref.s;
     PaymentMethod method = PaymentMethod.cash;
+    var splitOn = false;
+    PaymentMethod splitMethod = PaymentMethod.card;
+    var splitText = '';
     var tender = '';
     var tip = order.tip;
     final base = order.subtotal + order.service + order.tax;
@@ -734,8 +765,52 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) {
           final due = base + tip;
+          final splitAmt = splitOn ? (double.tryParse(splitText) ?? 0) : 0.0;
+          final splitValid = !splitOn || (splitAmt > 0 && splitAmt + 0.001 < due);
+          final primaryDue = splitOn && splitValid ? due - splitAmt : due;
           final received = double.tryParse(tender) ?? 0;
-          final change = received - due;
+          final cashTarget = method == PaymentMethod.cash
+              ? primaryDue
+              : (splitOn && splitMethod == PaymentMethod.cash ? splitAmt : null);
+          final cashOk = cashTarget == null || received + 0.001 >= cashTarget;
+          final canConfirm = splitValid && cashOk;
+          List<Widget> cashPadFor(double target) {
+            final received = double.tryParse(tender) ?? 0;
+            return [
+              const SizedBox(height: 12),
+              Align(alignment: Alignment.centerLeft, child: Text(s.t('tendered'), style: const TextStyle(color: OfColors.muted))),
+              Text(tender.isEmpty ? '0' : tender, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 28)),
+              if (received >= target) Text('${s.t('change_due')}  ${moneyOf(ref.snap, received - target)}', style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800)),
+              if (tender.isNotEmpty && received < target) Text(s.t('cash_short'), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final d in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'])
+                    SizedBox(
+                      width: 72,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => setSt(() {
+                          if (d == '⌫') {
+                            if (tender.isNotEmpty) tender = tender.substring(0, tender.length - 1);
+                          } else if (!(d == '.' && tender.contains('.'))) {
+                            tender += d;
+                          }
+                        }),
+                        child: Text(d, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                  FilledButton.tonal(
+                    onPressed: () => setSt(() => tender = target.toStringAsFixed(target % 1 == 0 ? 0 : 2)),
+                    child: Text(s.t('exact')),
+                  ),
+                ],
+              ),
+            ];
+          }
+
           return Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
             child: Column(
@@ -743,12 +818,62 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               children: [
                 Text('${s.t('payment')}  ${moneyOf(ref.snap, due)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
                 const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(splitOn ? s.t('method_one') : s.t('pay_with'), style: const TextStyle(color: OfColors.muted)),
+                    ),
+                    if (splitOn) Text(moneyOf(ref.snap, primaryDue), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
                   children: PaymentMethod.values
-                      .map((m) => ChoiceChip(label: Text(s.t(m.name)), selected: method == m, onSelected: (_) => setSt(() => method = m)))
+                      .map((m) => ChoiceChip(
+                            avatar: m == PaymentMethod.cash
+                                ? _CashWiggle(active: !splitOn && method == m)
+                                : null,
+                            label: Text(s.t(m.name)),
+                            selected: method == m,
+                            onSelected: (_) => setSt(() => method = m),
+                          ))
                       .toList(),
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: splitOn,
+                  title: Text(s.t('split_payment')),
+                  onChanged: (v) => setSt(() => splitOn = v),
+                ),
+                if (splitOn) ...[
+                  Row(
+                    children: [
+                      Expanded(child: Text(s.t('method_two'), style: const TextStyle(color: OfColors.muted))),
+                      if (splitValid) Text(moneyOf(ref.snap, splitAmt), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: PaymentMethod.values
+                        .map((m) => ChoiceChip(
+                              avatar: m == PaymentMethod.cash
+                                  ? _CashWiggle(active: splitMethod == m)
+                                  : null,
+                              label: Text(s.t(m.name)),
+                              selected: splitMethod == m,
+                              onSelected: (_) => setSt(() => splitMethod = m),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(labelText: s.t('split_amount')),
+                    onChanged: (v) => setSt(() => splitText = v),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Align(alignment: Alignment.centerLeft, child: Text(s.t('tip'), style: const TextStyle(color: OfColors.muted))),
                 Wrap(
@@ -764,42 +889,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                       ),
                   ],
                 ),
-                if (method == PaymentMethod.cash) ...[
-                  const SizedBox(height: 12),
-                  Align(alignment: Alignment.centerLeft, child: Text(s.t('tendered'), style: const TextStyle(color: OfColors.muted))),
-                  Text(tender.isEmpty ? '0' : tender, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 28)),
-                  if (received >= due) Text('${s.t('change_due')}  ${moneyOf(ref.snap, change)}', style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800)),
-                  if (tender.isNotEmpty && received < due) Text(s.t('cash_short'), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final d in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'])
-                        SizedBox(
-                          width: 72,
-                          height: 48,
-                          child: OutlinedButton(
-                            onPressed: () => setSt(() {
-                              if (d == '⌫') {
-                                if (tender.isNotEmpty) tender = tender.substring(0, tender.length - 1);
-                              } else if (!(d == '.' && tender.contains('.'))) {
-                                tender += d;
-                              }
-                            }),
-                            child: Text(d, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                          ),
-                        ),
-                      FilledButton.tonal(
-                        onPressed: () => setSt(() => tender = due.toStringAsFixed(due % 1 == 0 ? 0 : 2)),
-                        child: Text(s.t('exact')),
-                      ),
-                    ],
-                  ),
-                ],
+                if (method == PaymentMethod.cash) ...cashPadFor(primaryDue),
+                if (splitOn && splitValid && splitMethod == PaymentMethod.cash && method != PaymentMethod.cash) ...cashPadFor(splitAmt),
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: method == PaymentMethod.cash && received + 0.001 < due ? null : () => Navigator.pop(ctx, true),
+                  onPressed: canConfirm ? () => Navigator.pop(ctx, true) : null,
                   child: Text(s.t('pay_and_close')),
                 ),
               ],
@@ -809,16 +903,110 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ),
     );
     if (ok == true) {
+      final splitAmt = splitOn ? (double.tryParse(splitText) ?? 0) : 0.0;
+      final due = base + tip;
+      final primaryDue = splitOn ? (due - splitAmt) : due;
+
+      // Loyalty: a saved customer earns 1 point per whole currency unit.
+      if (!order.loyaltyAwarded && order.customerPhone.trim().isNotEmpty) {
+        final cust = ref.snap.store.customers
+            .where((c) => c.phone.trim().isNotEmpty && c.phone.trim() == order.customerPhone.trim())
+            .firstOrNull;
+        if (cust != null && due > 0) {
+          cust.points += due.floorToDouble();
+          await ref.ctrl.dispatch(NetCommand(name: 'upsertCustomer', payload: {
+            'customer': cust.toJson(),
+          }));
+          order.loyaltyAwarded = true;
+        }
+      }
+
       await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
         'id': order.id,
         'status': OrderStatus.paid.name,
         'payment': method.name,
+        if (splitOn && splitAmt > 0) ...{
+          'splitPayment': splitMethod.name,
+          'splitAmount': splitAmt,
+        },
+        if (order.loyaltyAwarded) 'loyaltyAwarded': true,
+        'tip': tip,
       }));
+
+      // Cash drawer: opens ONLY for cash tenders. Card / wallet / other never do.
+      if (ref.snap.store.drawerAuto && (method == PaymentMethod.cash || (splitOn && splitMethod == PaymentMethod.cash))) {
+        try {
+          await ref.ctrl.openDrawer();
+        } catch (_) {}
+      }
+
       ref.ctrl.rememberReceipt(order.id);
       try {
         await ref.ctrl.printer.receipt(ref.read(appControllerProvider).store, order, role: ref.snap.session.role);
       } catch (_) {}
+
+      if (mounted) {
+        await _showPaidCelebration(order, primaryDue: primaryDue, splitAmt: splitOn ? splitAmt : null);
+      }
     }
+  }
+
+  Future<void> _showPaidCelebration(PosOrder order, {required double primaryDue, double? splitAmt}) async {
+    final s = ref.s;
+    final total = ref.snap.store.orderById(order.id)?.total ?? primaryDue + (splitAmt ?? 0);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ConfettiBurst(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            decoration: BoxDecoration(
+              color: Theme.of(ctx).colorScheme.surface,
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: OfColors.mint.withValues(alpha: 0.5)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle, color: OfColors.mint, size: 64),
+                const SizedBox(height: 10),
+                Text(s.t('payment_done'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
+                const SizedBox(height: 4),
+                Text('${order.ticketNo}  ·  ${moneyOf(ref.snap, total)}', style: const TextStyle(color: OfColors.muted)),
+                if (splitAmt != null && splitAmt > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(s.t('paid_split_note'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                  ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _shareReceipt(order);
+                        },
+                        icon: const Icon(Icons.share),
+                        label: Text(s.t('share_receipt')),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(s.t('done')),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<String?> _askVoid() async {
@@ -837,6 +1025,33 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _refund(PosOrder order) async {
+    final s = ref.s;
+    if (!await confirmManagerPin(context, ref)) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.t('refund')),
+        content: Text('${s.t('refund_confirm')}\n${moneyOf(ref.snap, order.total)}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('refund'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    order.notes = [order.notes, 'REFUND ${moneyOf(ref.snap, order.total)}'].where((e) => e.isNotEmpty).join(' | ');
+    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': order.toJson()}));
+    await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
+      'id': order.id,
+      'status': OrderStatus.cancelled.name,
+      'voidReason': 'refund',
+    }));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('refund_done'))));
+    }
   }
 
   Future<void> _voidOrder(PosOrder order) async {
@@ -868,6 +1083,91 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
     }
+  }
+
+  void _showCustomerDisplay(PosOrder order) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerDisplayScreen(orderId: order.id),
+      ),
+    );
+  }
+
+  Future<void> _shareReceipt(PosOrder order) async {
+    try {
+      await ref.ctrl.shareReceipt(order);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ref.s.t('share_failed'))));
+      }
+    }
+  }
+
+  Future<void> _notifyCustomer(PosOrder order) async {
+    final s = ref.s;
+    final shop = ref.snap.store.profile.businessName;
+    final who = order.customerName.isEmpty ? s.t('guest') : order.customerName;
+    final message = s.t('wa_ready_msg')
+        .replaceFirst('{name}', who)
+        .replaceFirst('{ticket}', order.ticketNo)
+        .replaceFirst('{shop}', shop);
+    final url = Uri.parse(
+      'https://wa.me/${order.customerPhone.replaceAll(RegExp(r'[^0-9]'), '')}'
+      '?text=${Uri.encodeComponent(message)}',
+    );
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('notify_failed'))));
+      }
+    }
+  }
+}
+
+/// Tiny "drawer rattles" wiggle on the cash chip — pure fun, no logic.
+class _CashWiggle extends StatefulWidget {
+  const _CashWiggle({required this.active});
+  final bool active;
+
+  @override
+  State<_CashWiggle> createState() => _CashWiggleState();
+}
+
+class _CashWiggleState extends State<_CashWiggle>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 140),
+  );
+
+  @override
+  void didUpdateWidget(covariant _CashWiggle old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !_c.isAnimating) {
+      _c.repeat(reverse: true);
+    } else if (!widget.active && _c.isAnimating) {
+      _c.stop();
+      _c.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) => Transform.rotate(
+        angle: _c.value * 0.22 - 0.11,
+        child: child,
+      ),
+      child: const Icon(Icons.savings, size: 18, color: OfColors.gold),
+    );
   }
 }
 
