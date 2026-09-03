@@ -1142,6 +1142,12 @@ class _CashWiggleState extends State<_CashWiggle>
   );
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.active) _c.repeat(reverse: true);
+  }
+
+  @override
   void didUpdateWidget(covariant _CashWiggle old) {
     super.didUpdateWidget(old);
     if (widget.active && !_c.isAnimating) {
@@ -1163,7 +1169,7 @@ class _CashWiggleState extends State<_CashWiggle>
     return AnimatedBuilder(
       animation: _c,
       builder: (_, child) => Transform.rotate(
-        angle: _c.value * 0.22 - 0.11,
+        angle: _c.value == 0 ? 0 : _c.value * 0.22 - 0.11,
         child: child,
       ),
       child: const Icon(Icons.savings, size: 18, color: OfColors.gold),

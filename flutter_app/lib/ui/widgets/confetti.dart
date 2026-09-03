@@ -113,12 +113,12 @@ class _ConfettiPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
     for (final p in parts) {
-      final local = ((t - p.delay) / (1 - p.delay)).clamp(0.0, 1.0);
+      final local = ((t - p.delay) / (1 - p.delay)).clamp(0.0, 1.0).toDouble();
       if (local <= 0) continue;
       final fall = Curves.easeIn.transform(local);
       final x = p.dx * size.width + p.sway * math.sin(local * p.swaySpeed * math.pi);
       final y = fall * size.height * 1.25 + p.dy * size.height;
-      final fade = (1 - local).clamp(0.0, 1.0);
+      final fade = (1 - local).clamp(0.0, 1.0).toDouble();
       paint.color = p.color.withValues(alpha: 0.9 * fade);
       canvas.save();
       canvas.translate(x, y);

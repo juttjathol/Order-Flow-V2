@@ -270,7 +270,7 @@ class StoreReducer {
                 enumParse(PaymentMethod.values, p['splitPayment'], PaymentMethod.cash);
           }
           if (p['splitAmount'] != null) {
-            order.splitAmount = parseNum(p['splitAmount']).clamp(0, double.infinity);
+            order.splitAmount = parseNum(p['splitAmount']).clamp(0, double.infinity).toDouble();
           }
           if (p['loyaltyAwarded'] != null) {
             order.loyaltyAwarded = parseBool(p['loyaltyAwarded']);

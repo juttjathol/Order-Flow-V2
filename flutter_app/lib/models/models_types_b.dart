@@ -126,7 +126,7 @@ class PosOrder {
   double get total => (subtotal + service + tax + tip).clamp(0, double.infinity);
 
   /// Amount paid with the primary method; the rest is [splitPayment].
-  double get primaryAmount => (total - splitAmount).clamp(0, double.infinity);
+  double get primaryAmount => (total - splitAmount).clamp(0, double.infinity).toDouble();
 
   /// True when any part of this sale was tendered in cash.
   bool get cashInvolved => payment == PaymentMethod.cash || splitPayment == PaymentMethod.cash;
