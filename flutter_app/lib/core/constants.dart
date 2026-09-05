@@ -30,6 +30,6 @@ const String kPrivacyUrl = 'https://jathol.pages.dev/privacy';
 const String kGuideUrl = 'https://jathol.pages.dev/guide';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.1.60';
+const String kAppVersion = '1.1.61';
 const String kJoinScheme = 'orderflow';
 const String kDefaultCurrency = 'Rs';
