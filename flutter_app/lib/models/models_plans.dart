@@ -32,7 +32,7 @@ const kFeatureCatalog = <FeatureInfo>[
   FeatureInfo('eighty_six', '86 board (sellable control)', '۸۶ بورڈ'),
 ];
 
-const _kFeatureKeys = <String>[for (final f in kFeatureCatalog) f.key];
+final Set<String> _kFeatureKeys = kFeatureCatalog.map((f) => f.key).toSet();
 bool isGatedFeature(String key) => _kFeatureKeys.contains(key);
 
 /// Per-license plan & entitlements. Lives on AppStore so it syncs to every
