@@ -144,7 +144,8 @@ class PrintService {
       ..text('Ticket ${order.ticketNo}')
       ..text(_fmt(now));
     if (order.tableName?.isNotEmpty == true) {
-      b.text('Table ${order.tableName}');
+      // QR self-orders are served by table — make it unmissable (v1.1.60).
+      b.text(order.isQr ? '>>> QR TABLE ${order.tableName} <<<' : 'Table ${order.tableName}');
     } else {
       b.text(order.type.name.toUpperCase());
     }

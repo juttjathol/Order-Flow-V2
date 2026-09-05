@@ -41,7 +41,10 @@ class AppStore {
     List<Supplier>? suppliers,
     List<PurchaseOrder>? purchases,
     this.poSeq = 500,
+    this.qrFireOn = 'pay',
+    QrBrand? qrBrand,
   })  : profile = profile ?? BillProfile(),
+        qrBrand = qrBrand ?? QrBrand(),
         entitlements = entitlements ?? Entitlements(),
         tables = tables ?? <FloorTable>[],
         categories = categories ?? <MenuCategory>[],
@@ -96,6 +99,11 @@ class AppStore {
   List<Supplier> suppliers;
   List<PurchaseOrder> purchases;
   int poSeq;
+  /// When a QR ticket fires to the kitchen: 'pay' (after counter payment —
+  /// default) or 'order' (immediately at submit). v1.1.60.
+  String qrFireOn;
+  /// Public identity shown on the guest QR page (v1.1.60, custom plans).
+  QrBrand qrBrand;
 
   String get currency => profile.currencySymbol;
 
@@ -171,6 +179,8 @@ class AppStore {
         'suppliers': suppliers.map((e) => e.toJson()).toList(),
         'purchases': purchases.map((e) => e.toJson()).toList(),
         'poSeq': poSeq,
+        'qrFireOn': qrFireOn,
+        'qrBrand': qrBrand.toJson(),
       };
 
   factory AppStore.fromJson(Map<String, dynamic>? j) {
@@ -231,6 +241,10 @@ class AppStore {
       suppliers: list('suppliers', Supplier.fromJson),
       purchases: list('purchases', PurchaseOrder.fromJson),
       poSeq: parseInt(m['poSeq'], 500),
+      qrFireOn: parseStr(m['qrFireOn']) == 'order' ? 'order' : 'pay',
+      qrBrand: QrBrand.fromJson(m['qrBrand'] is Map
+          ? Map<String, dynamic>.from(m['qrBrand'] as Map)
+          : const <String, dynamic>{}),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -13,6 +14,7 @@ import '../models/models.dart';
 import '../models/reducer.dart';
 import '../models/seed.dart';
 import '../services/backup_service.dart';
+import '../services/cloud_relay.dart';
 import '../services/lan_client.dart';
 import '../services/lan_server.dart';
 import '../services/license_service.dart';
@@ -124,6 +126,7 @@ class AppController extends Notifier<AppSnapshot> {
   final printer = PrintService();
   LanServer? _server;
   LanClient? _client;
+  CloudRelay? _relay;
   Timer? _revalidate;
   Timer? _ipTimer;
   StreamSubscription? _netSub;
@@ -203,6 +206,7 @@ class AppController extends Notifier<AppSnapshot> {
       await startServer();
       unawaited(revalidate());
       unawaited(_syncEntitlements());
+      if (session.cloudOn) _startRelay();
     } else if (session.role == AppRole.driver && session.pairedDriverId != null) {
       if (session.mainHost.isNotEmpty) {
         unawaited(_tryDriverSync());
@@ -494,6 +498,10 @@ class AppController extends Notifier<AppSnapshot> {
     final lic = state.session.license;
     if (!lic.valid && !lic.inGrace) return;
     final next = lic.entitlements;
+    // Plan pulled back without cloud rights → close the room (v1.1.60).
+    if (state.session.cloudOn && !next.allowsFeature('cloud_sync')) {
+      unawaited(disableCloudSync());
+    }
     if (state.store.entitlements.sameAs(next)) return;
     await dispatch(NetCommand(
       name: 'setEntitlements',
@@ -547,6 +555,19 @@ class AppController extends Notifier<AppSnapshot> {
       unawaited(_storage.saveSeenIds(_seenIds));
     }
     final result = StoreReducer.apply(state.store, cmd);
+    // v1.1.60: in the default 'pay' mode a QR ticket fires to the kitchen
+    // once the counter takes payment — the slip then carries the table no.
+    if (state.isMain && cmd.name == 'setOrderStatus') {
+      final paidOrder = result.store.orderById(parseStr(cmd.payload['id']));
+      if (paidOrder != null &&
+          paidOrder.status == OrderStatus.paid &&
+          paidOrder.isQr &&
+          paidOrder.sentAt == null &&
+          result.store.qrFireOn != 'order' &&
+          result.store.canFeature('qr_ordering')) {
+        unawaited(_fireQrOnPayment(paidOrder.id));
+      }
+    }
     // A restored/replaced store must never resurrect plan data baked into an
     // old backup — the live license stays the single source of truth (v1.1.59).
     if (cmd.name == 'replaceState') {
@@ -599,6 +620,7 @@ class AppController extends Notifier<AppSnapshot> {
     final client = _client;
     if (client == null || !state.connected) {
       _enqueue(cmd);
+      unawaited(flushQueue());
       return;
     }
     try {
@@ -628,21 +650,163 @@ class AppController extends Notifier<AppSnapshot> {
     unawaited(_storage.saveStore(store));
   }
 
+  // ── Cloud relay (v1.1.60, custom plans) ────────────────────────────
+  //
+  // Only a transport: when the shop Wi-Fi splits the devices onto mobile
+  // data, Main pushes store snapshots into the room and stations send
+  // commands back. The persistent copy of the shop stays on Main's device —
+  // server-side rows are deleted as they are read and expire in ~30 min.
+
+  bool get cloudActive => _relay != null && _relay!.active;
+
+  /// Returns '' on success or an error token for the sheet.
+  Future<String> enableCloudSync() async {
+    if (!state.isMain) return 'not_main';
+    if (!state.store.canFeature('cloud_sync')) return 'plan_feature';
+    final lic = state.session.license;
+    if (lic.key.isEmpty) return 'no_license';
+    final info = await CloudRelay.openRoom(
+      licenseKey: lic.key,
+      deviceId: state.session.deviceId,
+      shopName: state.store.profile.businessName,
+    );
+    if (info == null) return 'cloud_unreachable';
+    state = state.copyWith(
+      session: state.session
+        ..cloudOn = true
+        ..cloudRoom = info.room
+        ..cloudSecret = info.secret
+        ..cloudCode = info.code
+        ..cloudUrl = kCloudRelayBase,
+    );
+    _schedulePersist();
+    _startRelay();
+    return '';
+  }
+
+  Future<String> joinCloudSync(String pairing) async {
+    if (state.isMain) return 'is_main';
+    final parts = CloudRelay.parsePairing(pairing);
+    if (parts == null) return 'bad_pairing';
+    final ok = await CloudRelay.joinRoom(
+      roomId: parts[0],
+      code: parts[1],
+      deviceId: state.session.deviceId,
+      role: state.session.role.name,
+      baseUrl: parts[3],
+    );
+    if (!ok) return 'join_failed';
+    state = state.copyWith(
+      session: state.session
+        ..cloudOn = true
+        ..cloudRoom = parts[0]
+        ..cloudSecret = parts[2]
+        ..cloudCode = ''
+        ..cloudUrl = parts[3],
+    );
+    _schedulePersist();
+    _startRelay();
+    return '';
+  }
+
+  Future<void> disableCloudSync() async {
+    _relay?.stop();
+    _relay = null;
+    if (!state.session.cloudOn) return;
+    unawaited(CloudRelay.leaveRoom(
+      roomId: state.session.cloudRoom,
+      deviceId: state.session.deviceId,
+      baseUrl: state.session.cloudUrl,
+    ));
+    state = state.copyWith(
+      session: state.session
+        ..cloudOn = false
+        ..cloudRoom = ''
+        ..cloudSecret = ''
+        ..cloudCode = ''
+        ..cloudUrl = '',
+    );
+    _schedulePersist();
+  }
+
+  void _startRelay() {
+    _relay?.stop();
+    final s = state.session;
+    if (!s.cloudOn || s.cloudRoom.isEmpty || s.cloudSecret.isEmpty) return;
+    final relay = CloudRelay(
+      roomId: s.cloudRoom,
+      secret: s.cloudSecret,
+      deviceId: s.deviceId,
+      isMain: state.isMain,
+      baseUrl: s.cloudUrl,
+      revision: () => state.store.revision,
+      getStateJson: () => jsonEncode(state.store.toJson()),
+      onPeerState: _applyCloudState,
+      onPeerCommand: _applyCloudCommand,
+    );
+    _relay = relay;
+    unawaited(relay.start());
+  }
+
+  /// Main side: a station command arrived over the cloud — the same guarded
+  /// path as LAN commands, then fanned out to Wi-Fi peers and to disk.
+  void _applyCloudCommand(Map<String, dynamic> j) {
+    try {
+      final cmd = NetCommand.fromJson(j);
+      _localApply(cmd);
+      _server?.broadcastState();
+      _schedulePersist();
+    } catch (_) {}
+  }
+
+  /// Station side: Main's snapshot landed — treat it like a LAN store, but
+  /// never overwrite a device that still has commands queued to send.
+  void _applyCloudState(Map<String, dynamic> storeJson) {
+    try {
+      final store = AppStore.fromJson(storeJson);
+      if (_queue.isNotEmpty) {
+        unawaited(flushQueue());
+        return;
+      }
+      if (store.revision < state.store.revision) return; // stale snapshot
+      state = state.copyWith(store: store, connected: true, error: null, pendingSync: 0);
+      unawaited(_storage.saveStore(store));
+    } catch (_) {}
+  }
+
+  Future<void> _fireQrOnPayment(String orderId) async {
+    await dispatch(NetCommand(
+      name: 'fireCourse',
+      payload: {'orderId': orderId, 'course': ''},
+    ));
+    await _autoKitchenPrint(orderId);
+  }
+
   Future<void> flushQueue() async {
-    if (_flushing || _queue.isEmpty || _client == null) return;
+    final relay = _relay;
+    final online = _client != null && state.connected;
+    if (!online && relay == null) return;
     _flushing = true;
     try {
       final pending = List<NetCommand>.from(_queue);
       _queue.clear();
       for (final cmd in pending) {
         try {
-          await _client!.send(cmd);
+          if (online) {
+            await _client!.send(cmd);
+          } else {
+            final ok = await relay!.sendCommand(cmd.toJson());
+            if (!ok) _queue.add(cmd);
+          }
         } catch (_) {
           _queue.add(cmd);
         }
       }
       await _storage.saveQueue(_queue);
       state = state.copyWith(pendingSync: _queue.length);
+      if (!online && _queue.isEmpty) {
+        state = state.copyWith(error: null);
+      }
     } finally {
       _flushing = false;
     }

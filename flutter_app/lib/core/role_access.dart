@@ -13,6 +13,8 @@ class StoreGuard {
     'receivePurchase': 'purchases',
     'cancelPurchase': 'purchases',
     'setQrOrdering': 'qr_ordering',
+    'setQrFireOn': 'qr_ordering',
+    'upsertQrBrand': 'qr_branding',
   };
 
   static String denyReason(AppStore store, NetCommand cmd) {

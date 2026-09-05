@@ -148,6 +148,11 @@ class LicenseRecord {
 class SessionPrefs {
   SessionPrefs({
     this.deviceId = '',
+    this.cloudOn = false,
+    this.cloudRoom = '',
+    this.cloudSecret = '',
+    this.cloudCode = '',
+    this.cloudUrl = '',
     this.role = AppRole.none,
     this.displayName = '',
     this.locale = 'en',
@@ -168,6 +173,14 @@ class SessionPrefs {
   }) : license = license ?? LicenseRecord();
 
   String deviceId;
+  /// Cloud relay room this device runs against (v1.1.60). Main opens the
+  /// room; stations join with the pairing code. Shop data itself always
+  /// lives on the Main device — the relay only forwards live traffic.
+  bool cloudOn;
+  String cloudRoom;
+  String cloudSecret;
+  String cloudCode;
+  String cloudUrl;
   AppRole role;
   String displayName;
   String locale;
@@ -194,6 +207,11 @@ class SessionPrefs {
 
   Map<String, dynamic> toJson() => {
         'deviceId': deviceId,
+        'cloudOn': cloudOn,
+        'cloudRoom': cloudRoom,
+        'cloudSecret': cloudSecret,
+        'cloudCode': cloudCode,
+        'cloudUrl': cloudUrl,
         'role': role.name,
         'displayName': displayName,
         'locale': locale,
@@ -217,6 +235,11 @@ class SessionPrefs {
     final m = j ?? const {};
     return SessionPrefs(
       deviceId: parseStr(m['deviceId']) ?? '',
+      cloudOn: parseBool(m['cloudOn']),
+      cloudRoom: parseStr(m['cloudRoom']) ?? '',
+      cloudSecret: parseStr(m['cloudSecret']) ?? '',
+      cloudCode: parseStr(m['cloudCode']) ?? '',
+      cloudUrl: parseStr(m['cloudUrl']) ?? '',
       role: enumParse(AppRole.values, m['role'], AppRole.none),
       displayName: parseStr(m['displayName']) ?? '',
       locale: parseStr(m['locale']) ?? 'en',

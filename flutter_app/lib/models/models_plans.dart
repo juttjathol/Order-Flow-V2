@@ -30,6 +30,12 @@ const kFeatureCatalog = <FeatureInfo>[
   FeatureInfo('purchases', 'Suppliers & purchase orders', 'سپلائرز اور پرچیز آرڈرز'),
   FeatureInfo('advanced_reports', 'Insights: best sellers, profit, staff', 'انسائٹ: بیسٹ سیلرز، منافع، اسٹاف'),
   FeatureInfo('eighty_six', '86 board (sellable control)', '۸۶ بورڈ'),
+  FeatureInfo('cloud_sync',
+      'Cloud station networking — keeps stations in sync even when the shop Wi-Fi is down',
+      'کلاؤڈ نیٹ ورکنگ — دکان کا وائی فائی بند ہو تو بھی اسٹیشن سنک رہتے ہیں'),
+  FeatureInfo('qr_branding',
+      'Your own branded guest QR ordering page',
+      'مہمانوں کے لیے اپنی برانڈڈ QR آرڈرنگ صفحہ'),
 ];
 
 final Set<String> _kFeatureKeys = kFeatureCatalog.map((f) => f.key).toSet();
@@ -293,5 +299,52 @@ class PurchaseOrder {
         createdAt: parseTime(j['createdAt']),
         receivedAt: j['receivedAt'] == null ? null : parseTime(j['receivedAt']),
         createdBy: parseStr(j['createdBy']) ?? '',
+      );
+}
+
+/// Public shop identity shown on the guest QR ordering page (v1.1.60).
+/// Everything is optional — the page falls back to the bill profile when
+/// fields are empty, so shops without this still look right.
+class QrBrand {
+  QrBrand({
+    this.shopName = '',
+    this.tagline = '',
+    this.address = '',
+    this.phone = '',
+    this.whatsapp = '',
+    this.hours = '',
+    this.welcome = '',
+    this.accent = '#2fa875',
+  });
+
+  String shopName;
+  String tagline;
+  String address;
+  String phone;
+  String whatsapp;
+  String hours;
+  String welcome;
+  String accent;
+
+  Map<String, dynamic> toJson() => {
+        'shopName': shopName,
+        'tagline': tagline,
+        'address': address,
+        'phone': phone,
+        'whatsapp': whatsapp,
+        'hours': hours,
+        'welcome': welcome,
+        'accent': accent,
+      };
+
+  factory QrBrand.fromJson(Map<String, dynamic> j) => QrBrand(
+        shopName: parseStr(j['shopName']) ?? '',
+        tagline: parseStr(j['tagline']) ?? '',
+        address: parseStr(j['address']) ?? '',
+        phone: parseStr(j['phone']) ?? '',
+        whatsapp: parseStr(j['whatsapp']) ?? '',
+        hours: parseStr(j['hours']) ?? '',
+        welcome: parseStr(j['welcome']) ?? '',
+        accent: parseStr(j['accent']) ?? '#2fa875',
       );
 }

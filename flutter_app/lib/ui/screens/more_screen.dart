@@ -87,6 +87,15 @@ class MoreScreen extends ConsumerWidget {
       planAwareRow(
         ref: ref,
         context: context,
+        feature: 'cloud_sync',
+        icon: Icons.wifi_tethering_error,
+        title: s.t('cloud_title'),
+        subtitle: s.t('cloud_desc'),
+        onTap: () => showCloudNetworking(context, ref),
+      ),
+      planAwareRow(
+        ref: ref,
+        context: context,
         feature: 'recipe_costing',
         icon: Icons.calculate,
         title: s.t('recipes'),

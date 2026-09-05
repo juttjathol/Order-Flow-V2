@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:order_flow/core/role_access.dart';
 import 'package:order_flow/models/models.dart';
 import 'package:order_flow/models/reducer.dart';
+import 'package:order_flow/services/cloud_relay.dart';
 
 void main() {
   test('PosOrder split payment round-trips through json', () {
@@ -227,5 +228,66 @@ void main() {
     expect(store.stockById('s1')!.quantity, 5);
     expect(store.stockById('s1')!.cost, 60);
     expect(store.purchases.first.status, 'received');
+  });
+
+  test('v1.1.60 qr fire mode + brand round-trip through store json', () {
+    final store = AppStore();
+    expect(store.qrFireOn, 'pay');
+    StoreReducer.apply(store, NetCommand(name: 'setQrFireOn', payload: {'mode': 'order'}));
+    expect(store.qrFireOn, 'order');
+    store.qrBrand = QrBrand(
+      shopName: 'Biryani House',
+      tagline: 'King of tastes',
+      whatsapp: '+92 300 1234567',
+      accent: '#8b5cf6',
+    );
+    final copy = AppStore.fromJson(store.toJson());
+    expect(copy.qrFireOn, 'order');
+    expect(copy.qrBrand.shopName, 'Biryani House');
+    expect(copy.qrBrand.whatsapp, '+92 300 1234567');
+    expect(copy.qrBrand.accent, '#8b5cf6');
+  });
+
+  test('v1.1.60 upsertQrBrand reducer', () {
+    final store = AppStore();
+    final rev = store.revision;
+    StoreReducer.apply(store, NetCommand(name: 'upsertQrBrand', payload: {
+      'brand': {'shopName': 'Chatkara', 'hours': '9am to 12am'},
+    }));
+    expect(store.qrBrand.shopName, 'Chatkara');
+    expect(store.qrBrand.hours, '9am to 12am');
+    expect(store.revision, greaterThan(rev));
+  });
+
+  test('v1.1.60 plan gates: branding is custom-only, fire mode rides qr_ordering', () {
+    final growth = AppStore();
+    growth.entitlements = Entitlements(
+        allOn: false, features: const ['qr_ordering', 'multi_terminal']);
+    expect(StoreGuard.denyReason(growth, NetCommand(name: 'setQrFireOn', role: '')), isEmpty);
+    expect(StoreGuard.denyReason(growth, NetCommand(name: 'upsertQrBrand', role: '')), isNotEmpty);
+    final starter = AppStore();
+    starter.entitlements = Entitlements(allOn: false, features: const []);
+    expect(StoreGuard.denyReason(starter, NetCommand(name: 'setQrFireOn', role: '')), isNotEmpty);
+    expect(growth.canFeature('cloud_sync'), isFalse);
+    expect(starter.canFeature('cloud_sync'), isFalse);
+    final custom = AppStore();
+    custom.entitlements =
+        Entitlements(allOn: false, features: const ['cloud_sync', 'qr_branding']);
+    expect(custom.canFeature('cloud_sync'), isTrue);
+    expect(custom.canFeature('qr_branding'), isTrue);
+    expect(AppStore().canFeature('cloud_sync'), isTrue); // legacy keys: all on
+  });
+
+  test('v1.1.60 cloud pairing text round-trips', () {
+    final txt = CloudRelay.pairing(
+        'r3f9', 'AB3K9Z', 'sec123', 'https://order-flow-v2.pages.dev');
+    final parts = CloudRelay.parsePairing(txt);
+    expect(parts, isNotNull);
+    expect(parts![0], 'r3f9');
+    expect(parts[1], 'AB3K9Z');
+    expect(parts[2], 'sec123');
+    expect(parts[3], 'https://order-flow-v2.pages.dev');
+    expect(CloudRelay.parsePairing('garbage'), isNull);
+    expect(CloudRelay.parsePairing('OF1:a:b:c'), isNull);
   });
 }

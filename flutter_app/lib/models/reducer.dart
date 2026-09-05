@@ -575,6 +575,14 @@ class StoreReducer {
           bump();
         }
         break;
+      case 'setQrFireOn':
+        store.qrFireOn = parseStr(p['mode']) == 'order' ? 'order' : 'pay';
+        bump();
+        break;
+      case 'upsertQrBrand':
+        store.qrBrand = QrBrand.fromJson(mapOf(p['brand']));
+        bump();
+        break;
       default:
         break;
     }

@@ -352,10 +352,13 @@ const FEATURES = [
   ["purchases", "Suppliers & purchase orders"],
   ["advanced_reports", "Insights: best sellers, profit, staff"],
   ["eighty_six", "86 board (sellable control)"],
+  ["cloud_sync", "Cloud networking — stations keep running when Wi-Fi is down"],
+  ["qr_branding", "Branded guest QR page (shop identity editor)"],
 ];
 const PLAN_PRESETS = {
   starter: [],
-  growth: FEATURES.map((f) => f[0]),
+  // Growth keeps the original 13 features; the two v1.1.60 extras are custom-only.
+  growth: FEATURES.slice(0, 13).map((f) => f[0]),
   custom: FEATURES.map((f) => f[0]),
   full: FEATURES.map((f) => f[0]),
 };

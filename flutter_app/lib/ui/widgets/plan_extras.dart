@@ -14,8 +14,10 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../services/cloud_relay.dart';
 import '../../state/app_controller.dart';
 import 'common.dart';
+import 'plan_lock.dart';
 
 Future<void> _sheet(BuildContext context, Widget child) {
   return showModalBottomSheet<void>(
@@ -118,6 +120,37 @@ Future<void> showQrOrdering(BuildContext context, WidgetRef ref) async {
                 style: const TextStyle(color: OfColors.muted, fontSize: 12)),
           ],
         ],
+        const SizedBox(height: 16),
+        Text(snap.l10n.t('qr_fire_title'),
+            style: const TextStyle(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        SegmentedButton<String>(
+          showSelectedIcon: false,
+          segments: [
+            ButtonSegment(
+                value: 'pay', label: Text(snap.l10n.t('qr_fire_pay_s'))),
+            ButtonSegment(
+                value: 'order', label: Text(snap.l10n.t('qr_fire_order_s'))),
+          ],
+          selected: {store.qrFireOn == 'order' ? 'order' : 'pay'},
+          onSelectionChanged: (sel) => ctrl.dispatch(NetCommand(
+              name: 'setQrFireOn', payload: {'mode': sel.first})),
+        ),
+        const SizedBox(height: 6),
+        Text(store.qrFireOn == 'order'
+            ? snap.l10n.t('qr_fire_order')
+            : snap.l10n.t('qr_fire_pay'),
+            style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.4)),
+        const SizedBox(height: 6),
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'qr_branding',
+          icon: Icons.branding_watermark,
+          title: snap.l10n.t('qr_brand_title'),
+          subtitle: snap.l10n.t('qr_brand_desc'),
+          onTap: () => showQrBranding(context, ref),
+        ),
         const SizedBox(height: 14),
         FilledButton(
           onPressed: () => Navigator.pop(context),
@@ -1074,4 +1107,290 @@ Widget _kv(String k, String v) => Padding(
 extension on Iterable<String> {
   String firstOrNullWithDefault(String fallback) =>
       isEmpty ? fallback : first;
+}
+
+// ─────────────────────── QR page branding (v1.1.60) ───────────────────────
+
+Future<void> showQrBranding(BuildContext context, WidgetRef ref) async {
+  await _sheet(context, const _QrBrandingForm());
+}
+
+class _QrBrandingForm extends ConsumerStatefulWidget {
+  const _QrBrandingForm();
+  @override
+  ConsumerState<_QrBrandingForm> createState() => _QrBrandingFormState();
+}
+
+class _QrBrandingFormState extends ConsumerState<_QrBrandingForm> {
+  static const _fields = <String, String>{
+    'shopName': 'brand_shop_name',
+    'tagline': 'brand_tagline',
+    'address': 'brand_address',
+    'phone': 'brand_phone',
+    'whatsapp': 'brand_whatsapp',
+    'hours': 'brand_hours',
+    'welcome': 'brand_welcome',
+  };
+  static const _accents = <String>[
+    '#2fa875', '#0ea5e9', '#8b5cf6', '#e11d48', '#ea580c', '#0f766e', '#b45309', '#111827'
+  ];
+
+  late final Map<String, TextEditingController> _ctl;
+  late String _accent;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final b = ref.read(appControllerProvider).store.qrBrand;
+    _ctl = {
+      'shopName': TextEditingController(text: b.shopName),
+      'tagline': TextEditingController(text: b.tagline),
+      'address': TextEditingController(text: b.address),
+      'phone': TextEditingController(text: b.phone),
+      'whatsapp': TextEditingController(text: b.whatsapp),
+      'hours': TextEditingController(text: b.hours),
+      'welcome': TextEditingController(text: b.welcome),
+    };
+    _accent = _accents.contains(b.accent) ? b.accent : _accents.first;
+    _ready = true;
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctl.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _save() {
+    final s = ref.read(appControllerProvider);
+    ref.read(appControllerProvider.notifier).dispatch(NetCommand(
+      name: 'upsertQrBrand',
+      payload: {
+        'brand': {
+          for (final k in _fields.keys) k: _ctl[k]!.text.trim(),
+          'accent': _accent,
+        },
+      },
+    ));
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(s.l10n.t('brand_saved'))));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.watch(appControllerProvider);
+    if (!_ready) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _title(s.l10n.t('qr_brand_title')),
+        Text(s.l10n.t('qr_brand_desc'),
+            style: const TextStyle(color: OfColors.muted, height: 1.45, fontSize: 12)),
+        const SizedBox(height: 12),
+        for (final e in _fields.entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: TextField(
+              controller: _ctl[e.key]!,
+              maxLines: e.key == 'welcome' || e.key == 'address' ? 2 : 1,
+              decoration: InputDecoration(
+                labelText: s.l10n.t(e.value),
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ),
+        const SizedBox(height: 2),
+        Text(s.l10n.t('brand_accent'),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          children: [
+            for (final a in _accents)
+              GestureDetector(
+                onTap: () => setState(() => _accent = a),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: Color(int.parse(a.substring(1), radix: 16) | 0xFF000000),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: _accent == a ? Colors.white : Colors.transparent,
+                        width: 3),
+                  ),
+                  child: _accent == a
+                      ? const Icon(Icons.check, size: 18, color: Colors.white)
+                      : null,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _save,
+          child: Text(s.l10n.t('done')),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+// ─────────────────────── Cloud networking (v1.1.60) ───────────────────────
+
+Future<void> showCloudNetworking(BuildContext context, WidgetRef ref) async {
+  await _sheet(context, const _CloudPanel());
+}
+
+class _CloudPanel extends ConsumerStatefulWidget {
+  const _CloudPanel();
+  @override
+  ConsumerState<_CloudPanel> createState() => _CloudPanelState();
+}
+
+class _CloudPanelState extends ConsumerState<_CloudPanel> {
+  final _pair = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _pair.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<String> Function() action) async {
+    setState(() => _busy = true);
+    String err = '';
+    try {
+      err = await action();
+    } catch (_) {
+      err = 'cloud_unreachable';
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (err.isNotEmpty) {
+      final s = ref.read(appControllerProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.l10n.t('cloud_err_$err'))));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.watch(appControllerProvider);
+    final ctrl = ref.read(appControllerProvider.notifier);
+    final active = ctrl.cloudActive;
+    final sess = s.session;
+    final pairing = active && s.isMain
+        ? CloudRelay.pairing(sess.cloudRoom, sess.cloudCode, sess.cloudSecret, sess.cloudUrl)
+        : '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _title(s.l10n.t('cloud_title')),
+        Text(s.l10n.t('cloud_desc'),
+            style: const TextStyle(color: OfColors.muted, height: 1.45, fontSize: 12)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Icon(active ? Icons.cloud_done : Icons.cloud_off,
+                color: active ? OfColors.emerald : OfColors.muted, size: 20),
+            const SizedBox(width: 8),
+            Text(active ? s.l10n.t('cloud_active') : s.l10n.t('cloud_off'),
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (s.isMain)
+          if (!active)
+            FilledButton.icon(
+              onPressed: _busy
+                  ? null
+                  : () => _run(() => ctrl.enableCloudSync()),
+              icon: Icon(_busy ? Icons.autorenew : Icons.wifi_tethering_error, size: 18),
+              label: Text(_busy
+                  ? s.l10n.t('cloud_busy')
+                  : s.l10n.t('cloud_open_btn')),
+            )
+          else ...[
+            Text(s.l10n.t('cloud_pair_hint'),
+                style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.45)),
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: QrImageView(
+                    data: pairing, size: 210, version: QrVersions.auto),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SelectableText(pairing,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text('JOIN CODE: ${sess.cloudCode}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 6,
+                    color: OfColors.emerald)),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : () => _run(() async {
+                    await ctrl.disableCloudSync();
+                    return '';
+                  }),
+              icon: const Icon(Icons.close, size: 18),
+              label: Text(s.l10n.t('cloud_close_btn')),
+            ),
+          ]
+        else
+          if (!active) ...[
+            Text(s.l10n.t('cloud_join_hint'),
+                style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.45)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _pair,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+                hintText: 'OF1:…',
+              ),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _busy || _pair.text.trim().isEmpty
+                  ? null
+                  : () => _run(() => ctrl.joinCloudSync(_pair.text.trim())),
+              icon: const Icon(Icons.cloud_upload, size: 18),
+              label: Text(s.l10n.t('cloud_join_btn')),
+            ),
+          ] else
+            OutlinedButton.icon(
+              onPressed: _busy ? null : () => _run(() async {
+                    await ctrl.disableCloudSync();
+                    return '';
+                  }),
+              icon: const Icon(Icons.logout, size: 18),
+              label: Text(s.l10n.t('cloud_close_btn')),
+            ),
+        const SizedBox(height: 12),
+        Text(s.l10n.t('cloud_queued_note'),
+            style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.45)),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
 }

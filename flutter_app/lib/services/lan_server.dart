@@ -278,9 +278,20 @@ class LanServer {
                   .toList(),
             })
         .toList();
+    final b = store.qrBrand;
     return _json({
       'ok': true,
-      'shop': store.profile.businessName,
+      'shop': b.shopName.trim().isNotEmpty ? b.shopName : store.profile.businessName,
+      'brand': {
+        'tagline': b.tagline,
+        'address': b.address,
+        'phone': b.phone.trim().isNotEmpty ? b.phone : store.profile.phone,
+        'whatsapp': b.whatsapp,
+        'hours': b.hours,
+        'welcome': b.welcome,
+        'accent': b.accent,
+      },
+      'fireOn': store.qrFireOn,
       'model': store.model.name,
       'currency': store.profile.currencySymbol,
       'currencyPrefix': store.profile.currencyPrefix,
@@ -378,18 +389,25 @@ class LanServer {
       );
       final created = onCommand(createCmd);
       final placed = created.store.orders.first;
-      final fire = onCommand(NetCommand(
-        name: 'fireCourse',
-        role: 'web',
-        actor: createCmd.actor,
-        payload: {'orderId': placed.id},
-      ));
+      // 'order' mode fires straight away; 'pay' mode (v1.1.60 default) waits
+      // for the counter — Main then fires it with the table number.
+      AppNotice? notice;
+      if (created.store.qrFireOn == 'order') {
+        final fire = onCommand(NetCommand(
+          name: 'fireCourse',
+          role: 'web',
+          actor: createCmd.actor,
+          payload: {'orderId': placed.id},
+        ));
+        notice = fire.notice;
+      }
       broadcastState();
-      if (fire.notice != null) broadcastNotice(fire.notice!);
+      if (notice != null) broadcastNotice(notice);
       return _json({
         'ok': true,
         'ticket': placed.ticketNo,
         'total': placed.total,
+        'fireOn': created.store.qrFireOn,
       });
     } catch (e) {
       return _json({'ok': false, 'error': e.toString()}, status: 500);

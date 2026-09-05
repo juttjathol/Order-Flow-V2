@@ -1,14 +1,17 @@
 // v1.1.59 — plan & entitlements catalog. Keys here must match
 // kFeatureCatalog in flutter_app/lib/models/models_plans.dart exactly.
-const FEATURE_KEYS = new Set([
+const CORE_FEATURE_KEYS = new Set([
   "multi_terminal", "station_printers", "qr_ordering", "loyalty", "split_payment",
   "refunds", "customer_display", "reservations", "recipe_costing", "wastage",
   "purchases", "advanced_reports", "eighty_six",
 ]);
+// v1.1.60: extras that belong to the custom plan only. Must match
+// kFeatureCatalog in the app (kFeatureCatalog lists ALL fifteen).
+const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding"]);
 const MODEL_KEYS = new Set(["restaurant", "retail", "fastfood", "services"]);
 const PLAN_PRESETS = {
   starter: [],
-  growth: [...FEATURE_KEYS],
+  growth: [...CORE_FEATURE_KEYS],
   custom: [...FEATURE_KEYS],
   full: [...FEATURE_KEYS],
 };
