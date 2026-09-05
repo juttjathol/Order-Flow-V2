@@ -55,7 +55,7 @@
         <p class="kicker">User guide · رہنمائے صارف</p>
         <h1 class="sec-title">Every feature, step by step.<br/>ہر فیچر، قدم بہ قدم۔</h1>
         <p class="sec-sub">The complete manual for Order Flow — how to set up the shop, run every station, handle payments, printers, the cash drawer, loyalty, reports and refunds. English and Urdu on one page.</p>
-        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.58 · ایپ ورژن 1.1.58 کے مطابق</p>
+        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.61 — new: cloud networking for Wi-Fi failures, your branded QR guest page, QR kitchen tickets fired on payment (with table number) · ایپ ورژن 1.1.61 کے مطابق — نئے: وائی فائی بند ہونے پر کلاؤڈ نیٹ ورکنگ، آپ کا برانڈڈ QR مہمان صفحہ، ادائیگی پر کچن ٹکٹ (ٹیبل نمبر کے ساتھ)</p>
       </div>
     </section>
 
@@ -81,6 +81,13 @@
         <a href="#settings">17 · Settings &amp; backup</a>
         <a href="#hardware">18 · Hardware tips</a>
         <a href="#fix">19 · Troubleshooting</a>
+        <a href="#qr">20 · QR table ordering</a>
+        <a href="#recipes">21 · Recipes &amp; margin</a>
+        <a href="#wastage">22 · Wastage log</a>
+        <a href="#purchasing">23 · Suppliers &amp; purchasing</a>
+        <a href="#plans">24 · Plans &amp; license access</a>
+        <a href="#cloud">25 · Cloud networking</a>
+        <a href="#brand">26 · Branded QR page</a>
       </div>
     </div>
 
@@ -544,6 +551,186 @@
               <li><b>آف لائن قطار:</b> اسٹیشن چپ پر جمع کام دکھاتی ہے؛ Main واپس آتے ہی خود بھیج دیتی ہے۔</li>
               <li><b>لائسنس لاک:</b> کی ری سیٹ یا منسوخ ہوئی — لاک اسکرین سے واٹس ایپ @Jathol_Jutt کریں۔</li>
               <li>کوئی اور مسئلہ: واٹس ایپ <strong>@Jathol_Jutt</strong>۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="qr">
+        <h2>20 · QR table ordering <span style="color:var(--muted);font-size:.6em">کیو آر ٹیبل آرڈرنگ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Switch it on: <b>More → Plan extras → QR ordering → enable</b>. Main must be on Wi-Fi; the address looks like <b>http://192.168.x.x:8787/order</b>.</li>
+              <li>For a single table open the <b>Tables</b> tab → <b>QR icon</b> → show, print or share that table's code. Guests scan it and the menu opens with the table already attached.</li>
+              <li>The guest page works in <b>English and Urdu</b> (toggle at the top), shows photos, prices, modifiers and notes — no app to install.</li>
+              <li>Submitting a web order creates a normal ticket with the <b>QR</b> badge. By default it fires to the kitchen (printers included) <b>the moment the counter marks it paid</b> — and the kitchen slip carries the table number so food lands at the right table. Prefer cooking at submit? Switch to <b>At submit</b> in the same QR sheet.</li>
+              <li>On custom plans the page shows <b>your</b> shop's name, tagline, hours, contact and colour — set it all under <a href="#brand">Your brand page</a> (§26).</li>
+              <li>Switch ordering off any time — the page closes instantly for new scans. Orders are accepted only on the shop Wi-Fi, never from the internet.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>آن کرنے کا طریقہ: <b>مزید → پلان ایسٹرا → کیو آر آرڈرنگ → آن</b>۔ Main وائی فائی پر ہو؛ پتہ ایسا ہوگا <b>http://192.168.x.x:8787/order</b>۔</li>
+              <li>اکلے ٹیبل کے لیے <b>ٹیبلز</b> ٹیب → <b>کوڈ آئیکن</b> → کوڈ دکھائیں، پرنٹ یا شیئر کریں۔ مہمان سکین کریں تو ٹیبل پہلے سے جڑا ہوا مینو کھلے گا۔</li>
+              <li>مہمان کا صفحہ <b>انگریزی اور اردو</b> دونوں میں چلتا ہے (اوپر بٹن)، تصاویر، قیمتیں، موڈیفائر اور ہدایت دکھاتا ہے — کوئی ایپ انسٹال کرنے کی ضرورت نہیں۔</li>
+              <li>آرڈر بھیجنے پر عام ٹکٹ بنتی ہے جس پر <b>QR</b> نشان ہوتا ہے۔ ڈیفالٹ میں ٹکٹ کچن (اور پرنٹر) پر اسی وقت جاتی ہے جب <b>کاؤنٹر ادائیگی وصول کر لے</b> — اور کچن سِلپ پر ٹیبل نمبر بھی ہوتا ہے تاکہ کھانا درست ٹیبل پر پہنچے۔ اگر آرڈر بھیجتے ہی پکانا شروع کرنا ہو تو اسی QR شیٹ میں <b>بھیجتے ہی</b> منتخب کریں۔</li>
+              <li>کسٹم پلان پر یہ صفحہ <b>آپ کی دکان</b> کا نام، ٹیاگ لائن، اوقات، رابطہ اور رنگ دکھاتا ہے — سیٹنگ <a href="#brand">برانڈ صفحہ</a> (§26) سے۔</li>
+              <li>کبھی بھی بند کر دیں — نئے سکین فوراً بند ہو جائیں گے۔ آرڈر صرف دکان کے وائی فائی پر قبول ہوتے ہیں، انٹرنیٹ سے کبھی نہیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="recipes">
+        <h2>21 · Recipes &amp; margin <span style="color:var(--muted);font-size:.6em">ریسیپی اور مارجن</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>First give every stock item its <b>cost</b> (Stock tab). Then open <b>More → Plan extras → Recipes &amp; margins</b>.</li>
+              <li>Tap an item and add ingredients with the quantity used per sale (e.g. 0.5 kg flour + 2 eggs). The list shows cost, profit and margin percent per item.</li>
+              <li>Margins under <b>25%</b> are flagged in red so you can fix the price or the plate before it costs you.</li>
+              <li>Recipe costing is separate from auto-deduction — your existing inventory link keeps working exactly as before.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>پہلے ہر اسٹاک آئٹم کی <b>قیمتِ اصل (کاسٹ)</b> لکھیں (اسٹاک ٹیب)۔ پھر <b>مزید → پلان ایسٹرا → ریسیپیاں اور منافع</b> کھولیں۔</li>
+              <li>آئٹم کھول کر فی فروخت مقدار کے ساتھ اجزاء شامل کریں (مثلاً آٹا 0.5 کلو + انڈے 2)۔ فہرست ہر آئٹم کی کاسٹ، منافع اور مارجن٪ دکھاتی ہے۔</li>
+              <li><b>25%</b> سے کم مارجن سرخ رنگ میں نظر آتا ہے تاکہ قیمت یا پلیٹ درست کر سکیں۔</li>
+              <li>ریسیپی کاسٹنگ الگ حساب ہے — آپ کا موجودہ خودکار اسٹاک ڈیڈکشن بالکل ویسا ہی چلے گا۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="wastage">
+        <h2>22 · Wastage log <span style="color:var(--muted);font-size:.6em">ویسٹیج لاگ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>More → Plan extras → Wastage log → Log waste</b>: pick the stock item, the quantity lost and an optional reason (spoiled, burnt…).</li>
+              <li>Wasted quantity leaves inventory immediately, and its cost is counted in the <b>Wasted this week</b> total and in Insights.</li>
+              <li>Logged it wrong? The undo arrow puts the stock back and erases the entry.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>مزید → پلان ایسٹرا → ویسٹیج لاگ → ویسٹیج درج کریں</b>: اسٹاک آئٹم، ضائع مقدار اور وجہ (خراب، جل گیا…) لکھیں۔</li>
+              <li>ضائع مقدار فوراً اسٹاک سے نکل جاتی ہے، اور اس کا نقصان <b>اس ہفتے کا ضیاع</b> اور انسائٹ میں شامل ہو جاتا ہے۔</li>
+              <li>غلطی ہو گئی؟ واپس (undo) تیر اسٹاک لوٹا دیتا ہے اور اندراج مٹا دیتا ہے۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="purchasing">
+        <h2>23 · Suppliers &amp; purchasing <span style="color:var(--muted);font-size:.6em">سپلائر اور خریداری</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>More → Plan extras → Purchasing</b>: keep your suppliers (name, phone) on the Suppliers tab.</li>
+              <li>Create a purchase order: supplier, one line per stock item with quantity and unit cost. The PO gets a number like <b>PO-501</b> automatically.</li>
+              <li>When the delivery arrives, tap <b>Receive stock</b> — quantities are added to inventory and the item cost is updated to the latest price you paid.</li>
+              <li>Open orders can still be cancelled; received and cancelled POs stay in the list for reference.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>مزید → پلان ایسٹرا → خریداری</b>: سپلائر ٹیب میں اپنی سپلائرز کی فہرست رکھیں (نام، فون)۔</li>
+              <li>نیا پرچیز آرڈر: سپلائر، ہر اسٹاک آئٹم کی لائن، مقدار اور فی یونٹ قیمت۔ نمبر خود بن جاتا ہے جیسے <b>PO-501</b>۔</li>
+              <li>سامنے آنے پر <b>اسٹاک وصول کریں</b> دبائیں — مقدار انوینٹری میں شامل ہو جاتی ہے اور آئٹم کی کاسٹ تازہ خریداری پر سیٹ ہوتی ہے۔</li>
+              <li>کھلا آرڈر منسوخ ہو سکتا ہے؛ وصول شدہ اور منسوخ شدہ پی او حوالے کے لیے فہرست میں رہتے ہیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="plans">
+        <h2>24 · Plans &amp; license access <span style="color:var(--muted);font-size:.6em">پلان اور لائسنس رسائی</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Every license key now carries a <b>plan</b> (Starter / Growth / Custom / Full), the <b>business models</b> it may run and the <b>features</b> it may use. Starter RM 79 / month, Growth RM 149 / month — see the <a href="./index.html#plans">Plans</a> page.</li>
+              <li>What is switched on for your key is exactly what the app shows. Locked extras appear with a <b>lock icon</b> in More → Plan extras — tap it to message Jathol on WhatsApp and upgrade.</li>
+              <li>Keys issued before plans existed keep <b>every feature on</b> — nothing changes for existing shops unless Jathol sets a plan on your key.</li>
+              <li>The app re-checks your key online every 15 minutes and keeps working <b>48 hours offline</b>; plan changes apply on the next check. The QR ordering page and station connections are enforced by Main itself, so the plan is respected on every device.</li>
+              <li>Plan summary is visible in <b>More → License</b> (plan name, enabled models and feature count).</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>ہر لائسنس کی کے ساتھ اب <b>پلان</b> (اسٹارٹر / گروتھ / کسٹم / فل)، اجازت یافتہ <b>بزنس ماڈلز</b> اور <b>فیچرز</b> محفوظ ہوتے ہیں۔ اسٹارٹر 79 روپے ماہانہ، گروتھ 149 روپے ماہانہ — <a href="./index.html#plans">پلان</a> صفحہ دیکھیں۔</li>
+              <li>آپ کی کی پر جو آن ہے، ایپ میں وہی نظر آتا ہے۔ بند فیچر <b>تالے کے نشان</b> کے ساتھ More → پلان ایسٹرا میں ہوتے ہیں — دبائیں تو جھٹول کو واٹس ایپ پیغام تیار ہوتا ہے۔</li>
+              <li>پلان آنے سے پہلے جاری شدہ پرانی چابیاں <b>ہر فیچر آن</b> رکھتی ہیں — جھٹول پلان سیٹ نہ کرے تو کسی دکان کا کچھ نہیں بدلتا۔</li>
+              <li>ایپ ہر 15 منٹ میں آن لائن چیک کرتی ہے اور <b>48 گھنٹے آف لائن</b> چلتی ہے؛ پلان کی تبدیلی اگلے چیک پر لاگو ہوتی ہے۔ کیو آر آرڈرنگ اور اسٹیشن کنکشن Main خود کنٹرول کرتا ہے، اس لیے پلان ہر ڈیوائس پر لاگو رہتا ہے۔</li>
+              <li>پلان کا خلاصہ <b>مزید → لائسنس</b> میں نظر آتا ہے (پلان، ماڈلز اور فیچرز کی گنتی)۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="cloud">
+        <h2>25 · Cloud networking <span style="color:var(--muted);font-size:.6em">کلاؤڈ نیٹ ورکنگ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Part of the <b>custom plan</b>. It exists for one moment only: when the shop's Wi‑Fi/router dies mid-service. Main opens an encrypted cloud room — <b>More → Plan extras → Cloud networking → Open cloud room</b> — and a pairing code (plus QR) appears.</li>
+              <li>Every station joins from the same menu on its own device, typing that code. After that a station works on <b>mobile data</b> — it does not need the shop router at all, and neither does Main.</li>
+              <li>The shop keeps running normally: stations keep billing, orders reach Main through the room in seconds, and anything sent while a device blips off is queued on the device and flies over automatically when it returns — exactly the offline queue you already know from dead-internet days.</li>
+              <li><b>The cloud is a corridor, never a store.</b> Every message is encrypted by your devices, deleted the moment all your devices have read it, and expires on its own in about 30 minutes even if nobody reads it. Your shop data lives only on Main's device, as always — backups stay entirely in your hands (§17).</li>
+              <li>Isolation: the room address is a random secret that is never listed or searchable anywhere, only devices <b>you</b> pair with the code can join, and traffic is end-to-end encrypted. Another shop's orders cannot mix into yours — there is no shared table, no shared name, nothing to mix.</li>
+              <li><b>Close cloud room</b> when service ends; reopening issues a fresh code, so old devices must be re-paired. If a key drops to Starter/Growth, the room closes itself.</li>
+              <li>Table QR stays local on purpose: guests order while on the <b>shop Wi‑Fi (or Main's hotspot)</b> — the guest page is never exposed to the internet.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>یہ سہولت <b>کسٹم پلان</b> کا حصہ ہے اور صرف ایک صورت کے لیے بنی ہے: سروس کے دوران دکان کا روٹر/وائی فائی مر جائے۔ Main ایک خفیہ کلاؤڈ روم کھولتا ہے — <b>مزید → پلان ایسٹرا → کلاؤڈ نیٹ ورکنگ → روم کھولیں</b> — اور ایک جوڑنے کا کوڈ (اور QR) نظر آتا ہے۔</li>
+              <li>ہر اسٹیشن اپنے ڈیوائس پر وہی مینیو کھول کر یہ کوڈ لکھ دیتا ہے۔ اس کے بعد اسٹیشن <b>موبائل ڈیٹا</b> پر چلتا ہے — دکان کے روٹر کی ضرورت نہ Main کو، نہ اسٹیشن کو۔</li>
+              <li>دکان معمول کے مطابق چلتی رہتی ہے: بلنگ جاری رہتی ہے، آرڈر چند سیکنڈ میں Main تک پہنچتے ہیں، اور رابطہ ٹوٹے تو آرڈر ڈیوائس کی قطار میں رک جاتے ہیں اور واپسی پر خودبخود بھیج دیے جاتے ہیں — بالکل ویسا ہی جیسا انٹرنیٹ بند ہونے پر پہلے سے چلتا آ رہا ہے۔</li>
+              <li><b>کلاؤڈ صرف گزرگاہ ہے، گودام نہیں۔</b> ہر پیغام آپ کی ڈیوائسز خود خفیہ کرتی ہیں، سب ڈیوائسز کے پڑھتے ہی حذف ہو جاتا ہے، اور کوئی نہ پڑھے تو قریباً 30 منٹ میں خود مٹ جاتا ہے۔ دکان کا ڈیٹا ہمیشہ کی طرح صرف Main کے ڈیوائس پر رہتا ہے — بیک اپ مکمل طور پر آپ کے ہاتھ میں (§17)۔</li>
+              <li>علیحدگی: روم کا پتہ ایک بے ترتیب خفیہ رقم ہے جو کہیں فہرست یا تلاش نہیں ہوتی؛ صرف وہی ڈیوائسز جُڑتی ہیں جنہیں <b>آپ</b> کوڈ دیں؛ اور سارا ترغیند خفیہ رہتا ہے۔ کسی اور دکان کا آرڈر آپ میں نہیں گھل سکتا — نہ کوئی مشترکہ ٹیبل ہے، نہ مشترکہ نام۔</li>
+              <li>سروس ختم پر <b>روم بند کریں</b>؛ دوبارہ کھولنے پر نیا کوڈ بنتا ہے، پرانی ڈیوائسز دوبارہ جوڑنی پڑتی ہیں۔ اگر چابی Starter/Growth پر آ جائے تو روم خود بخود بند ہو جاتی ہے۔</li>
+              <li>ٹیبل QR جان بوجھ لوکل ہی ہے: مہمان <b>دکان کے وائی فائی (یا Main کے ہاٹ اسپاٹ)</b> پر ہی آرڈر کرتے ہیں — مہمان کا صفحہ انٹرنیٹ پر کبھی نہیں کھلتا۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="brand">
+        <h2>26 · Branded QR page <span style="color:var(--muted);font-size:.6em">آپ کا برانڈڈ QR صفحہ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Make the guest ordering page your own: <b>More → Plan extras → QR ordering → Your brand page</b> (custom plan). Then hit each table's QR and it opens under your name.</li>
+              <li>Set the <b>shop name, tagline, address, opening hours, a welcome note, phone and WhatsApp</b>, and pick an <b>accent colour</b> — the whole page (buttons, prices, cart) repaints instantly.</li>
+              <li>Leave a field blank and the page falls back to your bill-profile details (§9) — so it already looks branded before you touch anything.</li>
+              <li>Guests get the full experience: animated menu cards, photos, modifier chips, notes, a cart drawer with totals, and a success ticket with their table and ticket number — with <b>English/Urdu</b> built in and working on any phone on the network, no install.</li>
+              <li>Changes save with one tap and every later scan sees them immediately. Printing table QR stands is unchanged (§20).</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>مہمانوں کا آرڈر صفحہ اپنی پہچان کا بنائیں: <b>مزید → پلان ایسٹرا → کیو آر آرڈرنگ → آپ کا برانڈ صفحہ</b> (کسٹم پلان)۔ پھر ہر ٹیبل کا QR کھولیں تو صفحہ آپ کے نام سے کھلے گا۔</li>
+              <li><b>دکان کا نام، ٹیاگ لائن، پتہ، اوقات، خوش آمدید پیغام، فون اور واٹس ایپ</b> لکھیں اور <b>نمایاں رنگ</b> چنیں — پورا صفحہ (بٹن، قیمتیں، ٹوکری) فوراً اسی رنگ میں سج جاتا ہے۔</li>
+              <li>کوئی خانہ خالی چھوڑ دیں تو وہ اپنی بل پروفائل (§9) کی تفصیل دکھائے گا — یعنی بغیر کچھ بدلیے بھی صفحہ برانڈڈ لگتا ہے۔</li>
+              <li>مہمانوں کو پورا تجربہ ملتا ہے: متحرک مینیو کارڈ، تصاویر، موڈیفائر، ہدایت، کل رقم کے ساتھ ٹوکری، اور کامیابی کی ٹکٹ جس میں ٹیبل اور ٹکٹ نمبر ہو — <b>انگریزی/اردو</b> کے ساتھ، ہر فون پر چلتا ہے، کوئی ایپ نہیں چاہیے۔</li>
+              <li>تبدیلیاں ایک بٹن سے محفوظ ہوتی ہیں اور اگلے ہی سکین پر نظر آتی ہیں۔ ٹیبل QR اسٹینڈ پرنٹ کرنے کا طریقہ وہی ہے (§20)۔</li>
             </ul>
           </div>
         </div>

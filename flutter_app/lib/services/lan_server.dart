@@ -46,6 +46,10 @@ class LanServer {
       ..get('/state', _state)
       ..post('/command', _command)
       ..post('/driver/status', _driverStatus)
+      ..get('/order', _qrPage)
+      ..get('/order.html', _qrPage)
+      ..get('/order/menu', _qrMenu)
+      ..post('/order/submit', _qrSubmit)
       ..get('/ws', webSocketHandler(_onWs));
 
     final handler = const Pipeline()
@@ -152,6 +156,11 @@ class LanServer {
       if (!RoleAccess.allow(cmd.role, cmd)) {
         return _json({'ok': false, 'error': 'forbidden'}, status: 403);
       }
+      final deny = StoreGuard.denyReason(readStore(), cmd);
+      if (deny.isNotEmpty) {
+        return _json({'ok': false, 'error': deny}, status: 403);
+      }
+      StoreGuard.sanitize(readStore(), cmd);
       final result = onCommand(cmd);
       broadcastState();
       if (result.notice != null) broadcastNotice(result.notice!);
@@ -173,6 +182,10 @@ class LanServer {
         return _json({'ok': false}, status: 400);
       }
       final map = Map<String, dynamic>.from(body);
+      if (map['name'] == 'pairDriver' &&
+          !readStore().entitlements.allowsFeature('multi_terminal')) {
+        return _json({'ok': false, 'error': 'plan_stations'}, status: 403);
+      }
       final cmd = NetCommand(
         name: map['name'] == 'pairDriver' ? 'pairDriver' : 'setDriverStatus',
         payload: map,
@@ -197,6 +210,210 @@ class LanServer {
     }
   }
 
+  // ── QR table ordering & self-order (v1.1.59) ──────────────────────────
+  //
+  // Customers on the shop Wi-Fi open http://<main-ip>:8787/order, tap menu
+  // items and submit. Orders land as normal tickets with channel 'qr' and
+  // auto-fire to the kitchen. Both endpoints stay closed unless the license
+  // plan allows the feature AND Main turned the switch on (More → QR ordering).
+
+  bool get qrEnabled {
+    final store = readStore();
+    return store.qrOrderOn &&
+        store.entitlements.allowsFeature('qr_ordering');
+  }
+
+  String? _qrHtml;
+
+  Future<Response> _qrPage(Request req) async {
+    if (!qrEnabled) return _qrDisabledPage();
+    _qrHtml ??= await rootBundle.loadString('assets/web/order.html');
+    return Response.ok(
+      _qrHtml,
+      headers: {
+        ..._corsHeaders,
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
+    );
+  }
+
+  Response _qrDisabledPage() => Response.ok(
+        '<!doctype html><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">'
+        '<body style=\"margin:0;font-family:system-ui;background:#051912;color:#eafff6;'
+        'display:flex;align-items:center;justify-content:center;min-height:100vh\">'
+        '<div style=\"text-align:center;padding:28px\"><h2>Order Flow</h2>'
+        '<p style=\"color:#9bb5a8\">QR ordering is not enabled on this shop.<br>'
+        'Ask the cashier to take your order.</p></div>',
+        headers: {
+          ..._corsHeaders,
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        },
+      );
+
+  Response _qrMenu(Request req) {
+    if (!qrEnabled) return _json({'ok': false, 'error': 'disabled'}, status: 403);
+    final store = readStore();
+    final categories = store.categories
+        .map((c) => {'id': c.id, 'name': c.name, 'nameUr': c.nameUr})
+        .toList();
+    final products = store.products
+        .where((p) => p.available)
+        .map((p) => {
+              'id': p.id,
+              'categoryId': p.categoryId,
+              'name': p.name,
+              'nameUr': p.nameUr,
+              'desc': p.description,
+              'price': p.price,
+              'image': p.imageBase64,
+              'mods': p.mods
+                  .map((m) => {
+                        'id': m.id,
+                        'name': m.name,
+                        'group': m.group,
+                        'price': m.price,
+                      })
+                  .toList(),
+            })
+        .toList();
+    final b = store.qrBrand;
+    return _json({
+      'ok': true,
+      'shop': b.shopName.trim().isNotEmpty ? b.shopName : store.profile.businessName,
+      'brand': {
+        'tagline': b.tagline,
+        'address': b.address,
+        'phone': b.phone.trim().isNotEmpty ? b.phone : store.profile.phone,
+        'whatsapp': b.whatsapp,
+        'hours': b.hours,
+        'welcome': b.welcome,
+        'accent': b.accent,
+      },
+      'fireOn': store.qrFireOn,
+      'model': store.model.name,
+      'currency': store.profile.currencySymbol,
+      'currencyPrefix': store.profile.currencyPrefix,
+      'taxRate': store.profile.taxRate,
+      'serviceRate': store.profile.serviceRate,
+      'categories': categories,
+      'products': products,
+      'tables': store.tables
+          .map((t) => {'id': t.id, 'name': t.name})
+          .toList(),
+    });
+  }
+
+  Future<Response> _qrSubmit(Request req) async {
+    if (!qrEnabled) return _json({'ok': false, 'error': 'disabled'}, status: 403);
+    try {
+      final body = jsonDecode(await req.readAsString());
+      if (body is! Map) return _json({'ok': false}, status: 400);
+      final store = readStore();
+      final rawItems = body['items'];
+      if (rawItems is! List || rawItems.isEmpty) {
+        return _json({'ok': false, 'error': 'empty'}, status: 400);
+      }
+      FloorTable? table;
+      final tableId = (body['tableId'] ?? '').toString();
+      if (tableId.isNotEmpty) {
+        table = store.tableById(tableId);
+        if (table == null) {
+          return _json({'ok': false, 'error': 'table_gone'}, status: 400);
+        }
+      }
+      final lines = <Map<String, dynamic>>[];
+      for (final raw in rawItems.take(40)) {
+        if (raw is! Map) continue;
+        final product = store.productById((raw['productId'] ?? '').toString());
+        if (product == null || !product.available) continue;
+        var qty = double.tryParse('${raw['qty']}') ?? 1;
+        if (qty < 1) qty = 1;
+        if (qty > 99) qty = 99;
+        double price = product.price;
+        final modNames = <String>[];
+        final rawMods = raw['mods'];
+        if (rawMods is List) {
+          for (final mid in rawMods.take(12)) {
+            ItemMod? mod;
+            for (final m in product.mods) {
+              if (m.id == '$mid') {
+                mod = m;
+                break;
+              }
+            }
+            if (mod != null) {
+              price += mod.price;
+              modNames.add(mod.name);
+            }
+          }
+        }
+        final note = (raw['note'] ?? '').toString().trim();
+        final label = modNames.isEmpty
+            ? product.name
+            : '${product.name} (${modNames.join(', ')})';
+        lines.add(OrderLine(
+          id: newId(),
+          productId: product.id,
+          name: label,
+          unitPrice: price,
+          qty: qty,
+          notes: note.length > 120 ? note.substring(0, 120) : note,
+          inventoryId: product.inventoryId,
+          deductQty: product.deductQty,
+          course: product.course,
+        ).toJson());
+      }
+      if (lines.isEmpty) {
+        return _json({'ok': false, 'error': 'empty'}, status: 400);
+      }
+      final order = PosOrder(
+        id: newId(),
+        ticketNo: '',
+        type: table != null ? OrderType.dineIn : OrderType.takeaway,
+        tableId: table?.id,
+        tableName: table?.name,
+        customerName: (body['name'] ?? '').toString().trim(),
+        customerPhone: (body['phone'] ?? '').toString().trim(),
+        notes: 'QR self-order',
+        channel: 'qr',
+      );
+      final createCmd = NetCommand(
+        name: 'createOrder',
+        role: 'web',
+        actor: order.customerName.isEmpty ? 'QR' : order.customerName,
+        payload: {
+          'order': {...order.toJson(), 'lines': lines},
+        },
+      );
+      final created = onCommand(createCmd);
+      final placed = created.store.orders.first;
+      // 'order' mode fires straight away; 'pay' mode (v1.1.60 default) waits
+      // for the counter — Main then fires it with the table number.
+      AppNotice? notice;
+      if (created.store.qrFireOn == 'order') {
+        final fire = onCommand(NetCommand(
+          name: 'fireCourse',
+          role: 'web',
+          actor: createCmd.actor,
+          payload: {'orderId': placed.id},
+        ));
+        notice = fire.notice;
+      }
+      broadcastState();
+      if (notice != null) broadcastNotice(notice);
+      return _json({
+        'ok': true,
+        'ticket': placed.ticketNo,
+        'total': placed.total,
+        'fireOn': created.store.qrFireOn,
+      });
+    } catch (e) {
+      return _json({'ok': false, 'error': e.toString()}, status: 500);
+    }
+  }
+
   void _onWs(WebSocketChannel socket, String? _) {
     _sockets.add(socket);
     socket.sink.add(jsonEncode({
@@ -213,6 +430,20 @@ class LanServer {
           final type = data['type'];
           if (type == 'hello') {
             final id = (data['deviceId'] ?? '').toString();
+            final roleName = (data['role'] ?? '').toString();
+            final isStation = roleName.isNotEmpty &&
+                roleName != 'web' &&
+                roleName != 'main';
+            if (isStation &&
+                !readStore().entitlements.allowsFeature('multi_terminal')) {
+              try {
+                socket.sink.add(jsonEncode(
+                    {'type': 'rejected', 'reason': 'plan_stations'}));
+                unawaited(socket.sink.close());
+              } catch (_) {}
+              _sockets.remove(socket);
+              return;
+            }
             if (id.isNotEmpty) {
               clients[id] = ClientInfo(
                 deviceId: id,
@@ -224,6 +455,8 @@ class LanServer {
             final raw = data['command'];
             if (raw is Map) {
               final cmd = NetCommand.fromJson(Map<String, dynamic>.from(raw));
+              if (StoreGuard.denyReason(readStore(), cmd).isNotEmpty) return;
+              StoreGuard.sanitize(readStore(), cmd);
               final result = onCommand(cmd);
               broadcastState();
               if (result.notice != null) broadcastNotice(result.notice!);

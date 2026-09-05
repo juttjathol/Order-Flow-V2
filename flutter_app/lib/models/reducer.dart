@@ -144,6 +144,16 @@ class StoreReducer {
         order.ticketNo = store.nextTicket();
         order.taxRate = store.profile.taxRate;
         order.serviceRate = store.profile.serviceRate;
+        // v1.1.59: attribute the sale to a staff member when we can —
+        // from the station's chosen staff id, else by matching names.
+        if (order.staffId == null && cmd.actor.isNotEmpty) {
+          for (final st in store.staff) {
+            if (st.name.toLowerCase() == cmd.actor.toLowerCase()) {
+              order.staffId = st.id;
+              break;
+            }
+          }
+        }
         store.orders.insert(0, order);
         _syncTable(store, order);
         bump();
@@ -152,7 +162,15 @@ class StoreReducer {
         final incoming = PosOrder.fromJson(mapOf(p['order']));
         final i = store.orders.indexWhere((e) => e.id == incoming.id);
         if (i >= 0) {
-          incoming.stockDeducted = store.orders[i].stockDeducted;
+          final prevOrder = store.orders[i];
+          incoming.stockDeducted = prevOrder.stockDeducted;
+          // Keep QR channel / staff attribution even if a patch predates them.
+          if (!mapOf(p['order']).containsKey('channel')) {
+            incoming.channel = prevOrder.channel;
+          }
+          if (!mapOf(p['order']).containsKey('staffId')) {
+            incoming.staffId = prevOrder.staffId;
+          }
           store.orders[i] = incoming;
           _syncTable(store, incoming);
         }
@@ -468,6 +486,101 @@ class StoreReducer {
         break;
       case 'deleteAppointment':
         store.appointments.removeWhere((e) => e.id == p['id']);
+        bump();
+        break;
+
+      // ── v1.1.59: plan entitlements, QR ordering switch, recipes,
+      //    wastage, suppliers & purchase orders ─────────────────────────
+      case 'setEntitlements':
+        store.entitlements = Entitlements.fromJson(mapOf(p['entitlements']));
+        bump();
+        break;
+      case 'setQrOrdering':
+        store.qrOrderOn = parseBool(p['on'], store.qrOrderOn);
+        bump();
+        break;
+      case 'logWastage':
+        final entry = WastageEntry(
+          id: parseStr(p['id']) ?? newId(),
+          stockId: parseStr(p['stockId']) ?? '',
+          quantity: parseNum(p['quantity']).abs(),
+          cost: parseNum(p['cost']),
+          reason: parseStr(p['reason']) ?? '',
+          actor: cmd.actor,
+        );
+        final item = store.stockById(entry.stockId);
+        if (item != null) {
+          if (entry.cost <= 0) entry.cost = item.cost * entry.quantity;
+          item.quantity -= entry.quantity;
+          if (item.quantity < 0) item.quantity = 0;
+          store.waste.insert(0, entry);
+          if (store.waste.length > 400) store.waste.removeLast();
+          bump();
+        }
+        break;
+      case 'deleteWastage':
+        final i = store.waste.indexWhere((e) => e.id == p['id']);
+        if (i >= 0) {
+          final w = store.waste[i];
+          store.waste.removeAt(i);
+          final item = store.stockById(w.stockId);
+          if (item != null) item.quantity += w.quantity;
+          bump();
+        }
+        break;
+      case 'upsertSupplier':
+        final sup = Supplier.fromJson(mapOf(p['supplier']));
+        final i = store.suppliers.indexWhere((e) => e.id == sup.id);
+        if (i >= 0) {
+          store.suppliers[i] = sup;
+        } else {
+          store.suppliers.add(sup);
+        }
+        bump();
+        break;
+      case 'deleteSupplier':
+        store.suppliers.removeWhere((e) => e.id == p['id']);
+        bump();
+        break;
+      case 'upsertPurchase':
+        final po = PurchaseOrder.fromJson(mapOf(p['purchase']));
+        final i = store.purchases.indexWhere((e) => e.id == po.id);
+        if (i >= 0) {
+          store.purchases[i] = po;
+        } else {
+          if (po.poNo.isEmpty) po.poNo = store.nextPoNo();
+          store.purchases.insert(0, po);
+          if (store.purchases.length > 300) store.purchases.removeLast();
+        }
+        bump();
+        break;
+      case 'receivePurchase':
+        final po = store.purchaseById(parseStr(p['id']));
+        if (po != null && po.status != 'received') {
+          for (final l in po.lines) {
+            final item = store.stockById(l.stockId);
+            if (item == null) continue;
+            item.quantity += l.quantity;
+            if (l.cost > 0) item.cost = l.cost;
+          }
+          po.status = 'received';
+          po.receivedAt = DateTime.now();
+          bump();
+        }
+        break;
+      case 'cancelPurchase':
+        final po = store.purchaseById(parseStr(p['id']));
+        if (po != null && po.status == 'ordered') {
+          po.status = 'cancelled';
+          bump();
+        }
+        break;
+      case 'setQrFireOn':
+        store.qrFireOn = parseStr(p['mode']) == 'order' ? 'order' : 'pay';
+        bump();
+        break;
+      case 'upsertQrBrand':
+        store.qrBrand = QrBrand.fromJson(mapOf(p['brand']));
         bump();
         break;
       default:

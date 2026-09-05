@@ -57,6 +57,18 @@ function badge(kind, label) {
   return `<span class="badge ${kind}">${label}</span>`;
 }
 
+function planChips(l) {
+  const plan = (l.plan || "full").toLowerCase();
+  const nF = Array.isArray(l.allowedFeatures) ? l.allowedFeatures.length : "all";
+  const nM = Array.isArray(l.allowedModels) ? l.allowedModels.length : 4;
+  const legacy = l.allowedModels == null && l.allowedFeatures == null;
+  return `
+    <span class="badge plan plan-${plan}">${plan.toUpperCase()}</span>
+    ${legacy
+      ? '<span class="badge unbound" title="No plan data on this key — every feature stays on">all on</span>'
+      : `<span class="badge bound" title="Features enabled by this key">${nF}/${FEATURES.length} feat · ${nM}/${MODELS.length} models</span>`}`;
+}
+
 function esc(v) {
   return String(v ?? "")
     .replaceAll("&", "&amp;")
@@ -127,11 +139,12 @@ function renderLicenses() {
       return `<tr>
         <td class="mono">${esc(l.licenseKey)}</td>
         <td>${esc(l.customer?.name || "")}</td>
-        <td>${status}</td>
+        <td>${status}<div class="chips" style="margin-top:4px">${planChips(l)}</div></td>
         <td>${bind}</td>
         <td>${esc((l.expiresAt || "").slice(0, 10))}</td>
         <td class="actions">
           <button class="secondary" data-copy="${esc(l.licenseKey)}">Copy</button>
+          <button class="secondary" data-access="${l.id}">Access…</button>
           <button class="secondary" data-reset="${l.id}">Reset device</button>
           <button class="secondary" data-extend="${l.id}">+30 days</button>
           <button class="secondary" data-revoke="${l.id}">Revoke</button>
@@ -167,6 +180,10 @@ function renderLicenses() {
               <span class="m-card-label">Status</span>
               <span>${statusBadge}</span>
             </div>
+            <div class="m-card-row">
+              <span class="m-card-label">Plan</span>
+              <span class="chips">${planChips(l)}</span>
+            </div>
             <div class="m-card-row" style="flex-direction:column;align-items:flex-start;gap:4px">
               <span class="m-card-label">Device</span>
               <span>${deviceBadge}</span>
@@ -177,6 +194,7 @@ function renderLicenses() {
             </div>
             <div class="m-card-actions">
               <button class="secondary" data-copy="${esc(l.licenseKey)}">Copy</button>
+              <button class="secondary" data-access="${l.id}">Access…</button>
               <button class="secondary" data-reset="${l.id}">Reset device</button>
               <button class="secondary" data-extend="${l.id}">+30 days</button>
               <button class="secondary" data-revoke="${l.id}">Revoke</button>
@@ -313,17 +331,148 @@ $("c-save").addEventListener("click", async () => {
   await refresh();
 });
 
+// ── v1.1.59: plan & access editor ────────────────────────────────────────
+const MODELS = [
+  ["restaurant", "Restaurant"],
+  ["retail", "Retail"],
+  ["fastfood", "Fast food"],
+  ["services", "Services"],
+];
+const FEATURES = [
+  ["multi_terminal", "Extra stations (taker / kitchen / cashier / driver)"],
+  ["station_printers", "Per-station printers & auto kitchen print"],
+  ["qr_ordering", "QR table ordering & self-order"],
+  ["loyalty", "Loyalty points & store credit"],
+  ["split_payment", "Split payment (two methods)"],
+  ["refunds", "Refund paid orders"],
+  ["customer_display", "Customer display screen"],
+  ["reservations", "Reservations / appointments"],
+  ["recipe_costing", "Recipe costing & food margins"],
+  ["wastage", "Wastage log"],
+  ["purchases", "Suppliers & purchase orders"],
+  ["advanced_reports", "Insights: best sellers, profit, staff"],
+  ["eighty_six", "86 board (sellable control)"],
+  ["cloud_sync", "Cloud networking — stations keep running when Wi-Fi is down"],
+  ["qr_branding", "Branded guest QR page (shop identity editor)"],
+];
+const PLAN_PRESETS = {
+  starter: [],
+  // Growth keeps the original 13 features; the two v1.1.60 extras are custom-only.
+  growth: FEATURES.slice(0, 13).map((f) => f[0]),
+  custom: FEATURES.map((f) => f[0]),
+  full: FEATURES.map((f) => f[0]),
+};
+const PLAN_SUMMARY = {
+  starter: "Starter — core billing only. Gated extras stay off.",
+  growth: "Growth — all features on.",
+  custom: "Custom — pick exactly what this key unlocks.",
+  full: "Full — everything on (same as before plans existed).",
+};
+
+let accessEditingId = null; // null = generating a new key
+
+function buildAccessBoxes() {
+  $("a-models").innerHTML = MODELS.map(
+    ([k, label]) => `<label class="chk"><input type="checkbox" data-model="${k}" checked/><span>${label}</span></label>`,
+  ).join("");
+  $("a-features").innerHTML = FEATURES.map(
+    ([k, label]) => `<label class="chk"><input type="checkbox" data-feature="${k}" checked/><span>${label}</span></label>`,
+  ).join("");
+  $("l-plan").addEventListener("change", applyPlanPreset);
+  $("a-models").addEventListener("change", updateAccessSummary);
+  $("a-features").addEventListener("change", updateAccessSummary);
+  $("a-reset").addEventListener("click", () => applyPlanPreset());
+  updateAccessSummary();
+}
+
+function applyPlanPreset() {
+  const plan = $("l-plan").value;
+  const on = new Set(PLAN_PRESETS[plan] ?? []);
+  document.querySelectorAll("#a-features [data-feature]").forEach((cb) => {
+    cb.checked = on.has(cb.dataset.feature);
+  });
+  if (plan !== "custom") {
+    document.querySelectorAll("#a-models [data-model]").forEach((cb) => (cb.checked = true));
+  }
+  updateAccessSummary();
+}
+
+function checkedValues(sel, attr) {
+  return [...document.querySelectorAll(`${sel} [${attr}]:checked`)].map((el) => el.dataset[attr === "model" ? "model" : "feature"]);
+}
+
+function updateAccessSummary() {
+  const plan = $("l-plan").value;
+  const feats = checkedValues("#a-features", "feature").length;
+  const models = checkedValues("#a-models", "model").length || MODELS.length;
+  $("access-summary").textContent =
+    `${PLAN_SUMMARY[plan] || ""} Models: ${models}/${MODELS.length} · Features: ${feats}/${FEATURES.length}`;
+}
+
+function accessBody() {
+  const models = checkedValues("#a-models", "model");
+  return {
+    plan: $("l-plan").value,
+    allowedModels: models.length ? models : MODELS.map((m) => m[0]),
+    allowedFeatures: checkedValues("#a-features", "feature"),
+  };
+}
+
+function setAccessEditing(licenseId, license) {
+  accessEditingId = licenseId;
+  $("l-plan").value = license?.plan && PLAN_SUMMARY[license.plan] ? license.plan : "custom";
+  const models = new Set(license?.allowedModels ?? MODELS.map((m) => m[0]));
+  const feats = new Set(license?.allowedFeatures ?? FEATURES.map((f) => f[0]));
+  document.querySelectorAll("#a-models [data-model]").forEach((cb) => (cb.checked = models.has(cb.dataset.model)));
+  document.querySelectorAll("#a-features [data-feature]").forEach((cb) => (cb.checked = feats.has(cb.dataset.feature)));
+  $("access-mode").textContent = `Editing ${license?.licenseKey ?? licenseId}`;
+  $("access-mode").className = "badge bound";
+  $("l-save").classList.add("hidden");
+  $("l-hint").classList.add("hidden");
+  $("a-save").classList.remove("hidden");
+  $("a-cancel").classList.remove("hidden");
+  updateAccessSummary();
+  setView("licenses");
+  $("access-box").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function setAccessCreating() {
+  accessEditingId = null;
+  $("access-mode").textContent = "New key";
+  $("access-mode").className = "badge unbound";
+  $("l-save").classList.remove("hidden");
+  $("l-hint").classList.remove("hidden");
+  $("a-save").classList.add("hidden");
+  $("a-cancel").classList.add("hidden");
+}
+
 $("l-save").addEventListener("click", async () => {
   const customerId = $("l-customer").value;
   if (!customerId) return toast("Create a customer first");
   const res = await api("admin/licenses", {
     method: "POST",
-    body: JSON.stringify({ customerId, days: Number($("l-days").value || 365) }),
+    body: JSON.stringify({ customerId, days: Number($("l-days").value || 365), ...accessBody() }),
   });
   toast(`Key ${res.license.licenseKey}`);
   await refresh();
   setView("licenses");
 });
+
+$("a-save").addEventListener("click", async () => {
+  if (!accessEditingId) return;
+  await api(`admin/licenses/${accessEditingId}/access`, {
+    method: "POST",
+    body: JSON.stringify(accessBody()),
+  });
+  toast("Access saved — devices pick it up on the next license check");
+  setAccessCreating();
+  await refresh();
+});
+
+$("a-cancel").addEventListener("click", () => setAccessCreating());
+
+buildAccessBoxes();
+setAccessCreating();
 
 document.body.addEventListener("click", async (e) => {
   const t = e.target;
@@ -350,8 +499,13 @@ document.body.addEventListener("click", async (e) => {
       await navigator.clipboard.writeText(t.dataset.copy);
       toast("Copied");
       return;
+    } else if (t.dataset.access) {
+      const lic = state.licenses.find((x) => x.id === t.dataset.access) || null;
+      setAccessEditing(t.dataset.access, lic);
+      return;
     } else if (t.dataset.issue) {
       $("l-customer").value = t.dataset.issue;
+      setAccessCreating();
       setView("licenses");
       return;
     } else {

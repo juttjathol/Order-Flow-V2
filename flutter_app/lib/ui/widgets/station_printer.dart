@@ -8,11 +8,17 @@ import '../../core/theme.dart';
 import '../../services/bluetooth_printer.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/plan_lock.dart';
 
 /// Printer settings for THIS device (any station or Main).
 /// Choosing a local printer overrides the shop-level printer targets
 /// for everything this device prints (kitchen slips, receipts, drawer).
 Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async {
+  // v1.1.59 plan gate — legacy keys (no plan set) are unaffected.
+  if (!ref.snap.canFeature('station_printers')) {
+    await showPlanLock(context, ref, featureKey: 'station_printers');
+    return;
+  }
   final s = ref.s;
   List<BtDevice> bonded = const [];
   var btErr = '';

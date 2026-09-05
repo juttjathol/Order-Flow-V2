@@ -55,6 +55,8 @@ class PrintService {
     w.writeln('* * * ${p.businessName.toUpperCase()} * * *');
     if (p.address.isNotEmpty) w.writeln(p.address);
     if (p.phone.isNotEmpty) w.writeln('Tel. ${p.phone}');
+    if (p.invoiceLabel.trim().isNotEmpty) w.writeln(p.invoiceLabel.trim().toUpperCase());
+    if (p.taxRegNo.isNotEmpty) w.writeln('Reg. No: ${p.taxRegNo}');
     w.writeln('--------------------------------');
     w.writeln('Ticket ${order.ticketNo}  ${'${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}:${two(now.minute)}'}');
     if (order.tableName?.isNotEmpty == true) {
@@ -128,15 +130,22 @@ class PrintService {
     if (slip.showAddress && p.address.isNotEmpty) b.text(p.address);
     if (slip.showPhone && p.phone.isNotEmpty) b.text('Tel. ${p.phone}');
     if (p.taxId.isNotEmpty && !kitchen) b.text('Tax ID: ${p.taxId}');
+    // v1.1.59 — tax invoice / e-invoice style header (off unless set).
+    if (p.taxRegNo.isNotEmpty && !kitchen) b.text('Reg. No: ${p.taxRegNo}');
+    final heading = (!kitchen && p.invoiceLabel.trim().isNotEmpty)
+        ? p.invoiceLabel.trim().toUpperCase()
+        : slip.heading.toUpperCase();
     b
       ..stars()
-      ..text(slip.heading.toUpperCase())
-      ..stars()
+      ..text(heading)
+      ..stars();
+    b
       ..align('left')
       ..text('Ticket ${order.ticketNo}')
       ..text(_fmt(now));
     if (order.tableName?.isNotEmpty == true) {
-      b.text('Table ${order.tableName}');
+      // QR self-orders are served by table — make it unmissable (v1.1.60).
+      b.text(order.isQr ? '>>> QR TABLE ${order.tableName} <<<' : 'Table ${order.tableName}');
     } else {
       b.text(order.type.name.toUpperCase());
     }

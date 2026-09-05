@@ -59,7 +59,31 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${order.ticketNo}  ${_typeLabel(s, order)}'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text('${order.ticketNo}  ${_typeLabel(s, order)}',
+                  overflow: TextOverflow.ellipsis),
+            ),
+            if (order.isQr) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: OfColors.gold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: OfColors.gold.withValues(alpha: 0.6)),
+                ),
+                child: Text(s.t('qr_chip'),
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: OfColors.gold)),
+              ),
+            ],
+          ],
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2),
           child: Container(height: 2, color: OfColors.mint.withValues(alpha: 0.55)),
@@ -71,11 +95,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               onPressed: () => _scanSku(order),
               icon: const Icon(Icons.qr_code_scanner),
             ),
-          IconButton(
-            tooltip: s.t('customer_display'),
-            onPressed: () => _showCustomerDisplay(order),
-            icon: const Icon(Icons.tv),
-          ),
+          if (snap.canFeature('customer_display'))
+            IconButton(
+              tooltip: s.t('customer_display'),
+              onPressed: () => _showCustomerDisplay(order),
+              icon: const Icon(Icons.tv),
+            ),
           if (order.customerPhone.isNotEmpty)
             IconButton(
               tooltip: s.t('notify_customer'),
@@ -88,7 +113,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               onPressed: () => _shareReceipt(order),
               icon: const Icon(Icons.share),
             ),
-          if (order.status == OrderStatus.paid && canPay)
+          if (order.status == OrderStatus.paid && canPay && snap.canFeature('refunds'))
             IconButton(
               tooltip: s.t('refund'),
               onPressed: () => _refund(order),
@@ -741,7 +766,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             ListTile(title: Text(s.t('move_table')), leading: const Icon(Icons.swap_horiz), onTap: () { Navigator.pop(ctx); moveTicket(context, ref, order); }),
             ListTile(title: Text(s.t('merge_table')), leading: const Icon(Icons.merge_type), onTap: () { Navigator.pop(ctx); mergeTicket(context, ref, order); }),
             ListTile(title: Text(s.t('fire_course')), leading: const Icon(Icons.local_fire_department), onTap: () { Navigator.pop(ctx); fireCourse(context, ref, order); }),
-            if (order.status == OrderStatus.paid && canPay)
+            if (order.status == OrderStatus.paid && canPay && ref.snap.canFeature('refunds'))
               ListTile(title: Text(s.t('refund')), leading: const Icon(Icons.currency_exchange, color: OfColors.warn), onTap: () { Navigator.pop(ctx); _refund(order); }),
             ListTile(title: Text(s.t('cancel_order')), leading: const Icon(Icons.cancel, color: OfColors.danger), onTap: () { Navigator.pop(ctx); _voidOrder(order); }),
           ],
@@ -840,12 +865,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                           ))
                       .toList(),
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: splitOn,
-                  title: Text(s.t('split_payment')),
-                  onChanged: (v) => setSt(() => splitOn = v),
-                ),
+                if (ref.snap.canFeature('split_payment'))
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: splitOn,
+                    title: Text(s.t('split_payment')),
+                    onChanged: (v) => setSt(() => splitOn = v),
+                  ),
                 if (splitOn) ...[
                   Row(
                     children: [
@@ -908,7 +934,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       final primaryDue = splitOn ? (due - splitAmt) : due;
 
       // Loyalty: a saved customer earns 1 point per whole currency unit.
-      if (!order.loyaltyAwarded && order.customerPhone.trim().isNotEmpty) {
+      if (ref.snap.canFeature('loyalty') &&
+          !order.loyaltyAwarded &&
+          order.customerPhone.trim().isNotEmpty) {
         final cust = ref.snap.store.customers
             .where((c) => c.phone.trim().isNotEmpty && c.phone.trim() == order.customerPhone.trim())
             .firstOrNull;

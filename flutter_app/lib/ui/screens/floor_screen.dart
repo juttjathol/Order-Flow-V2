@@ -10,6 +10,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/offsite_order.dart';
+import '../widgets/plan_extras.dart';
 
 class FloorScreen extends ConsumerWidget {
   const FloorScreen({super.key, this.manage = true});
@@ -126,13 +127,35 @@ class _TablesMap extends ConsumerWidget {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
+                  child: Row(
                     children: [
-                      StatusChip(s.t('free'), color: OfColors.emerald),
-                      StatusChip(s.t('ordered'), color: OfColors.warn),
-                      StatusChip(s.t('ready'), color: OfColors.mint),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 10,
+                          runSpacing: 8,
+                          children: [
+                            StatusChip(s.t('free'), color: OfColors.emerald),
+                            StatusChip(s.t('ordered'), color: OfColors.warn),
+                            StatusChip(s.t('ready'), color: OfColors.mint),
+                          ],
+                        ),
+                      ),
+                      if (manage && ref.snap.canFeature('qr_ordering'))
+                        PopupMenuButton<String>(
+                          tooltip: s.t('qr_table_title'),
+                          icon: const Icon(Icons.qr_code_2, size: 20, color: OfColors.mint),
+                          itemBuilder: (_) => [
+                            for (final t in store.tables)
+                              PopupMenuItem(
+                                value: t.id,
+                                child: Text('${t.name} — ${s.t('qr_table_title')}'),
+                              ),
+                          ],
+                          onSelected: (id) {
+                            final t = store.tableById(id);
+                            if (t != null) showTableQr(context, ref, t);
+                          },
+                        ),
                     ],
                   ),
                 ),
