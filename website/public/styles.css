@@ -50,6 +50,7 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   border: 0; cursor: pointer; font-weight: 700; font-family: inherit;
   border-radius: 999px; padding: 12px 20px; transition: transform .25s, box-shadow .25s, background .25s;
+  white-space: nowrap; text-decoration: none;
 }
 .btn:hover { transform: translateY(-2px); }
 .btn-mint { background: var(--mint); color: #042015; box-shadow: 0 10px 30px rgba(61,220,151,.28); }
@@ -322,6 +323,16 @@ details[open] p { animation:fadeup .45s ease; }
 .num { display:inline-block; transition:transform .3s cubic-bezier(.2,1.6,.4,1); }
 
 /* Download band: bolt sweep already there; band border glows when in view */
+.dl-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.dl-actions .btn { padding: 14px 26px; font-size: 15px; }
+.dl-actions .note { flex: 1 0 100%; text-align: end; margin-top: 6px; }
+@media (max-width: 720px) {
+  .dl-row { flex-direction: column; align-items: stretch; }
+  .dl-actions { justify-content: stretch; }
+  .dl-actions .btn { flex: 1; }
+  .dl-actions .note { text-align: start; }
+}
+
 .download-band { transition:box-shadow .6s; }
 .download-band:target, .download-band:hover { box-shadow:0 0 0 1px rgba(61,220,151,.35), 0 40px 90px rgba(0,0,0,.5); }
 
