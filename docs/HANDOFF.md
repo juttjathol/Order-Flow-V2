@@ -19,6 +19,7 @@ Continue my existing project: repo `juttjathol/Order-Flow-V2`, workspace `/home/
 2. Never delete branches, tags, or files without asking first.
 3. Every app update: bump version in `flutter_app/pubspec.yaml` AND `flutter_app/lib/core/constants.dart`; update `website/public/guide.html` (EN + UR); update feature list in `website/public/index.html`; update `FALLBACK_TAG` in `website/functions/download.js`; commit → push → tag `vX.Y.Z` → wait for APK build to go green → open PR to `main` → merge (merge = last remote action in the session).
 4. This platform closes GitHub access the moment a PR is merged. Do ALL GitHub work before the merge. Never merge early.
+5. Verification scratch tags (`vX.Y.Z-rcN`) and any releases they auto-create are the agent's to clean up WITHOUT asking: delete them (`gh release delete <rc> --yes --cleanup-tag`, `git push origin --delete <rc tags>`, `git tag -d`) as soon as the final tag build is green — do not carry them into the next release. (Standing permission from the v1.1.59 session, 2026-09-05.)
 
 **Last merged PR:** "1.1.59 — QR ordering, costing & purchasing, plan-gated licenses, pricing page" → `main`.
 
