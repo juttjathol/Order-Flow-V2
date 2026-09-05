@@ -32,8 +32,8 @@ const kFeatureCatalog = <FeatureInfo>[
   FeatureInfo('eighty_six', '86 board (sellable control)', '۸۶ بورڈ'),
 ];
 
-const _kFeatureKeySet = <String>{for (final f in kFeatureCatalog) f.key};
-bool isGatedFeature(String key) => _kFeatureKeySet.contains(key);
+const _kFeatureKeys = <String>[for (final f in kFeatureCatalog) f.key];
+bool isGatedFeature(String key) => _kFeatureKeys.contains(key);
 
 /// Per-license plan & entitlements. Lives on AppStore so it syncs to every
 /// station automatically, and on LicenseRecord as the cache of the last
@@ -58,7 +58,7 @@ class Entitlements {
 
   bool allowsFeature(String key) {
     if (allOn) return true;
-    if (!_kFeatureKeySet.contains(key)) return true;
+    if (!_kFeatureKeys.contains(key)) return true;
     return features.contains(key);
   }
 

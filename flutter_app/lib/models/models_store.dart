@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../core/constants.dart';
 
 import 'models_enums.dart';
+import 'models_plans.dart';
 import 'models_types_a.dart';
 import 'models_types_b.dart';
 
