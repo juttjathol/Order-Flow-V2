@@ -37,7 +37,7 @@ class CloudRelay {
     String? baseUrl,
   }) : _base = (baseUrl == null || baseUrl.isEmpty) ? kCloudRelayBase : baseUrl {
     final keyBytes = cr.sha256.convert(utf8.encode('orderflow-cloud|v1|$secret')).bytes;
-    _aes = Encrypter(AES(Key(Uint8List.fromList(keyBytes)), AESMode.gcm));
+    _aes = Encrypter(AES(Key(Uint8List.fromList(keyBytes)), mode: AESMode.gcm));
   }
 
   final String roomId;
