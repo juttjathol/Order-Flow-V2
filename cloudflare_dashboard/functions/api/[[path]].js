@@ -1,3 +1,73 @@
+// v1.1.59 — plan & entitlements catalog. Keys here must match
+// kFeatureCatalog in flutter_app/lib/models/models_plans.dart exactly.
+const FEATURE_KEYS = new Set([
+  "multi_terminal", "station_printers", "qr_ordering", "loyalty", "split_payment",
+  "refunds", "customer_display", "reservations", "recipe_costing", "wastage",
+  "purchases", "advanced_reports", "eighty_six",
+]);
+const MODEL_KEYS = new Set(["restaurant", "retail", "fastfood", "services"]);
+const PLAN_PRESETS = {
+  starter: [],
+  growth: [...FEATURE_KEYS],
+  custom: [...FEATURE_KEYS],
+  full: [...FEATURE_KEYS],
+};
+
+// Add plan columns to databases created before v1.1.59 (idempotent, once per isolate).
+let planSchemaChecked = false;
+async function ensurePlanColumns(db) {
+  if (planSchemaChecked) return;
+  planSchemaChecked = true;
+  try {
+    await db.prepare("SELECT plan FROM licenses LIMIT 1").first();
+  } catch {
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN plan TEXT NOT NULL DEFAULT 'full'").run(); } catch {}
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN allowed_models TEXT").run(); } catch {}
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN allowed_features TEXT").run(); } catch {}
+  }
+}
+
+function parseJsonArray(raw) {
+  if (raw == null || raw === "") return null;
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+// null result → legacy row created before plans existed: the app keeps ALL
+// features on. Once a plan is saved the arrays are explicit (possibly empty).
+function accessOf(row) {
+  if (row == null) return null;
+  const models = parseJsonArray(row.allowed_models);
+  const features = parseJsonArray(row.allowed_features);
+  if (models === null && features === null && (!row.plan || row.plan === "full")) {
+    return null;
+  }
+  return {
+    plan: row.plan || "full",
+    allowedModels: models ?? [...MODEL_KEYS],
+    allowedFeatures: features ?? [...FEATURE_KEYS],
+  };
+}
+
+function normalizeAccess(body) {
+  const plan = ["starter", "growth", "custom", "full"].includes(body.plan) ? body.plan : "full";
+  const models = Array.isArray(body.allowedModels)
+    ? body.allowedModels.filter((m) => MODEL_KEYS.has(m))
+    : [...MODEL_KEYS];
+  const features = Array.isArray(body.allowedFeatures)
+    ? body.allowedFeatures.filter((f) => FEATURE_KEYS.has(f))
+    : [...PLAN_PRESETS[plan]];
+  return {
+    plan,
+    models: models.length ? models : [...MODEL_KEYS],
+    features,
+  };
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
@@ -115,6 +185,9 @@ function publicLicense(row, customer) {
     lastValidatedAt: row.last_validated_at,
     createdAt: row.created_at,
     binding: row.bound_device_id ? "bound" : "unbound",
+    plan: row.plan || "full",
+    allowedModels: accessOf(row)?.allowedModels ?? null,
+    allowedFeatures: accessOf(row)?.allowedFeatures ?? null,
     customer: customer
       ? {
           id: customer.id,
@@ -135,6 +208,7 @@ export async function onRequest(context) {
   if (!env.DB) {
     return json({ ok: false, error: "d1_not_configured", message: "Bind a D1 database as DB." }, 500);
   }
+  await ensurePlanColumns(env.DB);
 
   const path = pathOf(context);
   const method = request.method.toUpperCase();
@@ -251,12 +325,22 @@ export async function onRequest(context) {
       const id = crypto.randomUUID();
       const key = (body.licenseKey || generateKey()).toUpperCase();
       const expires = addDays(null, Number.isFinite(days) ? days : 365);
+      const access = normalizeAccess(body);
       try {
         await env.DB.prepare(
-          `INSERT INTO licenses (id, customer_id, license_key, status, expires_at, created_at)
-           VALUES (?, ?, ?, 'active', ?, ?)`,
+          `INSERT INTO licenses (id, customer_id, license_key, status, expires_at, created_at, plan, allowed_models, allowed_features)
+           VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
         )
-          .bind(id, customerId, key, expires, nowIso())
+          .bind(
+            id,
+            customerId,
+            key,
+            expires,
+            nowIso(),
+            access.plan,
+            JSON.stringify(access.models),
+            JSON.stringify(access.features),
+          )
           .run();
       } catch (e) {
         return json({ ok: false, error: "key_conflict", message: String(e) }, 409);
@@ -297,6 +381,18 @@ export async function onRequest(context) {
         await env.DB.prepare("UPDATE licenses SET status = 'revoked' WHERE id = ?").bind(id).run();
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
+      }
+      if (method === "POST" && action === "access") {
+        const body = await readJson(request);
+        const access = normalizeAccess(body);
+        await env.DB.prepare(
+          "UPDATE licenses SET plan = ?, allowed_models = ?, allowed_features = ? WHERE id = ?",
+        )
+          .bind(access.plan, JSON.stringify(access.models), JSON.stringify(access.features), id)
+          .run();
+        const next = await licenseById(env.DB, id);
+        const cust = await customerById(env.DB, next.customer_id);
+        return json({ ok: true, license: publicLicense(next, cust) });
       }
     }
 
@@ -361,6 +457,7 @@ async function handleValidate(env, body) {
 
   const customer = await customerById(env.DB, row.customer_id);
   const next = await licenseById(env.DB, row.id);
+  const access = accessOf(next);
   return json({
     ok: true,
     valid: true,
@@ -377,5 +474,9 @@ async function handleValidate(env, body) {
       email: customer?.email || "",
     },
     graceHours: 48,
+    // v1.1.59 plan entitlements — null lists keep the app at full access.
+    plan: access ? access.plan : "full",
+    allowedModels: access ? access.allowedModels : null,
+    allowedFeatures: access ? access.allowedFeatures : null,
   });
 }

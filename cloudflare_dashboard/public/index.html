@@ -117,9 +117,36 @@
               <input id="l-days" type="number" value="365" min="1"/>
             </div>
           </div>
+          <div class="access-box" id="access-box">
+            <div class="access-head">
+              <span class="muted">Plan &amp; access (v1.1.59)</span>
+              <span id="access-mode" class="badge unbound">New key</span>
+            </div>
+            <label for="l-plan">Plan</label>
+            <select id="l-plan">
+              <option value="starter">Starter — billing &amp; stock basics</option>
+              <option value="growth" selected>Growth — all features</option>
+              <option value="custom">Custom — pick features below</option>
+              <option value="full">Full — everything, no limits</option>
+            </select>
+            <div class="access-cols">
+              <div>
+                <h4>Business models</h4>
+                <div class="chk-grid" id="a-models"></div>
+              </div>
+            </div>
+            <h4>Features</h4>
+            <div class="chk-grid" id="a-features"></div>
+            <div class="toolbar">
+              <span class="muted" id="access-summary">Growth — all features on.</span>
+              <button id="a-reset" class="secondary" type="button">Reset to plan</button>
+            </div>
+          </div>
           <div class="toolbar">
-            <span class="muted">Key format OF-XXXX-XXXX-XXXX-XXXX. Bound after first Main activation.</span>
+            <span class="muted" id="l-hint">Key format OF-XXXX-XXXX-XXXX-XXXX. Bound after first Main activation.</span>
             <button id="l-save" type="button">Generate key</button>
+            <button id="a-save" class="hidden" type="button">Save access</button>
+            <button id="a-cancel" class="secondary hidden" type="button">Cancel edit</button>
           </div>
         </div>
         <!-- Desktop table -->

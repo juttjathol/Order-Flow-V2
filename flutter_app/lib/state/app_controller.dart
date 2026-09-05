@@ -7,6 +7,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../core/constants.dart';
+import '../core/l10n.dart';
 import '../core/role_access.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
@@ -60,6 +61,14 @@ class AppSnapshot {
   L10nView get l10n => L10nView(session.locale);
   String get currency => store.profile.currencySymbol;
   bool get currencyPrefix => store.profile.currencyPrefix;
+
+  /// Plan-gated feature check (v1.1.59). Always true for legacy keys.
+  bool canFeature(String key) => store.entitlements.allowsFeature(key);
+  bool canModel(BusinessModel model) =>
+      store.entitlements.allowsModel(model.name);
+  String get planLabel => store.entitlements.planLabel;
+  bool get planLimited => !store.entitlements.allOn;
+
   bool get isMain => session.role == AppRole.main;
   bool get isManager => session.role == AppRole.manager;
   bool get isClient =>
@@ -103,6 +112,10 @@ class AppSnapshot {
 class L10nView {
   L10nView(this.code);
   final String code;
+
+  /// Translation access for snapshot consumers (`snap.l10n.t(key)`).
+  String t(String key) => L10n(code).t(key);
+  bool get isUrdu => code == 'ur';
 }
 
 class AppController extends Notifier<AppSnapshot> {
@@ -189,6 +202,7 @@ class AppController extends Notifier<AppSnapshot> {
         !session.license.locked) {
       await startServer();
       unawaited(revalidate());
+      unawaited(_syncEntitlements());
     } else if (session.role == AppRole.driver && session.pairedDriverId != null) {
       if (session.mainHost.isNotEmpty) {
         unawaited(_tryDriverSync());
@@ -392,6 +406,7 @@ class AppController extends Notifier<AppSnapshot> {
       busy: false,
     ));
     await startServer();
+    await _syncEntitlements();
     return null;
   }
 
@@ -433,9 +448,14 @@ class AppController extends Notifier<AppSnapshot> {
       return;
     }
     _emit(state.copyWith(session: session, gate: _computeGate(session)));
+    unawaited(_syncEntitlements());
   }
 
   Future<void> pickModel(BusinessModel model) async {
+    if (!state.store.entitlements.allowsModel(model.name)) {
+      state = state.copyWith(error: 'plan_model');
+      return;
+    }
     if (!state.store.seeded) {
       seedFor(model, state.store);
     } else {
@@ -452,8 +472,38 @@ class AppController extends Notifier<AppSnapshot> {
 
   Future<void> changeBusinessModel(BusinessModel model) async {
     if (!state.isMain) return;
+    if (!state.store.entitlements.allowsModel(model.name)) {
+      state = state.copyWith(error: 'plan_model');
+      return;
+    }
     await dispatch(NetCommand(name: 'setModel', payload: {'model': model.name}));
   }
+
+  Future<void> setQrOrdering(bool on) async {
+    if (!state.store.canFeature('qr_ordering')) {
+      state = state.copyWith(error: 'plan_feature');
+      return;
+    }
+    await dispatch(NetCommand(name: 'setQrOrdering', payload: {'on': on}));
+  }
+
+  /// Main pushes license plan data into the shared store so every station
+  /// and the LAN server enforce the same limits. No-op for other roles.
+  Future<void> _syncEntitlements() async {
+    if (!state.isMain) return;
+    final lic = state.session.license;
+    if (!lic.valid && !lic.inGrace) return;
+    final next = lic.entitlements;
+    if (state.store.entitlements.sameAs(next)) return;
+    await dispatch(NetCommand(
+      name: 'setEntitlements',
+      payload: {'entitlements': next.toJson()},
+    ));
+  }
+
+  bool _stationPlanBlocked = false;
+  bool get stationPlanBlocked => _stationPlanBlocked;
+  void clearStationPlanBlock() => _stationPlanBlocked = false;
 
   Future<void> startServer() async {
     if (state.session.license.locked) return;
@@ -480,6 +530,11 @@ class AppController extends Notifier<AppSnapshot> {
     if (!RoleAccess.allow(cmd.role, cmd)) {
       return ReduceResult(state.store);
     }
+    // Plan gating (v1.1.59): Main's license limits apply on every device.
+    if (StoreGuard.denyReason(state.store, cmd).isNotEmpty) {
+      return ReduceResult(state.store);
+    }
+    StoreGuard.sanitize(state.store, cmd);
     if (cmd.id.isNotEmpty && _seenIds.contains(cmd.id)) {
       return ReduceResult(state.store);
     }
@@ -674,7 +729,16 @@ class AppController extends Notifier<AppSnapshot> {
       },
       onStatus: (up) {
         state = state.copyWith(connected: up);
-        if (up) unawaited(flushQueue());
+        if (up) {
+          _stationPlanBlocked = false;
+          unawaited(flushQueue());
+        }
+      },
+      onReject: (reason) {
+        _stationPlanBlocked = true;
+        state = state.copyWith(
+          error: reason.isEmpty ? 'plan_stations' : reason,
+        );
       },
     );
     try {
@@ -833,6 +897,9 @@ class AppController extends Notifier<AppSnapshot> {
 
   Future<void> importStore(AppStore store) async {
     if (!state.isMain) return;
+    // Keep the license plan from the live session — an older backup must
+    // never re-enable features the admin has switched off (v1.1.59).
+    store.entitlements = state.store.entitlements;
     store.revision += 1;
     _emit(state.copyWith(store: store));
     _server?.broadcastState();

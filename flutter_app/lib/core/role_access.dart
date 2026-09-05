@@ -1,5 +1,58 @@
 import '../models/models.dart';
 
+/// Plan/license gating (v1.1.59). Runs after RoleAccess, on Main for remote
+/// commands and locally for this device. Legacy keys (allOn) allow
+/// everything, so behaviour is unchanged unless a plan restricts the key.
+class StoreGuard {
+  static const _gatedCommands = {
+    'logWastage': 'wastage',
+    'deleteWastage': 'wastage',
+    'upsertSupplier': 'purchases',
+    'deleteSupplier': 'purchases',
+    'upsertPurchase': 'purchases',
+    'receivePurchase': 'purchases',
+    'cancelPurchase': 'purchases',
+    'setQrOrdering': 'qr_ordering',
+  };
+
+  static String denyReason(AppStore store, NetCommand cmd) {
+    final ent = store.entitlements;
+    if (ent.allOn) return '';
+    // Only Main may push entitlements into the shared store.
+    if (cmd.name == 'setEntitlements') {
+      return cmd.role == AppRole.main.name ? '' : 'forbidden';
+    }
+    final feature = _gatedCommands[cmd.name];
+    if (feature != null && !ent.allowsFeature(feature)) return 'plan_feature';
+    if (cmd.name == 'setModel') {
+      final model = cmd.payload['model']?.toString() ?? '';
+      if (model.isNotEmpty && !ent.allowsModel(model)) return 'plan_model';
+    }
+    if (cmd.name == 'seedModel') {
+      final model = cmd.payload['model']?.toString() ?? '';
+      if (model.isNotEmpty && !ent.allowsModel(model)) return 'plan_model';
+    }
+    return '';
+  }
+
+  static bool allow(AppStore store, NetCommand cmd) =>
+      denyReason(store, cmd).isEmpty;
+
+  /// Soft downgrade applied before the reducer: recipe lines ride on
+  /// upsertProduct, and must simply not persist when the plan has no
+  /// recipe costing. The product save itself is never blocked.
+  static void sanitize(AppStore store, NetCommand cmd) {
+    if (!store.entitlements.allOn &&
+        !store.entitlements.allowsFeature('recipe_costing') &&
+        cmd.name == 'upsertProduct') {
+      final raw = cmd.payload['product'];
+      if (raw is Map && (raw['recipe'] as List?)?.isNotEmpty == true) {
+        raw['recipe'] = <String>[];
+      }
+    }
+  }
+}
+
 /// What each station may do on the live shop store.
 class RoleAccess {
   static bool allow(String roleName, NetCommand cmd) {

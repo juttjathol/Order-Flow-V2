@@ -15,6 +15,8 @@ import '../../services/bluetooth_printer.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/plan_extras.dart';
+import '../widgets/plan_lock.dart';
 import '../widgets/pos_ops.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -34,7 +36,14 @@ class MoreScreen extends ConsumerWidget {
       if (model == BusinessModel.services)
         _row(Icons.spa, s.t('services'), () => _services(context, ref)),
       if (model == BusinessModel.restaurant || model == BusinessModel.services)
-        _row(Icons.event, s.t('appointments'), () => _reservations(context, ref)),
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'reservations',
+          icon: Icons.event,
+          title: s.t('appointments'),
+          onTap: () => _reservations(context, ref),
+        ),
     ];
     final shop = <Widget>[
       if (snap.isMain) _row(Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
@@ -45,9 +54,63 @@ class MoreScreen extends ConsumerWidget {
       _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
       _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false)),
       _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true)),
-      _row(Icons.block, s.t('eighty_six_board'), () => _eightySixBoard(context, ref)),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'eighty_six',
+        icon: Icons.block,
+        title: s.t('eighty_six_board'),
+        onTap: () => _eightySixBoard(context, ref),
+      ),
       _row(Icons.hourglass_bottom, s.t('unpaid_tabs'), () => _unpaidTabs(context, ref)),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'advanced_reports',
+        icon: Icons.auto_graph,
+        title: s.t('insights'),
+        onTap: () => showInsights(context, ref),
+      ),
       if (snap.isMain || snap.isManager) _row(Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
+    ];
+    final extras = <Widget>[
+      if (snap.isMain)
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'qr_ordering',
+          icon: Icons.qr_code_2,
+          title: s.t('qr_ordering'),
+          subtitle: s.t('qr_ordering_sub'),
+          onTap: () => showQrOrdering(context, ref),
+        ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'recipe_costing',
+        icon: Icons.calculate,
+        title: s.t('recipes'),
+        subtitle: s.t('recipes_sub'),
+        onTap: () => showRecipesMargin(context, ref),
+      ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'wastage',
+        icon: Icons.delete_sweep,
+        title: s.t('wastage_log'),
+        subtitle: s.t('wastage_sub'),
+        onTap: () => showWastageLog(context, ref),
+      ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'purchases',
+        icon: Icons.local_shipping,
+        title: s.t('purchasing'),
+        subtitle: s.t('purchasing_sub'),
+        onTap: () => showPurchasing(context, ref),
+      ),
     ];
     final data = <Widget>[
       _row(Icons.ios_share, s.t('export_backup'), () async {
@@ -134,6 +197,7 @@ class MoreScreen extends ConsumerWidget {
         ]),
         _folder(context, Icons.groups, s.t('people_section'), people),
         _folder(context, Icons.insights, s.t('reports_section'), reports),
+        _folder(context, Icons.auto_awesome, s.t('plan_extras'), extras),
         _folder(context, Icons.backup, s.t('backup'), data),
         _folder(context, Icons.settings, s.t('account_section'), account),
         const SizedBox(height: 16),
@@ -192,20 +256,28 @@ Future<void> _changeModel(BuildContext context, WidgetRef ref) async {
           const SizedBox(height: 12),
           ...models.map((m) {
             final selected = ref.snap.store.model == m.$1;
+            final allowed = ref.snap.canModel(m.$1);
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: OfCard(
                 color: selected ? OfColors.emerald.withValues(alpha: 0.15) : null,
                 onTap: () async {
+                  if (!allowed) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(s.t('plan_model_locked'))));
+                    return;
+                  }
                   await ref.ctrl.changeBusinessModel(m.$1);
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(m.$4, color: OfColors.emerald),
+                  leading: Icon(m.$4, color: allowed ? OfColors.emerald : OfColors.muted),
                   title: Text(s.t(m.$2), style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(s.t(m.$3)),
-                  trailing: selected ? const Icon(Icons.check, color: OfColors.emerald) : null,
+                  trailing: !allowed
+                      ? const Icon(Icons.lock_outline, color: OfColors.muted, size: 18)
+                      : (selected ? const Icon(Icons.check, color: OfColors.emerald) : null),
                 ),
               ),
             );
@@ -273,6 +345,8 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
   final address = TextEditingController(text: p.address);
   final phone = TextEditingController(text: p.phone);
   final taxId = TextEditingController(text: p.taxId);
+  final invoiceLabel = TextEditingController(text: p.invoiceLabel);
+  final taxReg = TextEditingController(text: p.taxRegNo);
   final footer = TextEditingController(text: p.footer);
   final cur = TextEditingController(text: p.currencySymbol);
   final tax = TextEditingController(text: p.taxRate.toString());
@@ -349,6 +423,10 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     const SizedBox(height: 8),
                     TextField(controller: taxId, decoration: InputDecoration(labelText: s.t('tax_id'))),
                     const SizedBox(height: 8),
+                    TextField(controller: invoiceLabel, decoration: InputDecoration(labelText: s.t('invoice_label')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 8),
+                    TextField(controller: taxReg, decoration: InputDecoration(labelText: s.t('tax_reg_no')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 8),
                     TextField(controller: footer, decoration: InputDecoration(labelText: s.t('footer')), onChanged: (_) => setSt(() {})),
                     const SizedBox(height: 8),
                     TextField(controller: cur, decoration: InputDecoration(labelText: s.t('currency_symbol'))),
@@ -400,6 +478,8 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     payQrBase64: p.payQrBase64,
                     payQrLabel: qrLabel.text.trim(),
                     managerPin: ref.snap.isMain ? pin.text.trim() : p.managerPin,
+                    invoiceLabel: invoiceLabel.text.trim(),
+                    taxRegNo: taxReg.text.trim(),
                     kitchenSlip: p.kitchenSlip,
                     counterSlip: p.counterSlip,
                     takeawaySlip: p.takeawaySlip,
@@ -1099,6 +1179,21 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
           Text('${s.t('status')}: ${lic.locked ? s.t('key_revoked') : (lic.valid ? s.t('activated') : s.t('unbound'))}'),
           if (lic.expiresAt != null) Text('${s.t('expires')}: ${lic.expiresAt}'),
           if (lic.lastValidatedAt != null) Text('${s.t('last_validated')}: ${lic.lastValidatedAt}'),
+          const SizedBox(height: 8),
+          if (ref.snap.planLimited) ...[
+            Text('${s.t('plan')}: ${ref.snap.planLabel.toUpperCase()}',
+                style: const TextStyle(fontWeight: FontWeight.w900, color: OfColors.gold)),
+            if (lic.allowedModels.isNotEmpty)
+              Text('${s.t('plan_models')}: '
+                  '${lic.allowedModels.map((m) => s.t(m == 'services' ? 'services_model' : m)).join(', ')}'),
+            Text('${s.t('plan_features')}: '
+                '${lic.allowedFeatures.isEmpty ? s.t('none') : lic.allowedFeatures.length}'
+                '${lic.allowedFeatures.isEmpty ? '' : ' / ${kFeatureCatalog.length}'}'),
+            if (!ref.snap.canFeature('multi_terminal'))
+              Text(s.t('plan_single_device'), style: const TextStyle(color: OfColors.warn, fontSize: 12)),
+          ] else
+            Text('${s.t('plan')}: ${s.t('plan_full')}',
+                style: const TextStyle(fontWeight: FontWeight.w800, color: OfColors.mint)),
           const SizedBox(height: 8),
           Text(s.t('reset_hint')),
           TextButton(

@@ -100,3 +100,79 @@ document.querySelectorAll("[data-apk]").forEach((el) => {
     startDownload(e);
   });
 });
+
+// ── v1.1.59: scroll reveals, price count-up, plan CTAs, hero parallax ──
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Scroll reveal (additive; hero .reveal animations above stay untouched)
+try {
+  const io = new IntersectionObserver((rows) => {
+    for (const r of rows) {
+      if (r.isIntersecting) { r.target.classList.add("revealed"); io.unobserve(r.target); }
+    }
+  }, { threshold: 0.15 });
+  document.querySelectorAll("[data-reveal]").forEach((el) => io.observe(el));
+} catch (_) {
+  document.querySelectorAll("[data-reveal]").forEach((el) => el.classList.add("revealed"));
+}
+
+// Count-up for plan prices
+try {
+  const nums = document.querySelectorAll("[data-count]");
+  if (!reduceMotion && "IntersectionObserver" in window) {
+    const cio = new IntersectionObserver((rows) => {
+      for (const r of rows) {
+        if (!r.isIntersecting) continue;
+        cio.unobserve(r.target);
+        const end = Number(r.target.dataset.count || 0);
+        const t0 = performance.now();
+        const dur = 900;
+        const tick = (t) => {
+          const k = Math.min(1, (t - t0) / dur);
+          r.target.textContent = Math.round(end * (1 - Math.pow(1 - k, 3)));
+          if (k < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+    }, { threshold: 0.6 });
+    nums.forEach((el) => cio.observe(el));
+  }
+} catch (_) {}
+
+// Plan CTA: pre-filled WhatsApp message per plan
+document.querySelectorAll(".plan-cta").forEach((a) => {
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    const plan = a.dataset.plan || "a plan";
+    const body = [
+      "Name: ",
+      "Business Name: ",
+      "Email: ",
+      "Phone number: ",
+      "Business model: ",
+      "",
+      "Hello Jathol,",
+      "",
+      `I would like the ${plan} plan for Order Flow. Please share the payment details and the steps to activate Main on our shop Wi-Fi.`,
+      "",
+      "Thank you.",
+    ].join("\n");
+    window.location.href = "https://wa.me/Jathol_Jutt?text=" + encodeURIComponent(body);
+  });
+});
+
+// Gentle hero parallax (only when motion is allowed)
+if (!reduceMotion) {
+  const heroBg = document.querySelector(".hero-bg");
+  if (heroBg) {
+    let raf = 0;
+    window.addEventListener("scroll", () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const y = Math.min(160, window.scrollY * 0.18);
+        heroBg.style.transform = `translateY(${y}px) scale(1.1)`;
+      });
+    }, { passive: true });
+  }
+}

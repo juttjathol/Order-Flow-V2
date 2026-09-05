@@ -1,5 +1,5 @@
 const REPO = "juttjathol/Order-Flow-V2";
-const FALLBACK_TAG = "v1.1.58";
+const FALLBACK_TAG = "v1.1.59";
 const FALLBACK_APK = `https://github.com/${REPO}/releases/download/${FALLBACK_TAG}/app-release.apk`;
 
 function ghHeaders(env, extra = {}) {

@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS licenses (
   bound_at TEXT,
   last_validated_at TEXT,
   created_at TEXT NOT NULL,
+  -- v1.1.59 plan & entitlements (also auto-added at runtime to old DBs)
+  plan TEXT NOT NULL DEFAULT 'full',
+  allowed_models TEXT,
+  allowed_features TEXT,
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 

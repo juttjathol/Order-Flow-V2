@@ -4,10 +4,10 @@ Offline-first multi-device POS for restaurants, retail, fast food, and services,
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke
-- **APK** — create a GitHub Release tag `v1.1.58` (or any `v*`) and download `app-release.apk`
+- **APK** — create a GitHub Release tag `v1.1.59` (or any `v*`) and download `app-release.apk`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.58+58**.
+Version **1.1.59+59**.
 
 You only need two things after this repo is on GitHub:
 
