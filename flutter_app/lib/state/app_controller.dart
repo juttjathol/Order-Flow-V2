@@ -547,6 +547,14 @@ class AppController extends Notifier<AppSnapshot> {
       unawaited(_storage.saveSeenIds(_seenIds));
     }
     final result = StoreReducer.apply(state.store, cmd);
+    // A restored/replaced store must never resurrect plan data baked into an
+    // old backup — the live license stays the single source of truth (v1.1.59).
+    if (cmd.name == 'replaceState') {
+      final lic = state.session.license;
+      if (lic.valid || lic.inGrace) {
+        result.store.entitlements = lic.entitlements;
+      }
+    }
     state = state.copyWith(
       store: result.store,
       notices: result.notice == null
