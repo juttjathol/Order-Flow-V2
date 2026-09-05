@@ -33,11 +33,18 @@ window.addEventListener(
   { passive: true },
 );
 
-// Deliberately static: no APK version string on the site, so nothing needs
-// editing per release. /download always serves the newest release anyway.
-function apkMeta() {
+async function apkMeta() {
   const el = document.getElementById("apk-meta");
-  if (el) el.textContent = "Current official app for Android.";
+  if (!el) return;
+  el.textContent = "Current official app for Android.";
+  try {
+    const res = await fetch("/download?meta=1");
+    const data = await res.json();
+    if (!data.ok || !data.tag) return;
+    const ver = String(data.tag).replace(/^v/i, "");
+    const mb = data.size ? ` · ${(data.size / (1024 * 1024)).toFixed(1)} MB` : "";
+    el.textContent = `Version ${ver}${mb}`;
+  } catch (_) {}
 }
 apkMeta();
 
