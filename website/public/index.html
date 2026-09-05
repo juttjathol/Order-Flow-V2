@@ -147,11 +147,16 @@
         <p class="kicker">Plans</p>
         <h2 class="sec-title">Packages that grow with your business.</h2>
         <p class="sec-sub">Licensed per shop, priced monthly, cancelled when you stop paying. Every plan runs the full offline-first app — higher plans switch on more features through your license key.</p>
+        <div class="currency-bar" id="currency-bar" hidden>
+          <span class="cur-label">Show prices in</span>
+          <select id="cur-select" aria-label="Plan price currency"></select>
+          <span id="cur-note" class="cur-note"></span>
+        </div>
         <div class="plans-grid">
           <article class="plan" data-reveal>
             <h3 class="plan-name starter">Starter</h3>
             <p class="plan-for">Perfect for small businesses</p>
-            <div class="plan-price"><span>RM </span><b data-count="79">79</b><small>/month</small></div>
+            <div class="plan-price" data-myr="79"><span>RM </span><b data-count="79">79</b><small>/month</small></div>
             <ul class="plan-list">
               <li>POS billing</li>
               <li>Basic inventory</li>
@@ -165,7 +170,7 @@
             <div class="plan-ribbon">MOST POPULAR</div>
             <h3 class="plan-name growth">Growth</h3>
             <p class="plan-for">For growing businesses</p>
-            <div class="plan-price"><span>RM </span><b data-count="149">149</b><small>/month</small></div>
+            <div class="plan-price" data-myr="149"><span>RM </span><b data-count="149">149</b><small>/month</small></div>
             <ul class="plan-list">
               <li>Everything in Starter</li>
               <li>Multi-terminal (stations)</li>
@@ -192,7 +197,7 @@
             <p class="plan-best">Best for Enterprise / Franchise</p>
           </article>
         </div>
-        <p class="note">Prices are monthly in Malaysian Ringgit. A 3-day trial key is available for every plan — use the form below.</p>
+        <p class="note" id="plans-note">Prices are monthly in Malaysian Ringgit — your currency is detected automatically where possible, converted at market rates for guidance only. A 3-day trial key is available for every plan — use the form below.</p>
       </div>
     </section>
 
