@@ -106,4 +106,84 @@
     track.addEventListener("focusin", stop);
     start();
   }
+
+  /* ═══ v1.1.62 · Web-G layer: cursor, magnets, grain, coin intro ═══ */
+
+  /* ── 5 · custom cursor (dot + trailing ring, grows over interactive) ── */
+  if (matchMedia("(pointer:fine)").matches) {
+    const dot = document.createElement("div"); dot.id = "cur-dot";
+    const ring = document.createElement("div"); ring.id = "cur-ring";
+    document.body.append(dot, ring);
+    document.body.classList.add("cursor-fx");
+    let x = innerWidth / 2, y = innerHeight / 2, rx = x, ry = y, shown = false;
+    addEventListener("pointermove", (e) => {
+      x = e.clientX; y = e.clientY;
+      if (!shown) { shown = true; }
+      dot.style.transform = `translate(${x - 3.5}px,${y - 3.5}px)`;
+      const hot = e.target.closest("a, button, input, select, summary, .plan, .card, .fx-slide, .entry");
+      document.body.classList.toggle("cursor-hover", !!hot);
+    }, { passive: true });
+    (function rl() {
+      rx += (x - rx) * .17; ry += (y - ry) * .17;
+      const r = document.body.classList.contains("cursor-hover") ? 31 : 15;
+      ring.style.transform = `translate(${rx - r}px,${ry - r}px)`;
+      requestAnimationFrame(rl);
+    })();
+    document.addEventListener("pointerdown", () => { dot.style.opacity = ".4"; });
+    document.addEventListener("pointerup", () => { dot.style.opacity = "1"; });
+  }
+
+  /* ── 6 · magnetic buttons ─────────────────────────────────────────── */
+  if (matchMedia("(pointer:fine)").matches) {
+    document.querySelectorAll(".btn").forEach((b) => {
+      b.addEventListener("pointermove", (e) => {
+        const r = b.getBoundingClientRect();
+        const x = e.clientX - r.left - r.width / 2;
+        const y = e.clientY - r.top - r.height / 2;
+        b.style.transition = "transform .08s linear";
+        b.style.transform = `translate(${(x * .2).toFixed(1)}px,${(y * .3).toFixed(1)}px)`;
+      });
+      b.addEventListener("pointerleave", () => {
+        b.style.transition = "transform .5s cubic-bezier(.2,.8,.3,1.1)";
+        b.style.transform = "";
+      });
+    });
+  }
+
+  /* ── 7 · film grain ───────────────────────────────────────────────── */
+  {
+    const g = document.createElement("div"); g.id = "grain"; g.setAttribute("aria-hidden", "true");
+    g.style.backgroundImage = "url(\"data:image/svg+xml," + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="260" height="260"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>'
+    ) + "\")";
+    document.body.prepend(g);
+  }
+
+  /* ── 8 · "INSERT COIN" preloader — once per session, hard failsafe ── */
+  {
+    let done = false;
+    try {
+      if (!sessionStorage.getItem("of-coin")) {
+        const ov = document.createElement("div"); ov.id = "coin";
+        ov.innerHTML = '<b>INSERT COIN<span class="boltmark">⚡</span><em id="coinpct">00</em></b><span class="coinbar" id="coinbar"></span>';
+        document.body.prepend(ov);
+        const pct = ov.querySelector("#coinpct"), bar = ov.querySelector("#coinbar");
+        let n = 0;
+        const finish = () => {
+          if (done) return; done = true;
+          clearInterval(iv);
+          ov.style.opacity = 0; ov.style.visibility = "hidden";
+          setTimeout(() => ov.remove(), 620);
+          try { sessionStorage.setItem("of-coin", "1"); } catch (_) {}
+        };
+        const iv = setInterval(() => {
+          n = Math.min(100, n + 9 + Math.floor(Math.random() * 16));
+          pct.textContent = String(n).padStart(2, "0");
+          bar.style.width = n + "%";
+          if (n >= 100) finish();
+        }, 62);
+        setTimeout(finish, 2300);
+      }
+    } catch (_) { if (!done) { const o = document.getElementById("coin"); if (o) o.remove(); } }
+  }
 })();
