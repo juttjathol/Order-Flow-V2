@@ -231,23 +231,31 @@ async function loadGithubRelease() {
   const dateEl = document.getElementById("apk-date");
   const linkEl = document.getElementById("apk-link");
   const dl = document.getElementById("apk-download");
-  if (!tagEl) return;
+  const chipEl = document.getElementById("planver-tag"); // "Plan & access (…)" in the issue-key dialog
   window.__apkUrl = APK_STABLE;
   if (linkEl) linkEl.textContent = APK_STABLE;
   if (dl) dl.href = APK_STABLE;
+  if (!tagEl && !chipEl) return;
+  let tag = "latest";
   try {
-    const res = await fetch(`${APK_STABLE}?meta=1`);
+    const res = await fetch(`${APK_STABLE}?meta=1`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || "no apk");
-    tagEl.textContent = data.tag || "latest";
+    tag = data.tag || tag;
+    if (tagEl) tagEl.textContent = tag;
     if (dateEl) dateEl.textContent = data.publishedAt ? "Published " + String(data.publishedAt).slice(0, 10) : "";
-    statusEl.className = "badge bound";
-    statusEl.textContent = "Always latest";
+    if (statusEl) {
+      statusEl.className = "badge bound";
+      statusEl.textContent = "Always latest";
+    }
   } catch (e) {
-    tagEl.textContent = "latest";
-    statusEl.className = "badge unbound";
-    statusEl.textContent = "Set GITHUB_TOKEN on Pages if the repo is private";
+    if (tagEl) tagEl.textContent = "latest";
+    if (statusEl) {
+      statusEl.className = "badge unbound";
+      statusEl.textContent = "Set GITHUB_TOKEN on Pages if the repo is private";
+    }
   }
+  if (chipEl) chipEl.textContent = tag;
 }
 
 async function boot() {
@@ -516,5 +524,9 @@ document.body.addEventListener("click", async (e) => {
     toast(err.message || "Request failed");
   }
 });
+
+/* keep the "Latest Android APK" + "Plan & access (…)" tags fresh in long admin sessions */
+setInterval(() => { if (!document.hidden) loadGithubRelease(); }, 300000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadGithubRelease(); });
 
 boot();
