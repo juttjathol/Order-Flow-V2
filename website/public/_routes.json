@@ -1,5 +1,10 @@
 {
   "version": 1,
-  "include": ["/download", "/download*"],
+  "include": [
+    "/download",
+    "/download*",
+    "/geo",
+    "/geo*"
+  ],
   "exclude": []
 }
