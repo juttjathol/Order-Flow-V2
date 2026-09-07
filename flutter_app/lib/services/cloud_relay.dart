@@ -60,6 +60,12 @@ class CloudRelay {
 
   Timer? _pullTimer;
   int _cursor = 0;
+  // Relay sleep/wake: `hot` means "my LAN side is degraded, keep the cloud
+  // channel fast (1.2s)". In idle mode we patrol every 30s and the server
+  // writes nothing for us. Main also honors the room's peersHot signal so a
+  // single station losing Wi-Fi wakes the whole room back to fast mode.
+  bool _hot = true;
+  DateTime? _peersHotAt;
   int _fails = 0;
   int _lastPushedRev = -1;
   bool _running = false;
@@ -71,6 +77,35 @@ class CloudRelay {
 
   bool get active => _running;
   bool get healthy => _fails < 20;
+  bool get hot => _hot;
+
+  set hot(bool v) {
+    if (v == _hot) return;
+    _hot = v;
+    if (v) {
+      // Waking up: force a fresh snapshot push so any late device
+      // re-baselines immediately instead of waiting for the heartbeat.
+      _lastPushedRev = -1;
+      _lastPushAt = DateTime.fromMillisecondsSinceEpoch(0);
+      _fails = 0;
+    }
+    _restartTimer();
+  }
+
+  bool get _fast =>
+      _hot ||
+      (_peersHotAt != null &&
+          DateTime.now().difference(_peersHotAt!) < const Duration(seconds: 90));
+
+  void _restartTimer() {
+    _pullTimer?.cancel();
+    _pullTimer = null;
+    if (!_running) return;
+    _pullTimer = Timer.periodic(
+      _fast ? const Duration(milliseconds: 1200) : const Duration(seconds: 30),
+      (_) => _tick(),
+    );
+  }
 
   static const _chunkSize = 480000;
 
@@ -137,7 +172,7 @@ class CloudRelay {
 
   Future<void> start() async {
     _running = true;
-    _pullTimer = Timer.periodic(const Duration(milliseconds: 1200), (_) => _tick());
+    _restartTimer();
     unawaited(_tick());
   }
 
@@ -149,6 +184,7 @@ class CloudRelay {
 
   Future<void> _tick() async {
     if (!_running) return;
+    final wasFast = _fast;
     try {
       await _pull();
       await _pushCheck();
@@ -158,16 +194,21 @@ class CloudRelay {
       }
     } catch (_) {
       _fails += 1;
-      if (_fails == 40) onLost?.call();
+      // Idle mode checks every 30s — lose the room after ~3 quiet minutes,
+      // hot mode keeps the old ~48s alarm.
+      if (_fails == (_fast ? 40 : 6)) onLost?.call();
     }
+    if (_fast != wasFast) _restartTimer();
   }
 
   Future<void> _pull() async {
-    final res = await _apiPost('/api/cloud/pull', {'after': _cursor});
+    final res = await _apiPost('/api/cloud/pull', {'after': _cursor, 'hot': _hot ? 1 : 0});
     if (res == null) throw const SocketErrorRelay();
     if (res['ok'] != true) throw const SocketErrorRelay();
     final c = int.tryParse('${res['cursor']}');
     if (c != null) _cursor = c;
+    final peersHot = int.tryParse('${res['peersHot']}') ?? 0;
+    if (isMain && peersHot > 0) _peersHotAt = DateTime.now();
     final msgs = res['msgs'];
     if (msgs is List) _handleMsgs(msgs);
   }
@@ -194,10 +235,14 @@ class CloudRelay {
   Future<void> _pushCheck() async {
     if (!isMain || _pushing) return;
     final rev = revision();
-    // Heartbeat: even with no change, re-share every 2 minutes so a station
-    // that was offline past the message TTL still catches up quickly.
-    final stale = DateTime.now().difference(_lastPushAt).inSeconds > 120;
+    // Heartbeat: even with no change, re-share so a station that was offline
+    // past the message TTL catches up. Fast mode = every 2 min (as before);
+    // idle mode = every 10 min, because whoever needs freshness will flip the
+    // room hot via the peersHot handshake and then changes push instantly.
+    final stale =
+        DateTime.now().difference(_lastPushAt).inSeconds > (_fast ? 120 : 600);
     if (rev == _lastPushedRev && !stale) return;
+    if (!_fast && !stale) return;
     _pushing = true;
     try {
       if (await _pushState()) {

@@ -220,6 +220,7 @@ class AppController extends Notifier<AppSnapshot> {
     );
     _ipTimer = Timer.periodic(const Duration(seconds: 20), (_) => refreshIp());
     _flushTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _syncRelayMode();
       unawaited(_keepStationSynced());
     });
     await refreshIp();
@@ -818,6 +819,19 @@ class AppController extends Notifier<AppSnapshot> {
     } finally {
       _flushing = false;
     }
+  }
+
+  /// The cloud relay sleeps while the shop Wi-Fi is healthy and wakes the
+  /// instant anyone loses it. Main watches its LAN client roster (zero
+  /// connected stations = something is wrong); stations watch their own
+  /// link and the offline queue. In idle mode the server writes ~nothing
+  /// per pull, which keeps D1 row-writes near zero on a calm day.
+  void _syncRelayMode() {
+    final relay = _relay;
+    if (relay == null) return;
+    relay.hot = state.isMain
+        ? (_server?.clients.isEmpty ?? true)
+        : (!state.connected || _queue.isNotEmpty);
   }
 
   Future<void> _keepStationSynced() async {

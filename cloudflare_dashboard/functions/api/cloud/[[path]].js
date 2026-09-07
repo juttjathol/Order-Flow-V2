@@ -78,6 +78,10 @@ async function ensureCloudSchema(db) {
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_cloud_msgs_room ON cloud_msgs(room, id)`),
   ]);
+  // v1.1.62+ relay sleep/wake: per-device "hot" mode + liveness stamp.
+  // Additive columns — older apps simply never send hot, which reads as idle.
+  try { await db.prepare(`ALTER TABLE cloud_devices ADD COLUMN hot INTEGER NOT NULL DEFAULT 0`).run(); } catch {}
+  try { await db.prepare(`ALTER TABLE cloud_devices ADD COLUMN last_seen INTEGER`).run(); } catch {}
 }
 
 function parseJsonArray(raw) {
@@ -248,10 +252,32 @@ export async function onRequest(context) {
       const msgs = rs.results || [];
       let cursor = after;
       if (msgs.length) cursor = msgs[msgs.length - 1].id;
+      // Relay sleep/wake handshake: a device reports its mode with each pull
+      // (hot = "my Wi-Fi link is down, keep this channel fast"). Idle pulls
+      // with no news write nothing at all — that's the quota saving.
+      const hot = body.hot ? 1 : 0;
+      const now = Date.now();
       try {
-        await db.prepare("UPDATE cloud_devices SET cursor = ?1 WHERE room = ?2 AND device_id = ?3").run(cursor, room, dev);
+        if (msgs.length) {
+          await db.prepare("UPDATE cloud_devices SET cursor = ?1, hot = ?2, last_seen = ?3 WHERE room = ?4 AND device_id = ?5")
+            .run(cursor, hot, now, room, dev);
+        } else if (hot === 1) {
+          await db.prepare("UPDATE cloud_devices SET hot = 1, last_seen = ?1 WHERE room = ?2 AND device_id = ?3 AND (hot <> 1 OR last_seen IS NULL OR last_seen < ?4)")
+            .run(now, room, dev, now - 60000);
+        } else {
+          await db.prepare("UPDATE cloud_devices SET hot = 0 WHERE room = ?1 AND device_id = ?2 AND hot = 1")
+            .run(room, dev);
+        }
       } catch {}
-      return j(200, { ok: true, msgs, cursor });
+      // Main reads this to wake out of idle the moment any peer reports
+      // trouble on its LAN side (fresh hot flags expire after ~90s).
+      let peersHot = 0;
+      try {
+        const ph = await db.prepare("SELECT COUNT(*) AS n FROM cloud_devices WHERE room = ?1 AND device_id <> ?2 AND hot = 1 AND last_seen > ?3")
+          .first(room, dev, now - 90000);
+        if (ph) peersHot = Number(ph.n);
+      } catch {}
+      return j(200, { ok: true, msgs, cursor, peersHot });
     }
 
     return j(404, { ok: false, error: "route" });
