@@ -248,6 +248,30 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                     ),
                     const Spacer(),
                     TextButton.icon(
+                      onPressed: hasLocal
+                          ? () async {
+                              try {
+                                await ref.ctrl.printer
+                                    .openDrawer(ref.ctrl.deviceLocalPrinter()!);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(s.t('drawer_opened'))),
+                                  );
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(s.t('drawer_failed'))),
+                                  );
+                                }
+                              }
+                            }
+                          : null,
+                      icon: const Icon(Icons.unarchive),
+                      label: Text(s.t('drawer_test')),
+                    ),
+                    const SizedBox(width: 4),
+                    TextButton.icon(
                       onPressed: hasLocal ? testPrinter : null,
                       icon: const Icon(Icons.print),
                       label: Text(s.t('test_print')),

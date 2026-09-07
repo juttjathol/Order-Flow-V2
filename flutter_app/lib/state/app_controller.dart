@@ -343,10 +343,18 @@ class AppController extends Notifier<AppSnapshot> {
     await persist();
   }
 
-  /// Kicks the cash drawer on the device-local receipt printer
-  /// (or the shop receipt printer when this device has none).
+  /// Kicks the cash drawer. Preference order mirrors real till wiring:
+  /// a printer explicitly flagged "drawer attached" (RJ11 kick port), else
+  /// this device's own printer, else the shop's receipt target.
+  PrinterConfig drawerTarget() {
+    for (final p in state.store.printers) {
+      if (p.enabled && p.drawer && !p.isBluetooth) return p;
+    }
+    return localReceiptTarget();
+  }
+
   Future<void> openDrawer() async {
-    await printer.openDrawer(localReceiptTarget());
+    await printer.openDrawer(drawerTarget());
   }
 
   Future<void> setDrawerAuto(bool on) async {
