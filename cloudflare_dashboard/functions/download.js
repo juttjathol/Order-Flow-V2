@@ -1,4 +1,6 @@
 const REPO = "juttjathol/Order-Flow-V2";
+const FALLBACK_TAG = "v1.1.62";
+const FALLBACK_APK = `https://github.com/${REPO}/releases/download/${FALLBACK_TAG}/app-release.apk`;
 
 function ghHeaders(env, extra = {}) {
   const headers = {
@@ -10,17 +12,58 @@ function ghHeaders(env, extra = {}) {
   return headers;
 }
 
-async function latestApk(env) {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-    headers: ghHeaders(env),
-  });
-  if (!res.ok) throw new Error(`github_latest_${res.status}`);
-  const data = await res.json();
-  const asset = (data.assets || []).find((a) =>
+function apkAsset(release) {
+  return (release.assets || []).find((a) =>
     String(a.name || "").toLowerCase().endsWith(".apk"),
   );
-  if (!asset) throw new Error("no_apk");
-  return { release: data, asset };
+}
+
+async function latestApk(env) {
+  // Prefer the list endpoint: one call usually resolves, and it skips drafts.
+  const listRes = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
+    headers: ghHeaders(env),
+  });
+  if (listRes.ok) {
+    const list = await listRes.json();
+    if (Array.isArray(list)) {
+      for (const release of list) {
+        if (release.draft) continue;
+        const asset = apkAsset(release);
+        if (asset) return { release, asset };
+      }
+    }
+  }
+
+  const latestRes = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    headers: ghHeaders(env),
+  });
+  if (latestRes.ok) {
+    const release = await latestRes.json();
+    const asset = apkAsset(release);
+    if (asset) return { release, asset };
+  }
+
+  // Rate-limited or API blip: point at the pinned release so shoppers can
+  // still download the current build.
+  return {
+    release: { tag_name: FALLBACK_TAG, published_at: null },
+    asset: {
+      name: "app-release.apk",
+      size: 0,
+      url: "",
+      browser_download_url: FALLBACK_APK,
+    },
+  };
+}
+
+export async function onRequest(context) {
+  if (context.request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,HEAD" },
+    });
+  }
+  return onRequestGet(context);
 }
 
 export async function onRequestGet(context) {
@@ -35,10 +78,16 @@ export async function onRequestGet(context) {
           tag: release.tag_name,
           publishedAt: release.published_at,
           size: asset.size,
-          name: asset.name,
+          name: asset.url ? asset.name : "Order-Flow.apk",
           download: `${url.origin}/download`,
         }),
-        { headers: { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" } },
+        {
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=60",
+          },
+        },
       );
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, error: String(e.message || e) }), {
@@ -50,10 +99,19 @@ export async function onRequestGet(context) {
 
   try {
     const { asset } = await latestApk(env);
-    const file = await fetch(asset.url, {
-      headers: ghHeaders(env, { Accept: "application/octet-stream" }),
-    });
-    if (!file.ok) throw new Error(`apk_fetch_${file.status}`);
+    const urls = [asset.url, asset.browser_download_url, FALLBACK_APK].filter(Boolean);
+    let file = null;
+    for (const u of urls) {
+      const res = await fetch(u, {
+        headers: ghHeaders(env, { Accept: "application/octet-stream" }),
+        redirect: "follow",
+      });
+      if (res.ok) {
+        file = res;
+        break;
+      }
+    }
+    if (!file) throw new Error("apk_fetch_all_failed");
     return new Response(file.body, {
       headers: {
         "Content-Type": "application/vnd.android.package-archive",
