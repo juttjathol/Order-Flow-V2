@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../services/print_service.dart';
 import '../../state/app_controller.dart';
+import '../widgets/aliveness.dart';
 import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
 import '../widgets/confetti.dart';
@@ -809,6 +810,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ref.s.t('ticket_empty'))));
       return;
     }
+    // v1.1.64 · the kitchen fire gets the brand burst; other transitions
+    // keep a light haptic so every ticket tap feels physical.
+    if (status == OrderStatus.preparing) {
+      Aliveness.celebrate(context, Aliveness.kitchenBurst);
+    } else {
+      HapticFeedback.selectionClick();
+    }
     await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
       'id': order.id,
       'status': status.name,
@@ -1093,7 +1101,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle, color: OfColors.mint, size: 64),
+                (MediaQuery.maybeOf(ctx)?.disableAnimations ?? false)
+                    ? const Icon(Icons.check_circle, color: OfColors.mint, size: 64)
+                    : Aliveness.animation(Aliveness.payCheck, size: 64),
                 const SizedBox(height: 10),
                 Text(s.t('payment_done'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
                 const SizedBox(height: 4),
