@@ -648,3 +648,69 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
 /* ── film grain over the whole page ────────────────────────────────── */
 #grain { position: fixed; inset: -60px; z-index: 1100; pointer-events: none; opacity: .05; mix-blend-mode: overlay; animation: grainshift 1.2s steps(3) infinite; }
 @keyframes grainshift { 0% { transform: translate(0,0); } 33% { transform: translate(-14px, 9px); } 66% { transform: translate(9px, -12px); } }
+
+/* ═══ v1.1.63 site · React Bits pack (reactbits.js) — additive only ════
+   Every rule is gated behind html.rbits, which only exists when the
+   script runs; reduced-motion / no-JS visitors see none of this.       */
+
+/* 1 · DecryptedText — scramble glow per character */
+.rbits .rb-ch { display:inline-block; white-space:pre; }
+.rbits .rb-ch.rb-s { color:#6EE7C8; opacity:.85; text-shadow:0 0 14px rgba(110,231,200,.35); }
+
+/* 2 · BlurText — words settle out of blur when the title scrolls in */
+.rbits .rb-word {
+  display:inline-block;
+  opacity:0; transform:translateY(.55em); filter:blur(10px);
+  transition:opacity .55s ease var(--d,0s), transform .55s cubic-bezier(.2,.8,.2,1) var(--d,0s), filter .55s ease var(--d,0s);
+}
+.rbits .rb-on .rb-word { opacity:1; transform:none; filter:none; }
+
+/* 3 · SpotlightCard — mint light pool that trails the pointer */
+.rbits .rb-spot { position:relative; }
+.rbits .rb-spot::before {
+  content:""; position:absolute; inset:0; border-radius:inherit;
+  background:radial-gradient(240px circle at var(--sx,50%) var(--sy,50%), rgba(110,231,183,.13), transparent 70%);
+  opacity:0; transition:opacity .3s ease; pointer-events:none;
+}
+.rbits .rb-spot:hover::before { opacity:1; }
+
+/* 4 · GlareHover — diagonal light sweep across buttons (hover + one auto ping) */
+.rbits .btn::after {
+  content:""; position:absolute; top:-25%; bottom:-25%; left:-70%; width:38%;
+  background:linear-gradient(105deg, transparent 0%, rgba(255,255,255,.30) 50%, transparent 100%);
+  transform:skewX(-18deg); pointer-events:none; transition:left .55s ease;
+}
+.rbits .btn:hover::after { left:135%; }
+@keyframes rbping { from { left:-70%; } to { left:135%; } }
+.rbits .btn.rb-ping::after { animation:rbping .9s ease .05s 1; }
+
+/* 5 · BorderGlow — beam orbiting the download band (JS drives --rba) */
+.rbits .download-band::after {
+  content:""; position:absolute; inset:0; border-radius:inherit; padding:1.6px;
+  background:conic-gradient(from var(--rba,0deg),
+    transparent 0 55%, rgba(110,231,183,.85) 68%, rgba(250,204,21,.75) 74%, transparent 86% 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  pointer-events:none;
+}
+
+/* 6 · MOST POPULAR pulse — outline ring + ribbon breathing (rotate preserved) */
+@keyframes rbRing {
+  0%,100% { outline:1px solid rgba(110,231,183,0); outline-offset:2px; }
+  50%     { outline:1px solid rgba(110,231,183,.55); outline-offset:6px; }
+}
+.rbits .plan.popular { animation:rbRing 5.6s ease-in-out infinite; }
+@keyframes rbRibbon {
+  0%,100% { transform:rotate(38deg) translateY(0); }
+  50%     { transform:rotate(38deg) translateY(-2.5px); }
+}
+.rbits .plan.popular .plan-ribbon { animation:rbRibbon 3.4s ease-in-out infinite; }
+
+/* Reduced motion: never animate (belt & braces on top of the JS guard) */
+@media (prefers-reduced-motion: reduce) {
+  .rbits .rb-word { opacity:1; transform:none; filter:none; transition:none; }
+  .rbits .rb-ch.rb-s { text-shadow:none; }
+  .rbits .btn::after, .rbits .download-band::after { display:none; }
+  .rbits .plan.popular, .rbits .plan.popular .plan-ribbon { animation:none; }
+}
