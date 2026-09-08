@@ -653,8 +653,10 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
    Every rule is gated behind html.rbits, which only exists when the
    script runs; reduced-motion / no-JS visitors see none of this.       */
 
-/* 1 · DecryptedText — scramble glow per character */
-.rbits .rb-ch { display:inline-block; white-space:pre; }
+/* 1 · DecryptedText — scramble glow per character; word boxes keep
+   line breaks between words only (never "flo-or / n-ever") */
+.rbits .rb-w { display:inline-block; white-space:nowrap; }
+.rbits .rb-ch { display:inline-block; }
 .rbits .rb-ch.rb-s { color:#6EE7C8; opacity:.85; text-shadow:0 0 14px rgba(110,231,200,.35); }
 
 /* 2 · BlurText — words settle out of blur when the title scrolls in */
@@ -707,10 +709,48 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
 }
 .rbits .plan.popular .plan-ribbon { animation:rbRibbon 3.4s ease-in-out infinite; }
 
+/* 6 · AnimatedContent — hero meta tiles rise in once on load */
+@keyframes rbIn {
+  from { opacity:0; transform:translateY(16px) scale(.97); }
+  to   { opacity:1; transform:none; }
+}
+.rbits .meta-row > div.rb-anim { animation:rbIn .7s cubic-bezier(.2,.8,.2,1) both; }
+
+/* 7 · Magnet — buttons follow the cursor; CSS eases them home on leave */
+.rbits .hero-actions .btn, .rbits .dl-actions .btn, .rbits .trial-form .btn { will-change:transform; }
+
+/* 8 · Sparkles — ember canvas sits above the backdrop, under the copy */
+.rbits .rb-spark { position:absolute; inset:0; width:100%; height:100%; z-index:1; pointer-events:none; }
+
+/* 9 · ShinyText touches — sheen on SCROLL cue + MOST POPULAR ribbon,
+   terminal blink on the brand caret, glow halo on focused trial fields */
+@keyframes rbSheen { from { transform:translateX(-115%); } to { transform:translateX(115%); } }
+.rbits .scroll-cue { overflow:hidden; }
+.rbits .scroll-cue::after {
+  content:""; position:absolute; inset:-8px -25%; pointer-events:none;
+  background:linear-gradient(100deg, transparent 35%, rgba(255,255,255,.45) 50%, transparent 65%);
+  animation:rbSheen 3.6s .6s ease-in-out infinite;
+}
+.rbits .plan-ribbon { overflow:hidden; }
+.rbits .plan-ribbon::after {
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(105deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
+  animation:rbSheen 4.6s .8s ease-in-out infinite;
+}
+@keyframes rbCaret { 0%,54% { opacity:1; } 55%,100% { opacity:.15; } }
+.rbits .brand span { animation:rbCaret 1.15s steps(1) infinite; }
+.rbits .trial-form input:focus, .rbits .trial-form select:focus {
+  border-color:rgba(110,231,199,.65);
+  box-shadow:0 0 0 3px rgba(110,231,199,.14), 0 0 24px rgba(110,231,199,.22);
+  transition:box-shadow .3s ease, border-color .3s ease;
+}
+
 /* Reduced motion: never animate (belt & braces on top of the JS guard) */
 @media (prefers-reduced-motion: reduce) {
   .rbits .rb-word { opacity:1; transform:none; filter:none; transition:none; }
   .rbits .rb-ch.rb-s { text-shadow:none; }
   .rbits .btn::after, .rbits .download-band::after { display:none; }
   .rbits .plan.popular, .rbits .plan.popular .plan-ribbon { animation:none; }
+  .rbits .scroll-cue::after, .rbits .plan-ribbon::after { display:none; }
+  .rbits .brand span, .rbits .meta-row > div.rb-anim { animation:none; }
 }
