@@ -745,6 +745,42 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
   transition:box-shadow .3s ease, border-color .3s ease;
 }
 
+/* 10 · ShinyText — a sheen travels through every section kicker
+   11 · TextGrad — the italic hero line breathes between mint and gold
+   (gradient-clip applied only where supported, so text can never vanish) */
+@keyframes rbSweep { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .rbits .kicker {
+    background-image: linear-gradient(100deg, var(--mint) 32%, #eafff5 46%, #ffffff 50%, #eafff5 54%, var(--mint) 68%);
+    background-size: 260% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: rbSweep 6.5s linear infinite;
+  }
+  .rbits .hero h1 em {
+    background-image: linear-gradient(96deg, var(--mint-2) 0%, #eafff5 38%, var(--gold) 62%, var(--mint-2) 100%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: rbSweep 9s ease-in-out infinite alternate;
+  }
+}
+
+/* 12 · ElectricBorder — the Download button crackles with a mint aura */
+@keyframes rbZap {
+  0%,100% { box-shadow: 0 0 0 0 rgba(61,220,151,.0), 0 6px 22px rgba(4,32,21,.35); }
+  6%  { box-shadow: 0 0 0 4px rgba(61,220,151,.30), 0 6px 26px rgba(4,32,21,.30); }
+  10% { box-shadow: 0 0 0 1px rgba(61,220,151,.12), 0 6px 22px rgba(4,32,21,.35); }
+  15% { box-shadow: 0 0 0 5px rgba(61,220,151,.34), 0 6px 28px rgba(4,32,21,.28); }
+  20% { box-shadow: 0 0 0 0 rgba(61,220,151,.0), 0 6px 22px rgba(4,32,21,.35); }
+  62% { box-shadow: 0 0 0 3px rgba(61,220,151,.22), 0 6px 24px rgba(4,32,21,.30); }
+  67% { box-shadow: 0 0 0 0 rgba(61,220,151,.0), 0 6px 22px rgba(4,32,21,.35); }
+}
+.rbits #dl-btn { animation: rbZap 4.6s ease-in-out infinite; }
+.rbits #dl-btn:hover { animation-play-state: paused; }
+
+/* 13 · Aurora — the download band's gradient drifts slowly behind content */
+.rbits .download-band { background-size: 170% 170%; animation: rbAurora 16s ease-in-out infinite alternate; }
+@keyframes rbAurora { from { background-position: 0% 40%; } to { background-position: 100% 60%; } }
+
 /* Reduced motion: never animate (belt & braces on top of the JS guard) */
 @media (prefers-reduced-motion: reduce) {
   .rbits .rb-word { opacity:1; transform:none; filter:none; transition:none; }
@@ -753,4 +789,7 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
   .rbits .plan.popular, .rbits .plan.popular .plan-ribbon { animation:none; }
   .rbits .scroll-cue::after, .rbits .plan-ribbon::after { display:none; }
   .rbits .brand span, .rbits .meta-row > div.rb-anim { animation:none; }
+  .rbits .kicker, .rbits .hero h1 em { animation:none; -webkit-background-clip:border-box; background-clip:border-box; background-image:none; color:var(--mint); }
+  .rbits .hero h1 em { color: var(--mint-2); }
+  .rbits #dl-btn, .rbits .download-band { animation:none; }
 }

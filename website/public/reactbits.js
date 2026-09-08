@@ -45,10 +45,10 @@
       tn.parentNode.replaceChild(frag, tn);
       for (const s of queue) {
         const orig = s.textContent;
-        const startAt = (i++) * 20;
+        const startAt = (i++) * 14;
         setTimeout(() => {
           s.classList.add("rb-s");
-          const dur = 220 + Math.floor(Math.random() * 240);
+          const dur = 170 + Math.floor(Math.random() * 180);
           const ticker = setInterval(() => {
             s.textContent = GLYPHS[(Math.random() * GLYPHS.length) | 0];
           }, 40);
@@ -62,7 +62,7 @@
     }
   }
   const heroH1 = document.querySelector(".hero h1");
-  if (heroH1) requestAnimationFrame(() => setTimeout(() => decrypt(heroH1), 400));
+  if (heroH1) requestAnimationFrame(() => setTimeout(() => decrypt(heroH1), 260));
   const dlTitle = document.querySelector(".download-band .sec-title");
   if (dlTitle && "IntersectionObserver" in window) {
     const dio = new IntersectionObserver((rows) => {
