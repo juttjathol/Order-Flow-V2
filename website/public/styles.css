@@ -745,24 +745,14 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
   transition:box-shadow .3s ease, border-color .3s ease;
 }
 
-/* 10 · ShinyText — a sheen travels through every section kicker
-   11 · TextGrad — the italic hero line breathes between mint and gold
-   (gradient-clip applied only where supported, so text can never vanish) */
-@keyframes rbSweep { from { background-position: 130% 0; } to { background-position: -30% 0; } }
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .rbits .kicker {
-    background-image: linear-gradient(100deg, var(--mint) 32%, #eafff5 46%, #ffffff 50%, #eafff5 54%, var(--mint) 68%);
-    background-size: 260% 100%;
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-    animation: rbSweep 6.5s linear infinite;
-  }
-  .rbits .hero h1 em {
-    background-image: linear-gradient(96deg, var(--mint-2) 0%, #eafff5 38%, var(--gold) 62%, var(--mint-2) 100%);
-    background-size: 220% 100%;
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-    animation: rbSweep 9s ease-in-out infinite alternate;
-  }
-}
+/* 10 · ShinyText (safe ColorText variant) — sheen via animated color, never
+   background-clip:text: this site's history shows clip-text renders as an
+   invisible box on some Android engines.
+   11 · TextGrad — the italic hero line breathes mint → ice → gold by color */
+@keyframes rbColor { 0%,100% { color: var(--mint); } 50% { color: #f2fffa; } }
+.rbits .kicker { animation: rbColor 6.5s ease-in-out infinite; }
+@keyframes rbGrad { 0%,100% { color: var(--mint-2); } 45% { color: #eafff5; } 75% { color: var(--gold); } }
+.rbits .hero h1 em { animation: rbGrad 9s ease-in-out infinite; }
 
 /* 12 · ElectricBorder — the Download button crackles with a mint aura */
 @keyframes rbZap {
@@ -789,7 +779,6 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
   .rbits .plan.popular, .rbits .plan.popular .plan-ribbon { animation:none; }
   .rbits .scroll-cue::after, .rbits .plan-ribbon::after { display:none; }
   .rbits .brand span, .rbits .meta-row > div.rb-anim { animation:none; }
-  .rbits .kicker, .rbits .hero h1 em { animation:none; -webkit-background-clip:border-box; background-clip:border-box; background-image:none; color:var(--mint); }
-  .rbits .hero h1 em { color: var(--mint-2); }
+  .rbits .kicker, .rbits .hero h1 em { animation:none; }
   .rbits #dl-btn, .rbits .download-band { animation:none; }
 }
