@@ -10,6 +10,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/menu_import.dart';
 
 class MenuScreen extends ConsumerStatefulWidget {
   const MenuScreen({super.key});
@@ -50,13 +51,24 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: s.t('search'),
-                prefixIcon: const Icon(Icons.search),
-              ),
-              onChanged: (v) => setState(() => q = v),
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: s.t('search'),
+                      prefixIcon: const Icon(Icons.search),
+                    ),
+                    onChanged: (v) => setState(() => q = v),
+                  ),
+                ),
+                IconButton(
+                  tooltip: s.t('menu_scan'),
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  onPressed: () => openMenuImport(context, ref),
+                ),
+              ],
             ),
           ),
           SizedBox(
