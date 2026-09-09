@@ -111,18 +111,28 @@ class CloudRelay {
 
   // ── Room lifecycle ───────────────────────────────────────────────────
 
-  static Future<CloudRoom?> openRoom({
+  static Future<CloudOpenResult> openRoom({
     required String licenseKey,
     required String deviceId,
     required String shopName,
     String? baseUrl,
   }) async {
-    final res = await _post(
-      '${baseUrl ?? kCloudRelayBase}/api/cloud/open',
-      {'licenseKey': licenseKey, 'deviceId': deviceId, 'shopName': shopName},
-    );
-    if (res == null || res['ok'] != true) return null;
-    return CloudRoom('${res['room']}', '${res['secret']}', '${res['code']}');
+    Map<String, dynamic>? res;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      res = await _post(
+        '${baseUrl ?? kCloudRelayBase}/api/cloud/open',
+        {'licenseKey': licenseKey, 'deviceId': deviceId, 'shopName': shopName},
+      );
+      if (res != null) break; // any parsed answer beats a retry
+    }
+    if (res == null) return const CloudOpenResult.fail('cloud_unreachable');
+    if (res['ok'] == true) {
+      return CloudOpenResult.ok(
+          CloudRoom('${res['room']}', '${res['secret']}', '${res['code']}'));
+    }
+    final e = '${res['error'] ?? ''}';
+    if (e == 'plan') return const CloudOpenResult.fail('plan');
+    return const CloudOpenResult.fail('server');
   }
 
   static Future<bool> joinRoom({
@@ -357,7 +367,9 @@ class CloudRelay {
             .post(Uri.parse(url),
                 headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
             .timeout(const Duration(seconds: 12));
-        if (res.statusCode != 200) return null;
+        // Relay errors ride JSON bodies on non-200 responses — parse them at
+        // every status so the UI can name the real cause (plan / relay /
+        // quota) instead of blaming the network. (v1.1.66)
         final j = jsonDecode(utf8.decode(res.bodyBytes));
         return j is Map ? Map<String, dynamic>.from(j) : null;
       } finally {
@@ -367,6 +379,18 @@ class CloudRelay {
       return null;
     }
   }
+}
+
+/// Outcome of a room-open attempt: the room itself, or an error token the
+/// sheet translates via 'cloud_err_<token>'. (v1.1.66 — honest errors.)
+class CloudOpenResult {
+  const CloudOpenResult.ok(this.room) : error = '';
+  const CloudOpenResult.fail(this.error) : room = null;
+
+  final CloudRoom? room;
+  final String error;
+
+  bool get ok => room != null;
 }
 
 /// Internal marker used to count relay failures (no socket is involved).

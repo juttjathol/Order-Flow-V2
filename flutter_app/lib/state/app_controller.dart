@@ -674,12 +674,13 @@ class AppController extends Notifier<AppSnapshot> {
     if (!state.store.canFeature('cloud_sync')) return 'plan_feature';
     final lic = state.session.license;
     if (lic.key.isEmpty) return 'no_license';
-    final info = await CloudRelay.openRoom(
+    final opened = await CloudRelay.openRoom(
       licenseKey: lic.key,
       deviceId: state.session.deviceId,
       shopName: state.store.profile.businessName,
     );
-    if (info == null) return 'cloud_unreachable';
+    if (!opened.ok) return opened.error;
+    final info = opened.room!;
     state = state.copyWith(
       session: state.session
         ..cloudOn = true
