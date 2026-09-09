@@ -194,32 +194,31 @@ Future<(List<ScanWord>, double)> _wordsFromPdf(String path, ValueNotifier<String
       if (i > 1) status.value = '${s.t('menu_scan_page')} $i · ${s.t('menu_scan_of')} $total';
       final page = await doc.getPage(i);
       try {
-        final scale = (1700.0 / math.max(1.0, page.width)).clamp(1.6, 3.2);
+        final double scale = (1700.0 / math.max(1.0, page.width)).clamp(1.6, 3.2).toDouble();
         final img = await page.render(
-          width: (page.width * scale).round(),
-          height: (page.height * scale).round(),
+          width: page.width * scale,
+          height: page.height * scale,
           format: pdfx.PdfPageImageFormat.png,
         );
-        final data = img?.data;
-        if (data != null) {
+        final bytes = img?.bytes;
+        if (bytes != null) {
           final f = File('${dir.path}/menu_import_p$i.png');
-          await f.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);
+          await f.writeAsBytes(bytes, flush: true);
           final result = await recognizer.processImage(InputImage.fromFilePath(f.path));
-          final pw = (page.width * scale);
-          if (i == 1) pageWidth = pw;
+          if (i == 1) pageWidth = page.width * scale;
           words.addAll(_wordsFromMlKit(result));
           try {
             await f.delete();
           } catch (_) {}
         }
       } finally {
-        await page.dispose();
+        await page.close();
       }
     }
     if (total > take) status.value = s.t('menu_scan_reading');
   } finally {
     await recognizer.close();
-    await doc.dispose();
+    await doc.close();
   }
   return (words, pageWidth);
 }
@@ -351,7 +350,7 @@ class _MenuReviewSheetState extends ConsumerState<_MenuReviewSheet> {
     }
     for (final e in toCreate.entries) {
       final cat = MenuCategory(id: e.value, name: e.key == 'imported' ? 'Imported' : _titleize(e.key), sort: sort++);
-      byName[e.key] = e.id;
+      byName[e.key] = e.value;
       await ref.ctrl.dispatch(NetCommand(name: 'upsertCategory', payload: {'category': cat.toJson()}));
     }
 
