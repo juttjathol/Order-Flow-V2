@@ -150,6 +150,47 @@ export async function onRequest(context) {
   const path = new URL(request.url).pathname.replace(/^\/api\/cloud\/?/, "").replace(/\/$/, "");
 
   if (request.method === "GET" || request.method === "HEAD") {
+    // Support probe (v1.1.67+): GET /api/cloud/?diag=1 runs the same kinds
+    // of writes /open performs (insert room+device+msg into a scratch row,
+    // read it back, delete) and reports the raw D1 outcome. The app maps any
+    // server failure to the friendly "cloud_err_server" toast; this endpoint
+    // tells us WHICH D1 failure it actually is (daily write quota, a missing
+    // column, a DB lock) without device logs.
+    if (new URL(request.url).searchParams.get("diag") === "1") {
+      try {
+        const t0 = Date.now();
+        const scratch = "diag-" + randomHex(8);
+        await db.batch([
+          db
+            .prepare(
+              "INSERT INTO cloud_rooms (room, secret, code_hash, license_key, main_device, created_at) VALUES (?1,'diag','diag','diag','diag',?2)"
+            )
+            .bind(scratch, t0),
+          db
+            .prepare(
+              "INSERT INTO cloud_devices (room, device_id, role, name, joined_at) VALUES (?1,'diag','main','Diag',?2)"
+            )
+            .bind(scratch, t0),
+          db
+            .prepare("INSERT INTO cloud_msgs (room, sender, msg, created_at) VALUES (?1,'diag','x',?2)")
+            .bind(scratch, t0),
+        ]);
+        const rows = await db.prepare("SELECT COUNT(*) AS n FROM cloud_msgs WHERE room = ?1").first(scratch);
+        await db.batch([
+          db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(scratch),
+          db.prepare("DELETE FROM cloud_devices WHERE room = ?1").bind(scratch),
+          db.prepare("DELETE FROM cloud_rooms WHERE room = ?1").bind(scratch),
+        ]);
+        let licCount = null;
+        try {
+          const lc = await db.prepare("SELECT COUNT(*) AS n FROM licenses").first();
+          licCount = lc ? Number(lc.n) : null;
+        } catch {}
+        return j(200, { ok: true, diag: "write+read+delete all ok", ms: Date.now() - t0, msgRows: Number(rows?.n ?? 0), licenses: licCount });
+      } catch (e) {
+        return j(500, { ok: false, diag: "failed", detail: String((e && e.message) || e) });
+      }
+    }
     return j(200, { ok: true, v: 1, service: "order-flow-cloud-relay" });
   }
   if (request.method !== "POST") return j(405, { ok: false, error: "method" });
