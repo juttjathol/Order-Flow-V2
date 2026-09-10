@@ -157,39 +157,54 @@ export async function onRequest(context) {
     // tells us WHICH D1 failure it actually is (daily write quota, a missing
     // column, a DB lock) without device logs.
     if (new URL(request.url).searchParams.get("diag") === "1") {
-      try {
-        const t0 = Date.now();
-        const scratch = "diag-" + randomHex(8);
-        await db.batch([
-          db
-            .prepare(
-              "INSERT INTO cloud_rooms (room, secret, code_hash, license_key, main_device, created_at) VALUES (?1,'diag','diag','diag','diag',?2)"
-            )
-            .bind(scratch, t0),
-          db
-            .prepare(
-              "INSERT INTO cloud_devices (room, device_id, role, name, joined_at) VALUES (?1,'diag','main','Diag',?2)"
-            )
-            .bind(scratch, t0),
-          db
-            .prepare("INSERT INTO cloud_msgs (room, sender, msg, created_at) VALUES (?1,'diag','x',?2)")
-            .bind(scratch, t0),
-        ]);
-        const rows = await db.prepare("SELECT COUNT(*) AS n FROM cloud_msgs WHERE room = ?1").first(scratch);
-        await db.batch([
-          db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(scratch),
-          db.prepare("DELETE FROM cloud_devices WHERE room = ?1").bind(scratch),
-          db.prepare("DELETE FROM cloud_rooms WHERE room = ?1").bind(scratch),
-        ]);
-        let licCount = null;
+      const steps = [];
+      const t0 = Date.now();
+      const scratch = "diag-" + randomHex(8);
+      const run = async (label, stmt) => {
         try {
-          const lc = await db.prepare("SELECT COUNT(*) AS n FROM licenses").first();
-          licCount = lc ? Number(lc.n) : null;
-        } catch {}
-        return j(200, { ok: true, diag: "write+read+delete all ok", ms: Date.now() - t0, msgRows: Number(rows?.n ?? 0), licenses: licCount });
+          await stmt.run();
+          steps.push(label + ":ok");
+          return true;
+        } catch (e) {
+          steps.push(label + ":FAIL " + String((e && e.message) || e));
+          return false;
+        }
+      };
+      // Same statements /open runs, mirrored exactly (all-positional binds).
+      let ok = await run("insert_room", db
+        .prepare("INSERT INTO cloud_rooms (room, secret, code_hash, license_key, main_device, created_at) VALUES (?1,?2,?3,?4,?5,?6)")
+        .bind(scratch, "diag", "diag", "diag", "diag", t0));
+      if (ok)
+        ok = await run("insert_device", db
+          .prepare("INSERT INTO cloud_devices (room, device_id, role, name, cursor, joined_at) VALUES (?1,?2,'main','Main',0,?3)")
+          .bind(scratch, "diag", t0));
+      if (ok)
+        ok = await run("insert_msg", db
+          .prepare("INSERT INTO cloud_msgs (room, sender, msg, created_at) VALUES (?1,?2,?3,?4)")
+          .bind(scratch, "diag", "x", t0));
+      try {
+        const rows = await db.prepare("SELECT COUNT(*) AS n FROM cloud_msgs WHERE room = ?1").first(scratch);
+        steps.push("read:ok n=" + Number(rows?.n ?? 0));
       } catch (e) {
-        return j(500, { ok: false, diag: "failed", detail: String((e && e.message) || e) });
+        steps.push("read:FAIL " + String((e && e.message) || e));
+        ok = false;
       }
+      try {
+        const lc = await db.prepare("SELECT COUNT(*) AS n FROM licenses").first();
+        steps.push("licenses:ok n=" + Number(lc?.n ?? 0));
+      } catch (e) {
+        steps.push("licenses:FAIL " + String((e && e.message) || e));
+        ok = false;
+      }
+      await run("delete_scratch", db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(scratch));
+      await run("delete_dev", db.prepare("DELETE FROM cloud_devices WHERE room = ?1").bind(scratch));
+      await run("delete_room", db.prepare("DELETE FROM cloud_rooms WHERE room = ?1").bind(scratch));
+      return j(ok ? 200 : 500, {
+        ok,
+        diag: ok ? "all writes+reads ok" : "see steps",
+        ms: Date.now() - t0,
+        steps,
+      });
     }
     return j(200, { ok: true, v: 1, service: "order-flow-cloud-relay" });
   }
