@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../core/constants.dart';
 
 import 'models_enums.dart';
+import 'models_plans.dart';
 import 'models_types_a.dart';
 import 'models_types_b.dart';
 
@@ -34,7 +35,17 @@ class AppStore {
     this.shiftEndCash = 0,
     List<ShopCustomer>? customers,
     this.drawerAuto = false,
+    Entitlements? entitlements,
+    this.qrOrderOn = false,
+    List<WastageEntry>? waste,
+    List<Supplier>? suppliers,
+    List<PurchaseOrder>? purchases,
+    this.poSeq = 500,
+    this.qrFireOn = 'pay',
+    QrBrand? qrBrand,
   })  : profile = profile ?? BillProfile(),
+        qrBrand = qrBrand ?? QrBrand(),
+        entitlements = entitlements ?? Entitlements(),
         tables = tables ?? <FloorTable>[],
         categories = categories ?? <MenuCategory>[],
         products = products ?? <MenuProduct>[],
@@ -49,7 +60,10 @@ class AppStore {
         printers = printers ?? <PrinterConfig>[],
         rolePrinters = rolePrinters ?? <String, String>{},
         shiftStartedAt = shiftStartedAt,
-        customers = customers ?? <ShopCustomer>[];
+        customers = customers ?? <ShopCustomer>[],
+        waste = waste ?? <WastageEntry>[],
+        suppliers = suppliers ?? <Supplier>[],
+        purchases = purchases ?? <PurchaseOrder>[];
 
   int schemaVersion;
   int revision;
@@ -77,8 +91,60 @@ class AppStore {
   double shiftEndCash;
   List<ShopCustomer> customers;
   bool drawerAuto;
+  /// Plan limits pushed from the license server (v1.1.59).
+  Entitlements entitlements;
+  /// Master switch for the QR self-order web page (needs the qr_ordering feature).
+  bool qrOrderOn;
+  List<WastageEntry> waste;
+  List<Supplier> suppliers;
+  List<PurchaseOrder> purchases;
+  int poSeq;
+  /// When a QR ticket fires to the kitchen: 'pay' (after counter payment —
+  /// default) or 'order' (immediately at submit). v1.1.60.
+  String qrFireOn;
+  /// Public identity shown on the guest QR page (v1.1.60, custom plans).
+  QrBrand qrBrand;
 
   String get currency => profile.currencySymbol;
+
+  bool canFeature(String key) => entitlements.allowsFeature(key);
+
+  String nextPoNo() {
+    poSeq += 1;
+    return 'PO-$poSeq';
+  }
+
+  Supplier? supplierById(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final s in suppliers) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  PurchaseOrder? purchaseById(String? id) {
+    if (id == null || id.isEmpty) return null;
+    for (final p in purchases) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  /// Estimated ingredient cost of one sale of [product] (recipe lines first,
+  /// then the linked stock item's own deduction cost).
+  double productCost(MenuProduct product) {
+    double total = 0;
+    if (product.recipe.isNotEmpty) {
+      for (final r in product.recipe) {
+        final item = stockById(r.stockId);
+        if (item != null) total += item.cost * r.quantity;
+      }
+      return total;
+    }
+    final inv = product.inventoryId == null ? null : stockById(product.inventoryId);
+    if (inv != null) total += inv.cost * (product.deductQty > 0 ? product.deductQty : 1);
+    return total;
+  }
 
   Map<String, dynamic> toJson() => {
         'schemaVersion': schemaVersion,
@@ -107,6 +173,14 @@ class AppStore {
         'shiftEndCash': shiftEndCash,
         'customers': customers.map((e) => e.toJson()).toList(),
         'drawerAuto': drawerAuto,
+        'entitlements': entitlements.toJson(),
+        'qrOrderOn': qrOrderOn,
+        'waste': waste.map((e) => e.toJson()).toList(),
+        'suppliers': suppliers.map((e) => e.toJson()).toList(),
+        'purchases': purchases.map((e) => e.toJson()).toList(),
+        'poSeq': poSeq,
+        'qrFireOn': qrFireOn,
+        'qrBrand': qrBrand.toJson(),
       };
 
   factory AppStore.fromJson(Map<String, dynamic>? j) {
@@ -157,6 +231,20 @@ class AppStore {
       shiftEndCash: parseNum(m['shiftEndCash']),
       customers: list('customers', ShopCustomer.fromJson),
       drawerAuto: parseBool(m['drawerAuto']),
+      entitlements: Entitlements.fromJson(
+        m['entitlements'] is Map
+            ? Map<String, dynamic>.from(m['entitlements'] as Map)
+            : null,
+      ),
+      qrOrderOn: parseBool(m['qrOrderOn']),
+      waste: list('waste', WastageEntry.fromJson),
+      suppliers: list('suppliers', Supplier.fromJson),
+      purchases: list('purchases', PurchaseOrder.fromJson),
+      poSeq: parseInt(m['poSeq'], 500),
+      qrFireOn: parseStr(m['qrFireOn']) == 'order' ? 'order' : 'pay',
+      qrBrand: QrBrand.fromJson(m['qrBrand'] is Map
+          ? Map<String, dynamic>.from(m['qrBrand'] as Map)
+          : const <String, dynamic>{}),
     );
   }
 

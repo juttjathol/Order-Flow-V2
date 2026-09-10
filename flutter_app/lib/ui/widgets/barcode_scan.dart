@@ -43,6 +43,7 @@ Future<String?> scanBarcode(BuildContext context, {required String title, requir
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + MediaQuery.viewInsetsOf(ctx).bottom),
                 child: TextField(
                   controller: gun,
+                  autofocus: true,
                   style: const TextStyle(color: Colors.white),
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
@@ -99,21 +100,41 @@ class _ScanLoopSheet extends StatefulWidget {
 class _ScanLoopSheetState extends State<_ScanLoopSheet> {
   final gun = TextEditingController();
   final qty = TextEditingController(text: '1');
+  final gunFocus = FocusNode();
   String? pending;
   String status = '';
   bool busy = false;
   DateTime? lastCam;
 
   @override
+  void initState() {
+    super.initState();
+    // Register-first UX: when the sheet opens the gun field already has focus,
+    // so a USB/Bluetooth scanner's keystrokes land here without any tapping.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) gunFocus.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
     gun.dispose();
     qty.dispose();
+    gunFocus.dispose();
     super.dispose();
   }
 
   Future<void> _take(String code) async {
     final c = code.trim();
     if (c.isEmpty) return;
+    // Re-scanning the same code (a common register motion) bumps qty and
+    // commits straight away — no extra taps for the cashier.
+    if (pending == c) {
+      final n = double.tryParse(qty.text.trim()) ?? 0;
+      qty.text = (n + 1).toStringAsFixed((n + 1) % 1 == 0 ? 0 : 1);
+      await _commit();
+      return;
+    }
     setState(() {
       pending = c;
       gun.text = c;
@@ -136,6 +157,8 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
       gun.clear();
       qty.text = '1';
     });
+    // Keep the till hot: focus returns to the scanner field immediately.
+    gunFocus.requestFocus();
   }
 
   @override
@@ -153,6 +176,8 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
                   flex: 3,
                   child: TextField(
                     controller: gun,
+                    focusNode: gunFocus,
+                    autofocus: true,
                     decoration: const InputDecoration(
                       labelText: 'USB / Bluetooth / SKU',
                       prefixIcon: Icon(Icons.document_scanner),

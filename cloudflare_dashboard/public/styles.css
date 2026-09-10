@@ -272,3 +272,53 @@ th { color: var(--muted); font-weight: 700; }
   /* Move toast above tab bar */
   .toast { bottom: calc(var(--tab-h) + 10px); }
 }
+
+/* ── v1.1.59 plan & access editor ─────────────────────────────────────── */
+.access-box {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 14px;
+}
+.access-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.access-box label { display: block; margin: 6px 0 4px; font-size: 13px; }
+.access-box select { width: 100%; padding: 9px 10px; border-radius: 10px; }
+.access-box h4 { margin: 12px 0 6px; font-size: 13px; opacity: 0.85; }
+.access-cols { display: grid; gap: 12px; }
+.chk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 6px 14px;
+}
+.chk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.chk:hover { background: rgba(127, 127, 127, 0.1); }
+.chk input { width: 16px; height: 16px; accent-color: var(--mint, #3ddc97); }
+.badge.plan { letter-spacing: 0.4px; }
+.badge.plan-starter { background: rgba(230, 195, 92, 0.16); color: #b78e1f; border: 1px solid rgba(230, 195, 92, 0.5); }
+.badge.plan-growth { background: rgba(61, 220, 151, 0.14); color: #1d9e6e; border: 1px solid rgba(61, 220, 151, 0.5); }
+.badge.plan-custom, .badge.plan-full { background: rgba(90, 140, 255, 0.14); color: #4a6fd6; border: 1px solid rgba(90, 140, 255, 0.45); }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+html[data-theme="dark"] .badge.plan-starter { color: #e6c35c; }
+html[data-theme="dark"] .badge.plan-growth { color: #3ddc97; }
+html[data-theme="dark"] .badge.plan-custom,
+html[data-theme="dark"] .badge.plan-full { color: #8fb0ff; }
+@media (max-width: 600px) {
+  .chk-grid { grid-template-columns: 1fr; }
+  .access-box .toolbar { flex-wrap: wrap; }
+}

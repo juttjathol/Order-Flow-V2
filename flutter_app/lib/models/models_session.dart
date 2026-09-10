@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../core/constants.dart';
 
 import 'models_enums.dart';
+import 'models_plans.dart';
 import 'models_types_a.dart';
 import 'models_types_b.dart';
 
@@ -57,7 +58,12 @@ class LicenseRecord {
     this.expiresAt,
     this.lastValidatedAt,
     this.message = '',
-  });
+    this.plan = '',
+    List<String>? allowedModels,
+    List<String>? allowedFeatures,
+    this.hasPlanData = false,
+  })  : allowedModels = allowedModels ?? <String>[],
+        allowedFeatures = allowedFeatures ?? <String>[];
 
   String key;
   bool valid;
@@ -68,6 +74,20 @@ class LicenseRecord {
   DateTime? expiresAt;
   DateTime? lastValidatedAt;
   String message;
+  /// starter | growth | custom | '' — display only (v1.1.59).
+  String plan;
+  /// Business models this key may use; empty list + hasPlanData = none set → all.
+  List<String> allowedModels;
+  /// Gated features enabled for this key (v1.1.59).
+  List<String> allowedFeatures;
+  /// False for legacy responses without plan data → everything stays on.
+  bool hasPlanData;
+
+  Entitlements get entitlements => Entitlements.fromLicense(
+        plan: plan,
+        allowedModels: hasPlanData ? allowedModels : null,
+        allowedFeatures: hasPlanData ? allowedFeatures : null,
+      );
 
   bool get inGrace {
     if (locked || !valid || lastValidatedAt == null) return false;
@@ -92,6 +112,10 @@ class LicenseRecord {
         'expiresAt': expiresAt?.toIso8601String(),
         'lastValidatedAt': lastValidatedAt?.toIso8601String(),
         'message': message,
+        'plan': plan,
+        'allowedModels': allowedModels,
+        'allowedFeatures': allowedFeatures,
+        'hasPlanData': hasPlanData,
       };
 
   factory LicenseRecord.fromJson(Map<String, dynamic>? j) {
@@ -107,6 +131,16 @@ class LicenseRecord {
       lastValidatedAt:
           m['lastValidatedAt'] == null ? null : parseTime(m['lastValidatedAt']),
       message: parseStr(m['message']) ?? '',
+      plan: parseStr(m['plan']) ?? '',
+      allowedModels: (m['allowedModels'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          <String>[],
+      allowedFeatures: (m['allowedFeatures'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          <String>[],
+      hasPlanData: parseBool(m['hasPlanData']),
     );
   }
 }
@@ -114,6 +148,11 @@ class LicenseRecord {
 class SessionPrefs {
   SessionPrefs({
     this.deviceId = '',
+    this.cloudOn = false,
+    this.cloudRoom = '',
+    this.cloudSecret = '',
+    this.cloudCode = '',
+    this.cloudUrl = '',
     this.role = AppRole.none,
     this.displayName = '',
     this.locale = 'en',
@@ -134,6 +173,14 @@ class SessionPrefs {
   }) : license = license ?? LicenseRecord();
 
   String deviceId;
+  /// Cloud relay room this device runs against (v1.1.60). Main opens the
+  /// room; stations join with the pairing code. Shop data itself always
+  /// lives on the Main device — the relay only forwards live traffic.
+  bool cloudOn;
+  String cloudRoom;
+  String cloudSecret;
+  String cloudCode;
+  String cloudUrl;
   AppRole role;
   String displayName;
   String locale;
@@ -160,6 +207,11 @@ class SessionPrefs {
 
   Map<String, dynamic> toJson() => {
         'deviceId': deviceId,
+        'cloudOn': cloudOn,
+        'cloudRoom': cloudRoom,
+        'cloudSecret': cloudSecret,
+        'cloudCode': cloudCode,
+        'cloudUrl': cloudUrl,
         'role': role.name,
         'displayName': displayName,
         'locale': locale,
@@ -183,6 +235,11 @@ class SessionPrefs {
     final m = j ?? const {};
     return SessionPrefs(
       deviceId: parseStr(m['deviceId']) ?? '',
+      cloudOn: parseBool(m['cloudOn']),
+      cloudRoom: parseStr(m['cloudRoom']) ?? '',
+      cloudSecret: parseStr(m['cloudSecret']) ?? '',
+      cloudCode: parseStr(m['cloudCode']) ?? '',
+      cloudUrl: parseStr(m['cloudUrl']) ?? '',
       role: enumParse(AppRole.values, m['role'], AppRole.none),
       displayName: parseStr(m['displayName']) ?? '',
       locale: parseStr(m['locale']) ?? 'en',

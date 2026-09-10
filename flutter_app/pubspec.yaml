@@ -1,7 +1,7 @@
 name: order_flow
 description: Offline-first multi-device POS for restaurants, retail, fast food, and services.
 publish_to: "none"
-version: 1.1.58+58
+version: 1.1.67+67
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -22,13 +22,18 @@ dependencies:
   go_router: ">=14.6.0 <15.0.0"
   google_mlkit_barcode_scanning: ^0.14.1
   google_mlkit_commons: ^0.11.0
+  google_mlkit_text_recognition: ^0.15.0
   http: ^1.2.2
+  crypto: ^3.0.3
+  encrypt: ^5.0.3
   image: ^4.3.0
   image_picker: ^1.1.2
   intl: ">=0.19.0 <0.22.0"
+  lottie: ">=3.1.2 <4.0.0"
   network_info_plus: ">=6.1.0 <7.0.0"
   path: ^1.9.0
   path_provider: ^2.1.5
+  pdfx: ^2.11.0
   permission_handler: ^11.3.1
   qr_flutter: ^4.1.0
   share_plus: ">=10.1.0 <11.0.0"
@@ -53,4 +58,6 @@ flutter:
     - assets/brand/logo.png
     - assets/brand/bolt.png
     - assets/brand/mark.png
+    - assets/animations/
     - assets/web/index.html
+    - assets/web/order.html

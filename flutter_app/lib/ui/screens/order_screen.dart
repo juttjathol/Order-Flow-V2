@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../services/print_service.dart';
 import '../../state/app_controller.dart';
+import '../widgets/aliveness.dart';
 import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
 import '../widgets/confetti.dart';
@@ -26,6 +28,20 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   String q = '';
   String? catId;
   int phoneTab = 0;
+  final gunFocus = FocusNode();
+
+  /// Retail registers are scan-first: the search box takes focus the moment
+  /// the ticket opens, so the barcode gun just types and Enter adds.
+  bool get _scanFirst => ref.snap.store.model == BusinessModel.retail;
+  bool get _kds =>
+      ref.snap.store.model == BusinessModel.restaurant ||
+      ref.snap.store.model == BusinessModel.fastfood;
+
+  @override
+  void dispose() {
+    gunFocus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +75,31 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${order.ticketNo}  ${_typeLabel(s, order)}'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text('${order.ticketNo}  ${_typeLabel(s, order)}',
+                  overflow: TextOverflow.ellipsis),
+            ),
+            if (order.isQr) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: OfColors.gold.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: OfColors.gold.withValues(alpha: 0.6)),
+                ),
+                child: Text(s.t('qr_chip'),
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: OfColors.gold)),
+              ),
+            ],
+          ],
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2),
           child: Container(height: 2, color: OfColors.mint.withValues(alpha: 0.55)),
@@ -71,11 +111,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               onPressed: () => _scanSku(order),
               icon: const Icon(Icons.qr_code_scanner),
             ),
-          IconButton(
-            tooltip: s.t('customer_display'),
-            onPressed: () => _showCustomerDisplay(order),
-            icon: const Icon(Icons.tv),
-          ),
+          if (snap.canFeature('customer_display'))
+            IconButton(
+              tooltip: s.t('customer_display'),
+              onPressed: () => _showCustomerDisplay(order),
+              icon: const Icon(Icons.tv),
+            ),
           if (order.customerPhone.isNotEmpty)
             IconButton(
               tooltip: s.t('notify_customer'),
@@ -88,7 +129,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               onPressed: () => _shareReceipt(order),
               icon: const Icon(Icons.share),
             ),
-          if (order.status == OrderStatus.paid && canPay)
+          if (order.status == OrderStatus.paid && canPay && snap.canFeature('refunds'))
             IconButton(
               tooltip: s.t('refund'),
               onPressed: () => _refund(order),
@@ -189,9 +230,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
           child: TextField(
+            focusNode: gunFocus,
+            autofocus: _scanFirst,
             decoration: InputDecoration(
-              hintText: s.t('sku_or_name'),
-              prefixIcon: const Icon(Icons.search),
+              hintText: _scanFirst ? s.t('scan_to_add') : s.t('sku_or_name'),
+              prefixIcon: Icon(_scanFirst ? Icons.document_scanner : Icons.search),
               suffixIcon: locked
                   ? null
                   : IconButton(
@@ -201,6 +244,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                     ),
             ),
             onChanged: (v) => setState(() => q = v),
+            onSubmitted: (v) => _submitSearch(order, v),
           ),
         ),
         if (!hideCats)
@@ -341,8 +385,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                                   children: [
                                     Text(line.name, style: const TextStyle(fontWeight: FontWeight.w800)),
                                     Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                                      StatusChip(s.t('course_${line.course}'), color: OfColors.mint),
+                                      // Courses are a dining-room concept — kitchens fire them,
+                                      // retail / fastfood / services tickets don't carry them.
+                                      if (ref.snap.store.model == BusinessModel.restaurant)
+                                        StatusChip(s.t('course_${line.course}'), color: OfColors.mint),
                                       Text(moneyOf(ref.snap, line.unitPrice), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                                      if (_stockLeftLabel(line) != null)
+                                        Text(
+                                          _stockLeftLabel(line)!,
+                                          style: const TextStyle(color: OfColors.muted, fontSize: 12),
+                                        ),
                                     ]),
                                     if (line.notes.isNotEmpty) Text(line.notes, style: const TextStyle(color: OfColors.gold, fontSize: 12)),
                                   ],
@@ -396,7 +448,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                           child: Text(order.held ? s.t('unhold') : s.t('hold')),
                         ),
                         const SizedBox(width: 8),
-                        if ((order.status == OrderStatus.open || order.status == OrderStatus.served) && !order.held)
+                        if ((order.status == OrderStatus.open || order.status == OrderStatus.served) && !order.held && _kds)
                           Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.preparing), child: Text(order.status == OrderStatus.served ? s.t('add_more') : s.t('send_kitchen')))),
                         if (order.status == OrderStatus.preparing && canPay)
                           Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.ready), child: Text(s.t('mark_ready')))),
@@ -410,7 +462,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                           Expanded(child: FilledButton(onPressed: () => _status(order, OrderStatus.served), child: Text(s.t('mark_served')))),
                         if (canPay) ...[
                           const SizedBox(width: 8),
-                          Expanded(child: FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay')))),
+                          // Non-KDS verticals (retail, services) take payment
+                          // straight from the ticket — Pay is the primary CTA.
+                          Expanded(
+                            child: _kds
+                                ? FilledButton.tonal(onPressed: () => _pay(order), child: Text(s.t('pay')))
+                                : FilledButton(onPressed: () => _pay(order), child: Text(s.t('pay'))),
+                          ),
                         ],
                       ],
                     ),
@@ -418,6 +476,17 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         ],
       ),
     );
+  }
+
+  /// Retail tickets show "N left" so the cashier never oversells stock.
+  String? _stockLeftLabel(OrderLine line) {
+    if (ref.snap.store.model != BusinessModel.retail) return null;
+    final invId = line.inventoryId;
+    if (invId == null) return null;
+    final item = ref.snap.store.stockById(invId);
+    if (item == null) return null;
+    final left = (item.quantity - line.qty).toStringAsFixed(item.quantity % 1 == 0 ? 0 : 1);
+    return ref.s.t('units_left').replaceAll('{n}', left);
   }
 
   String _typeLabel(dynamic s, PosOrder order) {
@@ -450,6 +519,47 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     if (cat.contains('dessert') || cat.contains('sweet')) return 'dessert';
     if (cat.contains('side') || cat.contains('bread')) return 'side';
     return 'main';
+  }
+
+  bool get _canEdit {
+    final role = ref.snap.session.role;
+    return role == AppRole.main ||
+        role == AppRole.manager ||
+        role == AppRole.orderTaker ||
+        role == AppRole.cashier ||
+        role == AppRole.frontDesk;
+  }
+
+  /// Enter from a barcode gun: exact SKU adds instantly and re-arms the
+  /// field; a unique search match does the same. Nothing else changes.
+  Future<void> _submitSearch(PosOrder order, String value) async {
+    final raw = value.trim().toLowerCase();
+    if (raw.isEmpty) return;
+    final closed =
+        order.status == OrderStatus.paid || order.status == OrderStatus.cancelled;
+    if (closed || !_canEdit) return;
+    final list = ref.snap.store.products.where((p) => p.available).toList();
+    MenuProduct? hit = list.where((p) => p.sku.trim().toLowerCase() == raw).firstOrNull;
+    if (hit == null) {
+      final matches = list
+          .where((p) =>
+              p.name.toLowerCase().contains(raw) ||
+              p.sku.toLowerCase().contains(raw))
+          .toList();
+      if (matches.length == 1) hit = matches.first;
+    }
+    if (hit == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${ref.s.t('sku_not_found')}: $raw')),
+        );
+      }
+      return;
+    }
+    await _add(order, hit);
+    if (!mounted) return;
+    setState(() => q = '');
+    gunFocus.requestFocus();
   }
 
   Future<void> _scanSku(PosOrder order) async {
@@ -700,6 +810,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ref.s.t('ticket_empty'))));
       return;
     }
+    // v1.1.64 · the kitchen fire gets the brand burst; other transitions
+    // keep a light haptic so every ticket tap feels physical.
+    if (status == OrderStatus.preparing) {
+      Aliveness.celebrate(context, Aliveness.kitchenBurst);
+    } else {
+      HapticFeedback.selectionClick();
+    }
     await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
       'id': order.id,
       'status': status.name,
@@ -738,10 +855,14 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             if (canPay) ListTile(title: Text(s.t('even_split')), leading: const Icon(Icons.pie_chart), onTap: () { Navigator.pop(ctx); evenSplit(context, ref, order); }),
             if (canPay) ListTile(title: Text(s.t('discount')), leading: const Icon(Icons.percent), onTap: () { Navigator.pop(ctx); applyDiscount(context, ref, order); }),
             if (canPay) ListTile(title: Text(s.t('comp_meal')), leading: const Icon(Icons.card_giftcard), onTap: () { Navigator.pop(ctx); compTicket(context, ref, order); }),
-            ListTile(title: Text(s.t('move_table')), leading: const Icon(Icons.swap_horiz), onTap: () { Navigator.pop(ctx); moveTicket(context, ref, order); }),
-            ListTile(title: Text(s.t('merge_table')), leading: const Icon(Icons.merge_type), onTap: () { Navigator.pop(ctx); mergeTicket(context, ref, order); }),
-            ListTile(title: Text(s.t('fire_course')), leading: const Icon(Icons.local_fire_department), onTap: () { Navigator.pop(ctx); fireCourse(context, ref, order); }),
-            if (order.status == OrderStatus.paid && canPay)
+            // Table ops and course firing belong to the dining-room model only.
+            if (ref.snap.store.model == BusinessModel.restaurant)
+              ListTile(title: Text(s.t('move_table')), leading: const Icon(Icons.swap_horiz), onTap: () { Navigator.pop(ctx); moveTicket(context, ref, order); }),
+            if (ref.snap.store.model == BusinessModel.restaurant)
+              ListTile(title: Text(s.t('merge_table')), leading: const Icon(Icons.merge_type), onTap: () { Navigator.pop(ctx); mergeTicket(context, ref, order); }),
+            if (ref.snap.store.model == BusinessModel.restaurant)
+              ListTile(title: Text(s.t('fire_course')), leading: const Icon(Icons.local_fire_department), onTap: () { Navigator.pop(ctx); fireCourse(context, ref, order); }),
+            if (order.status == OrderStatus.paid && canPay && ref.snap.canFeature('refunds'))
               ListTile(title: Text(s.t('refund')), leading: const Icon(Icons.currency_exchange, color: OfColors.warn), onTap: () { Navigator.pop(ctx); _refund(order); }),
             ListTile(title: Text(s.t('cancel_order')), leading: const Icon(Icons.cancel, color: OfColors.danger), onTap: () { Navigator.pop(ctx); _voidOrder(order); }),
           ],
@@ -840,12 +961,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                           ))
                       .toList(),
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: splitOn,
-                  title: Text(s.t('split_payment')),
-                  onChanged: (v) => setSt(() => splitOn = v),
-                ),
+                if (ref.snap.canFeature('split_payment'))
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: splitOn,
+                    title: Text(s.t('split_payment')),
+                    onChanged: (v) => setSt(() => splitOn = v),
+                  ),
                 if (splitOn) ...[
                   Row(
                     children: [
@@ -908,7 +1030,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       final primaryDue = splitOn ? (due - splitAmt) : due;
 
       // Loyalty: a saved customer earns 1 point per whole currency unit.
-      if (!order.loyaltyAwarded && order.customerPhone.trim().isNotEmpty) {
+      if (ref.snap.canFeature('loyalty') &&
+          !order.loyaltyAwarded &&
+          order.customerPhone.trim().isNotEmpty) {
         final cust = ref.snap.store.customers
             .where((c) => c.phone.trim().isNotEmpty && c.phone.trim() == order.customerPhone.trim())
             .firstOrNull;
@@ -943,7 +1067,15 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ref.ctrl.rememberReceipt(order.id);
       try {
         await ref.ctrl.printer.receipt(ref.read(appControllerProvider).store, order, role: ref.snap.session.role);
-      } catch (_) {}
+      } catch (e) {
+        // Silent when no printer is configured — but a *failed* print of a
+        // paid receipt must never pass unnoticed at the counter.
+        if (mounted && !PrintService.isConfigError(e)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(s.t('print_fail_receipt'))),
+          );
+        }
+      }
 
       if (mounted) {
         await _showPaidCelebration(order, primaryDue: primaryDue, splitAmt: splitOn ? splitAmt : null);
@@ -969,7 +1101,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle, color: OfColors.mint, size: 64),
+                (MediaQuery.maybeOf(ctx)?.disableAnimations ?? false)
+                    ? const Icon(Icons.check_circle, color: OfColors.mint, size: 64)
+                    : Aliveness.animation(Aliveness.payCheck, size: 64),
                 const SizedBox(height: 10),
                 Text(s.t('payment_done'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22)),
                 const SizedBox(height: 4),

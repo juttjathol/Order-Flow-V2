@@ -8,11 +8,17 @@ import '../../core/theme.dart';
 import '../../services/bluetooth_printer.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/plan_lock.dart';
 
 /// Printer settings for THIS device (any station or Main).
 /// Choosing a local printer overrides the shop-level printer targets
 /// for everything this device prints (kitchen slips, receipts, drawer).
 Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async {
+  // v1.1.59 plan gate — legacy keys (no plan set) are unaffected.
+  if (!ref.snap.canFeature('station_printers')) {
+    await showPlanLock(context, ref, featureKey: 'station_printers');
+    return;
+  }
   final s = ref.s;
   List<BtDevice> bonded = const [];
   var btErr = '';
@@ -241,6 +247,30 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                       label: Text(s.t('use_shop_printer')),
                     ),
                     const Spacer(),
+                    TextButton.icon(
+                      onPressed: hasLocal
+                          ? () async {
+                              try {
+                                await ref.ctrl.printer
+                                    .openDrawer(ref.ctrl.deviceLocalPrinter()!);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(s.t('drawer_opened'))),
+                                  );
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(s.t('drawer_failed'))),
+                                  );
+                                }
+                              }
+                            }
+                          : null,
+                      icon: const Icon(Icons.unarchive),
+                      label: Text(s.t('drawer_test')),
+                    ),
+                    const SizedBox(width: 4),
                     TextButton.icon(
                       onPressed: hasLocal ? testPrinter : null,
                       icon: const Icon(Icons.print),

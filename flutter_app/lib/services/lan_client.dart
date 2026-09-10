@@ -15,6 +15,7 @@ class LanClient {
     required this.onStore,
     required this.onNotice,
     required this.onStatus,
+    this.onReject,
   });
 
   final String host;
@@ -22,11 +23,14 @@ class LanClient {
   final void Function(AppStore store) onStore;
   final void Function(AppNotice notice) onNotice;
   final void Function(bool connected) onStatus;
+  /// v1.1.59: Main refused this station (e.g. plan without multi_terminal).
+  final void Function(String reason)? onReject;
 
   WebSocketChannel? _ws;
   StreamSubscription? _sub;
   Timer? _ping;
   bool _closed = false;
+  bool _rejected = false;
 
   String get base => 'http://$host:$port';
 
@@ -45,6 +49,7 @@ class LanClient {
     required String role,
   }) async {
     _closed = false;
+    _rejected = false;
     final health = await probe(host, port: port);
     if (health['ok'] != true) {
       throw Exception('Main device refused the connection');
@@ -76,16 +81,24 @@ class LanClient {
             onNotice(
               AppNotice.fromJson(Map<String, dynamic>.from(map['notice'] as Map)),
             );
+          } else if (type == 'rejected') {
+            _rejected = true;
+            onStatus(false);
+            onReject?.call((map['reason'] ?? '').toString());
           }
         } catch (_) {}
       },
       onDone: () {
         onStatus(false);
-        if (!_closed) _reconnect(deviceId: deviceId, name: name, role: role);
+        if (!_closed && !_rejected) {
+          _reconnect(deviceId: deviceId, name: name, role: role);
+        }
       },
       onError: (_) {
         onStatus(false);
-        if (!_closed) _reconnect(deviceId: deviceId, name: name, role: role);
+        if (!_closed && !_rejected) {
+          _reconnect(deviceId: deviceId, name: name, role: role);
+        }
       },
       cancelOnError: true,
     );
@@ -109,11 +122,11 @@ class LanClient {
     required String role,
   }) {
     Future<void>.delayed(const Duration(seconds: 2), () async {
-      if (_closed) return;
+      if (_closed || _rejected) return;
       try {
         await _openWs(deviceId: deviceId, name: name, role: role);
       } catch (_) {
-        if (!_closed) {
+        if (!_closed && !_rejected) {
           _reconnect(deviceId: deviceId, name: name, role: role);
         }
       }

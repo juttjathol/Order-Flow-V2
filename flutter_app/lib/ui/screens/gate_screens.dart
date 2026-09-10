@@ -400,20 +400,34 @@ class SetupScreen extends ConsumerWidget {
           Text(s.t('get_started'), style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           ...models.map((m) {
+            final allowed = ref.snap.canModel(m.$1);
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: OfCard(
-                onTap: () => ref.ctrl.pickModel(m.$1),
+                onTap: allowed ? () => ref.ctrl.pickModel(m.$1) : null,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(m.$4, color: OfColors.emerald, size: 32),
-                  title: Text(s.t(m.$2), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  leading: Icon(m.$4,
+                      color: allowed ? OfColors.emerald : OfColors.muted, size: 32),
+                  title: Text(s.t(m.$2),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: allowed ? null : OfColors.muted)),
                   subtitle: Text(s.t(m.$3)),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: allowed
+                      ? const Icon(Icons.chevron_right)
+                      : const Icon(Icons.lock_outline, color: OfColors.muted),
                 ),
               ),
             );
           }),
+          if (models.every((m) => !ref.snap.canModel(m.$1)))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(s.t('plan_model_none_hint'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: OfColors.warn, fontSize: 12.5)),
+            ),
         ],
       ),
     );
