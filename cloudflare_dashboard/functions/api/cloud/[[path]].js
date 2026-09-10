@@ -98,8 +98,8 @@ function parseJsonArray(raw) {
 async function licenseAllowsCloud(db, licenseKey) {
   if (!licenseKey) return false;
   const row = await db
-    .prepare("SELECT status, expires_at, allowed_features FROM licenses WHERE key = ?1")
-    .bind(licenseKey).first();
+    .prepare("SELECT status, expires_at, allowed_features FROM licenses WHERE license_key = ?1")
+    .bind(licenseKey.toUpperCase().trim()).first();
   if (!row || row.status !== "active") return false;
   if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return false;
   const features = parseJsonArray(row.allowed_features);
@@ -194,6 +194,17 @@ export async function onRequest(context) {
         steps.push("licenses:ok n=" + Number(lc?.n ?? 0));
       } catch (e) {
         steps.push("licenses:FAIL " + String((e && e.message) || e));
+        ok = false;
+      }
+      // Mirror of licenseAllowsCloud's exact SELECT — column names included,
+      // so diag passing here proves /open can read the licenses table.
+      try {
+        await db
+          .prepare("SELECT status, expires_at, allowed_features FROM licenses WHERE license_key = ?1")
+          .bind("DIAG-PROBE").first();
+        steps.push("lic_select:ok");
+      } catch (e) {
+        steps.push("lic_select:FAIL " + String((e && e.message) || e));
         ok = false;
       }
       await run("delete_scratch", db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(scratch));
