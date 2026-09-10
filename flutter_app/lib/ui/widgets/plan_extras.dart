@@ -1306,6 +1306,30 @@ class _CloudPanelState extends ConsumerState<_CloudPanel> {
                 style: const TextStyle(fontWeight: FontWeight.w800)),
           ],
         ),
+        if (active && s.cloudDegraded) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: OfColors.warn.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: OfColors.warn.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.wifi_off, size: 16, color: OfColors.warn),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    s.l10n.t('cloud_degraded'),
+                    style: const TextStyle(
+                        fontSize: 12, height: 1.4, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         if (s.isMain)
           if (!active)

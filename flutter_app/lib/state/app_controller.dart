@@ -44,6 +44,7 @@ class AppSnapshot {
     required this.online,
     required this.clients,
     required this.pendingSync,
+    this.cloudDegraded = false,
   });
 
   final bool ready;
@@ -59,6 +60,9 @@ class AppSnapshot {
   final bool online;
   final List<ClientInfo> clients;
   final int pendingSync;
+  /// True while a cloud room is open but the relay cannot be reached —
+  /// the relay keeps retrying on its own; nothing is lost meanwhile.
+  final bool cloudDegraded;
 
   L10nView get l10n => L10nView(session.locale);
   String get currency => store.profile.currencySymbol;
@@ -90,6 +94,7 @@ class AppSnapshot {
     bool? online,
     List<ClientInfo>? clients,
     int? pendingSync,
+    bool? cloudDegraded,
     bool clearError = false,
     bool clearIp = false,
   }) {
@@ -107,6 +112,7 @@ class AppSnapshot {
       online: online ?? this.online,
       clients: clients ?? this.clients,
       pendingSync: pendingSync ?? this.pendingSync,
+      cloudDegraded: cloudDegraded ?? this.cloudDegraded,
     );
   }
 }
@@ -729,6 +735,7 @@ class AppController extends Notifier<AppSnapshot> {
       baseUrl: state.session.cloudUrl,
     ));
     state = state.copyWith(
+      cloudDegraded: false,
       session: state.session
         ..cloudOn = false
         ..cloudRoom = ''
@@ -753,9 +760,19 @@ class AppController extends Notifier<AppSnapshot> {
       getStateJson: () => jsonEncode(state.store.toJson()),
       onPeerState: _applyCloudState,
       onPeerCommand: _applyCloudCommand,
+      onLost: () => _setCloudDegraded(true),
+      onOk: () => _setCloudDegraded(false),
     );
     _relay = relay;
     unawaited(relay.start());
+  }
+
+  /// Tier-1 surfacing of a flaky relay: the Cloud sheet says so honestly
+  /// instead of pretending the room is live. Purely a view flag — the retry
+  /// loop and the on-device queue already do the real work.
+  void _setCloudDegraded(bool v) {
+    if (state.cloudDegraded == v) return;
+    state = state.copyWith(cloudDegraded: v);
   }
 
   /// Main side: a station command arrived over the cloud — the same guarded
