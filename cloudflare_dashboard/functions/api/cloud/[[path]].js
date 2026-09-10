@@ -99,7 +99,7 @@ async function licenseAllowsCloud(db, licenseKey) {
   if (!licenseKey) return false;
   const row = await db
     .prepare("SELECT status, expires_at, allowed_features FROM licenses WHERE key = ?1")
-    .first(licenseKey);
+    .bind(licenseKey).first();
   if (!row || row.status !== "active") return false;
   if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return false;
   const features = parseJsonArray(row.allowed_features);
@@ -183,7 +183,7 @@ export async function onRequest(context) {
           .prepare("INSERT INTO cloud_msgs (room, sender, msg, created_at) VALUES (?1,?2,?3,?4)")
           .bind(scratch, "diag", "x", t0));
       try {
-        const rows = await db.prepare("SELECT COUNT(*) AS n FROM cloud_msgs WHERE room = ?1").first(scratch);
+        const rows = await db.prepare("SELECT COUNT(*) AS n FROM cloud_msgs WHERE room = ?1").bind(scratch).first();
         steps.push("read:ok n=" + Number(rows?.n ?? 0));
       } catch (e) {
         steps.push("read:FAIL " + String((e && e.message) || e));
@@ -225,7 +225,7 @@ export async function onRequest(context) {
       // pairing (old devices stop decrypting — nothing leaks across sessions).
       const prev = await db
         .prepare("SELECT room FROM cloud_rooms WHERE license_key = ?1 AND main_device = ?2")
-        .all(licenseKey, mainDevice);
+        .bind(licenseKey, mainDevice).all();
       const stmts = [];
       for (const r of prev.results || []) {
         stmts.push(db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(r.room));
@@ -252,23 +252,23 @@ export async function onRequest(context) {
       const room = String(body.room || "");
       const code = String(body.code || "").toUpperCase().trim();
       if (!room || !code) return j(400, { ok: false, error: "args" });
-      const row = await db.prepare("SELECT code_hash FROM cloud_rooms WHERE room = ?1").first(room);
+      const row = await db.prepare("SELECT code_hash FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (!row) return j(404, { ok: false, error: "no_room" });
       if ((await sha256Hex("of-cloud|" + code)) !== row.code_hash) return j(403, { ok: false, error: "code" });
-      const count = await db.prepare("SELECT COUNT(*) AS n FROM cloud_devices WHERE room = ?1").first(room);
+      const count = await db.prepare("SELECT COUNT(*) AS n FROM cloud_devices WHERE room = ?1").bind(room).first();
       if (count && Number(count.n) >= MAX_DEVICES) return j(403, { ok: false, error: "full" });
       await db
         .prepare(
           "INSERT OR REPLACE INTO cloud_devices (room, device_id, role, name, cursor, joined_at) VALUES (?1,?2,?3,?4,0,?5)"
         )
-        .run(room, String(body.deviceId || "?"), String(body.role || "station"), String(body.role || "station"), Date.now());
+        .bind(room, String(body.deviceId || "?"), String(body.role || "station"), String(body.role || "station"), Date.now()).run();
       return j(200, { ok: true, room });
     }
 
     if (path === "leave") {
       const room = String(body.room || "");
       const dev = String(body.deviceId || "");
-      const row = await db.prepare("SELECT main_device FROM cloud_rooms WHERE room = ?1").first(room);
+      const row = await db.prepare("SELECT main_device FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (row && row.main_device === dev) {
         await db.batch([
           db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(room),
@@ -276,7 +276,7 @@ export async function onRequest(context) {
           db.prepare("DELETE FROM cloud_rooms WHERE room = ?1").bind(room),
         ]);
       } else {
-        await db.prepare("DELETE FROM cloud_devices WHERE room = ?1 AND device_id = ?2").run(room, dev);
+        await db.prepare("DELETE FROM cloud_devices WHERE room = ?1 AND device_id = ?2").bind(room, dev).run();
       }
       return j(200, { ok: true });
     }
@@ -285,11 +285,11 @@ export async function onRequest(context) {
       const room = String(body.room || "");
       const msg = typeof body.msg === "string" ? body.msg : "";
       if (!room || msg.length === 0 || msg.length > MAX_MSG_LEN) return j(400, { ok: false, error: "args" });
-      const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").first(room);
+      const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (!open) return j(404, { ok: false, error: "no_room" });
       await db
         .prepare("INSERT INTO cloud_msgs (room, sender, msg, created_at) VALUES (?1,?2,?3,?4)")
-        .run(room, String(body.device || ""), msg, Date.now());
+        .bind(room, String(body.device || ""), msg, Date.now()).run();
       await prune(db, room);
       return j(200, { ok: true });
     }
@@ -298,13 +298,13 @@ export async function onRequest(context) {
       const room = String(body.room || "");
       const dev = String(body.device || "");
       const after = Number(body.after || 0);
-      const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").first(room);
+      const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (!open) return j(404, { ok: false, error: "no_room" });
       const rs = await db
         .prepare(
           "SELECT id, sender, msg FROM cloud_msgs WHERE room = ?1 AND id > ?2 AND (sender IS NULL OR sender <> ?3) ORDER BY id ASC LIMIT 25"
         )
-        .all(room, after, dev);
+        .bind(room, after, dev).all();
       const msgs = rs.results || [];
       let cursor = after;
       if (msgs.length) cursor = msgs[msgs.length - 1].id;
@@ -316,13 +316,13 @@ export async function onRequest(context) {
       try {
         if (msgs.length) {
           await db.prepare("UPDATE cloud_devices SET cursor = ?1, hot = ?2, last_seen = ?3 WHERE room = ?4 AND device_id = ?5")
-            .run(cursor, hot, now, room, dev);
+            .bind(cursor, hot, now, room, dev).run();
         } else if (hot === 1) {
           await db.prepare("UPDATE cloud_devices SET hot = 1, last_seen = ?1 WHERE room = ?2 AND device_id = ?3 AND (hot <> 1 OR last_seen IS NULL OR last_seen < ?4)")
-            .run(now, room, dev, now - 60000);
+            .bind(now, room, dev, now - 60000).run();
         } else {
           await db.prepare("UPDATE cloud_devices SET hot = 0 WHERE room = ?1 AND device_id = ?2 AND hot = 1")
-            .run(room, dev);
+            .bind(room, dev).run();
         }
       } catch {}
       // Main reads this to wake out of idle the moment any peer reports
@@ -330,7 +330,7 @@ export async function onRequest(context) {
       let peersHot = 0;
       try {
         const ph = await db.prepare("SELECT COUNT(*) AS n FROM cloud_devices WHERE room = ?1 AND device_id <> ?2 AND hot = 1 AND last_seen > ?3")
-          .first(room, dev, now - 90000);
+          .bind(room, dev, now - 90000).first();
         if (ph) peersHot = Number(ph.n);
       } catch {}
       return j(200, { ok: true, msgs, cursor, peersHot });
