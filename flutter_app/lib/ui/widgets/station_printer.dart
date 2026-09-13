@@ -30,6 +30,9 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
     text: ref.snap.session.localNetPort.toString(),
   );
   var selectedBt = ref.read(appControllerProvider).session.localBtAddress;
+  var selTransport = ref.read(appControllerProvider).session.localBtTransport;
+  List<BtDevice> ble = const [];
+  var scanning = false;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -43,6 +46,7 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
           });
           try {
             final connect = await Permission.bluetoothConnect.request();
+            await Permission.bluetoothScan.request();
             if (connect.isPermanentlyDenied) {
               btErr = s.t('bt_permission_settings');
               bonded = const [];
@@ -63,6 +67,16 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
             btErr = s.t('bluetooth_off');
           }
           if (ctx.mounted) setSt(() => loading = false);
+        }
+
+        Future<void> scanBle() async {
+          setSt(() => scanning = true);
+          try {
+            ble = await BluetoothPrinter().bleScan();
+          } catch (_) {
+            ble = const [];
+          }
+          if (ctx.mounted) setSt(() => scanning = false);
         }
 
         if (!started) {
@@ -106,10 +120,21 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                 SnackBar(content: Text(s.t('print_ok'))),
               );
             }
-          } catch (_) {
+          } on PlatformException catch (e) {
+            if (context.mounted) {
+              final why = e.code == 'bt_permission'
+                  ? s.t('bt_permission_retry')
+                  : '${s.t('print_fail')}: ${(e.message ?? '').take(140)}';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(why)),
+              );
+            }
+          } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(s.t('print_fail'))),
+                SnackBar(
+                    content:
+                        Text('${s.t('print_fail')}: ${e.toString().take(140)}')),
               );
             }
           }
@@ -165,25 +190,57 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                                     child: Text(s.t('open_app_settings')),
                                   ),
                                 Expanded(
-                                  child: bonded.isEmpty
-                                      ? Center(child: Text(s.t('no_bt_printers'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)))
-                                      : ListView.builder(
-                                          itemCount: bonded.length,
+                                  child: () {
+                                    final seen = bonded.map((e) => e.address).toSet();
+                                    final all = [
+                                      ...bonded,
+                                      ...ble.where((d) => !seen.contains(d.address)),
+                                    ];
+                                    if (all.isEmpty) {
+                                      return Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(18),
+                                          child: Text(
+                                            '${s.t('no_bt_printers')}\n${s.t('bt_pair_first')}',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                                color: OfColors.muted, height: 1.5),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return ListView.builder(
+                                          itemCount: all.length,
                                           itemBuilder: (_, i) {
-                                            final d = bonded[i];
+                                            final d = all[i];
                                             final sel = selectedBt == d.address;
                                             return ListTile(
-                                              leading: Icon(Icons.print, color: sel ? OfColors.emerald : OfColors.muted),
+                                              leading: Icon(
+                                                  d.transport == 'ble'
+                                                      ? Icons.bluetooth
+                                                      : Icons.print,
+                                                  color: sel ? OfColors.emerald : OfColors.muted),
                                               title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                                               subtitle: Text(d.address),
-                                              trailing: sel ? const Icon(Icons.check_circle, color: OfColors.emerald) : null,
+                                              trailing: sel
+                                                  ? const Icon(Icons.check_circle,
+                                                      color: OfColors.emerald)
+                                                  : (d.transport == 'ble'
+                                                      ? const Text('LE',
+                                                          style: TextStyle(
+                                                              color: OfColors.info,
+                                                              fontWeight: FontWeight.w800))
+                                                      : null),
                                               onTap: () async {
                                                 selectedBt = d.address;
+                                                selTransport =
+                                                    d.transport == 'ble' ? 'ble' : 'auto';
                                                 setSt(() {});
                                                 await ref.ctrl.setLocalBluetoothPrinter(
                                                   address: d.address,
                                                   name: d.name,
                                                   enabled: true,
+                                                  transport: selTransport,
                                                 );
                                                 if (context.mounted) {
                                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -193,7 +250,8 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                                               },
                                             );
                                           },
-                                        ),
+                                        );
+                                  }(),
                                 ),
                                 TextButton.icon(
                                   onPressed: loading ? null : loadBt,
@@ -202,6 +260,42 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                                       : const Icon(Icons.refresh),
                                   label: Text(s.t('pick_bt_printer')),
                                 ),
+                                TextButton.icon(
+                                  onPressed: scanning ? null : scanBle,
+                                  icon: scanning
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.bluetooth_searching),
+                                  label: Text(s.t(scanning ? 'bt_scanning' : 'bt_ble_scan')),
+                                ),
+                                if (selectedBt.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Wrap(
+                                      alignment: WrapAlignment.center,
+                                      spacing: 6,
+                                      children: [
+                                        for (final t in const ['auto', 'spp', 'ble'])
+                                          ChoiceChip(
+                                            label: Text(t == 'spp'
+                                                ? s.t('bt_via_classic')
+                                                : t == 'ble'
+                                                    ? s.t('bt_via_le')
+                                                    : s.t('bt_via_auto')),
+                                            selected: selTransport == t,
+                                            onSelected: (_) async {
+                                              selTransport = t;
+                                              setSt(() {});
+                                              await ref.ctrl.setLocalBluetoothPrinter(
+                                                address: selectedBt,
+                                                name: ref.snap.session.localBtName,
+                                                enabled: true,
+                                                transport: t,
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             )
                           : Column(

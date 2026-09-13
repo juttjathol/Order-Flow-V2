@@ -299,6 +299,7 @@ class AppController extends Notifier<AppSnapshot> {
         enabled: true,
         transport: 'bluetooth',
         btAddress: s.localBtAddress.trim(),
+        btTransport: s.localBtTransport,
         btName: s.localBtName.trim(),
       );
     }
@@ -313,9 +314,12 @@ class AppController extends Notifier<AppSnapshot> {
     required String address,
     String name = '',
     bool enabled = true,
+    String transport = 'auto',
   }) async {
     state.session.localBtAddress = address.trim();
     state.session.localBtName = name.trim();
+    state.session.localBtTransport =
+        const {'auto', 'spp', 'ble'}.contains(transport) ? transport : 'auto';
     state.session.localBtEnabled = enabled && address.trim().isNotEmpty;
     if (state.session.localBtEnabled) {
       state.session.localNetEnabled = false;

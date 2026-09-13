@@ -400,7 +400,7 @@ class L10n {
     'dup_order': 'Possible duplicate',
     'dup_order_body': 'This table was opened a few seconds ago. Open another ticket?',
     'print_failed_title': 'PRINT FAILED',
-    'print_failed_body': 'Write the ticket by hand. Check the printer IP and try again.',
+    'print_failed_body': 'Write the ticket by hand. Check the printer connection (IP or Bluetooth pairing) and try again — close any other app holding the printer.',
     'sku_or_name': 'Search SKU or name',
     'scan_sku': 'Scan barcode',
     'scan_sku_hint': 'Use the camera or a USB / Bluetooth scanner. Type or scan the SKU, then enter quantity.',
@@ -687,6 +687,13 @@ class L10n {
     'staff_login_need': 'Enter the name and PIN set for a staff member.',
     'staff_pin': 'Staff PIN',
     'staff_pin_wrong': 'No matching name or PIN.',
+
+    'bt_pair_first': 'Pair the printer first: Android settings → Bluetooth → tap the printer (PIN 0000 usually works).',
+    'bt_ble_scan': 'Scan LE printers',
+    'bt_scanning': 'Scanning…',
+    'bt_via_auto': 'Auto',
+    'bt_via_classic': 'Classic',
+    'bt_via_le': 'LE',
 };
 
   static const _ur = {
@@ -1314,7 +1321,7 @@ class L10n {
     'move_table': 'ٹیبل منتقل کریں',
     'no_customers': 'ابھی کوئی کسٹمر محفوظ نہیں۔',
     'pick_customer': 'کسٹمر منتخب کریں',
-    'print_failed_body': 'ٹکٹ ہاتھ سے لکھ دیں۔ پرنٹر IP چیک کریں اور دوبارہ کوشش کریں۔',
+    'print_failed_body': 'ٹکٹ ہاتھ سے لکھ دیں۔ پرنٹر کا رابطہ (IP یا بلوٹوتھ پیئرنگ) چیک کریں اور دوبارہ کوشش کریں — اگر کوئی اور ایپ پرنٹر تھامے بیٹھی ہے تو اسے بند کریں۔',
     'print_failed_title': 'پرنٹ فیل',
     'reprint_any': 'ٹکٹ دوبارہ پرنٹ',
     'scan_sku': 'بارکوڈ اسکین',
@@ -1350,6 +1357,13 @@ class L10n {
     'working_offline': 'Main آف لائن — آرڈر چلتے رہیں گے',
     'x_report': 'ایکس رپورٹ',
     'z_report': 'زیڈ رپورٹ',
+
+    'bt_pair_first': 'پہلے پرنٹر جوڑیں: Android کی سیٹنگز → بلوٹوتھ → پرنٹر دبائیں (PIN عام طور پر 0000 ہوتا ہے)۔',
+    'bt_ble_scan': 'LE پرنٹر تلاش کریں',
+    'bt_scanning': 'تلاش ہو رہی ہے…',
+    'bt_via_auto': 'خودکار',
+    'bt_via_classic': 'کلاسیک',
+    'bt_via_le': 'LE',
 };
 
   static const _table = {'en': _en, 'ur': _ur};

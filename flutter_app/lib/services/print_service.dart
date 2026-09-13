@@ -27,7 +27,11 @@ class PrintService {
       if (cfg.btAddress.trim().isEmpty) {
         throw Exception('Printer is not configured');
       }
-      await bluetooth.printBytes(cfg.btAddress.trim(), bytes);
+      await bluetooth.printBytes(
+        cfg.btAddress.trim(),
+        bytes,
+        transport: cfg.btTransport,
+      );
       return;
     }
     if (cfg.host.trim().isEmpty) {

@@ -165,6 +165,7 @@ class SessionPrefs {
     this.lastReceiptOrderId,
     this.localBtAddress = '',
     this.localBtName = '',
+    this.localBtTransport = 'auto',
     this.localBtEnabled = false,
     this.localNetHost = '',
     this.localNetPort = kEscPosPort,
@@ -193,6 +194,8 @@ class SessionPrefs {
   String? lastReceiptOrderId;
   String localBtAddress;
   String localBtName;
+  /// 'auto' | 'spp' | 'ble' — how to reach the local BT printer (v1.1.68).
+  String localBtTransport;
   bool localBtEnabled;
   String localNetHost;
   int localNetPort;
@@ -224,6 +227,7 @@ class SessionPrefs {
         'lastReceiptOrderId': lastReceiptOrderId,
         'localBtAddress': localBtAddress,
         'localBtName': localBtName,
+        'localBtTransport': localBtTransport,
         'localBtEnabled': localBtEnabled,
         'localNetHost': localNetHost,
         'localNetPort': localNetPort,
@@ -252,6 +256,7 @@ class SessionPrefs {
       lastReceiptOrderId: parseStr(m['lastReceiptOrderId']),
       localBtAddress: parseStr(m['localBtAddress']) ?? '',
       localBtName: parseStr(m['localBtName']) ?? '',
+      localBtTransport: parseStr(m['localBtTransport']) ?? 'auto',
       localBtEnabled: parseBool(m['localBtEnabled']),
       localNetHost: parseStr(m['localNetHost']) ?? '',
       localNetPort: parseInt(m['localNetPort'], kEscPosPort),

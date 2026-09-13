@@ -67,7 +67,7 @@
         <p class="kicker">User guide · رہنمائے صارف</p>
         <h1 class="sec-title">Every feature, step by step.<br/>ہر فیچر، قدم بہ قدم۔</h1>
         <p class="sec-sub">The complete manual for Order Flow — how to set up the shop, run every station, handle payments, printers, the cash drawer, loyalty, reports and refunds. English and Urdu on one page.</p>
-        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.67 — the Cloud sheet now tells you honestly when the relay is unreachable (orders stay queued safely on the phone and sync resumes by itself) + room-open errors name the real reason: plan, relay, or network · ایپ ورژن 1.1.67 کے مطابق — کلاؤڈ اسکرین اب ایمانداری سے بتاتا ہے جب ریلے دستیاب نہ ہو (آرڈر فون پر محفوظ قطار میں رہتے ہیں اور خود بخود سنک ہو جاتے ہیں) + روم نہ کھلنے پر اصل وجہ بتائی جاتی ہے: لائسنس، ریلے، یا نیٹ ورک</p>
+        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.68 — Bluetooth printing now speaks to any printer (Classic SPP + Bluetooth LE) + cloud networking works end to end with honest status everywhere · ایپ ورژن 1.1.68 کے مطابق — بلوٹوتھ پرنٹنگ اب ہر پرنٹر سے بات کرتی ہے (کلاسیک SPP + بلوٹوتھ LE) + کلاؤڈ نیٹ ورکنگ مکمل طور پر چلتا ہے، ہر جگہ سچی حالت کے ساتھ</p>
       </div>
     </section>
 
@@ -334,6 +334,8 @@
             <ul>
               <li><b>Shop printers (Main):</b> More → Hardware → Printers. Add LAN (IP + port 9100) or Bluetooth ESC/POS printers and assign each to a role (kitchen, cashier…).</li>
               <li><b>Every station's own printer:</b> tap the printer icon in the station's top bar. Pick a Bluetooth printer or type a LAN IP. The station then prints everything itself, independent of Main.</li>
+              <li><b>Bluetooth printing (v1.1.68)</b> now works with <b>any</b> Bluetooth printer — old Classic (SPP) models like the common 58mm portables, and modern Low-Energy ones. Pair the printer once in Android settings (PIN 0000 usually), pick it in the printer sheet, and print. The Auto / Classic / LE chips let you force a link type if a picky printer needs the nudge; error toasts now quote the printer's real complaint.</li>
+              <li>These printers serve <b>one connection at a time</b>: if another billing app was just using the printer, close it before printing from Order Flow (the app retries once for you automatically).</li>
               <li><b>Bill profile:</b> shop name, address, phone, tax ID, footer, logo image, pay QR — all print on the receipt.</li>
               <li>Separate slip templates for kitchen / counter / takeaway / delivery — choose what each shows.</li>
               <li>Test button on every printer screen sends a test page. Reprint any ticket from More → Reprint.</li>
@@ -344,6 +346,8 @@
             <ul>
               <li><b>دکان کے پرنٹرز (Main):</b> More → ہارڈویئر → پرنٹرز۔ LAN (IP + پورٹ 9100) یا بلوٹوتھ ESC/POS پرنٹر شامل کریں اور ہر کردار (کچن، کیشیئر…) کو پرنٹر تفویض کریں۔</li>
               <li><b>ہر اسٹیشن کا اپنا پرنٹر:</b> اسٹیشن کی اوپری بار میں پرنٹر آئیکن دبائیں۔ بلوٹوتھ پرنٹر چنیں یا LAN IP لکھیں۔ پھر یہ اسٹیشن سب کچھ خود پرنٹ کرتا ہے، Main سے آزاد۔</li>
+              <li><b>بلوٹوتھ پرنٹنگ (v1.1.68)</b> اب <b>ہر</b> بلوٹوتھ پرنٹر کے ساتھ چلتی ہے — پرانے کلاسیک (SPP) جیسے عام 58mm پورٹیبل، اور نئے Low-Energy والے۔ پرنٹر کو ایک بار Android سیٹنگز میں جوڑیں (PIN عام طور پر 0000)، پرنٹر اسکرین سے چنیں، اور پرنٹ کریں۔ Auto / Classic / LE چپس اُس سرکٹ پرنٹر کے لیے مخصوص لنک منتخب کرنے دیتے ہیں؛ اور خرابی کا پیغام اب پرنٹر کی اصل شکایت لکھتا ہے۔</li>
+              <li>یہ پرنٹر ایک وقت میں <b>ایک ہی کنکشن</b> چلاتے ہیں: اگر کوئی اور بلنگ ایپ ابھی پرنٹر استعمال کر رہی تھی تو Order Flow سے پرنٹ سے پہلے اسے بند کریں (ایپ خود ایک بار دوبارہ کوشش کر لیتی ہے)۔</li>
               <li><b>بل پروفائل:</b> دکان کا نام، پتہ، فون، ٹیکس ID، فوٹر، لوگو تصویر، پے QR — سب رسید پر پرنٹ ہوتا ہے۔</li>
               <li>کچن / کاؤنٹر / ٹیک اوے / ڈیلیوری کے لیے الگ سلپ ٹیمپلیٹس — جو دکھانا ہو منتخب کریں۔</li>
               <li>ہر پرنٹر اسکرین پر ٹیسٹ بٹن سے ٹیسٹ صفحہ نکلتا ہے۔ More → دوبارہ پرنٹ سے کوئی بھی ٹکٹ دوبارہ نکالیں۔</li>
