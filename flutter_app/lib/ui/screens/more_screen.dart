@@ -593,13 +593,13 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
             if (context.mounted) {
               final why = e.code == 'bt_permission'
                   ? s.t('bt_permission_retry')
-                  : '${s.t('print_fail')}: ${(e.message ?? '').take(140)}';
+                  : '${s.t('print_fail')}: ${_errCap(e.message ?? '')}';
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(why)));
             }
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('${s.t('print_fail')}: ${e.toString().take(140)}')));
+                  content: Text('${s.t('print_fail')}: ${_errCap(e.toString())}')));
             }
           }
         }
@@ -1480,3 +1480,6 @@ Future<void> _reservations(BuildContext context, WidgetRef ref) async {
     ),
   );
 }
+
+/// Toast-size error detail: printer complaints can be long.
+String _errCap(String s) => s.length <= 140 ? s : '${s.substring(0, 137)}…';
