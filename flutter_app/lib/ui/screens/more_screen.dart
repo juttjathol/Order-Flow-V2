@@ -386,25 +386,94 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                           const SizedBox(height: 8),
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(14),
                             color: Colors.white,
                             child: DefaultTextStyle(
-                              style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.35),
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 11,
+                                height: 1.4,
+                                fontFamily: 'monospace',
+                              ),
                               child: Column(
                                 children: [
-                                  _b64Thumb(p.logoBase64, h: 48),
-                                  Text(name.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                                  if (address.text.isNotEmpty) Text(address.text, textAlign: TextAlign.center),
-                                  if (phone.text.isNotEmpty) Text('Tel. ${phone.text}'),
-                                  const Text('* * * * * * * * * * * *'),
-                                  Text(p.counterSlip.heading.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800)),
-                                  const Text('* * * * * * * * * * * *'),
-                                  const Align(alignment: Alignment.centerLeft, child: Text('Items & prices come from the order')),
-                                  const Align(alignment: Alignment.centerLeft, child: Text('Date & time print when you print')),
-                                  const Text('* * * * * * * * * * * *'),
-                                  Text(footer.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800)),
-                                  _b64Thumb(p.payQrBase64, h: 72),
-                                  if (qrLabel.text.isNotEmpty) Text(qrLabel.text),
+                                  if ((p.logoBase64 ?? '').isNotEmpty)
+                                    _b64Thumb(p.logoBase64, h: 44),
+                                  Text(
+                                    name.text.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 15,
+                                        fontFamily: 'monospace'),
+                                  ),
+                                  if (address.text.isNotEmpty)
+                                    Text(address.text, textAlign: TextAlign.center),
+                                  if (phone.text.isNotEmpty)
+                                    Text('Tel. ${phone.text}', textAlign: TextAlign.center),
+                                  if (taxReg.text.trim().isNotEmpty)
+                                    Text('Reg. No: ${taxReg.text}', textAlign: TextAlign.center),
+                                  const Text('-------------------------------'),
+                                  Text(
+                                    p.counterSlip.heading.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'monospace'),
+                                  ),
+                                  const Text('-------------------------------'),
+                                  const Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text('Ticket #1002\n2026-01-01 00:00\nTable T1 · your items,\nqty and prices print here')),
+                                  const Text('-------------------------------'),
+                                  const Row(
+                                    children: [
+                                      Expanded(child: Text('Item')),
+                                      Text('Qty'),
+                                      SizedBox(width: 80, child: Text('Amount', textAlign: TextAlign.right)),
+                                    ],
+                                  ),
+                                  const Row(
+                                    children: [
+                                      Expanded(child: Text('2 Seekh Kebab')),
+                                      Text('2'),
+                                      SizedBox(width: 80, child: Text('1,300.00', textAlign: TextAlign.right)),
+                                    ],
+                                  ),
+                                  const Text('long names wrap below'),
+                                  const Text('themselves — never cut'),
+                                  const Text('-------------------------------'),
+                                  Row(
+                                    children: [
+                                      const Text('Total',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 14,
+                                              fontFamily: 'monospace')),
+                                      const Spacer(),
+                                      Text(p.currencySymbol.isEmpty
+                                          ? '1,448.00'
+                                          : p.currencyPrefix
+                                              ? '${p.currencySymbol}1,448.00'
+                                              : '1,448.00 ${p.currencySymbol}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 14,
+                                              fontFamily: 'monospace')),
+                                    ],
+                                  ),
+                                  const Text('-------------------------------'),
+                                  if (footer.text.trim().isNotEmpty)
+                                    Text(
+                                      footer.text.toUpperCase(),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontFamily: 'monospace'),
+                                    ),
+                                  _b64Thumb(p.payQrBase64, h: 64),
+                                  if (qrLabel.text.isNotEmpty)
+                                    Text(qrLabel.text, textAlign: TextAlign.center),
                                 ],
                               ),
                             ),
@@ -770,6 +839,29 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
                               },
                             );
                         }(),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    s.t('print_size'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                ),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final mm in const [0, 58, 76, 80, 100])
+                      ChoiceChip(
+                        label: Text(mm == 0 ? s.t('print_size_auto') : '$mm mm'),
+                        selected: ref.snap.session.localPaperMm == mm,
+                        onSelected: (_) => ref.ctrl.setLocalPaperMm(mm),
+                      ),
+                  ],
+                ),
+                Text(
+                  s.t('print_size_hint'),
+                  style: const TextStyle(color: OfColors.muted, fontSize: 11, height: 1.3),
                 ),
                 const SizedBox(height: 8),
                 Text(s.t('station_bt_note'), style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.35)),

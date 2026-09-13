@@ -166,6 +166,7 @@ class SessionPrefs {
     this.localBtAddress = '',
     this.localBtName = '',
     this.localBtTransport = 'auto',
+    this.localPaperMm = 0,
     this.localBtEnabled = false,
     this.localNetHost = '',
     this.localNetPort = kEscPosPort,
@@ -196,6 +197,8 @@ class SessionPrefs {
   String localBtName;
   /// 'auto' | 'spp' | 'ble' — how to reach the local BT printer (v1.1.68).
   String localBtTransport;
+  /// Paper width mm for this station's printer (0 = auto → 58). v1.1.69.
+  int localPaperMm;
   bool localBtEnabled;
   String localNetHost;
   int localNetPort;
@@ -228,6 +231,7 @@ class SessionPrefs {
         'localBtAddress': localBtAddress,
         'localBtName': localBtName,
         'localBtTransport': localBtTransport,
+        'localPaperMm': localPaperMm,
         'localBtEnabled': localBtEnabled,
         'localNetHost': localNetHost,
         'localNetPort': localNetPort,
@@ -257,6 +261,7 @@ class SessionPrefs {
       localBtAddress: parseStr(m['localBtAddress']) ?? '',
       localBtName: parseStr(m['localBtName']) ?? '',
       localBtTransport: parseStr(m['localBtTransport']) ?? 'auto',
+      localPaperMm: parseInt(m['localPaperMm'], 0),
       localBtEnabled: parseBool(m['localBtEnabled']),
       localNetHost: parseStr(m['localNetHost']) ?? '',
       localNetPort: parseInt(m['localNetPort'], kEscPosPort),

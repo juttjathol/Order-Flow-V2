@@ -330,7 +330,7 @@ class L10n {
     'inventory_cards': 'Inventory cards',
     'order_cards': 'Orders',
     'notify_ready': 'Kitchen marked an order ready',
-    'pay_and_close': 'Pay & close',
+    'pay_and_close': 'Pay & Print',
     'change_qty': 'Quantity',
     'line_notes': 'Item note',
     'walk_in': 'Walk-in',
@@ -694,6 +694,11 @@ class L10n {
     'bt_via_auto': 'Auto',
     'bt_via_classic': 'Classic',
     'bt_via_le': 'LE',
+
+    'print_size': 'Paper size',
+    'print_size_auto': 'Auto (58 mm)',
+    'print_size_hint': 'Auto prints the safe 58 mm layout (32 chars per line). Pick the printer’s real width for wide receipts — letters never stretch, lines just get longer.',
+    'prebill_print': 'Pre-bill',
 };
 
   static const _ur = {
@@ -1000,7 +1005,7 @@ class L10n {
     'need_internet_first': 'پہلی بار انٹرنیٹ چاہیے۔ بعد میں ۴۸ گھنٹے آف لائن چلے گا۔',
     'host_required': 'مین کا آئی پی لکھیں',
     'cannot_connect': 'مین نہیں ملا۔ ایک ہی وائی فائی؟ سرور چل رہا ہے؟',
-    'pay_and_close': 'ادائیگی اور بند',
+    'pay_and_close': 'ادائیگی اور پرنٹ',
     'walk_in': 'واک ان',
     'checkout': 'چیک آؤٹ',
     'sku_or_name': 'ایس کے یو یا نام',
@@ -1364,6 +1369,11 @@ class L10n {
     'bt_via_auto': 'خودکار',
     'bt_via_classic': 'کلاسیک',
     'bt_via_le': 'LE',
+
+    'print_size': 'کاغذ کی سائز',
+    'print_size_auto': 'خودکار (58 ملی میٹر)',
+    'print_size_hint': 'خودکار محفوظ 58 ملی میٹر فارمیٹ پرنٹ کرتا ہے (ہر لائن 32 حروف)۔ چوڑی رسید کے لیے پرنٹر کی اصل چوڑائی چنیں — حروف کھنچتے نہیں، بس لائنیں لمبی ہوتی ہیں۔',
+    'prebill_print': 'پری بل',
 };
 
   static const _table = {'en': _en, 'ur': _ur};

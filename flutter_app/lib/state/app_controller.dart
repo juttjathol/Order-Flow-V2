@@ -291,6 +291,7 @@ class AppController extends Notifier<AppSnapshot> {
         transport: 'lan',
         host: s.localNetHost.trim(),
         port: s.localNetPort,
+        paperMm: s.localPaperMm,
       );
     }
     if (s.hasLocalBtPrinter) {
@@ -300,6 +301,7 @@ class AppController extends Notifier<AppSnapshot> {
         transport: 'bluetooth',
         btAddress: s.localBtAddress.trim(),
         btTransport: s.localBtTransport,
+        paperMm: s.localPaperMm,
         btName: s.localBtName.trim(),
       );
     }
@@ -316,6 +318,11 @@ class AppController extends Notifier<AppSnapshot> {
     bool enabled = true,
     String transport = 'auto',
   }) async {
+    final prev = state.session.localBtAddress.trim();
+    if (prev.isNotEmpty && prev != address.trim()) {
+      // New printer chosen → hand the old one back to the world.
+      await printer.bluetooth.forget(prev);
+    }
     state.session.localBtAddress = address.trim();
     state.session.localBtName = name.trim();
     state.session.localBtTransport =
@@ -338,12 +345,26 @@ class AppController extends Notifier<AppSnapshot> {
     state.session.localNetEnabled = enabled && host.trim().isNotEmpty;
     if (state.session.localNetEnabled) {
       state.session.localBtEnabled = false;
+      // Switching to LAN: release the held BT link so the printer is
+      // instantly free for the next device/app.
+      final heldBt = state.session.localBtAddress.trim();
+      if (heldBt.isNotEmpty) await printer.bluetooth.forget(heldBt);
     }
     _emit(state.copyWith(session: state.session));
     await persist();
   }
 
+  /// v1.1.69 — paper width for this station's printer (0 = auto → 58mm).
+  Future<void> setLocalPaperMm(int mm) async {
+    state.session.localPaperMm =
+        const {0, 58, 72, 76, 80, 100}.contains(mm) ? mm : 0;
+    _emit(state.copyWith(session: state.session));
+    await persist();
+  }
+
   Future<void> clearLocalBluetoothPrinter() async {
+    final heldBt = state.session.localBtAddress.trim();
+    if (heldBt.isNotEmpty) await printer.bluetooth.forget(heldBt);
     state.session.localBtAddress = '';
     state.session.localBtName = '';
     state.session.localBtEnabled = false;
@@ -916,6 +937,38 @@ class AppController extends Notifier<AppSnapshot> {
     }
     if (order == null) throw Exception('no_receipt');
     await printer.receipt(state.store, order, role: state.session.role, prefer: deviceLocalPrinter());
+  }
+
+  /// v1.1.69 — one routing rule for every print button in the app:
+  /// a printer pinned to THIS device wins over shop-level role targets.
+  /// (Pay, order-screen buttons and the order lists all go through these.)
+  Future<void> printCustomerReceipt(PosOrder order) {
+    return printer.receipt(
+      state.store,
+      order,
+      role: state.session.role,
+      prefer: deviceLocalPrinter(),
+    );
+  }
+
+  /// Pre-bill: the running bill on paper before payment, marked NOT PAID.
+  Future<void> printPreBill(PosOrder order) {
+    return printer.receipt(
+      state.store,
+      order,
+      role: state.session.role,
+      prefer: deviceLocalPrinter(),
+      preBill: true,
+    );
+  }
+
+  Future<void> printKitchenTicket(PosOrder order) {
+    return printer.kitchenTicket(
+      state.store,
+      order,
+      role: state.session.role,
+      prefer: deviceLocalPrinter(),
+    );
   }
 
   Future<String?> connectToMain(

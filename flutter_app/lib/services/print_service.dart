@@ -21,6 +21,16 @@ class PrintService {
   static bool isConfigError(Object e) =>
       e.toString().contains('Printer is not configured');
 
+  /// Printable dots per paper width (203 dpi). Auto (0) = 58 mm: the
+  /// narrowest paper any of these printers carries, so nothing ever clips.
+  /// Bigger widths only make lines longer — the font stays its native size.
+  static int dotsForMm(int mm) => switch (mm) {
+        72 || 76 => 512,
+        80 => 576,
+        100 => 720,
+        _ => 384,
+      };
+
   Future<void> send(PrinterConfig cfg, List<int> bytes) async {
     if (!cfg.enabled) throw Exception('Printer is not configured');
     if (cfg.isBluetooth) {
@@ -108,8 +118,14 @@ class PrintService {
     AppRole? role,
     PrinterConfig? prefer,
   }) async {
-    final bytes = await _build(store, order, kitchen: true);
-    await send(prefer ?? store.printerForRole(role) ?? store.kitchenTarget(), bytes);
+    final cfg = prefer ?? store.printerForRole(role) ?? store.kitchenTarget();
+    final bytes = await _build(
+      store,
+      order,
+      kitchen: true,
+      dots: dotsForMm(cfg.paperMm),
+    );
+    await send(cfg, bytes);
   }
 
   Future<void> receipt(
@@ -117,44 +133,67 @@ class PrintService {
     PosOrder order, {
     AppRole? role,
     PrinterConfig? prefer,
+    bool preBill = false,
   }) async {
-    final bytes = await _build(store, order, kitchen: false);
-    await send(prefer ?? store.receiptTarget(role), bytes);
+    final cfg = prefer ?? store.receiptTarget(role);
+    final bytes = await _build(
+      store,
+      order,
+      kitchen: false,
+      preBill: preBill,
+      dots: dotsForMm(cfg.paperMm),
+    );
+    await send(cfg, bytes);
   }
 
-  Future<List<int>> _build(AppStore store, PosOrder order, {required bool kitchen}) async {
+  Future<List<int>> _build(
+    AppStore store,
+    PosOrder order, {
+    required bool kitchen,
+    bool preBill = false,
+    int dots = 384,
+  }) async {
     final p = store.profile;
     final slip = p.slipFor(order, kitchen: kitchen);
     final cur = p.currencySymbol;
     final prefix = p.currencyPrefix;
     String m(num n) => money(n, cur, prefix: prefix);
     final now = DateTime.now();
-    final b = EscPos()..init();
+    final chars = dots ~/ 12;
+    final b = EscPos(chars)..init();
 
     Future<void> line(String value, {String align = 'left', bool big = false}) =>
         _line(b, value, align: align, big: big);
+    void rule() => b.text('-' * (chars - 1));
 
+    // v1.1.69 — Focus-Point-style layout: dashed rules, everything wraps
+    // (no mid-word truncation), the total is huge, the footer is centred.
     b.align('center');
-    if (slip.showLogo) _raster(b, p.logoBase64);
-    await line(p.businessName.toUpperCase(), big: true);
+    if (slip.showLogo) _raster(b, p.logoBase64, dots);
+    await line(p.businessName.toUpperCase(), align: 'center', big: true);
     if (slip.showAddress && p.address.isNotEmpty) await line(p.address, align: 'center');
     if (slip.showPhone && p.phone.isNotEmpty) await line('Tel. ${p.phone}', align: 'center');
     if (p.taxId.isNotEmpty && !kitchen) await line('Tax ID: ${p.taxId}', align: 'center');
-    // v1.1.59 — tax invoice / e-invoice style header (off unless set).
     if (p.taxRegNo.isNotEmpty && !kitchen) await line('Reg. No: ${p.taxRegNo}', align: 'center');
-    final heading = (!kitchen && p.invoiceLabel.trim().isNotEmpty)
-        ? p.invoiceLabel.trim().toUpperCase()
-        : slip.heading.toUpperCase();
-    await line('* * * * * * * * * * * * * * * *', align: 'center');
-    await line(heading, align: 'center');
-    await line('* * * * * * * * * * * * * * * *', align: 'center');
-    await line('Ticket ${order.ticketNo}');
-    await line(_fmt(now));
+    final heading = preBill
+        ? 'PRE-BILL'
+        : (!kitchen && p.invoiceLabel.trim().isNotEmpty)
+            ? p.invoiceLabel.trim().toUpperCase()
+            : slip.heading.toUpperCase();
+    rule();
+    await line(heading, align: 'center', big: kitchen);
+    rule();
+
+    // Ticket / table / order type — the kitchen reads these across a room.
+    await line('Ticket #${order.ticketNo}', big: kitchen);
+    await line(_fmt(now), big: kitchen);
     if (order.tableName?.isNotEmpty == true) {
-      // QR self-orders are served by table — make it unmissable (v1.1.60).
-      await line(order.isQr ? '>>> QR TABLE ${order.tableName} <<<' : 'Table ${order.tableName}');
+      await line(
+        order.isQr ? '>>> QR TABLE ${order.tableName} <<<' : 'Table ${order.tableName}',
+        big: kitchen,
+      );
     } else {
-      await line(order.type.name.toUpperCase());
+      await line(order.type.name.toUpperCase(), big: kitchen);
     }
     if (slip.showCustomer) {
       if (order.customerName.isNotEmpty) await line(order.customerName);
@@ -164,49 +203,76 @@ class PrintService {
       }
     }
     if (order.createdBy.isNotEmpty && kitchen) await line('Station: ${order.createdBy}');
-    await line('* * * * * * * * * * * * * * * *');
-    if (slip.showPrices) {
-      await _row(b, 'Description', 'Price');
-    }
+    rule();
+
     final lines = [...order.lines]..sort((a, c) => a.course.compareTo(c.course));
-    String? last;
-    for (final entry in lines) {
-      if (kitchen && last != entry.course) {
-        last = entry.course;
-        await line('-- ${entry.course.toUpperCase()} --');
+    if (slip.showPrices) {
+      // ITEM | QTY | AMOUNT columns, like a proper invoice.
+      var amtW = 10;
+      for (final e in lines) {
+        final l = m(e.lineTotal).length + 1;
+        if (l > amtW) amtW = l;
       }
-      final qty = entry.qty.toStringAsFixed(entry.qty % 1 == 0 ? 0 : 1);
-      if (slip.showPrices) {
-        await _row(b, '$qty ${entry.name}', m(entry.lineTotal));
-      } else {
+      if (amtW > 14) amtW = 14;
+      const qtyW = 4;
+      final nameW = (chars - amtW - qtyW).clamp(8, 512);
+      await _columns(b, ['Item', 'Qty', ''], nameW: nameW, qtyW: qtyW, amtW: amtW);
+      String? last;
+      for (final entry in lines) {
+        if (kitchen && last != entry.course) {
+          last = entry.course;
+          await line('-- ${entry.course.toUpperCase()} --');
+        }
+        final qty = entry.qty.toStringAsFixed(entry.qty % 1 == 0 ? 0 : 1);
+        final nameLines = wrapLines(entry.name, nameW);
+        for (var i = 0; i < nameLines.length; i++) {
+          await _columns(b, [
+            i == 0 ? nameLines[i] : '',
+            i == 0 ? qty : '',
+            i == 0 ? m(entry.lineTotal) : '',
+          ], nameW: nameW, qtyW: qtyW, amtW: amtW);
+          if (entry.notes.isNotEmpty) await line('  * ${entry.notes}');
+        }
+      }
+    } else {
+      String? last;
+      for (final entry in lines) {
+        if (kitchen && last != entry.course) {
+          last = entry.course;
+          await line('-- ${entry.course.toUpperCase()} --');
+        }
+        final qty = entry.qty.toStringAsFixed(entry.qty % 1 == 0 ? 0 : 1);
         await line('$qty x ${entry.name}');
+        if (entry.notes.isNotEmpty) await line('  * ${entry.notes}');
       }
-      if (entry.notes.isNotEmpty) await line('  * ${entry.notes}');
     }
     if (order.notes.isNotEmpty) {
-      await line('* * * * * * * * * * * * * * * *');
+      rule();
       await line('NOTE: ${order.notes}');
     }
     if (slip.showTotals) {
-      await line('* * * * * * * * * * * * * * * *');
+      rule();
       await _row(b, 'Total', m(order.total), big: true);
       if (order.discount > 0) await _row(b, 'Discount', '- ${m(order.discount)}');
       if (order.service > 0) await _row(b, 'Service', m(order.service));
       if (order.tax > 0) await _row(b, 'Tax', m(order.tax));
       if (order.tip > 0) await _row(b, 'Tip', m(order.tip));
     }
-    if (slip.showPayment && order.payment != null) {
+    if (!preBill && slip.showPayment && order.payment != null) {
       if (order.splitPayment != null && order.splitAmount > 0) {
-        await _row(b, order.payment!.name, m(order.primaryAmount));
-        await _row(b, order.splitPayment!.name, m(order.splitAmount));
+        await _row(b, 'PAID BY ${order.payment!.name.toUpperCase()}', m(order.primaryAmount));
+        await _row(b, order.splitPayment!.name.toUpperCase(), m(order.splitAmount));
       } else {
-        await _row(b, order.payment!.name, m(order.total));
+        await _row(b, 'PAID BY ${order.payment!.name.toUpperCase()}', m(order.total));
       }
     }
-    await line('* * * * * * * * * * * * * * * *');
+    if (preBill) {
+      await line('NOT PAID YET', align: 'center');
+    }
+    rule();
     if (p.footer.isNotEmpty) await line(p.footer.toUpperCase(), align: 'center');
     if (slip.showQr) {
-      _raster(b, p.payQrBase64);
+      _raster(b, p.payQrBase64, dots);
       if (p.payQrLabel.trim().isNotEmpty) await line(p.payQrLabel.trim(), align: 'center');
     }
     b
@@ -216,17 +282,20 @@ class PrintService {
   }
 
   /// One slip line. Pure-Latin1 text goes out as native ESC/POS bytes (fast,
-  /// crisp, uses the printer's own font). Anything beyond Latin1 — Urdu /
-  /// Arabic / emoji, which no code page on a 58/80mm printer can render — is
-  /// shaped by Flutter's text engine (full bidi + Arabic ligatures) and sent
-  /// as a raster line, so it prints exactly as it looks on screen.
+  /// crisp, uses the printer's own font, wrapped at the paper width).
+  /// Anything beyond Latin1 — Urdu / Arabic / emoji, which no code page on a
+  /// 58/80mm printer can render — is shaped by Flutter's text engine (full
+  /// bidi + Arabic ligatures) and sent as a raster line, so it prints
+  /// exactly as it looks on screen.
   Future<void> _line(EscPos b, String value, {String align = 'left', bool big = false}) async {
     final native = _isLatin1(value);
     if (native) {
-      b
-        ..align(align)
-        ..doubleSize(big)
-        ..text(value);
+      b.align(align);
+      if (big) b.doubleSize(true);
+      for (final l in wrapLines(value, big ? (b.chars ~/ 2).clamp(8, 512) : b.chars)) {
+        b.text(l);
+      }
+      if (big) b.doubleSize(false);
       return;
     }
     try {
@@ -236,7 +305,8 @@ class PrintService {
       b
         ..align(align)
         ..doubleSize(big)
-        ..text(value);
+        ..text(value)
+        ..doubleSize(false);
     }
   }
 
@@ -244,10 +314,12 @@ class PrintService {
   /// needs shaping, so RTL names and Latin amounts stay on one visual line.
   Future<void> _row(EscPos b, String left, String right, {bool big = false}) async {
     if (_isLatin1(left) && _isLatin1(right)) {
-      b
-        ..align('left')
-        ..doubleSize(big)
-        ..row(left, right);
+      b.align('left');
+      if (big) b.doubleSize(true);
+      for (final l in b.rowLines(left, right, big: big)) {
+        b.text(l);
+      }
+      if (big) b.doubleSize(false);
       return;
     }
     try {
@@ -256,8 +328,18 @@ class PrintService {
       b
         ..align('left')
         ..doubleSize(big)
-        ..row(left, right);
+        ..row(left, right)
+        ..doubleSize(false);
     }
+  }
+
+  Future<void> _columns(EscPos b, List<String> cols, {int nameW = 0, int qtyW = 4, int amtW = 10}) async {
+    // Pure ASCII layout — never needs shaping.
+    final n = nameW > 0 ? nameW : b.chars - qtyW - amtW;
+    final line = cols[0].padRight(n > 0 ? n : 0);
+    final q = cols.length > 1 ? cols[1] : '';
+    final a = cols.length > 2 ? cols[2] : '';
+    b.text('$line${q.padLeft(qtyW)}${a.padLeft(amtW)}');
   }
 
   static bool _isLatin1(String v) {
@@ -267,7 +349,33 @@ class PrintService {
     return true;
   }
 
-  static const _rasterW = 384; // 58mm @ 203dpi; 80mm printers centre it.
+  /// Word-wrap at [width] chars (hard-splits words longer than a line).
+  static List<String> wrapLines(String v, int width) {
+    if (width < 8) width = 8;
+    final out = <String>[];
+    for (final raw in v.split('\n')) {
+      var cur = '';
+      for (var w in raw.split(' ')) {
+        while (w.length > width) {
+          if (cur.isNotEmpty) {
+            out.add(cur);
+            cur = '';
+          }
+          out.add(w.substring(0, width));
+          w = w.substring(width);
+        }
+        final add = cur.isEmpty ? w : '$cur $w';
+        if (add.length > width) {
+          if (cur.isNotEmpty) out.add(cur);
+          cur = w;
+        } else {
+          cur = add;
+        }
+      }
+      if (cur.isNotEmpty) out.add(cur);
+    }
+    return out.isEmpty ? const [''] : out;
+  }
 
   TextStyle _slipStyle({required bool big, ui.Color color = const ui.Color(0xFF000000)}) {
     return TextStyle(
@@ -279,16 +387,17 @@ class PrintService {
   }
 
   Future<void> _rasterText(EscPos b, String value, {required String align, required bool big}) async {
+    final dots = b.dots;
     final tp = TextPainter(
       text: TextSpan(text: value, style: _slipStyle(big: big)),
       textDirection: ui.TextDirection.ltr,
-    )..layout(maxWidth: _rasterW.toDouble());
+    )..layout(maxWidth: dots.toDouble());
     final h = (tp.height.ceil() ~/ 2 * 2).clamp(12, 8000);
     final rec = ui.PictureRecorder();
     final canvas = ui.Canvas(rec);
     final double dx = switch (align) {
-      'center' => ((_rasterW.toDouble() - tp.width) / 2).clamp(0.0, _rasterW.toDouble()).toDouble(),
-      'right' => _rasterW.toDouble() - tp.width,
+      'center' => ((dots.toDouble() - tp.width) / 2).clamp(0.0, dots.toDouble()).toDouble(),
+      'right' => dots.toDouble() - tp.width,
       _ => 0.0,
     };
     tp.paint(canvas, ui.Offset(dx, 0));
@@ -296,23 +405,24 @@ class PrintService {
   }
 
   Future<void> _rasterRow(EscPos b, String left, String right, {required bool big}) async {
+    final dots = b.dots;
     final ls = _slipStyle(big: big);
     final rw = TextPainter(
       text: TextSpan(text: right, style: ls),
       textDirection: ui.TextDirection.ltr,
     )..layout();
-    final leftRoom = _rasterW.toDouble() - rw.width - 8;
+    final leftRoom = dots.toDouble() - rw.width - 8;
     final wraps = leftRoom < 64;
     final lp = TextPainter(
       text: TextSpan(text: left, style: ls),
       textDirection: ui.TextDirection.ltr,
       maxLines: wraps ? null : 1,
       ellipsis: wraps ? null : '…',
-    )..layout(maxWidth: wraps ? _rasterW.toDouble() : leftRoom);
+    )..layout(maxWidth: wraps ? dots.toDouble() : leftRoom);
     final rec = ui.PictureRecorder();
     final canvas = ui.Canvas(rec);
     lp.paint(canvas, ui.Offset.zero);
-    rw.paint(canvas, ui.Offset(_rasterW.toDouble() - rw.width, 0));
+    rw.paint(canvas, ui.Offset(dots.toDouble() - rw.width, 0));
     final singleH = lp.height > rw.height ? lp.height : rw.height;
     final totalH = wraps ? lp.height : singleH;
     final h = totalH.ceil().clamp(24, 8000);
@@ -320,18 +430,19 @@ class PrintService {
   }
 
   Future<void> _emitPicture(EscPos b, ui.PictureRecorder rec, int height) async {
+    final dots = b.dots;
     final pic = rec.endRecording();
-    final image = await pic.toImage(_rasterW, height);
+    final image = await pic.toImage(dots, height);
     final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     image.dispose();
     if (data == null) throw StateError('raster encode failed');
-    final widthBytes = _rasterW ~/ 8;
+    final widthBytes = dots ~/ 8;
     final out = <int>[];
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < widthBytes; x++) {
         var byte = 0;
         for (var bit = 0; bit < 8; bit++) {
-          final i = ((y * _rasterW) + (x * 8 + bit)) * 4;
+          final i = ((y * dots) + (x * 8 + bit)) * 4;
           final a = data.lengthInBytes > i + 3 ? data.getUint8(i + 3) : 0;
           if (a > 96) byte |= 128 >> bit; // painted ink on transparent bg
         }
@@ -345,7 +456,7 @@ class PrintService {
   }
 
   Future<void> test(PrinterConfig cfg, String shop) async {
-    final b = EscPos()
+    final b = EscPos(32)
       ..init()
       ..align('center')
       ..text('ORDER FLOW')
@@ -356,36 +467,61 @@ class PrintService {
     await send(cfg, b.bytes);
   }
 
-  void _raster(EscPos b, String? raw) {
+  /// Logos & pay QRs, v1.1.69: transparent PNGs used to print as a solid
+  /// black slab because alpha was ignored (a clear pixel reads as "black").
+  /// Now every pixel is composited onto white paper first, the contrast
+  /// threshold adapts to the actual image, and a mostly-dark logo (white
+  /// artwork on transparent) is auto-inverted so it prints as ink — whatever
+  /// format the shop uploaded, it comes out as it looks.
+  void _raster(EscPos b, String? raw, int dots) {
     if (raw == null || raw.trim().isEmpty) return;
     try {
       final data = base64Decode(raw.contains(',') ? raw.split(',').last : raw);
       final decoded = img.decodeImage(data);
       if (decoded == null) return;
-      var im = img.grayscale(decoded);
-      const maxW = 384;
-      if (im.width > maxW) {
-        im = img.copyResize(im, width: maxW);
-      }
-      final w = (im.width + 7) ~/ 8 * 8;
+      var im = decoded;
+      if (im.width > dots) im = img.copyResize(im, width: dots);
+      final w = im.width;
       final h = im.height;
+      final vals = List<int>.filled(w * h, 255);
+      var mn = 255;
+      var mx = 0;
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          final p = im.getPixel(x, y);
+          final af = p.a / 255.0;
+          final lum = 0.299 * p.r + 0.587 * p.g + 0.114 * p.b;
+          final v = (lum * af + 255.0 * (1 - af)).round().clamp(0, 255);
+          vals[y * w + x] = v;
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
+      }
+      var t = ((mn + mx) ~/ 2).clamp(24, 232);
+      if (mx - mn < 24) t = 128; // flat image: just pick a mid threshold
+      var dark = 0;
+      for (final v in vals) {
+        if (v <= t) dark++;
+      }
+      // Majority dark artwork (white-on-transparent logos included) → invert
+      // so the marks print and the background stays paper.
+      final invert = dark > (w * h * 3) ~/ 5;
+      final off = ((dots - w) ~/ 2).clamp(0, dots);
+      final widthBytes = dots ~/ 8;
       final out = <int>[];
       for (var y = 0; y < h; y++) {
-        for (var x = 0; x < w; x += 8) {
+        for (var bx = 0; bx < widthBytes; bx++) {
           var byte = 0;
           for (var bit = 0; bit < 8; bit++) {
-            final xx = x + bit;
-            var dark = false;
-            if (xx < im.width) {
-              final p = im.getPixel(xx, y);
-              dark = img.getLuminance(p) < 160;
-            }
-            if (dark) byte |= 128 >> bit;
+            final xx = bx * 8 + bit - off;
+            if (xx < 0 || xx >= w) continue;
+            var v = vals[y * w + xx];
+            if (invert) v = 255 - v;
+            if (v <= t) byte |= 128 >> bit;
           }
           out.add(byte);
         }
       }
-      final widthBytes = w ~/ 8;
       b.raw([0x1D, 0x76, 0x30, 0x00, widthBytes & 0xFF, (widthBytes >> 8) & 0xFF, h & 0xFF, (h >> 8) & 0xFF]);
       b.raw(out);
       b.raw(const [0x0A]);
@@ -399,6 +535,12 @@ class PrintService {
 }
 
 class EscPos {
+  EscPos(this.chars);
+
+  /// Characters per line for the native font (12 dots wide at 203dpi).
+  final int chars;
+  int get dots => chars * 12;
+
   final bytes = <int>[];
 
   void raw(List<int> data) => bytes.addAll(data);
@@ -425,18 +567,34 @@ class EscPos {
     raw(const [0x0A]);
   }
 
-  void stars() => text('* * * * * * * * * * * * * * * *');
+  void stars() => text('-' * (chars - 1));
 
   void rule() => stars();
 
   void row(String left, String right) {
-    const width = 32;
-    var l = left;
-    var r = right;
-    if (l.length + r.length + 1 > width) {
-      l = l.substring(0, (width - r.length - 1).clamp(0, l.length));
+    for (final l in rowLines(left, right)) {
+      text(l);
     }
-    final gap = (width - l.length - r.length).clamp(1, width);
-    text('$l${' ' * gap}$r');
+  }
+
+  /// Two-column line wrapped at the paper width: the value hugs the right
+  /// margin on the first line, the label continues below — nothing is ever
+  /// cut mid-word again.
+  List<String> rowLines(String left, String right, {bool big = false}) {
+    final w = big ? (chars ~/ 2).clamp(8, 512) : chars;
+    var l = left.trimRight();
+    final r = right.trim();
+    if (r.isEmpty) return PrintService.wrapLines(l, w);
+    if (l.isEmpty) return [r.padLeft(w)];
+    if (l.length + r.length + 1 <= w) {
+      final gap = w - l.length - r.length;
+      return ['$l${' ' * gap}$r'];
+    }
+    final firstW = (w - r.length - 1).clamp(8, w);
+    final firstTail = l.length > firstW ? l.substring(firstW).trimLeft() : '';
+    final head = l.length > firstW ? l.substring(0, firstW).trimRight() : l;
+    final lines = ['$head${' ' * (w - head.length - r.length).clamp(1, w)}$r'];
+    if (firstTail.isNotEmpty) lines.addAll(PrintService.wrapLines(firstTail, w));
+    return lines;
   }
 }

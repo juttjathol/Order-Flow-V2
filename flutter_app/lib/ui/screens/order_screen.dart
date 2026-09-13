@@ -1014,9 +1014,40 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                 if (method == PaymentMethod.cash) ...cashPadFor(primaryDue),
                 if (splitOn && splitValid && splitMethod == PaymentMethod.cash && method != PaymentMethod.cash) ...cashPadFor(splitAmt),
                 const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: canConfirm ? () => Navigator.pop(ctx, true) : null,
-                  child: Text(s.t('pay_and_close')),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        // v1.1.69 — pre-bill: hand the guest the running
+                        // total before payment; the sheet stays open.
+                        onPressed: () async {
+                          try {
+                            await ref.ctrl.printPreBill(order);
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text(s.t('print_ok'))),
+                              );
+                            }
+                          } catch (e) {
+                            if (ctx.mounted && !PrintService.isConfigError(e)) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text(s.t('print_fail'))),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.print_outlined),
+                        label: Text(s.t('prebill_print')),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: canConfirm ? () => Navigator.pop(ctx, true) : null,
+                        child: Text(s.t('pay_and_close')),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1066,7 +1097,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
       ref.ctrl.rememberReceipt(order.id);
       try {
-        await ref.ctrl.printer.receipt(ref.read(appControllerProvider).store, order, role: ref.snap.session.role);
+        await ref.ctrl.printCustomerReceipt(order);
       } catch (e) {
         // Silent when no printer is configured — but a *failed* print of a
         // paid receipt must never pass unnoticed at the counter.
@@ -1202,7 +1233,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<void> _printKitchen(PosOrder order) async {
     final s = ref.s;
     try {
-      await ref.ctrl.printer.kitchenTicket(ref.snap.store, order, role: ref.snap.session.role);
+      await ref.ctrl.printKitchenTicket(order);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
@@ -1212,7 +1243,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<void> _printReceipt(PosOrder order) async {
     final s = ref.s;
     try {
-      await ref.ctrl.printer.receipt(ref.snap.store, order, role: ref.snap.session.role);
+      await ref.ctrl.printCustomerReceipt(order);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));

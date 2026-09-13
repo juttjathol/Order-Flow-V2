@@ -417,6 +417,7 @@ class PrinterConfig {
     this.btAddress = '',
     this.btName = '',
     this.btTransport = 'auto',
+    this.paperMm = 0,
     this.drawer = false,
   }) : id = id ?? newId();
 
@@ -431,6 +432,8 @@ class PrinterConfig {
   String btName;
   /// v1.1.68: 'auto' | 'spp' (Bluetooth Classic) | 'ble' (GATT).
   String btTransport;
+  /// Paper width in mm (0 = auto → 58). v1.1.69: 58/76/80/100 supported.
+  int paperMm;
   /// Cash drawer attached to this printer's kick port (RJ11).
   bool drawer;
 
@@ -454,6 +457,7 @@ class PrinterConfig {
         btAddress: btAddress,
         btName: btName,
         btTransport: btTransport,
+        paperMm: paperMm,
         drawer: drawer,
       );
 
@@ -467,6 +471,7 @@ class PrinterConfig {
         'btAddress': btAddress,
         'btName': btName,
         'btTransport': btTransport,
+        'paperMm': paperMm,
         'drawer': drawer,
       };
 
@@ -482,6 +487,7 @@ class PrinterConfig {
       btAddress: parseStr(m['btAddress']) ?? '',
       btName: parseStr(m['btName']) ?? '',
       btTransport: parseStr(m['btTransport']) ?? 'auto',
+      paperMm: parseInt(m['paperMm'], 0),
       drawer: parseBool(m['drawer']),
     );
   }

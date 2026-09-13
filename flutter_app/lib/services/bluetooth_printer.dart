@@ -51,6 +51,14 @@ class BluetoothPrinter {
         .toList();
   }
 
+  /// Release the native held RFCOMM link (printer switch / un-set) so the
+  /// printer is instantly free for the next app or device.
+  Future<void> forget(String address) async {
+    try {
+      await _ch.invokeMethod('forget', {'address': address});
+    } catch (_) {}
+  }
+
   /// [transport]: 'auto' tries Bluetooth Classic (SPP) first, then BLE
   /// GATT; 'spp'/'ble' pin one. Errors carry the real reason.
   Future<void> printBytes(String address, List<int> bytes,

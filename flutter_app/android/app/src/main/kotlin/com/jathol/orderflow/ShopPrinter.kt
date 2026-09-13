@@ -65,6 +65,15 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
     @Volatile
     private var chunkLatch: CountDownLatch? = null
 
+    // v1.1.69 — hold the RFCOMM link open between jobs, like a real POS
+    // does. Clone printers serve exactly one connection and take seconds
+    // to release a dropped one: per-job connect/close made every second
+    // print (and the sheet's Test button) fail with "could not reach".
+    private val connLock = Any()
+    private var heldSocket: BluetoothSocket? = null
+    private var heldAddr = ""
+
+
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "bonded" -> {
@@ -78,6 +87,20 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
                 }
             }
             "ble_scan" -> bleScan(result)
+            "forget" -> {
+                // Release the printer so OTHER apps can reach it again
+                // (we are the current owner while the link is held).
+                val address = call.argument<String>("address") ?: ""
+                Thread {
+                    synchronized(connLock) {
+                        if (heldSocket != null && (address.isEmpty() || heldAddr == address)) {
+                            try { heldSocket?.close() } catch (_: Exception) {}
+                            heldSocket = null
+                        }
+                    }
+                    activity.runOnUiThread { result.success(true) }
+                }.start()
+            }
             "print" -> {
                 if (!ensureConnectPermission(result)) return
                 val address = call.argument<String>("address") ?: ""
@@ -94,8 +117,11 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
                         if (!ad.isEnabled) throw IllegalStateException("Bluetooth is off")
                         val device = ad.getRemoteDevice(address)
                         var ok = false
-                        if (transport != "ble") ok = writeSpp(device, bytes, notes)
-                        if (!ok && transport != "spp") ok = writeBle(device, bytes, notes)
+                        synchronized(connLock) {
+                            if (transport != "ble") ok = tryHeld(device, address, bytes, notes) ||
+                                writeSpp(device, bytes, notes)
+                            if (!ok && transport != "spp") ok = writeBle(device, bytes, notes)
+                        }
                         if (!ok) {
                             val why = notes.toString().ifEmpty { "printer refused every attempt" }
                             throw IllegalStateException(why.trim().take(300))
@@ -145,6 +171,36 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
                 "address" to (d.address ?: ""),
                 "type" to d.type.toString(),
             )
+        }
+    }
+
+    // ── Held-connection fast path ──────────────────────────────────────
+
+    private fun tryHeld(
+        device: BluetoothDevice,
+        address: String,
+        bytes: ByteArray,
+        notes: StringBuilder,
+    ): Boolean {
+        val hs = heldSocket ?: return false
+        if (heldAddr != address ||
+            !hs.isConnected ||
+            device.bondState != BluetoothDevice.BOND_BONDED
+        ) {
+            try { hs.close() } catch (_: Exception) {}
+            heldSocket = null
+            return false
+        }
+        return try {
+            drain(hs, bytes)
+            true
+        } catch (e: Exception) {
+            // The printer (or another app) dropped our link since the last
+            // job — release it and let the full ladder reconnect.
+            notes.append("stale link (" + e.javaClass.simpleName + "); ")
+            try { hs.close() } catch (_: Exception) {}
+            heldSocket = null
+            false
         }
     }
 
@@ -198,6 +254,8 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
             else device.createRfcommSocketToServiceRecord(uuid)
             socket.connect()
             drain(socket, bytes)
+            heldSocket = socket
+            heldAddr = device.address
             true
         } catch (e: Exception) {
             notes.append("${if (insecure) "insec" else "sec"} ${shortUuid(uuid)} ${simpleReason(e)}; ")
@@ -220,6 +278,8 @@ class ShopPrinter(private val activity: FlutterActivity) : MethodChannel.MethodC
             socket = m.invoke(device, channel) as BluetoothSocket
             socket.connect()
             drain(socket, bytes)
+            heldSocket = socket
+            heldAddr = device.address
             true
         } catch (e: Exception) {
             notes.append("raw$channel ${simpleReason(e)}; ")

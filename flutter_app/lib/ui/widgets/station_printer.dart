@@ -323,6 +323,29 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                             ),
                 ),
                 const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    s.t('print_size'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                ),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final mm in const [0, 58, 76, 80, 100])
+                      ChoiceChip(
+                        label: Text(mm == 0 ? s.t('print_size_auto') : '$mm mm'),
+                        selected: ref.snap.session.localPaperMm == mm,
+                        onSelected: (_) => ref.ctrl.setLocalPaperMm(mm),
+                      ),
+                  ],
+                ),
+                Text(
+                  s.t('print_size_hint'),
+                  style: const TextStyle(color: OfColors.muted, fontSize: 11, height: 1.3),
+                ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     TextButton.icon(
