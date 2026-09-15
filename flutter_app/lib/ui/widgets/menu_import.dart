@@ -345,6 +345,7 @@ class _MenuReviewSheetState extends ConsumerState<_MenuReviewSheet> {
     }
 
     setState(() => importing = true);
+    var n = 0;
     try {
     final store = ref.read(appControllerProvider).store;
     final s = L10n(ref.read(appControllerProvider).session.locale);
@@ -365,7 +366,6 @@ class _MenuReviewSheetState extends ConsumerState<_MenuReviewSheet> {
     }
 
     final existingNames = store.products.map((p) => p.name.trim().toLowerCase()).toSet();
-    var n = 0;
     for (final d in chosen) {
       final name = d.nameCtl.text.trim();
       if (existingNames.contains(name.toLowerCase())) continue;
@@ -382,12 +382,14 @@ class _MenuReviewSheetState extends ConsumerState<_MenuReviewSheet> {
       existingNames.add(name.toLowerCase());
       n++;
     }
+    if (n == 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('menu_scan_all_exist'))));
+    }
     } catch (e) {
       if (mounted) setState(() => importing = false);
       rethrow;
     }
     if (!mounted) return;
-    if (n == 0) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('menu_scan_all_exist'))));
     Navigator.pop(context, n);
   }
 
