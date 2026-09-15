@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -172,7 +173,10 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           if (snap.isMain)
-            _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
+            _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp())
+                .animate()
+                .fadeIn(duration: 260.ms)
+                .slideY(begin: 0.04, end: 0, duration: 300.ms, curve: Curves.easeOutCubic),
           if (snap.isMain || snap.isManager) ...[
             const SizedBox(height: 16),
             Row(
@@ -208,6 +212,7 @@ class HomeScreen extends ConsumerWidget {
           ],
           const SizedBox(height: 22),
           GridView.count(
+            padding: EdgeInsets.zero,
             crossAxisCount: wide ? 4 : 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -260,7 +265,9 @@ class HomeScreen extends ConsumerWidget {
                         ),
                     ],
                   ),
-                ),
+                ).animate(delay: (i * 70).ms)
+                    .fadeIn(duration: 240.ms)
+                    .slideY(begin: 0.06, end: 0, duration: 300.ms, curve: Curves.easeOutCubic),
             ],
           ),
           const SizedBox(height: 28),

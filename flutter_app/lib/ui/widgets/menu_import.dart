@@ -300,7 +300,7 @@ class _MenuReviewSheetState extends ConsumerState<_MenuReviewSheet> {
     drafts = [
       for (final it in widget.items)
         _Draft(
-          include: true,
+          include: it.price != null,
           name: it.name,
           price: it.price,
           category: it.category ?? '',

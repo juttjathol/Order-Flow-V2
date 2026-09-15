@@ -14,7 +14,7 @@ class OfColors {
   static const danger = Color(0xFFE85D4C);
   static const warn = Color(0xFFF0A202);
   static const info = Color(0xFF3D9CF0);
-  static const muted = Color(0xFF7A9A8C);
+  static const muted = Color(0xFF628274);
   static const line = Color(0x1A3DDC97);
   static const paper = Color(0xFFFFFFFF);
 
@@ -25,7 +25,7 @@ class OfColors {
       isDark(context) ? cardDark : paper;
 
   static Color mute(BuildContext context) =>
-      isDark(context) ? muted : const Color(0xFF5C7468);
+      isDark(context) ? const Color(0xFFA9C6B7) : const Color(0xFF46564F);
 }
 
 class OfTheme {
@@ -65,6 +65,13 @@ class OfTheme {
       titleMedium: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: ink),
       bodyLarge: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, height: 1.45, color: ink),
       bodyMedium: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, height: 1.45, color: quiet),
+      // v1.1.70 — these used to fall back to Material defaults, which meant
+      // grey-on-dark labels that vanished on the night theme. Set explicitly.
+      bodySmall: TextStyle(fontWeight: FontWeight.w500, fontSize: 12, height: 1.4, color: quiet),
+      titleSmall: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: ink),
+      labelLarge: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: ink),
+      labelMedium: TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: quiet),
+      labelSmall: TextStyle(fontWeight: FontWeight.w600, fontSize: 10, color: quiet),
     );
     return ThemeData(
       useMaterial3: true,
@@ -160,6 +167,8 @@ class OfTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         elevation: 6,
+        backgroundColor: isDark ? const Color(0xFF223029) : OfColors.ink,
+        contentTextStyle: TextStyle(color: isDark ? const Color(0xFFF3F7F2) : OfColors.cream, fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );

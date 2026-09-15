@@ -203,6 +203,7 @@
   .tno.fly{animation:rideTicket .7s ease forwards}
   .ok-pay{margin-top:12px;background:#fff7e6;border:1px solid #f2d9a6;color:#8a5b00;font-weight:800;font-size:12.5px;
     padding:10px 12px;border-radius:14px;line-height:1.6}
+  .ok-sum{margin:6px auto 0;font-size:16px;font-weight:900;letter-spacing:.2px;color:var(--ac);animation:popIn .4s .32s ease both}
   .spinner{width:18px;height:18px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;
     animation:spin .7s linear infinite;display:inline-block}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -288,6 +289,7 @@
     <h2 id="ok-title"></h2>
     <p id="ok-body"></p>
     <div class="tno" id="ok-ticket"></div>
+    <div class="ok-sum" id="ok-sum" style="display:none"></div>
     <div class="ok-pay" id="ok-pay" style="display:none"></div>
     <button class="biggo" id="ok-again" type="button" style="margin-top:16px"></button>
   </div>
@@ -336,7 +338,8 @@
   function L(k){return T[lang][k];}
   function escapeHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function nm(o){return lang==='ur'&&o.nameUr?o.nameUr:(o.name||'');}
-  function money(x){var m=menu||{};var p=m.currencyPrefix||'Rs ';return p+(Math.round(x*100)/100).toFixed(2).replace(/\.00$/,'');}
+  function imgAttr(raw){if(!raw)return '';var s=String(raw).trim();if(s.slice(0,5)==='data:')return s;var m=s.slice(0,6);var mime=m.indexOf('/9j/')===0?'image/jpeg':m.indexOf('iVBOR')===0?'image/png':m.indexOf('R0lG')===0?'image/gif':m.indexOf('UklGR')===0?'image/webp':'image/png';return 'data:'+mime+';base64,'+s;}
+  function money(x){var m=menu||{};var sym=m.currency||'';var pre=m.currencyPrefix!==false;var n=Math.abs(+x||0),i=Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','),c=Math.round((n-Math.floor(n))*100);var v=i+(c?('.'+(c<10?'0'+c:c)):'');if(x<0)v='-'+v;return !sym?v:(pre?sym+v:v+' '+sym);}
   function vib(ms){try{navigator.vibrate&&navigator.vibrate(ms);}catch(e){}}
 
   function loadCart(){try{var c=JSON.parse(localStorage.getItem('of-cart')||'{}');return (c&&typeof c==='object')?c:{};}catch(e){return {};}}
@@ -423,7 +426,7 @@
       var q=cardQty(p);
       return '<article class="item" data-p="'+escapeHtml(p.id)+'">'+
         '<span class="badge'+(q?' on':'')+'" id="bd-'+escapeHtml(p.id)+'">'+q+'</span>'+
-        (p.image?'<img loading="lazy" src="data:image/png;base64,'+p.image+'" alt=""/>':'<div class="ph">🍽</div>')+
+        (p.image?'<img loading="lazy" src="'+imgAttr(p.image)+'" alt=""/>':'<div class="ph">🍽</div>')+
         '<div class="ibody"><h3>'+escapeHtml(nm(p))+'</h3>'+
         (p.desc?'<p>'+escapeHtml(p.desc)+'</p>':'')+
         '<div class="irow"><span class="price">'+money(p.price)+'</span>'+
@@ -472,7 +475,7 @@
     openQty=cur?cur.qty:1;openMods=cur&&cur.mods?JSON.parse(JSON.stringify(cur.mods)):{};
     $('im-name').textContent=nm(p);
     $('im-desc').textContent=p.desc||'';
-    $('im-img').innerHTML=p.image?'<img src="data:image/png;base64,'+p.image+'" alt="" style="width:86px;height:86px;border-radius:16px;object-fit:cover"/>':'<div class="ph2" style="width:86px;height:86px;border-radius:16px;font-size:32px;display:flex;align-items:center;justify-content:center;background:#e9efec">🍽</div>';
+    $('im-img').innerHTML=p.image?'<img src="'+imgAttr(p.image)+'" alt="" style="width:86px;height:86px;border-radius:16px;object-fit:cover"/>':'<div class="ph2" style="width:86px;height:86px;border-radius:16px;font-size:32px;display:flex;align-items:center;justify-content:center;background:#e9efec">🍽</div>';
     var gs=groups(p),h='';
     for(var gname in gs){
       h+='<div class="modgrp"><h4>'+escapeHtml(gname)+'</h4><div class="mods">';
@@ -567,8 +570,11 @@
       var d=await r.json();
       if(!d||!d.ok)throw new Error(d&&d.error||'send');
       fireOn=d.fireOn==='order'?'order':'pay';
+      var nTot=cartCount(),tTot=(d&&typeof d.total==='number')?d.total:null;
       cart={};saveCart();$('cart-dlg').close();renderGrid();updateBar();
       $('ok-ticket').textContent=d.ticket||'';
+      var sumEl=$('ok-sum');
+      if(tTot!=null){sumEl.style.display='';sumEl.textContent=(nTot?nTot+' \u00d7 ':'')+money(tTot);}else{sumEl.style.display='none';}
       $('ok-title').textContent=L('sent');
       $('ok-body').textContent=fireOn==='order'?L('bodyFire'):L('bodyPay');
       $('ok-pay').style.display=fireOn==='order'?'none':'';

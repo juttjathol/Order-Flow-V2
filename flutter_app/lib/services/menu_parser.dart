@@ -128,10 +128,27 @@ class MenuParser {
       }
     }
 
+    // v1.1.70 fallback — when NOT a single row matched (odd price formats,
+    // prices printed in a far column the grouping split off), still offer the
+    // plausible dish rows with blank prices: the review sheet edits them in.
+    // Only when completely empty, so normal menus are untouched.
+    if (items.isEmpty) {
+      for (final r0 in rows) {
+        r0.sort((a, c) => a.x.compareTo(c.x));
+        final t = r0.map((e) => e.text).join(' ').replaceAll(_leadBullet, '').replaceAll(_trailDots, '').trim();
+        if (t.length < 2 || t.length > 40 || _looksNoise(t)) continue;
+        if (_priceTok.hasMatch(t.split(RegExp(r'\s+')).last)) continue;
+        final wc = t.split(RegExp(r'\s+')).where((x) => _alphaRun.hasMatch(x)).length;
+        if (wc < 1 || wc > 6) continue;
+        if (categories.any((c) => c.toLowerCase() == t.toLowerCase())) continue;
+        items.add(ScannedItem(name: _titleCase(t), price: null, category: currentCat));
+      }
+    }
+
     // drop accidental duplicates: same name + price
     final seen = <String>{};
     items.removeWhere((e) => !seen.add('${e.name.toLowerCase()}|${e.price ?? ''}'));
-    items.removeWhere((e) => e.name.length < 2 || e.price == null);
+    items.removeWhere((e) => e.name.length < 2);
 
     return MenuParseResult(items: items, categories: categories, rawLineCount: rawLineCount);
   }
@@ -156,21 +173,33 @@ class MenuParser {
     return out.where((e) => e.isNotEmpty).toList();
   }
 
-  /// If the segment ends in a price token → append an item, return null.
-  /// Otherwise return the joined text.
+  /// Find the row's price and append an item; returns null on success.
+  /// v1.1.70: the price isn't always the LAST token — OCR often appends a
+  /// size/unit after it ('8.50 (P)', '12 each'), and leader-dot noise can sit
+  /// between. So scan back over the last few tokens, and whatever trails the
+  /// price is dropped as unit-junk instead of killing the whole item.
   static String? _consumePrice(List<ScanWord> seg, List<ScannedItem> items, double medSize) {
     String joined() => seg.map((e) => e.text).join(' ').trim();
 
     if (seg.isEmpty) return null;
-    var idx = seg.length - 1;
-    var priceStr = seg[idx].text;
-    if (idx > 0 && _curWord.hasMatch(seg[idx - 1].text.trim())) {
-      priceStr = seg[idx - 1].text + seg[idx].text; // "RM" + "8.50"
-      idx--;
+    var idx = -1;
+    Match? pm;
+    for (var k = seg.length - 1; k >= seg.length - 4 && k >= 1; k--) {
+      var cand = seg[k].text;
+      var j = k;
+      if (_curWord.hasMatch(seg[k - 1].text.trim())) {
+        cand = seg[k - 1].text + seg[k].text; // "RM" + "8.50"
+        j = k - 1;
+      }
+      final mt = _priceTok.firstMatch(cand.trim());
+      if (mt != null) {
+        idx = j;
+        pm = mt;
+        break;
+      }
     }
-    final m = _priceTok.firstMatch(priceStr.trim());
-    if (m == null) return joined();
-    final price = _normalizeNumber(m.group(1)!);
+    if (idx < 0) return joined();
+    final price = _normalizeNumber(pm?.group(1) ?? '');
     if (price == null || price <= 0 || price > 1e7) return joined();
 
     final nameWords = seg.sublist(0, idx);

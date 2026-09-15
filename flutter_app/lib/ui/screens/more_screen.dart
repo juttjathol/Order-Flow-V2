@@ -318,6 +318,12 @@ Widget _slipEditor(String title, String hint, SlipTemplate t, void Function(void
           decoration: InputDecoration(labelText: s.t('slip_heading')),
           onChanged: (v) => t.heading = v,
         ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: TextEditingController(text: t.footer),
+          decoration: InputDecoration(labelText: s.t('slip_footer'), hintText: s.t('slip_footer_hint')),
+          onChanged: (v) => t.footer = v,
+        ),
         sw(s.t('slip_logo'), t.showLogo, (v) => t.showLogo = v),
         sw(s.t('address'), t.showAddress, (v) => t.showAddress = v),
         sw(s.t('phone'), t.showPhone, (v) => t.showPhone = v),
@@ -424,7 +430,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                                   const Text('-------------------------------'),
                                   const Align(
                                       alignment: Alignment.centerLeft,
-                                      child: Text('Ticket #1002\n2026-01-01 00:00\nTable T1 · your items,\nqty and prices print here')),
+                                      child: Text('Ticket #1002    2026-01-01 00:00\nTable T1 · your items,\nqty and prices print here')),
                                   const Text('-------------------------------'),
                                   const Row(
                                     children: [
@@ -463,9 +469,9 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                                     ],
                                   ),
                                   const Text('-------------------------------'),
-                                  if (footer.text.trim().isNotEmpty)
+                                  if ((p.counterSlip.footer.trim().isNotEmpty ? p.counterSlip.footer.trim() : footer.text).trim().isNotEmpty)
                                     Text(
-                                      footer.text.toUpperCase(),
+                                      (p.counterSlip.footer.trim().isNotEmpty ? p.counterSlip.footer.trim() : footer.text).toUpperCase(),
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w800,

@@ -107,7 +107,8 @@ class PrintService {
         w.writeln('PAID BY ${order.payment!.name.toUpperCase()}: ${m(order.total)}');
       }
     }
-    if (p.footer.isNotEmpty) w.writeln(p.footer.toUpperCase());
+    final ftShare = p.slipFor(order, kitchen: false).footer.trim();
+    if (ftShare.isNotEmpty || p.footer.isNotEmpty) w.writeln((ftShare.isNotEmpty ? ftShare : p.footer).toUpperCase());
     w.writeln('* * * * * * * * * * * * * * * *');
     return w.toString();
   }
@@ -169,12 +170,16 @@ class PrintService {
     // v1.1.69 — Focus-Point-style layout: dashed rules, everything wraps
     // (no mid-word truncation), the total is huge, the footer is centred.
     b.align('center');
-    if (slip.showLogo) _raster(b, p.logoBase64, dots);
-    await line(p.businessName.toUpperCase(), align: 'center', big: true);
+    if (slip.showLogo) _raster(b, p.logoBase64, dots, scale: 0.8);
+    // v1.1.70 — the shop name gets ONE line, always: double-size only when it
+    // actually fits the paper at that size, otherwise full-width single-size.
+    final nm = (p.businessName.trim().isEmpty ? 'SHOP' : p.businessName).trim().toUpperCase();
+    await line(nm, align: 'center', big: nm.length <= (chars - 6) ~/ 2);
     if (slip.showAddress && p.address.isNotEmpty) await line(p.address, align: 'center');
     if (slip.showPhone && p.phone.isNotEmpty) await line('Tel. ${p.phone}', align: 'center');
     if (p.taxId.isNotEmpty && !kitchen) await line('Tax ID: ${p.taxId}', align: 'center');
     if (p.taxRegNo.isNotEmpty && !kitchen) await line('Reg. No: ${p.taxRegNo}', align: 'center');
+    b.text(''); // blank line under the contact block
     final heading = preBill
         ? 'PRE-BILL'
         : (!kitchen && p.invoiceLabel.trim().isNotEmpty)
@@ -185,8 +190,18 @@ class PrintService {
     rule();
 
     // Ticket / table / order type — the kitchen reads these across a room.
-    await line('Ticket #${order.ticketNo}', big: kitchen);
-    await line(_fmt(now), big: kitchen);
+    // nextTicket() already carries '#', so never prepend a second one.
+    final tNo = order.ticketNo.startsWith('#') ? order.ticketNo : '#${order.ticketNo}';
+    final when = _fmt(now);
+    if (kitchen) {
+      await line('Ticket $tNo', big: true);
+      await line(when, big: true);
+    } else {
+      final label = 'Ticket $tNo';
+      final gap = chars - 1 - label.length - when.length;
+      await line(gap >= 1 ? '$label${' ' * gap}${when}' : label);
+      if (gap < 1) await line(when);
+    }
     if (order.tableName?.isNotEmpty == true) {
       await line(
         order.isQr ? '>>> QR TABLE ${order.tableName} <<<' : 'Table ${order.tableName}',
@@ -216,7 +231,7 @@ class PrintService {
       if (amtW > 14) amtW = 14;
       const qtyW = 4;
       final nameW = (chars - amtW - qtyW).clamp(8, 512);
-      await _columns(b, ['Item', 'Qty', ''], nameW: nameW, qtyW: qtyW, amtW: amtW);
+      await _columns(b, ['Item', 'Qty', 'Amount'], nameW: nameW, qtyW: qtyW, amtW: amtW);
       String? last;
       for (final entry in lines) {
         if (kitchen && last != entry.course) {
@@ -252,6 +267,7 @@ class PrintService {
     }
     if (slip.showTotals) {
       rule();
+      b.text('');
       await _row(b, 'Total', m(order.total), big: true);
       if (order.discount > 0) await _row(b, 'Discount', '- ${m(order.discount)}');
       if (order.service > 0) await _row(b, 'Service', m(order.service));
@@ -270,7 +286,13 @@ class PrintService {
       await line('NOT PAID YET', align: 'center');
     }
     rule();
-    if (p.footer.isNotEmpty) await line(p.footer.toUpperCase(), align: 'center');
+    // v1.1.70 — every slip type can carry its own thank-you line; fall back
+    // to the shop footer for receipts (kitchen stays silent when unset).
+    final footTxt = (slip.footer.trim().isNotEmpty ? slip.footer.trim() : (kitchen ? '' : p.footer)).trim();
+    if (footTxt.isNotEmpty) {
+      b.text('');
+      await line(footTxt.toUpperCase(), align: 'center');
+    }
     if (slip.showQr) {
       _raster(b, p.payQrBase64, dots);
       if (p.payQrLabel.trim().isNotEmpty) await line(p.payQrLabel.trim(), align: 'center');
@@ -473,14 +495,15 @@ class PrintService {
   /// threshold adapts to the actual image, and a mostly-dark logo (white
   /// artwork on transparent) is auto-inverted so it prints as ink — whatever
   /// format the shop uploaded, it comes out as it looks.
-  void _raster(EscPos b, String? raw, int dots) {
+  void _raster(EscPos b, String? raw, int dots, {double scale = 1.0}) {
     if (raw == null || raw.trim().isEmpty) return;
     try {
       final data = base64Decode(raw.contains(',') ? raw.split(',').last : raw);
       final decoded = img.decodeImage(data);
       if (decoded == null) return;
       var im = decoded;
-      if (im.width > dots) im = img.copyResize(im, width: dots);
+      final maxW = (dots * scale).floor().clamp(64, dots);
+      if (im.width > maxW) im = img.copyResize(im, width: maxW);
       final w = im.width;
       final h = im.height;
       final vals = List<int>.filled(w * h, 255);

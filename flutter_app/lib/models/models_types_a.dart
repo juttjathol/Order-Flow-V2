@@ -16,6 +16,7 @@ class SlipTemplate {
     this.showPayment = true,
     this.showQr = true,
     this.showCustomer = true,
+    this.footer = '',
   });
 
   String heading;
@@ -28,6 +29,9 @@ class SlipTemplate {
   bool showQr;
   bool showCustomer;
 
+  /// Optional footer just for this slip type; empty → use the shop footer.
+  String footer;
+
   SlipTemplate copy() => SlipTemplate(
         heading: heading,
         showLogo: showLogo,
@@ -38,6 +42,7 @@ class SlipTemplate {
         showPayment: showPayment,
         showQr: showQr,
         showCustomer: showCustomer,
+        footer: footer,
       );
 
   Map<String, dynamic> toJson() => {
@@ -50,6 +55,7 @@ class SlipTemplate {
         'showPayment': showPayment,
         'showQr': showQr,
         'showCustomer': showCustomer,
+        'footer': footer,
       };
 
   factory SlipTemplate.fromJson(Map<String, dynamic>? j, SlipTemplate fallback) {
@@ -64,6 +70,7 @@ class SlipTemplate {
       showPayment: parseBool(m['showPayment'], fallback.showPayment),
       showQr: parseBool(m['showQr'], fallback.showQr),
       showCustomer: parseBool(m['showCustomer'], fallback.showCustomer),
+      footer: parseStr(m['footer']) ?? fallback.footer,
     );
   }
 

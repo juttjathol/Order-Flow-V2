@@ -67,7 +67,7 @@
         <p class="kicker">User guide · رہنمائے صارف</p>
         <h1 class="sec-title">Every feature, step by step.<br/>ہر فیچر، قدم بہ قدم۔</h1>
         <p class="sec-sub">The complete manual for Order Flow — how to set up the shop, run every station, handle payments, printers, the cash drawer, loyalty, reports and refunds. English and Urdu on one page.</p>
-        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.69 — every print button works on every station (held link + station routing) + invoice-style receipts, paper sizes, fixed PNG logos, Pay &amp; Print + pre-bill · ایپ ورژن 1.1.69 کے مطابق — ہر بٹن ہر اسٹیشن پر چلتا ہے (لنک تھامے رکھنا + اسٹیشن روٹنگ) + انوائس جیسی رسیدیں، کاغذ کی سائزز، PNG لوگو کی درستگی، اداکاری و پرنٹ اور پری بل</p>
+        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.70 — one-line shop name on receipts, per-slip footer notes, tidier layout + fixed QR order totals &amp; photos, scrollable pay &amp; split sheets, sharper small text on every screen size · ایپ ورژن 1.1.70 کے مطابق — رسید پر دکان کا نام ایک لائن میں، ہر رسید کا اپنا فوٹر، بہتر QR ٹوٹل اور تصاویر، پوری نظر آنے والی ادائیگی و اسپلٹ شیٹس، اور ہر اسکرین پر صاف متن</p>
       </div>
     </section>
 
@@ -195,6 +195,7 @@
             <h4 class="en">English</h4>
             <ol>
               <li><b>New in 1.1.65 — Menu Scan:</b> Menu tab → scanner icon → take a photo of the menu (or upload a menu PDF). Names, prices and categories are read <b>on the phone itself</b> — no internet, nothing uploaded anywhere.</li>
+              <li><b>v1.1.70 — imports no longer dead-end:</b> a price in the middle of a row (size or unit after it) no longer loses the item, and when a page's price style can't be matched at all the review sheet still lists every readable dish line with a <b>blank price</b> — tick what you want, type prices, import. Rows read without a price arrive <b>unticked</b> on purpose, so only what you confirm enters the menu.</li>
               <li>In the review sheet that opens: un-tick any wrong line, tap a name or price to fix it, choose the category, add anything missed — then <b>Import</b> creates all of it in one tap. Items already on the menu are skipped automatically.</li>
               <li>Works best with English / Malay (Latin script) menus — lay them flat, fill the frame, good light. A PDF export of the menu is the most reliable scan. Urdu-script menus cannot be read by any on-device scanner, so type those manually.</li>
               <li>Menu tab → add categories (e.g. Drinks, Mains) and products with photo, price and SKU.</li>
@@ -208,6 +209,7 @@
             <h4>اردو</h4>
             <ol>
               <li><b>1.1.65 کا نیا فیچر — مینیو اسکین:</b> مینیو ٹیب → اسکینر آئیکن → مینیو کی تصویر لیں (یا مینیو کی PDF اپ لوڈ کریں)۔ نام، قیمتیں اور کیٹگریز <b>فون پر ہی</b> پڑھے جاتے ہیں — انٹرنیٹ کی ضرورت نہیں، کچھ بھی کہیں بھیجھا نہیں جاتا۔</li>
+              <li><b>v1.1.70 — اب امپورٹ ادھورا نہیں رکتا:</b> قطار کے بیچ میں قیمت (اس کے بعد سائز/ناپے والی لفظ) کی وجہ سے آئٹم اب نہیں کھو جاتا، اور اگر قیمت کا انداز بالکل نہ پہچانا جا سکے تو ریویو شیٹ پڑھے گئے تمام آئٹم نام <b>خالی قیمت</b> کے ساتھ دکھاتی ہے — جو چاہیں ٹک کریں، قیمت لکھیں، امپورٹ کریں۔ بے قیمت قطاریں جان بوجھ پر ٹک کھلی رہتی ہیں تاکہ صرف آپ کی تصدیق شدہ اشیاء مینیو میں جائیں۔</li>
               <li>کھلنے والی ریویو شیٹ میں: غلط لائن کا ٹِک ہٹائیں، نام یا قیمت ٹیپ کر کے درست کریں، کیٹگری منتخب کریں، چھوٹی ہوئی چیز شامل کریں — پھر <b>Import</b> ایک ہی ٹیپ سب بنا دیتا ہے۔ جو آئٹمز پہلے سے مینیو میں ہیں وہ خود چھوڑ دیے جاتے ہیں۔</li>
               <li>انگریزی / ملائیشین (لاطین حروف) مینیو سب سے بہتر پڑھے جاتے ہیں — مینیو ہموار رکھیں، پورا فریم میں آئے، اچھی روشنی ہو۔ مینیو کی PDF سب سے قابلِ اعتماد اسکین دیتی ہے۔ اردو مینیو کسی بھی آف لائن اسکینر سے پڑھے نہیں جا سکتے، ان کے لیے ہاتھ سے لکھیں۔</li>
               <li>مینیو ٹیب → کیٹگریز (مثلاً ڈرنکس، مینز) اور پروڈکٹس تصویر، قیمت اور SKU کے ساتھ بنائیں۔</li>
@@ -337,6 +339,8 @@
               <li><b>Bluetooth printing (v1.1.68)</b> now works with <b>any</b> Bluetooth printer — old Classic (SPP) models like the common 58mm portables, and modern Low-Energy ones. Pair the printer once in Android settings (PIN 0000 usually), pick it in the printer sheet, and print. The Auto / Classic / LE chips let you force a link type if a picky printer needs the nudge; error toasts now quote the printer's real complaint.</li>
               <li>These printers serve <b>one connection at a time</b>: while your station has a Bluetooth printer selected, Order Flow <b>holds that link open</b> like a real POS — so back-to-back prints (and the Test button) always reach the printer. Use <b>Use shop printer</b> to let it go.</li>
               <li><b>Paper size (v1.1.69):</b> each printer screen has Auto / 58 / 76 / 80 / 100 mm. Auto keeps the safe 58 mm layout; wider choices only lengthen lines — letters keep their native shape. Transparent PNG logos print correctly now (alpha is composited on white, mostly-dark artwork auto-inverts).</li>
+              <li><b>Receipt layout (v1.1.70):</b> the shop name prints on <b>one line</b> — double-size only when it actually fits, so long names no longer wrap mid-word. The logo keeps a margin (≈80% width, centered), Ticket and time share one line (time right-aligned), the item table gained its <b>Amount</b> header, and the stray double-hash on ticket numbers is fixed.</li>
+              <li><b>Footer per slip type (v1.1.70):</b> every slip editor in the bill profile has its own <b>Slip footer</b> field — delivery can end with a delivery note, takeaway with its own thanks, the cash receipt with another. Leave it empty and that slip just uses the shop footer.</li>
               <li><b>Pay &amp; Print</b> — the payment sheet's button settles and prints the customer receipt on your station's printer; <b>Pre-bill</b> next to it prints the running total marked “NOT PAID YET” without settling anything. Kitchen tickets print the ticket number, table and TAKEAWAY/DELIVERY in double height.</li>
               <li><b>Bill profile:</b> shop name, address, phone, tax ID, footer, logo image, pay QR — all print on the receipt.</li>
               <li>Separate slip templates for kitchen / counter / takeaway / delivery — choose what each shows.</li>
@@ -351,6 +355,8 @@
               <li><b>بلوٹوتھ پرنٹنگ (v1.1.68)</b> اب <b>ہر</b> بلوٹوتھ پرنٹر کے ساتھ چلتی ہے — پرانے کلاسیک (SPP) جیسے عام 58mm پورٹیبل، اور نئے Low-Energy والے۔ پرنٹر کو ایک بار Android سیٹنگز میں جوڑیں (PIN عام طور پر 0000)، پرنٹر اسکرین سے چنیں، اور پرنٹ کریں۔ Auto / Classic / LE چپس اُس سرکٹ پرنٹر کے لیے مخصوص لنک منتخب کرنے دیتے ہیں؛ اور خرابی کا پیغام اب پرنٹر کی اصل شکایت لکھتا ہے۔</li>
               <li>یہ پرنٹر ایک وقت میں <b>ایک ہی کنکشن</b> چلاتے ہیں: جب آپ کے اسٹیشن کا بلوٹوتھ پرنٹر منتخب ہو تو Order Flow وہ لنک کھلا رکھتا ہے (اصل POS کی طرح) — لگاتار پرنٹ اور ٹیسٹ بٹن ہمیشہ پرنٹر تک پہنچتے ہیں۔ چھوڑنے کے لیے <b>Use shop printer</b> دبائیں۔</li>
               <li><b>کاغذ کی سائز (v1.1.69):</b> ہر پرنٹر اسکرین پر Auto / 58 / 76 / 80 / 100 ملی میٹر۔ خودکار محفوظ 58mm فارمیٹ رکھتا ہے؛ چوڑی سائز صرف لائنیں لمبی کرتی ہے — حروف اپنی اصل شکل میں رہتے ہیں۔ شفاف PNG لوگو اب صحیح پرنٹ ہوتے ہیں (شفافیت سفید کاغذ پر بدلتی ہے، زیادہ کالا آرٹ خودبخود الٹ جاتا ہے)۔</li>
+              <li><b>رسید کا فارمیٹ (v1.1.70):</b> دکان کا نام <b>ایک لائن</b> میں چھپتا ہے — بڑا فونٹ تب ہی جب واقعی فٹ ہو، لمبے نام اب ادھورے نہیں ٹوٹتے۔ لوگو کیناروں سے لگتا نہیں (≈80% چوڑائی، درمیان)، ٹکٹ نمبر اور وقت ایک ہی لائن میں (وقت دائیں طرف)، آئٹم ٹیبل میں <b>رقم</b> کا ہیڈر، اور ٹکٹ پر ڈپل ہیش (#) کی خرابی دور۔</li>
+              <li><b>ہر رسید کا اپنا فوٹر (v1.1.70):</b> بل پروفائل کی ہر سِلپ ایڈیٹر میں اب <b>رسید کا فوٹر</b> خانہ ہے — ڈیلیوری پر الگ پیغام، ٹیک اوے پر الگ، کیش رسید پر الگ۔ خالی چھوڑیں تو دکان کا فوٹر لگے گا۔</li>
               <li><b>Pay &amp; Print</b> — ادائیگی اسکرین کا بٹن بل وصول کر کے کسٹمر رسید آپ کے اسٹیشن کے پرنٹر پر نکالتا ہے؛ اس کے ساتھ <b>پری بل</b> بٹن چلتا حساب “NOT PAID YET” لکھ کر پرنٹ کرتا ہے، کوئی ادائیگی ہوئے بغیر۔ کچن ٹکٹ پر ٹکٹ نمبر، ٹیبل اور TAKEAWAY/DELIVERY دُگنی اونچائی میں ہوتے ہیں۔</li>
               <li><b>بل پروفائل:</b> دکان کا نام، پتہ، فون، ٹیکس ID، فوٹر، لوگو تصویر، پے QR — سب رسید پر پرنٹ ہوتا ہے۔</li>
               <li>کچن / کاؤنٹر / ٹیک اوے / ڈیلیوری کے لیے الگ سلپ ٹیمپلیٹس — جو دکھانا ہو منتخب کریں۔</li>
@@ -591,6 +597,7 @@
               <li>Switch it on: <b>More → Plan extras → QR ordering → enable</b>. Main must be on Wi-Fi; the address looks like <b>http://192.168.x.x:8787/order</b>.</li>
               <li>For a single table open the <b>Tables</b> tab → <b>QR icon</b> → show, print or share that table's code. Guests scan it and the menu opens with the table already attached.</li>
               <li>The guest page works in <b>English and Urdu</b> (toggle at the top), shows photos, prices, modifiers and notes — no app to install.</li>
+              <li><b>v1.1.70 page fixes:</b> prices and totals now use your own currency symbol with thousands separators (previously some shops saw “true1,200” style totals), product photos (JPEG or PNG) render on the menu cards, and the success screen now shows the order total next to the ticket number.</li>
               <li>Submitting a web order creates a normal ticket with the <b>QR</b> badge. By default it fires to the kitchen (printers included) <b>the moment the counter marks it paid</b> — and the kitchen slip carries the table number so food lands at the right table. Prefer cooking at submit? Switch to <b>At submit</b> in the same QR sheet.</li>
               <li>On custom plans the page shows <b>your</b> shop's name, tagline, hours, contact and colour — set it all under <a href="#brand">Your brand page</a> (§26).</li>
               <li>Switch ordering off any time — the page closes instantly for new scans. Orders are accepted only on the shop Wi-Fi, never from the internet.</li>
@@ -602,6 +609,7 @@
               <li>آن کرنے کا طریقہ: <b>مزید → پلان ایسٹرا → کیو آر آرڈرنگ → آن</b>۔ Main وائی فائی پر ہو؛ پتہ ایسا ہوگا <b>http://192.168.x.x:8787/order</b>۔</li>
               <li>اکلے ٹیبل کے لیے <b>ٹیبلز</b> ٹیب → <b>کوڈ آئیکن</b> → کوڈ دکھائیں، پرنٹ یا شیئر کریں۔ مہمان سکین کریں تو ٹیبل پہلے سے جڑا ہوا مینو کھلے گا۔</li>
               <li>مہمان کا صفحہ <b>انگریزی اور اردو</b> دونوں میں چلتا ہے (اوپر بٹن)، تصاویر، قیمتیں، موڈیفائر اور ہدایت دکھاتا ہے — کوئی ایپ انسٹال کرنے کی ضرورت نہیں۔</li>
+              <li><b>v1.1.70 اصلاحات:</b> اب قیمتیں اور کل رقم آپ کے کرنسی نشاں اور ہزار کی علامت (کما) کے ساتھ درست نظر آتی ہیں، مینیو کی تصاویر (JPEG یا PNG) صحیح کھلتی ہیں، اور کامیابی کی اسکرین پر ٹکٹ نمبر کے ساتھ آرڈر کی <b>کل رقم</b> بھی لکھی آتی ہے۔</li>
               <li>آرڈر بھیجنے پر عام ٹکٹ بنتی ہے جس پر <b>QR</b> نشان ہوتا ہے۔ ڈیفالٹ میں ٹکٹ کچن (اور پرنٹر) پر اسی وقت جاتی ہے جب <b>کاؤنٹر ادائیگی وصول کر لے</b> — اور کچن سِلپ پر ٹیبل نمبر بھی ہوتا ہے تاکہ کھانا درست ٹیبل پر پہنچے۔ اگر آرڈر بھیجتے ہی پکانا شروع کرنا ہو تو اسی QR شیٹ میں <b>بھیجتے ہی</b> منتخب کریں۔</li>
               <li>کسٹم پلان پر یہ صفحہ <b>آپ کی دکان</b> کا نام، ٹیاگ لائن، اوقات، رابطہ اور رنگ دکھاتا ہے — سیٹنگ <a href="#brand">برانڈ صفحہ</a> (§26) سے۔</li>
               <li>کبھی بھی بند کر دیں — نئے سکین فوراً بند ہو جائیں گے۔ آرڈر صرف دکان کے وائی فائی پر قبول ہوتے ہیں، انٹرنیٹ سے کبھی نہیں۔</li>

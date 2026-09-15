@@ -752,7 +752,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
+          child: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(s.t('split_bill'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
@@ -769,6 +770,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                   )),
               FilledButton(onPressed: picked.isEmpty ? null : () => Navigator.pop(ctx, true), child: Text(s.t('split_pay'))),
             ],
+          ),
           ),
         ),
       ),
@@ -934,9 +936,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
           return Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.92 - MediaQuery.viewInsetsOf(ctx).bottom),
+              child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Text('${s.t('payment')}  ${moneyOf(ref.snap, due)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
                 const SizedBox(height: 10),
                 Row(
@@ -1050,7 +1055,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                   ],
                 ),
               ],
-            ),
+              ),
+            )),
           );
         },
       ),
