@@ -63,6 +63,20 @@ class StorageService {
         }
       }
     } catch (_) {}
+    // Main file missing or corrupt — fall back to the last good copy, then
+    // heal it back into place so a crash mid-write never wipes the shop.
+    try {
+      final bak = File('${_stateFile.path}.bak');
+      if (await bak.exists()) {
+        final raw = await bak.readAsString();
+        if (raw.isNotEmpty) {
+          final store =
+              AppStore.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+          await _stateFile.writeAsString(raw);
+          return store;
+        }
+      }
+    } catch (_) {}
     final legacy = prefs.getString('of_store_v1');
     if (legacy != null && legacy.isNotEmpty) {
       try {
@@ -112,7 +126,17 @@ class StorageService {
 
   Future<void> saveStore(AppStore store) async {
     final encoded = jsonEncode(store.toJson());
-    await _stateFile.writeAsString(encoded);
+    // Crash-safe write: keep the previous good state in .bak, write a temp
+    // file, then rename over — an atomic replace on Android. A kill in the
+    // middle can never leave a half-written app_state.json behind.
+    try {
+      if (await _stateFile.exists()) {
+        await _stateFile.copy('${_stateFile.path}.bak');
+      }
+    } catch (_) {}
+    final tmp = File('${_stateFile.path}.tmp');
+    await tmp.writeAsString(encoded, flush: true);
+    await tmp.rename(_stateFile.path);
     // Mirror a compact revision stamp in SharedPreferences.
     await prefs.setInt('of_store_rev', store.revision);
     await prefs.setString('of_store_saved_at', DateTime.now().toIso8601String());

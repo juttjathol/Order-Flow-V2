@@ -15,6 +15,8 @@ import '../../services/bluetooth_printer.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/plan_extras.dart';
+import '../widgets/plan_lock.dart';
 import '../widgets/pos_ops.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -34,7 +36,14 @@ class MoreScreen extends ConsumerWidget {
       if (model == BusinessModel.services)
         _row(Icons.spa, s.t('services'), () => _services(context, ref)),
       if (model == BusinessModel.restaurant || model == BusinessModel.services)
-        _row(Icons.event, s.t('appointments'), () => _reservations(context, ref)),
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'reservations',
+          icon: Icons.event,
+          title: s.t('appointments'),
+          onTap: () => _reservations(context, ref),
+        ),
     ];
     final shop = <Widget>[
       if (snap.isMain) _row(Icons.store, s.t('business_model'), () => _changeModel(context, ref)),
@@ -45,9 +54,72 @@ class MoreScreen extends ConsumerWidget {
       _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
       _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false)),
       _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true)),
-      _row(Icons.block, s.t('eighty_six_board'), () => _eightySixBoard(context, ref)),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'eighty_six',
+        icon: Icons.block,
+        title: s.t('eighty_six_board'),
+        onTap: () => _eightySixBoard(context, ref),
+      ),
       _row(Icons.hourglass_bottom, s.t('unpaid_tabs'), () => _unpaidTabs(context, ref)),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'advanced_reports',
+        icon: Icons.auto_graph,
+        title: s.t('insights'),
+        onTap: () => showInsights(context, ref),
+      ),
       if (snap.isMain || snap.isManager) _row(Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
+    ];
+    final extras = <Widget>[
+      if (snap.isMain)
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'qr_ordering',
+          icon: Icons.qr_code_2,
+          title: s.t('qr_ordering'),
+          subtitle: s.t('qr_ordering_sub'),
+          onTap: () => showQrOrdering(context, ref),
+        ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'cloud_sync',
+        icon: Icons.wifi_tethering_error,
+        title: s.t('cloud_title'),
+        subtitle: s.t('cloud_desc'),
+        onTap: () => showCloudNetworking(context, ref),
+      ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'recipe_costing',
+        icon: Icons.calculate,
+        title: s.t('recipes'),
+        subtitle: s.t('recipes_sub'),
+        onTap: () => showRecipesMargin(context, ref),
+      ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'wastage',
+        icon: Icons.delete_sweep,
+        title: s.t('wastage_log'),
+        subtitle: s.t('wastage_sub'),
+        onTap: () => showWastageLog(context, ref),
+      ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'purchases',
+        icon: Icons.local_shipping,
+        title: s.t('purchasing'),
+        subtitle: s.t('purchasing_sub'),
+        onTap: () => showPurchasing(context, ref),
+      ),
     ];
     final data = <Widget>[
       _row(Icons.ios_share, s.t('export_backup'), () async {
@@ -134,6 +206,7 @@ class MoreScreen extends ConsumerWidget {
         ]),
         _folder(context, Icons.groups, s.t('people_section'), people),
         _folder(context, Icons.insights, s.t('reports_section'), reports),
+        _folder(context, Icons.auto_awesome, s.t('plan_extras'), extras),
         _folder(context, Icons.backup, s.t('backup'), data),
         _folder(context, Icons.settings, s.t('account_section'), account),
         const SizedBox(height: 16),
@@ -192,20 +265,28 @@ Future<void> _changeModel(BuildContext context, WidgetRef ref) async {
           const SizedBox(height: 12),
           ...models.map((m) {
             final selected = ref.snap.store.model == m.$1;
+            final allowed = ref.snap.canModel(m.$1);
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: OfCard(
                 color: selected ? OfColors.emerald.withValues(alpha: 0.15) : null,
                 onTap: () async {
+                  if (!allowed) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(s.t('plan_model_locked'))));
+                    return;
+                  }
                   await ref.ctrl.changeBusinessModel(m.$1);
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(m.$4, color: OfColors.emerald),
+                  leading: Icon(m.$4, color: allowed ? OfColors.emerald : OfColors.muted),
                   title: Text(s.t(m.$2), style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text(s.t(m.$3)),
-                  trailing: selected ? const Icon(Icons.check, color: OfColors.emerald) : null,
+                  trailing: !allowed
+                      ? const Icon(Icons.lock_outline, color: OfColors.muted, size: 18)
+                      : (selected ? const Icon(Icons.check, color: OfColors.emerald) : null),
                 ),
               ),
             );
@@ -236,6 +317,12 @@ Widget _slipEditor(String title, String hint, SlipTemplate t, void Function(void
           controller: TextEditingController(text: t.heading)..selection = TextSelection.collapsed(offset: t.heading.length),
           decoration: InputDecoration(labelText: s.t('slip_heading')),
           onChanged: (v) => t.heading = v,
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: TextEditingController(text: t.footer),
+          decoration: InputDecoration(labelText: s.t('slip_footer'), hintText: s.t('slip_footer_hint')),
+          onChanged: (v) => t.footer = v,
         ),
         sw(s.t('slip_logo'), t.showLogo, (v) => t.showLogo = v),
         sw(s.t('address'), t.showAddress, (v) => t.showAddress = v),
@@ -273,6 +360,8 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
   final address = TextEditingController(text: p.address);
   final phone = TextEditingController(text: p.phone);
   final taxId = TextEditingController(text: p.taxId);
+  final invoiceLabel = TextEditingController(text: p.invoiceLabel);
+  final taxReg = TextEditingController(text: p.taxRegNo);
   final footer = TextEditingController(text: p.footer);
   final cur = TextEditingController(text: p.currencySymbol);
   final tax = TextEditingController(text: p.taxRate.toString());
@@ -303,25 +392,94 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                           const SizedBox(height: 8),
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(14),
                             color: Colors.white,
                             child: DefaultTextStyle(
-                              style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.35),
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 11,
+                                height: 1.4,
+                                fontFamily: 'monospace',
+                              ),
                               child: Column(
                                 children: [
-                                  _b64Thumb(p.logoBase64, h: 48),
-                                  Text(name.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                                  if (address.text.isNotEmpty) Text(address.text, textAlign: TextAlign.center),
-                                  if (phone.text.isNotEmpty) Text('Tel. ${phone.text}'),
-                                  const Text('* * * * * * * * * * * *'),
-                                  Text(p.counterSlip.heading.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800)),
-                                  const Text('* * * * * * * * * * * *'),
-                                  const Align(alignment: Alignment.centerLeft, child: Text('Items & prices come from the order')),
-                                  const Align(alignment: Alignment.centerLeft, child: Text('Date & time print when you print')),
-                                  const Text('* * * * * * * * * * * *'),
-                                  Text(footer.text.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w800)),
-                                  _b64Thumb(p.payQrBase64, h: 72),
-                                  if (qrLabel.text.isNotEmpty) Text(qrLabel.text),
+                                  if ((p.logoBase64 ?? '').isNotEmpty)
+                                    _b64Thumb(p.logoBase64, h: 44),
+                                  Text(
+                                    name.text.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 15,
+                                        fontFamily: 'monospace'),
+                                  ),
+                                  if (address.text.isNotEmpty)
+                                    Text(address.text, textAlign: TextAlign.center),
+                                  if (phone.text.isNotEmpty)
+                                    Text('Tel. ${phone.text}', textAlign: TextAlign.center),
+                                  if (taxReg.text.trim().isNotEmpty)
+                                    Text('Reg. No: ${taxReg.text}', textAlign: TextAlign.center),
+                                  const Text('-------------------------------'),
+                                  Text(
+                                    p.counterSlip.heading.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'monospace'),
+                                  ),
+                                  const Text('-------------------------------'),
+                                  const Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text('Ticket #1002    2026-01-01 00:00\nTable T1 · your items,\nqty and prices print here')),
+                                  const Text('-------------------------------'),
+                                  const Row(
+                                    children: [
+                                      Expanded(child: Text('Item')),
+                                      Text('Qty'),
+                                      SizedBox(width: 80, child: Text('Amount', textAlign: TextAlign.right)),
+                                    ],
+                                  ),
+                                  const Row(
+                                    children: [
+                                      Expanded(child: Text('2 Seekh Kebab')),
+                                      Text('2'),
+                                      SizedBox(width: 80, child: Text('1,300.00', textAlign: TextAlign.right)),
+                                    ],
+                                  ),
+                                  const Text('long names wrap below'),
+                                  const Text('themselves — never cut'),
+                                  const Text('-------------------------------'),
+                                  Row(
+                                    children: [
+                                      const Text('Total',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 14,
+                                              fontFamily: 'monospace')),
+                                      const Spacer(),
+                                      Text(p.currencySymbol.isEmpty
+                                          ? '1,448.00'
+                                          : p.currencyPrefix
+                                              ? '${p.currencySymbol}1,448.00'
+                                              : '1,448.00 ${p.currencySymbol}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 14,
+                                              fontFamily: 'monospace')),
+                                    ],
+                                  ),
+                                  const Text('-------------------------------'),
+                                  if ((p.counterSlip.footer.trim().isNotEmpty ? p.counterSlip.footer.trim() : footer.text).trim().isNotEmpty)
+                                    Text(
+                                      (p.counterSlip.footer.trim().isNotEmpty ? p.counterSlip.footer.trim() : footer.text).toUpperCase(),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontFamily: 'monospace'),
+                                    ),
+                                  _b64Thumb(p.payQrBase64, h: 64),
+                                  if (qrLabel.text.isNotEmpty)
+                                    Text(qrLabel.text, textAlign: TextAlign.center),
                                 ],
                               ),
                             ),
@@ -348,6 +506,10 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone')), onChanged: (_) => setSt(() {})),
                     const SizedBox(height: 8),
                     TextField(controller: taxId, decoration: InputDecoration(labelText: s.t('tax_id'))),
+                    const SizedBox(height: 8),
+                    TextField(controller: invoiceLabel, decoration: InputDecoration(labelText: s.t('invoice_label')), onChanged: (_) => setSt(() {})),
+                    const SizedBox(height: 8),
+                    TextField(controller: taxReg, decoration: InputDecoration(labelText: s.t('tax_reg_no')), onChanged: (_) => setSt(() {})),
                     const SizedBox(height: 8),
                     TextField(controller: footer, decoration: InputDecoration(labelText: s.t('footer')), onChanged: (_) => setSt(() {})),
                     const SizedBox(height: 8),
@@ -400,6 +562,8 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     payQrBase64: p.payQrBase64,
                     payQrLabel: qrLabel.text.trim(),
                     managerPin: ref.snap.isMain ? pin.text.trim() : p.managerPin,
+                    invoiceLabel: invoiceLabel.text.trim(),
+                    taxRegNo: taxReg.text.trim(),
                     kitchenSlip: p.kitchenSlip,
                     counterSlip: p.counterSlip,
                     takeawaySlip: p.takeawaySlip,
@@ -427,6 +591,9 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
   var selectedAddress = ref.read(appControllerProvider).session.localBtAddress;
   var selectedName = ref.read(appControllerProvider).session.localBtName;
   var enabled = ref.read(appControllerProvider).session.localBtEnabled;
+  var selTransport = ref.read(appControllerProvider).session.localBtTransport;
+  List<BtDevice> ble = const [];
+  var scanning = false;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -440,6 +607,7 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
           });
           try {
             final connect = await Permission.bluetoothConnect.request();
+            await Permission.bluetoothScan.request();
             if (connect.isPermanentlyDenied) {
               btErr = s.t('bt_permission_settings');
               bonded = const [];
@@ -462,6 +630,16 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
           if (ctx.mounted) setSt(() => loading = false);
         }
 
+        Future<void> scanBle() async {
+          setSt(() => scanning = true);
+          try {
+            ble = await BluetoothPrinter().bleScan();
+          } catch (_) {
+            ble = const [];
+          }
+          if (ctx.mounted) setSt(() => scanning = false);
+        }
+
         if (!started) {
           started = true;
           Future.microtask(loadBt);
@@ -480,14 +658,23 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
               transport: 'bluetooth',
               btAddress: addr,
               btName: selectedName,
+              btTransport: selTransport,
             );
             await ref.ctrl.printer.test(cfg, ref.snap.store.profile.businessName);
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_ok'))));
             }
-          } catch (_) {
+          } on PlatformException catch (e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('print_fail'))));
+              final why = e.code == 'bt_permission'
+                  ? s.t('bt_permission_retry')
+                  : '${s.t('print_fail')}: ${_errCap(e.message ?? '')}';
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(why)));
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('${s.t('print_fail')}: ${_errCap(e.toString())}')));
             }
           }
         }
@@ -524,6 +711,7 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
                         address: selectedAddress,
                         name: selectedName,
                         enabled: true,
+                        transport: selTransport,
                       );
                     } else {
                       await ref.ctrl.clearLocalBluetoothPrinter();
@@ -539,10 +727,47 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
                           : const Icon(Icons.refresh),
                       label: Text(s.t('pick_bt_printer')),
                     ),
+                    TextButton.icon(
+                      onPressed: scanning ? null : scanBle,
+                      icon: scanning
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.bluetooth_searching),
+                      label: Text(s.t(scanning ? 'bt_scanning' : 'bt_ble_scan')),
+                    ),
                     const Spacer(),
                     TextButton(onPressed: testLocal, child: Text(s.t('test_print'))),
                   ],
                 ),
+                if (selectedAddress.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Wrap(
+                      spacing: 6,
+                      children: [
+                        for (final t in const ['auto', 'spp', 'ble'])
+                          ChoiceChip(
+                            label: Text(t == 'spp'
+                                ? s.t('bt_via_classic')
+                                : t == 'ble'
+                                    ? s.t('bt_via_le')
+                                    : s.t('bt_via_auto')),
+                            selected: selTransport == t,
+                            onSelected: (_) async {
+                              selTransport = t;
+                              setSt(() {});
+                              if (enabled && selectedAddress.isNotEmpty) {
+                                await ref.ctrl.setLocalBluetoothPrinter(
+                                  address: selectedAddress,
+                                  name: selectedName,
+                                  enabled: true,
+                                  transport: t,
+                                );
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
                 if (btErr.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -556,27 +781,59 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
                 Expanded(
                   child: loading
                       ? const Center(child: CircularProgressIndicator())
-                      : bonded.isEmpty
-                          ? Center(child: Text(s.t('no_bt_printers'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)))
-                          : ListView.builder(
-                              itemCount: bonded.length,
+                      : () {
+                          final seen = bonded.map((e) => e.address).toSet();
+                          final all = [
+                            ...bonded,
+                            ...ble.where((d) => !seen.contains(d.address)),
+                          ];
+                          if (all.isEmpty) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(18),
+                                child: Text(
+                                  '${s.t('no_bt_printers')}\n${s.t('bt_pair_first')}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                      color: OfColors.muted, height: 1.5),
+                                ),
+                              ),
+                            );
+                          }
+                          return ListView.builder(
+                              itemCount: all.length,
                               itemBuilder: (_, i) {
-                                final d = bonded[i];
+                                final d = all[i];
                                 final sel = selectedAddress == d.address;
                                 return ListTile(
-                                  leading: Icon(Icons.print, color: sel ? OfColors.emerald : OfColors.muted),
+                                  leading: Icon(
+                                      d.transport == 'ble'
+                                          ? Icons.bluetooth
+                                          : Icons.print,
+                                      color: sel ? OfColors.emerald : OfColors.muted),
                                   title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                                   subtitle: Text(d.address),
-                                  trailing: sel ? const Icon(Icons.check_circle, color: OfColors.emerald) : null,
+                                  trailing: sel
+                                      ? const Icon(Icons.check_circle,
+                                          color: OfColors.emerald)
+                                      : (d.transport == 'ble'
+                                          ? const Text('LE',
+                                              style: TextStyle(
+                                                  color: OfColors.info,
+                                                  fontWeight: FontWeight.w800))
+                                          : null),
                                   onTap: () async {
                                     selectedAddress = d.address;
                                     selectedName = d.name;
                                     enabled = true;
+                                    selTransport =
+                                        d.transport == 'ble' ? 'ble' : 'auto';
                                     setSt(() {});
                                     await ref.ctrl.setLocalBluetoothPrinter(
                                       address: d.address,
                                       name: d.name,
                                       enabled: true,
+                                      transport: selTransport,
                                     );
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -586,7 +843,31 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
                                   },
                                 );
                               },
-                            ),
+                            );
+                        }(),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    s.t('print_size'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                ),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final mm in const [0, 58, 76, 80, 100])
+                      ChoiceChip(
+                        label: Text(mm == 0 ? s.t('print_size_auto') : '$mm mm'),
+                        selected: ref.snap.session.localPaperMm == mm,
+                        onSelected: (_) => ref.ctrl.setLocalPaperMm(mm),
+                      ),
+                  ],
+                ),
+                Text(
+                  s.t('print_size_hint'),
+                  style: const TextStyle(color: OfColors.muted, fontSize: 11, height: 1.3),
                 ),
                 const SizedBox(height: 8),
                 Text(s.t('station_bt_note'), style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.35)),
@@ -1100,6 +1381,21 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
           if (lic.expiresAt != null) Text('${s.t('expires')}: ${lic.expiresAt}'),
           if (lic.lastValidatedAt != null) Text('${s.t('last_validated')}: ${lic.lastValidatedAt}'),
           const SizedBox(height: 8),
+          if (ref.snap.planLimited) ...[
+            Text('${s.t('plan')}: ${ref.snap.planLabel.toUpperCase()}',
+                style: const TextStyle(fontWeight: FontWeight.w900, color: OfColors.gold)),
+            if (lic.allowedModels.isNotEmpty)
+              Text('${s.t('plan_models')}: '
+                  '${lic.allowedModels.map((m) => s.t(m == 'services' ? 'services_model' : m)).join(', ')}'),
+            Text('${s.t('plan_features')}: '
+                '${lic.allowedFeatures.isEmpty ? s.t('none') : lic.allowedFeatures.length}'
+                '${lic.allowedFeatures.isEmpty ? '' : ' / ${kFeatureCatalog.length}'}'),
+            if (!ref.snap.canFeature('multi_terminal'))
+              Text(s.t('plan_single_device'), style: const TextStyle(color: OfColors.warn, fontSize: 12)),
+          ] else
+            Text('${s.t('plan')}: ${s.t('plan_full')}',
+                style: const TextStyle(fontWeight: FontWeight.w800, color: OfColors.mint)),
+          const SizedBox(height: 8),
           Text(s.t('reset_hint')),
           TextButton(
             onPressed: () => Clipboard.setData(ClipboardData(text: ref.snap.session.deviceId)),
@@ -1282,3 +1578,6 @@ Future<void> _reservations(BuildContext context, WidgetRef ref) async {
     ),
   );
 }
+
+/// Toast-size error detail: printer complaints can be long.
+String _errCap(String s) => s.length <= 140 ? s : '${s.substring(0, 137)}…';

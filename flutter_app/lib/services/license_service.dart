@@ -15,6 +15,9 @@ class LicenseResult {
     this.businessName = '',
     this.expiresAt,
     this.boundDeviceId = '',
+    this.plan = '',
+    this.allowedModels,
+    this.allowedFeatures,
   });
 
   final bool ok;
@@ -25,6 +28,10 @@ class LicenseResult {
   final String businessName;
   final DateTime? expiresAt;
   final String boundDeviceId;
+  /// ── v1.1.59 plan data (null lists = legacy key, everything stays on) ──
+  final String plan;
+  final List<String>? allowedModels;
+  final List<String>? allowedFeatures;
 
   bool get notFound => error == 'not_found';
   bool get revoked => error == 'revoked';
@@ -70,6 +77,9 @@ class LicenseService {
             ? null
             : DateTime.tryParse(body['expiresAt'].toString()),
         boundDeviceId: (body['boundDeviceId'] ?? '').toString(),
+        plan: (body['plan'] ?? '').toString(),
+        allowedModels: _stringList(body['allowedModels']),
+        allowedFeatures: _stringList(body['allowedFeatures']),
       );
     } catch (e) {
       return LicenseResult(
@@ -93,6 +103,13 @@ class LicenseService {
         expiresAt: result.expiresAt,
         lastValidatedAt: DateTime.now(),
         message: result.message,
+        plan: result.plan,
+        allowedModels: result.allowedModels ?? current.allowedModels,
+        allowedFeatures: result.allowedFeatures ?? current.allowedFeatures,
+        hasPlanData:
+            result.allowedModels != null || result.allowedFeatures != null
+                ? true
+                : current.hasPlanData,
       );
     }
     if (result.error == 'network') {
@@ -141,6 +158,11 @@ class LicenseService {
       if (v is Map) return Map<String, dynamic>.from(v);
     } catch (_) {}
     return {};
+  }
+
+  List<String>? _stringList(Object? raw) {
+    if (raw is! List) return null;
+    return raw.map((e) => e.toString()).toList();
   }
 
   String _nested(Map<String, dynamic> body, String a, String b) {

@@ -200,12 +200,55 @@ class OfCard extends StatelessWidget {
     final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(22));
     final inner = onTap == null && onLongPress == null
         ? Padding(padding: padding, child: child)
-        : InkWell(borderRadius: BorderRadius.circular(22), onTap: onTap, onLongPress: onLongPress, splashColor: OfColors.mint.withValues(alpha: 0.18), child: Padding(padding: padding, child: child));
+        : _TapScale(onTap: onTap, onLongPress: onLongPress, child: Padding(padding: padding, child: child));
     return Card(
       color: color,
       shape: shape,
       clipBehavior: Clip.antiAlias,
       child: AnimatedSize(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, child: inner),
+    );
+  }
+}
+
+/// v1.1.64 · press feedback for every tappable card: a quick scale dip
+/// plus a haptic tick — the whole app feels physical without plugins.
+class _TapScale extends StatefulWidget {
+  const _TapScale({required this.child, this.onTap, this.onLongPress});
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  State<_TapScale> createState() => _TapScaleState();
+}
+
+class _TapScaleState extends State<_TapScale> {
+  bool _down = false;
+
+  void _set(bool v) {
+    if (mounted) setState(() => _down = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _set(true),
+      onTapUp: (_) => _set(false),
+      onTapCancel: () => _set(false),
+      onTap: () {
+        _set(false);
+        HapticFeedback.selectionClick();
+        widget.onTap?.call();
+      },
+      onLongPress: widget.onLongPress,
+      child: AnimatedScale(
+        scale: _down ? 0.955 : 1.0,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
     );
   }
 }

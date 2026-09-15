@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../core/constants.dart';
 
 import 'models_enums.dart';
+import 'models_plans.dart';
 
 class SlipTemplate {
   SlipTemplate({
@@ -15,6 +16,7 @@ class SlipTemplate {
     this.showPayment = true,
     this.showQr = true,
     this.showCustomer = true,
+    this.footer = '',
   });
 
   String heading;
@@ -27,6 +29,9 @@ class SlipTemplate {
   bool showQr;
   bool showCustomer;
 
+  /// Optional footer just for this slip type; empty → use the shop footer.
+  String footer;
+
   SlipTemplate copy() => SlipTemplate(
         heading: heading,
         showLogo: showLogo,
@@ -37,6 +42,7 @@ class SlipTemplate {
         showPayment: showPayment,
         showQr: showQr,
         showCustomer: showCustomer,
+        footer: footer,
       );
 
   Map<String, dynamic> toJson() => {
@@ -49,6 +55,7 @@ class SlipTemplate {
         'showPayment': showPayment,
         'showQr': showQr,
         'showCustomer': showCustomer,
+        'footer': footer,
       };
 
   factory SlipTemplate.fromJson(Map<String, dynamic>? j, SlipTemplate fallback) {
@@ -63,6 +70,7 @@ class SlipTemplate {
       showPayment: parseBool(m['showPayment'], fallback.showPayment),
       showQr: parseBool(m['showQr'], fallback.showQr),
       showCustomer: parseBool(m['showCustomer'], fallback.showCustomer),
+      footer: parseStr(m['footer']) ?? fallback.footer,
     );
   }
 
@@ -100,6 +108,8 @@ class BillProfile {
     this.payQrBase64,
     this.payQrLabel = '',
     this.managerPin = '',
+    this.invoiceLabel = '',
+    this.taxRegNo = '',
     SlipTemplate? kitchenSlip,
     SlipTemplate? counterSlip,
     SlipTemplate? takeawaySlip,
@@ -122,6 +132,11 @@ class BillProfile {
   String? payQrBase64;
   String payQrLabel;
   String managerPin;
+  /// Optional heading swapped in for "CASH RECEIPT" style lines, e.g.
+  /// "TAX INVOICE". Empty = unchanged receipts (v1.1.59).
+  String invoiceLabel;
+  /// Tax registration number printed under the header when set (v1.1.59).
+  String taxRegNo;
   SlipTemplate kitchenSlip;
   SlipTemplate counterSlip;
   SlipTemplate takeawaySlip;
@@ -149,6 +164,8 @@ class BillProfile {
         payQrBase64: payQrBase64,
         payQrLabel: payQrLabel,
         managerPin: managerPin,
+        invoiceLabel: invoiceLabel,
+        taxRegNo: taxRegNo,
         kitchenSlip: kitchenSlip.copy(),
         counterSlip: counterSlip.copy(),
         takeawaySlip: takeawaySlip.copy(),
@@ -169,6 +186,8 @@ class BillProfile {
         'payQrBase64': payQrBase64,
         'payQrLabel': payQrLabel,
         'managerPin': managerPin,
+        'invoiceLabel': invoiceLabel,
+        'taxRegNo': taxRegNo,
         'kitchenSlip': kitchenSlip.toJson(),
         'counterSlip': counterSlip.toJson(),
         'takeawaySlip': takeawaySlip.toJson(),
@@ -191,6 +210,8 @@ class BillProfile {
       payQrBase64: parseStr(m['payQrBase64']),
       payQrLabel: parseStr(m['payQrLabel']) ?? '',
       managerPin: parseStr(m['managerPin']) ?? '',
+      invoiceLabel: parseStr(m['invoiceLabel']) ?? '',
+      taxRegNo: parseStr(m['taxRegNo']) ?? '',
       kitchenSlip: SlipTemplate.fromJson(
         m['kitchenSlip'] is Map ? Map<String, dynamic>.from(m['kitchenSlip'] as Map) : null,
         SlipTemplate.kitchen(),
@@ -317,7 +338,9 @@ class MenuProduct {
     this.deductQty = 1,
     this.course = 'main',
     List<ItemMod>? mods,
-  }) : mods = mods ?? <ItemMod>[];
+    List<RecipeLine>? recipe,
+  })  : mods = mods ?? <ItemMod>[],
+        recipe = recipe ?? <RecipeLine>[];
 
   String id;
   String categoryId;
@@ -332,6 +355,8 @@ class MenuProduct {
   double deductQty;
   String course;
   List<ItemMod> mods;
+  /// Ingredient costing lines (v1.1.59). Empty = no recipe.
+  List<RecipeLine> recipe;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -347,6 +372,7 @@ class MenuProduct {
         'deductQty': deductQty,
         'course': course,
         'mods': mods.map((e) => e.toJson()).toList(),
+        'recipe': recipe.map((e) => e.toJson()).toList(),
       };
 
   factory MenuProduct.fromJson(Map<String, dynamic> j) => MenuProduct(
@@ -365,6 +391,10 @@ class MenuProduct {
         mods: ((j['mods'] as List?) ?? const [])
             .whereType<Map>()
             .map((e) => ItemMod.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
+        recipe: ((j['recipe'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => RecipeLine.fromJson(Map<String, dynamic>.from(e)))
             .toList(),
       );
 }
