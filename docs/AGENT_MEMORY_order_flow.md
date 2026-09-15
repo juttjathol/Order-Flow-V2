@@ -15,6 +15,14 @@ Kept so a continuation session never re-investigates closed problems.
   7. flutter_animate `">=1.0.0 <4.0.0"` in pubspec — NOTE: 1.x only ever had 1.0.0; `^1.0.8` broke rc1 pub get (version solving). Used for home-screen stat stagger + server card; API `.animate(delay:(i*70).ms).fadeIn().slideY()`.
   8. Guide updated: banner, §9 two new bullets EN+UR, QR bullet EN+UR, Menu-scan bullet EN+UR.
 
+## v1.1.71 (dc89f1f + fix commit; tag 'v1.1.71' on 6f0? tip after rc2 — run 34996980908 green, APK 122,179,852 B, Latest ✓, rc2 cleaned)
+- QR "order doesn't push" root cause = CSS: .cartbar centered with left:50%+translateX(-50%) but @keyframes barRise ends transform:none with 'both' fill → wipe of centering → bar+Review&send half off-screen. Fixed via left:12px/right:12px + max-width + margin auto (no transform dependence).
+- PDF menu import: pdfx renders PNG on TRANSPARENT canvas by default (docs confirm backgroundColor '#ffffff' fixes) → ML Kit saw blank pages. Added backgroundColor to page.render.
+- try/catch patch pitfall: local vars (n, s) declared inside try went out of scope for code after the catch → rc1 compile error. Declare accumulators BEFORE try; keep everything referencing them inside.
+- pdfx latest render() signature (pub docs): {required double width, required double height, format=jpeg, String? backgroundColor, Rect? cropRect, int quality=100, bool forPrint, removeTempFile} — backgroundColor exists ✓.
+- Log retrieval that WORKED: gh api actions/jobs/$JOB/logs prints presigned blob URL on stderr (curl/urllib blocked!) → fetch_page(that blob URL, chunkIndex=N) chunk-by-chunk; do NOT reuse the OSS proxy URL from a previous result (signature breaks); blob URL valid ~10 min; 6 chunks total, errors near chunk 4.
+- .git re-provision struck AGAIN mid-commit (commit landed on old base 143f23b while remote at 27a14dc): recovery = save commit hash, fetch+reset --hard FETCH_HEAD, git checkout $MINE -- . , re-commit (diff auto-shrinks to real changes). Verify `git status --porcelain` after checkout lists ONLY intended files.
+
 ## Standing rules (user)
 - Additive-only edits; change only what was asked. l10n EN+UR parity (CI test scans `.t('key')` literals — both maps must contain every used key; when inserting lines after `'slip_heading'` style anchors, mind trailing commas!).
 - Full ritual each version: pubspec version → kAppVersion → FALLBACK_TAG in 3× download.js (website/functions, root functions, cloudflare_dashboard) → commit → push branch → tag vX-rc1 → `gh run watch <id> --exit-status` (~8.5 min) → retag vX on tip → verify `gh release view vX --json assets` (field isLatest does NOT exist in this gh) → **delete rc release + rc tags local+remote** → fetch_page `https://order-flow-v2.pages.dev/download?meta=1` (works again 2026-09-15).
