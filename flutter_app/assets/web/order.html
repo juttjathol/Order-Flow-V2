@@ -25,7 +25,7 @@
   @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
   @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
   @keyframes steamUp{0%{opacity:0;transform:translateY(6px) scaleX(1)}30%{opacity:.9}100%{opacity:0;transform:translateY(-22px) scaleX(1.6)}}
-  @keyframes barRise{from{transform:translateY(90px)}to{transform:none}}
+  @keyframes barRise{from{transform:translateY(90px);opacity:.4}to{transform:none;opacity:1}}
   @keyframes badgePop{0%{transform:scale(.4)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
   @keyframes drawCheck{to{stroke-dashoffset:0}}
   @keyframes ringBurst{0%{transform:scale(.5);opacity:.9}100%{transform:scale(1.6);opacity:0}}
@@ -108,8 +108,8 @@
   .sk.pill{height:38px;width:96px;border-radius:999px;flex:0 0 auto}
 
   /* ── cart bar ── */
-  .cartbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));
-    width:min(690px,calc(100% - 24px));z-index:40;display:none;align-items:center;gap:12px;
+  .cartbar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));
+    max-width:690px;margin:0 auto;z-index:40;display:none;align-items:center;gap:12px;
     background:var(--ink);color:#fff;border-radius:20px;padding:13px 18px;
     box-shadow:0 16px 40px rgba(0,0,0,.35);animation:barRise .4s cubic-bezier(.2,1.3,.4,1) both}
   .cartbar.on{display:flex}

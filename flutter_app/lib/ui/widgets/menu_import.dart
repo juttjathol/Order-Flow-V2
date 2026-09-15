@@ -199,6 +199,10 @@ Future<(List<ScanWord>, double)> _wordsFromPdf(String path, ValueNotifier<String
           width: page.width * scale,
           height: page.height * scale,
           format: pdfx.PdfPageImageFormat.png,
+          // White canvas: the default transparent bitmap turns the page into
+          // invisible noise for ML Kit — the classic "it reads but nothing
+          // shows up" dead end.
+          backgroundColor: '#ffffff',
         );
         final bytes = img?.bytes;
         if (bytes != null) {
@@ -333,9 +337,15 @@ class _MenuReviewSheetState extends ConsumerState<_MenuReviewSheet> {
     setState(() {});
     if (bad) return;
     final chosen = drafts.where((d) => d.include && d.nameCtl.text.trim().isNotEmpty).toList();
-    if (chosen.isEmpty) return;
+    if (chosen.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${ref.s.t('menu_scan_import')} 0 · ${ref.s.t('menu_scan_edit_hint')}')),
+      );
+      return;
+    }
 
     setState(() => importing = true);
+    try {
     final store = ref.read(appControllerProvider).store;
     final s = L10n(ref.read(appControllerProvider).session.locale);
     final byName = {for (final c in store.categories) c.name.trim().toLowerCase(): c.id};
@@ -371,6 +381,10 @@ class _MenuReviewSheetState extends ConsumerState<_MenuReviewSheet> {
       await ref.ctrl.dispatch(NetCommand(name: 'upsertProduct', payload: {'product': p.toJson()}));
       existingNames.add(name.toLowerCase());
       n++;
+    }
+    } catch (e) {
+      if (mounted) setState(() => importing = false);
+      rethrow;
     }
     if (!mounted) return;
     if (n == 0) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('menu_scan_all_exist'))));
