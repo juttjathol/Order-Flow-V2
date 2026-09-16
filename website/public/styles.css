@@ -782,3 +782,35 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
   .rbits .kicker, .rbits .hero h1 em { animation:none; }
   .rbits #dl-btn, .rbits .download-band { animation:none; }
 }
+
+/* ── v1.1.72 · a11y & legal polish ─────────────────────────────────── */
+.skip { position:fixed; left:14px; top:-56px; z-index:100; background:var(--mint); color:#042015;
+  padding:10px 16px; border-radius:12px; font-weight:800; text-decoration:none; transition:top .15s ease; }
+.skip:focus { top:14px; }
+:focus-visible { outline:3px solid rgba(125,255,196,.85); outline-offset:2px; border-radius:6px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline:3px solid rgba(125,255,196,.85); outline-offset:3px; }
+.cookiebar { position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:90;
+  width:min(720px, calc(100% - 24px)); background:var(--card); border:1px solid var(--line);
+  border-radius:18px; padding:16px 18px 12px; box-shadow:var(--shadow); }
+.cookiebar[hidden] { display:none; }
+.cookiebar p { font-size:13px; line-height:1.65; color:var(--ink); }
+.cookiebar p a { color:var(--mint-2); text-decoration:underline; }
+.cb-actions { display:flex; gap:10px; margin-top:10px; }
+.cb-actions .btn { padding:9px 16px; font-size:13px; }
+.consent-row { display:flex !important; flex-direction:row !important; gap:10px !important; align-items:flex-start;
+  font-size:12.5px !important; font-weight:600 !important; color:var(--ink) !important; }
+.consent-row input { width:18px; height:18px; margin-top:1px; accent-color:var(--mint); flex:0 0 auto; }
+.consent-row a { color:var(--mint-2); text-decoration:underline; }
+.biz-card { margin-top:16px; font-style:normal; font-size:12.5px; line-height:1.8; color:var(--muted);
+  border:1px dashed var(--line); border-radius:14px; padding:12px 14px; }
+.biz-card b { color:var(--ink); }
+.legal-table { overflow-x:auto; margin-top:14px; }
+.legal-table table { width:100%; border-collapse:collapse; font-size:13px; color:var(--muted); min-width:560px; }
+.legal-table th, .legal-table td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+.legal-table th { color:var(--ink); }
+.legal-table code { background:rgba(61,220,151,.12); color:var(--mint-2); padding:2px 6px; border-radius:6px; font-size:12px; }
+@media (prefers-reduced-motion: reduce) {
+  .skip { transition:none; }
+  html { scroll-behavior:auto; }
+  .cookiebar, .cb-actions .btn { transition:none; }
+}

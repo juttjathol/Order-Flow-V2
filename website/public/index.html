@@ -9,9 +9,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="./styles.css?v=2"/>
+  <link rel="stylesheet" href="./styles.css?v=3"/>
+  <meta name="theme-color" content="#03110c"/>
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   <div class="progress" id="progress"></div>
   <header class="nav">
     <div class="wrap nav-inner">
@@ -34,13 +36,14 @@
   </header>
 
   <main id="top">
+  <span id="main" tabindex="-1" style="outline:none"></span>
     <section class="hero">
       <div class="hero-bg"></div>
       <div class="bolt-stage" data-par="0.14"><img class="float-bolt" src="./media/bolt.png" alt=""/></div>
       <div class="wrap hero-copy">
         <p class="kicker reveal">Jathol · Order Flow</p>
         <h1 class="reveal d1">The shop runs.<br><em>The floor never waits.</em></h1>
-        <p class="lede reveal d2">A fully licensed Android POS for restaurants, cafés, retail and delivery. Main stays on your Wi‑Fi. Kitchen, cashier, takers and drivers join as stations. Your live sales never leave the shop.</p>
+        <p class="lede reveal d2">A fully licensed Android POS for restaurants, cafés, retail and delivery. Main stays on your Wi‑Fi. Kitchen, cashier, takers and drivers join as stations. Your live sales stay on your shop device.</p>
         <div class="hero-actions reveal d3">
           <a class="btn btn-mint" href="#download" data-apk>Download Android APK</a>
           <a class="btn btn-ghost" href="#trial">Request a 3-day trial</a>
@@ -70,7 +73,7 @@
           <div class="grid-3" style="grid-template-columns:1fr 1fr;margin-top:28px">
             <article class="card" data-tilt><h3>Kitchen fire</h3><p class="sec-sub">Send to kitchen prints the slip from Main and alerts the pass with sound, vibration and a banner.</p></article>
             <article class="card" data-tilt><h3>Roles that fit</h3><p class="sec-sub">Manager, order taker, kitchen, cashier, driver, stock, front desk, specialist — cover from Main when you need to.</p></article>
-            <article class="card" data-tilt><h3>Wi‑Fi down? Service goes on</h3><p class="sec-sub">Custom plans get cloud networking: Main opens an encrypted room, each station joins on its own mobile data. Orders queue offline and merge automatically — the shop never stops. (Your data stays on Main; the cloud is only a corridor.)</p></article>
+            <article class="card" data-tilt><h3>Wi‑Fi down? Service goes on</h3><p class="sec-sub">Custom plans get cloud networking: Main opens an encrypted room, each station joins on its own mobile data. Orders queue offline and merge automatically — the shop keeps selling. (Your data stays on Main; the cloud is only a corridor — not storage.)</p></article>
             <article class="card" data-tilt><h3>Your face on the QR page</h3><p class="sec-sub">Give guests an ordering page with your shop's name, tagline, hours, WhatsApp button and colour — a beautiful animated menu that works on every phone, Urdu included. A custom-plan touch.</p></article>
           </div>
         </div>
@@ -271,7 +274,7 @@
       <div class="wrap">
         <p class="kicker">Inside the floor</p>
         <h2 class="sec-title">Every screen the shift touches.</h2>
-        <div class="fx-gallery">
+        <div class="fx-gallery" tabindex="0" role="region" aria-label="App screenshots gallery — use arrow keys or drag">
           <div class="fx-track">
             <figure class="fx-slide"><img src="./media/g-kds.jpg" alt="Kitchen display with live tickets" loading="lazy"/><figcaption><b>Kitchen display</b><span>Live tickets on the pass — mark ready, the floor hears it.</span></figcaption></figure>
             <figure class="fx-slide"><img src="./media/g-print.jpg" alt="Thermal receipt printer mid print" loading="lazy"/><figcaption><b>Printers &amp; drawer</b><span>Kitchen slips and receipts fire per role; the drawer pops on cash.</span></figcaption></figure>
@@ -308,7 +311,7 @@
               <li>Sales reports</li>
               <li>Receipt printing</li>
             </ul>
-            <a class="btn btn-ghost plan-cta" href="#" data-plan="Starter (RM 79 / month)">Start with Starter</a>
+            <a class="btn btn-ghost plan-cta" href="#" data-plan="Starter (RM 79 / month)" aria-label="Start with Starter — opens WhatsApp">Ask about Starter on WhatsApp</a>
             <p class="plan-best">Best for Small Shop / Cafe</p>
           </article>
           <article class="plan popular" data-reveal data-tilt>
@@ -324,7 +327,7 @@
               <li>E-Invoice ready header</li>
               <li><b>+ QR ordering, recipes, wastage, purchasing &amp; insights</b></li>
             </ul>
-            <a class="btn btn-mint plan-cta" href="#" data-plan="Growth (RM 149 / month)">Choose Growth</a>
+            <a class="btn btn-mint plan-cta" href="#" data-plan="Growth (RM 149 / month)" aria-label="Choose Growth — opens WhatsApp">Choose Growth on WhatsApp</a>
             <p class="plan-best">Best for Restaurant / Minimarket</p>
           </article>
           <article class="plan" data-reveal data-tilt>
@@ -336,9 +339,9 @@
               <li>ERP integration</li>
               <li>Warehouse management</li>
               <li>Dedicated support</li>
-              <li>Priority SLA</li>
+              <li>Priority support queue</li>
             </ul>
-            <a class="btn btn-gold plan-cta" href="#" data-plan="Custom pricing (enterprise / franchise)">Request a quote</a>
+            <a class="btn btn-gold plan-cta" href="#" data-plan="Custom pricing (enterprise / franchise)" aria-label="Request a custom quote — opens WhatsApp">Request a quote on WhatsApp</a>
             <p class="plan-best">Best for Enterprise / Franchise</p>
           </article>
         </div>
@@ -372,8 +375,8 @@
             </div>
             <div class="dl-actions">
               <a class="btn btn-ghost" href="./guide.html">User Guide</a>
-              <button class="btn btn-mint" type="button" id="dl-btn">Download APK</button>
-              <p class="note" id="dl-status"></p>
+              <button class="btn btn-mint" type="button" id="dl-btn" aria-label="Download the Order Flow Android APK">Download Android APK</button>
+              <p class="note" id="dl-status" role="status" aria-live="polite"></p>
             </div>
           </div>
         </div>
@@ -415,9 +418,12 @@
               <option value="Services">Services</option>
             </select>
           </label>
-          <label>Email<input id="t-email" name="email" type="email" autocomplete="email" required placeholder="you@business.com"/></label>
+          <label>Email <small>(optional)</small><input id="t-email" name="email" type="email" autocomplete="email" placeholder="you@business.com"/></label>
           <label>Phone number<input id="t-phone" name="phone" type="tel" autocomplete="tel" required placeholder="Include country code"/></label>
-          <button class="btn btn-mint" type="submit">Submit on WhatsApp</button>
+          <label class="consent-row"><input id="t-consent" name="consent" type="checkbox" required/>
+            <span>I have read the <a href="./privacy.html" target="_blank" rel="noopener">privacy policy</a> and the <a href="./terms.html" target="_blank" rel="noopener">terms</a>, and I agree to Jathol contacting me on WhatsApp about my trial. My details are not stored by this website — they go only into the WhatsApp message I review and send myself.</span></label>
+          <p class="note" lang="ms">Dengan menghantar borang ini anda memberi kebenaran untuk dihubungi melalui WhatsApp bagi tujuan percubaan sahaja (Akta Perlindungan Data Peribadi 2010).</p>
+          <button class="btn btn-mint" type="submit">Send trial request on WhatsApp</button>
           <p class="note">You will review the message in WhatsApp before you send it.</p>
         </form>
       </div>
@@ -434,6 +440,15 @@
           <p class="kicker">Direct</p>
           <h3>Open a chat with a license request already written.</h3>
           <a class="btn btn-gold" id="wa-main" target="_blank" rel="noopener">Message @Jathol_Jutt</a>
+          <address class="biz-card">
+            <b>Jathol</b> — developer &amp; vendor of Order Flow<br/>
+            Trading from Malaysia · business hours (GMT+8)<br/>
+            Contact: WhatsApp <strong>@Jathol_Jutt</strong> (calls on request)<br/>
+            Company registration &amp; registered address: shown on every
+            license receipt and invoice, and provided on request before purchase —
+            as required by the Consumer Protection (Electronic Trade Transactions)
+            Regulations 2012.
+          </address>
         </div>
       </div>
     </section>
@@ -449,12 +464,26 @@
         ·
         <a href="./privacy.html">Privacy</a>
         ·
+        <a href="./terms.html">Terms</a>
+        ·
+        <a href="./refunds.html">Refunds</a>
+        ·
+        <a href="./cookies.html">Cookies</a>
+        ·
         <a href="#download">Download</a>
         ·
         <a id="wa-foot" target="_blank" rel="noopener">WhatsApp</a>
       </div>
     </div>
   </footer>
+  <div class="cookiebar" id="cookiebar" role="region" aria-label="Storage consent" hidden>
+    <p><b>Your choices on this site.</b> It sets no tracking cookies and runs no analytics. We'd like to remember your currency view (local storage) and read exchange rates once a session to preview plan prices in it. Basic hosting protection by Cloudflare stays on either way.
+      <a href="./cookies.html">Details</a> · <a href="./privacy.html">Privacy</a></p>
+    <p class="cb-actions">
+      <button class="btn btn-mint" type="button" id="cb-accept">Accept</button>
+      <button class="btn btn-ghost" type="button" id="cb-decline">No, thanks</button>
+    </p>
+  </div>
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script defer src="./hero3d.js"></script>
   <script src="./site.js"></script>

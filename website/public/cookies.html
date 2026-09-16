@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Cookies &amp; storage · Order Flow by Jathol</title>
+  <meta name="description" content="What cookies and browser storage jathol.pages.dev uses — the short list — and how to change your choice."/>
+  <link rel="icon" href="./media/logo.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="./styles.css?v=3"/>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="./index.html"><img src="./media/logo.png" alt=""/>ORDER FLOW</a>
+      <a class="btn btn-mint" href="./index.html">Back to site</a>
+    </div>
+  </header>
+  <main id="main" class="wrap" style="padding:56px 0 80px;max-width:760px">
+    <p class="kicker">Legal</p>
+    <h1 style="font-size:48px">Cookies &amp; storage</h1>
+    <p class="sec-sub">Last updated: 17 September 2026. The honest short version: <b>this site keeps almost nothing.</b> No advertising cookies, no analytics, no fingerprinting. What remains is one hosting cookie and two small on-device preferences, listed below.</p>
+
+    <h2 class="sec-title" style="font-size:26px;margin-top:30px">What is used</h2>
+    <div class="legal-table">
+      <table>
+        <thead><tr><th scope="col">Name</th><th scope="col">Where</th><th scope="col">Purpose</th><th scope="col">Duration</th><th scope="col">Type</th></tr></thead>
+        <tbody>
+          <tr><td><code>__cf_bm</code></td><td>Cloudflare (host)</td><td>Bot protection &amp; rate limiting for this site</td><td>~30 minutes</td><td>Strictly necessary</td></tr>
+          <tr><td><code>of-consent</code></td><td>Your browser — localStorage</td><td>Remembers your choice below so we never ask again</td><td>Until cleared</td><td>Preference</td></tr>
+          <tr><td><code>of-ccy</code></td><td>Your browser — localStorage</td><td>Your chosen price-currency view (display only)</td><td>Until cleared</td><td>Preference — needs consent</td></tr>
+          <tr><td><code>of-myr-rates</code></td><td>Your browser — sessionStorage</td><td>Cache of exchange rates so prices re-render fast</td><td>Until tab closes</td><td>Preference — needs consent</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Network calls that are <i>not</i> cookies but do touch third parties: Google Fonts and jsDelivr (Three.js hero animation) load on every page and see your IP; the exchange-rate lookup runs only with your consent. Full list in the <a href="./privacy.html">privacy policy</a>.</p>
+
+    <h2 class="sec-title" style="font-size:26px;margin-top:28px">Your choice</h2>
+    <p class="sec-sub">The banner on the main site asks once. Without an “Accept”, no optional storage is written, no geo lookup runs and plan prices simply show in RM. Change your mind any time:</p>
+    <p style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px">
+      <button class="btn btn-mint" type="button" id="ck-yes">Accept preferences</button>
+      <button class="btn btn-ghost" type="button" id="ck-no">Decline / clear them</button>
+    </p>
+    <p class="note" id="ck-status" aria-live="polite"></p>
+
+    <h2 class="sec-title" style="font-size:26px;margin-top:28px">Blocking everything</h2>
+    <p class="sec-sub">Your browser settings clear or block local storage and cookies for this site; blocking Cloudflare's cookie may make the APK download ask you a security question more often. Nothing else here breaks.</p>
+
+    <p class="sec-sub" style="margin-top:24px">
+      See also <a href="./privacy.html">Privacy</a> · <a href="./terms.html">Terms</a> · <a href="./refunds.html">Refunds</a>
+    </p>
+  </main>
+  <footer>
+    <div class="wrap foot">
+      <div>© <span class="y"></span> Jathol · Order Flow</div>
+      <div>
+        <a href="./index.html">Home</a> ·
+        <a href="./privacy.html">Privacy</a> ·
+        <a href="./terms.html">Terms</a> ·
+        <a href="./refunds.html">Refunds</a> ·
+        <a href="./guide.html">User guide</a>
+      </div>
+    </div>
+  </footer>
+  <script>
+    document.querySelectorAll('.y').forEach(e => e.textContent = new Date().getFullYear());
+    const st = document.getElementById('ck-status');
+    function say(m){ if (st) st.textContent = m; }
+    document.getElementById('ck-yes')?.addEventListener('click', () => {
+      try { localStorage.setItem('of-consent', 'yes'); say('Accepted — the main site may remember your currency view. Reload the home page to see it.'); }
+      catch (_) { say('Storage is blocked in this browser — nothing can be remembered, which is the same as declining. The site works fine either way.'); }
+    });
+    document.getElementById('ck-no')?.addEventListener('click', () => {
+      try {
+        localStorage.setItem('of-consent', 'no');
+        localStorage.removeItem('of-ccy');
+        sessionStorage.removeItem('of-myr-rates');
+        say('Cleared. Prices will stay in RM and nothing optional will be stored on this device.');
+      } catch (_) { say('Nothing to clear — storage is already blocked, which is a full decline.'); }
+    });
+  </script>
+</body>
+</html>

@@ -15,6 +15,14 @@ const WA =
     ].join("\n"),
   );
 
+// ── v1.1.72 · storage consent (site policy: no cookies of ours, two local
+// preferences only; everything optional stays behind an explicit "yes") ──
+const CONSENT_KEY = "of-consent";
+function hasConsent() {
+  try { return localStorage.getItem(CONSENT_KEY) === "yes"; }
+  catch (_) { try { return sessionStorage.getItem(CONSENT_KEY) === "yes"; } catch (__) { return false; } }
+}
+
 document.querySelectorAll("#wa-hero, #wa-main, #wa-foot").forEach((a) => {
   if (a) a.href = WA;
 });
@@ -78,7 +86,7 @@ document.getElementById("trial-form")?.addEventListener("submit", (e) => {
   const model = document.getElementById("t-model").value.trim();
   const email = document.getElementById("t-email").value.trim();
   const phone = document.getElementById("t-phone").value.trim();
-  if (!name || !model || !email || !phone) return;
+  if (!name || !model || !phone) return;
   const body = [
     "Name: " + name,
     "Business model: " + model,
@@ -182,8 +190,9 @@ if (!reduceMotion) {
 }
 
 // ── v1.1.59+: plan prices in the visitor's currency ────────────────────
-// Geo lookup: Cloudflare Pages Function /geo (request.cf.country) first,
-// then ipapi.co as fallback. If both fail, the currency select stays manual.
+// Geo lookup: our own Cloudflare Pages Function /geo only (request.cf.country
+// edge header — no third-party IP-geolocation service). Runs only behind the
+// storage-consent gate; if it fails, the currency select stays manual.
 // Billing is always in RM — other currencies are marked as indicative.
 const PLAN_CCY = {
   MYR: { sym: "RM ", pre: true },  IDR: { sym: "Rp ", pre: true },  THB: { sym: "฿", pre: true },
@@ -214,11 +223,13 @@ const PLAN_CCY_CHOICES = ["MYR", "IDR", "THB", "PHP", "VND", "INR", "PKR", "BDT"
   "AED", "SAR", "QAR", "USD", "CAD", "EUR", "GBP", "AUD", "NZD", "CNY", "HKD", "TWD", "JPY",
   "KRW", "TRY", "ZAR", "NGN", "KES", "EGP", "BRL", "MXN", "PLN", "LKR", "NPR", "MMK", "KHR", "LAK", "MVR", "KWD"];
 
-(async function initPlanCurrency() {
+async function initPlanCurrency() {
   const bar = document.getElementById("currency-bar");
   const sel = document.getElementById("cur-select");
   const note = document.getElementById("cur-note");
   if (!bar || !sel || !note) return;
+  if (!hasConsent() || initPlanCurrency.running) return; // no consent → plain RM, zero third-party calls
+  initPlanCurrency.running = true;
 
   let rates = null;
   try {
@@ -275,13 +286,6 @@ const PLAN_CCY_CHOICES = ["MYR", "IDR", "THB", "PHP", "VND", "INR", "PKR", "BDT"
         if (/^[A-Z]{2}$/.test(cc)) return cc;
       }
     } catch (_) {}
-    try {
-      const p = await fetch("https://ipapi.co/json/", { cache: "no-store" });
-      if (p.ok) {
-        const cc = String((await p.json()).country_code || "").toUpperCase();
-        if (/^[A-Z]{2}$/.test(cc)) return cc;
-      }
-    } catch (_) {}
     return "";
   }
 
@@ -308,7 +312,43 @@ const PLAN_CCY_CHOICES = ["MYR", "IDR", "THB", "PHP", "VND", "INR", "PKR", "BDT"
     }
   });
 
-  const saved = localStorage.getItem("of-ccy");
+  initPlanCurrency.running = false;
+  const saved = (() => { try { return localStorage.getItem("of-ccy"); } catch (_) { return null; } })();
   if (valid(saved)) renderPrices(saved);
   else await applyAuto();
+}
+window.ofInitCurrency = initPlanCurrency;
+initPlanCurrency();
+
+// ── cookie/storage consent banner (asks once; choice remembered locally) ──
+(function consentBar() {
+  const cbar = document.getElementById("cookiebar");
+  if (!cbar) return;
+  let have = null;
+  try { have = localStorage.getItem(CONSENT_KEY) || sessionStorage.getItem(CONSENT_KEY); } catch (_) {}
+  if (have === "yes" || have === "no") return; // already decided
+  cbar.hidden = false;
+  const decide = (v) => {
+    try { localStorage.setItem(CONSENT_KEY, v); }
+    catch (_) { try { sessionStorage.setItem(CONSENT_KEY, v); } catch (__) {} }
+    if (v === "no") { try { localStorage.removeItem("of-ccy"); sessionStorage.removeItem("of-myr-rates"); } catch (_) {} }
+    cbar.hidden = true;
+    if (v === "yes") initPlanCurrency();
+  };
+  document.getElementById("cb-accept")?.addEventListener("click", () => decide("yes"));
+  document.getElementById("cb-decline")?.addEventListener("click", () => decide("no"));
 })();
+
+// ── screenshots gallery: keyboard friendly ──
+document.querySelectorAll(".fx-gallery").forEach((g) => {
+  const scroller = [g, g.querySelector(".fx-track")].find(
+    (el) => el && el.scrollWidth - el.clientWidth > 24 || (el && getComputedStyle(el).overflowX === "auto") || (el && getComputedStyle(el).overflowX === "scroll")
+  );
+  if (!scroller) return;
+  g.addEventListener("keydown", (e) => {
+    const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!dir) return;
+    e.preventDefault();
+    scroller.scrollBy({ left: dir * Math.max(280, scroller.clientWidth * 0.8), behavior: "smooth" });
+  });
+});
