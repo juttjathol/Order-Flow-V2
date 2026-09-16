@@ -1,3 +1,10 @@
+// v1.1.72 security layer: shared helpers (throttle, hardening headers,
+// origin-allowlisted CORS, constant-time compares, PBKDF2).
+import { sec, throttle, ipOf, corsFor, safeEqual, pbkdf2Hex } from "../../_security.js";
+
+// Per-request CORS headers; set once at the top of onRequest before any await.
+const CTX = { cors: {} };
+
 // v1.1.59 — plan & entitlements catalog. Keys here must match
 // kFeatureCatalog in flutter_app/lib/models/models_plans.dart exactly.
 const CORE_FEATURE_KEYS = new Set([
@@ -71,17 +78,10 @@ function normalizeAccess(body) {
   };
 }
 
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Max-Age": "86400",
-};
-
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...CORS, ...extra },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...sec(), ...CTX.cors, ...extra },
   });
 }
 
@@ -93,10 +93,12 @@ function pathOf(context) {
   return url.pathname.replace(/^\/api\/?/, "").replace(/^\/+|\/+$/g, "");
 }
 
-async function readJson(request) {
+async function readJson(request, maxBytes = 65536) {
   try {
+    const len = Number(request.headers.get("content-length") || 0);
+    if (len > maxBytes) return {};
     const text = await request.text();
-    if (!text) return {};
+    if (!text || text.length > maxBytes) return {};
     const data = JSON.parse(text);
     return data && typeof data === "object" ? data : {};
   } catch {
@@ -128,34 +130,39 @@ function generateKey() {
   return `OF-${block()}-${block()}-${block()}-${block()}`;
 }
 
-async function hmacHex(secret, data) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
-  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+async function tokenKeyMaterial(env) {
+  const enc2 = new TextEncoder();
+  if (env.ADMIN_SECRET) return enc2.encode(env.ADMIN_SECRET);
+  const pw = env.ADMIN_PASSWORD || "";
+  if (!pw) return null;
+  // Legacy setups without ADMIN_SECRET: derive a stable key from the password
+  // digest instead of using it raw as HMAC material.
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", enc2.encode("of-admin|" + pw)));
 }
 
 async function issueToken(env, hours = 12) {
-  const secret = env.ADMIN_SECRET || env.ADMIN_PASSWORD;
+  const key = await tokenKeyMaterial(env);
   const payload = btoa(JSON.stringify({ iat: Date.now(), exp: Date.now() + hours * 3600_000 }));
-  const sig = await hmacHex(secret, payload);
-  return `${payload}.${sig}`;
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return `${payload}.${[...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
 async function verifyToken(env, header) {
   if (!header || !header.startsWith("Bearer ")) return false;
   const token = header.slice(7).trim();
-  const secret = env.ADMIN_SECRET || env.ADMIN_PASSWORD;
-  if (!secret || !token.includes(".")) return false;
+  if (!token.includes(".")) return false;
+  const key = await tokenKeyMaterial(env);
+  if (!key) return false;
   const [payload, sig] = token.split(".");
-  const expect = await hmacHex(secret, payload);
-  if (expect !== sig) return false;
+  if (!/^[0-9a-f]{64}$/.test(sig || "")) return false;
+  const sigBytes = new Uint8Array((sig.match(/../g) || []).map((h) => parseInt(h, 16)));
+  let ok = false;
+  try {
+    ok = await crypto.subtle.verify("HMAC", key, sigBytes, new TextEncoder().encode(payload));
+  } catch {
+    return false;
+  }
+  if (!ok) return false;
   try {
     const body = JSON.parse(atob(payload));
     return Number(body.exp) > Date.now();
@@ -164,8 +171,20 @@ async function verifyToken(env, header) {
   }
 }
 
-function requireAdminPassword(env) {
-  return env.ADMIN_PASSWORD || "";
+// PBKDF2 password hash: pbkdf2-sha256$<iterations>$<saltHex>$<hashHex>
+// (generate with: node scripts/hash-pass.mjs 'your password')
+async function verifyAdminPassword(env, given) {
+  const stored = String(env.ADMIN_PASSWORD_HASH || "").trim();
+  if (stored) {
+    const m = /^pbkdf2-sha256\$(\d+)\$([0-9a-f]+)\$([0-9a-f]+)$/i.exec(stored);
+    if (!m || typeof given !== "string" || !given) return false;
+    const iters = Math.min(Math.max(Number(m[1]) || 0, 100000), 1000000);
+    const calc = await pbkdf2Hex(given, m[2], iters);
+    return await safeEqual(calc, m[3].toLowerCase());
+  }
+  const legacy = String(env.ADMIN_PASSWORD || "");
+  if (!legacy || typeof given !== "string" || !given) return false;
+  return await safeEqual(given, legacy); // constant-time fallback for plaintext secret
 }
 
 async function customerById(db, id) {
@@ -205,8 +224,14 @@ function publicLicense(row, customer) {
 
 export async function onRequest(context) {
   const { request, env } = context;
+  CTX.cors = corsFor(env, request); // set before the first await; cross-origin only for allowlisted origins
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS });
+    const allowed = Boolean(CTX.cors["Access-Control-Allow-Origin"]);
+    const h = { ...sec(), Allow: "GET,POST,PATCH,DELETE,OPTIONS", ...(allowed ? { "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Max-Age": "600", ...CTX.cors } : {}) };
+    return new Response(null, { status: allowed ? 204 : 403, headers: h });
+  }
+  if (!env.ADMIN_PASSWORD && !env.ADMIN_PASSWORD_HASH) {
+    return json({ ok: false, error: "not_configured", message: "Set ADMIN_PASSWORD_HASH (preferred) or ADMIN_PASSWORD." }, 500);
   }
   if (!env.DB) {
     return json({ ok: false, error: "d1_not_configured", message: "Bind a D1 database as DB." }, 500);
@@ -222,16 +247,18 @@ export async function onRequest(context) {
     }
 
     if (path === "v1/license/validate" && method === "POST") {
+      if (throttle(`validate|${ipOf(request)}`, 60, 600000)) {
+        return json({ ok: false, valid: false, error: "slow_down" }, 429, { "Retry-After": "600" });
+      }
       return handleValidate(env, await readJson(request));
     }
 
     if (path === "admin/login" && method === "POST") {
-      const body = await readJson(request);
-      const expected = requireAdminPassword(env);
-      if (!expected) {
-        return json({ ok: false, error: "not_configured", message: "Set ADMIN_PASSWORD secret." }, 500);
+      if (throttle(`login|${ipOf(request)}`, 8, 300000)) {
+        return json({ ok: false, error: "slow_down", message: "Too many attempts — wait a few minutes." }, 429, { "Retry-After": "300" });
       }
-      if ((body.password || "") !== expected) {
+      const body = await readJson(request);
+      if (!(await verifyAdminPassword(env, body.password))) {
         return json({ ok: false, error: "unauthorized", message: "Invalid password." }, 401);
       }
       const token = await issueToken(env);
@@ -346,7 +373,8 @@ export async function onRequest(context) {
           )
           .run();
       } catch (e) {
-        return json({ ok: false, error: "key_conflict", message: String(e) }, 409);
+        console.error("key insert failed:", e && e.message);
+        return json({ ok: false, error: "key_conflict", message: "That key already exists — generate another." }, 409);
       }
       const row = await licenseById(env.DB, id);
       return json({ ok: true, license: publicLicense(row, customer) }, 201);
@@ -401,7 +429,8 @@ export async function onRequest(context) {
 
     return json({ ok: false, error: "not_found", path }, 404);
   } catch (error) {
-    return json({ ok: false, error: "server_error", message: String(error) }, 500);
+    console.error("api error:", path, error && error.message); // details stay server-side
+    return json({ ok: false, error: "server_error", message: "Something went wrong on our side." }, 500);
   }
 }
 
@@ -440,12 +469,12 @@ async function handleValidate(env, body) {
     }, 403);
   }
   if (row.bound_device_id && row.bound_device_id !== deviceId) {
+    // Never echo the bound device id back — the fact of a conflict is enough.
     return json({
       ok: false,
       valid: false,
       error: "bound_to_other_device",
       message: "This key is already bound to another device. Reset binding in the admin dashboard.",
-      boundDeviceId: row.bound_device_id,
     }, 409);
   }
 

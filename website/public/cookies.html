@@ -64,22 +64,6 @@
       </div>
     </div>
   </footer>
-  <script>
-    document.querySelectorAll('.y').forEach(e => e.textContent = new Date().getFullYear());
-    const st = document.getElementById('ck-status');
-    function say(m){ if (st) st.textContent = m; }
-    document.getElementById('ck-yes')?.addEventListener('click', () => {
-      try { localStorage.setItem('of-consent', 'yes'); say('Accepted — the main site may remember your currency view. Reload the home page to see it.'); }
-      catch (_) { say('Storage is blocked in this browser — nothing can be remembered, which is the same as declining. The site works fine either way.'); }
-    });
-    document.getElementById('ck-no')?.addEventListener('click', () => {
-      try {
-        localStorage.setItem('of-consent', 'no');
-        localStorage.removeItem('of-ccy');
-        sessionStorage.removeItem('of-myr-rates');
-        say('Cleared. Prices will stay in RM and nothing optional will be stored on this device.');
-      } catch (_) { say('Nothing to clear — storage is already blocked, which is a full decline.'); }
-    });
-  </script>
+  <script defer src="./legal.js"></script>
 </body>
 </html>

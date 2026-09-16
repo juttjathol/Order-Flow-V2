@@ -11,17 +11,28 @@
 // there is no list/query endpoint of any kind. Rooms open only for licenses
 // whose plan includes the "cloud_sync" feature.
 
+import { sec, throttle, ipOf } from "../../../_security.js";
+
 const PLAN_FEATURE_KEY = "cloud_sync";
 const MSG_TTL_MS = 30 * 60 * 1000; // rows never live longer than ~30 min
 const MSG_CAP = 400; // newest-rows cap per room
 const MAX_DEVICES = 16;
 const MAX_MSG_LEN = 1_300_000; // encrypted payload size cap
 
-function j(status, body) {
+function j(status, body, extra = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { "content-type": "application/json", ...sec(), ...extra },
   });
+}
+
+// Never hand raw DB errors to a client — map to support-safe codes.
+function safeErr(e) {
+  const m = String((e && e.message) || e || "").toLowerCase();
+  if (/quota|over_|exceed/.test(m)) return "quota";
+  if (/no such table|no such column/.test(m)) return "schema";
+  if (/busy|lock/.test(m)) return "busy";
+  return "db_err";
 }
 
 function hex(buf) {
@@ -166,7 +177,7 @@ export async function onRequest(context) {
           steps.push(label + ":ok");
           return true;
         } catch (e) {
-          steps.push(label + ":FAIL " + String((e && e.message) || e));
+          steps.push(label + ":FAIL " + safeErr(e));
           return false;
         }
       };
@@ -186,14 +197,14 @@ export async function onRequest(context) {
         const rows = await db.prepare("SELECT COUNT(*) AS n FROM cloud_msgs WHERE room = ?1").bind(scratch).first();
         steps.push("read:ok n=" + Number(rows?.n ?? 0));
       } catch (e) {
-        steps.push("read:FAIL " + String((e && e.message) || e));
+        steps.push("read:FAIL " + safeErr(e));
         ok = false;
       }
       try {
         const lc = await db.prepare("SELECT COUNT(*) AS n FROM licenses").first();
         steps.push("licenses:ok n=" + Number(lc?.n ?? 0));
       } catch (e) {
-        steps.push("licenses:FAIL " + String((e && e.message) || e));
+        steps.push("licenses:FAIL " + safeErr(e));
         ok = false;
       }
       // Mirror of licenseAllowsCloud's exact SELECT — column names included,
@@ -204,7 +215,7 @@ export async function onRequest(context) {
           .bind("DIAG-PROBE").first();
         steps.push("lic_select:ok");
       } catch (e) {
-        steps.push("lic_select:FAIL " + String((e && e.message) || e));
+        steps.push("lic_select:FAIL " + safeErr(e));
         ok = false;
       }
       await run("delete_scratch", db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(scratch));
@@ -224,10 +235,11 @@ export async function onRequest(context) {
 
   try {
     if (path === "open") {
+      if (throttle(`cloud-open|${ipOf(request)}`, 20, 300000)) return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "300" });
       const allowed = await licenseAllowsCloud(db, String(body.licenseKey || ""));
       if (!allowed) return j(403, { ok: false, error: "plan" });
-      const licenseKey = String(body.licenseKey || "");
-      const mainDevice = String(body.deviceId || "");
+      const licenseKey = String(body.licenseKey || "").slice(0, 80);
+      const mainDevice = String(body.deviceId || "").slice(0, 160);
       const room = randomHex(32);
       const secret = randomHex(32);
       const code = randomCode();
@@ -260,6 +272,7 @@ export async function onRequest(context) {
     }
 
     if (path === "join") {
+      if (throttle(`cloud-join|${ipOf(request)}`, 30, 300000)) return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "120" });
       const room = String(body.room || "");
       const code = String(body.code || "").toUpperCase().trim();
       if (!room || !code) return j(400, { ok: false, error: "args" });
@@ -293,6 +306,7 @@ export async function onRequest(context) {
     }
 
     if (path === "send") {
+      if (throttle(`cloud-send|${ipOf(request)}`, 300, 60000)) return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "5" });
       const room = String(body.room || "");
       const msg = typeof body.msg === "string" ? body.msg : "";
       if (!room || msg.length === 0 || msg.length > MAX_MSG_LEN) return j(400, { ok: false, error: "args" });
@@ -349,6 +363,7 @@ export async function onRequest(context) {
 
     return j(404, { ok: false, error: "route" });
   } catch (e) {
-    return j(500, { ok: false, error: String((e && e.message) || e) });
+    console.error("cloud relay error:", e && e.message);
+    return j(500, { ok: false, error: "relay_err" });
   }
 }

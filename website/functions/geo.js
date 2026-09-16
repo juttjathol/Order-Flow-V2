@@ -7,7 +7,9 @@ export async function onRequestGet(context) {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "public, max-age=300",
-      "Access-Control-Allow-Origin": "*",
+      "X-Content-Type-Options": "nosniff",
+      "Cross-Origin-Resource-Policy": "same-origin",
+      // No CORS header by design: only this site's same-origin fetch() calls /geo.
     },
   });
 }

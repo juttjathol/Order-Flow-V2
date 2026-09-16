@@ -58,7 +58,9 @@ function badge(kind, label) {
 }
 
 function planChips(l) {
-  const plan = (l.plan || "full").toLowerCase();
+  const KNOWN = ["starter", "growth", "custom", "full"];
+  const raw = (l.plan || "full").toLowerCase();
+  const plan = esc(KNOWN.includes(raw) ? raw : "custom"); // legacy rows can hold anything
   const nF = Array.isArray(l.allowedFeatures) ? l.allowedFeatures.length : "all";
   const nM = Array.isArray(l.allowedModels) ? l.allowedModels.length : 4;
   const legacy = l.allowedModels == null && l.allowedFeatures == null;
