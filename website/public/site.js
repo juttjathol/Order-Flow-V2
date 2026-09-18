@@ -1,30 +1,25 @@
-const WA =
+const EMAIL = "contact@jathol.org";
+function mailto(subject, lines) {
+  return "mailto:" + EMAIL +
+    "?subject=" + encodeURIComponent(subject) +
+    "&body=" + encodeURIComponent(lines.join("\n"));
+}
+
+// The one WhatsApp link left on the site is the URGENT path, not the front door.
+const WA_URGENT =
   "https://wa.me/Jathol_Jutt?text=" +
   encodeURIComponent(
     [
+      "Hello Jathol — urgent from my shop (my till/service is affected):",
+      "",
       "Name: ",
-      "Business Name: ",
-      "Email: ",
-      "Phone number: ",
-      "",
-      "Hello Jathol,",
-      "",
-      "I would like to purchase an Order Flow license key for my business. Please share the available plans and payment details.",
-      "",
-      "Thank you.",
+      "Shop: ",
+      "What is happening: ",
     ].join("\n"),
   );
 
-// ── v1.1.72 · storage consent (site policy: no cookies of ours, two local
-// preferences only; everything optional stays behind an explicit "yes") ──
-const CONSENT_KEY = "of-consent";
-function hasConsent() {
-  try { return localStorage.getItem(CONSENT_KEY) === "yes"; }
-  catch (_) { try { return sessionStorage.getItem(CONSENT_KEY) === "yes"; } catch (__) { return false; } }
-}
-
-document.querySelectorAll("#wa-hero, #wa-main, #wa-foot").forEach((a) => {
-  if (a) a.href = WA;
+document.querySelectorAll("#wa-main").forEach((a) => {
+  if (a) a.href = WA_URGENT;
 });
 
 const year = document.getElementById("y");
@@ -88,18 +83,18 @@ document.getElementById("trial-form")?.addEventListener("submit", (e) => {
   const phone = document.getElementById("t-phone").value.trim();
   if (!name || !model || !phone) return;
   const body = [
-    "Name: " + name,
-    "Business model: " + model,
-    "Email: " + email,
-    "Phone number: " + phone,
-    "",
     "Hello Jathol,",
     "",
     "I would like to request a 3-day trial of Order Flow for my business. Please issue a trial license key and share the steps to activate Main on our shop Wi‑Fi.",
     "",
+    "Name: " + name,
+    "Business model: " + model,
+    "Email: " + (email || "(not given)"),
+    "Phone number: " + phone,
+    "",
     "Thank you.",
-  ].join("\n");
-  window.location.href = "https://wa.me/Jathol_Jutt?text=" + encodeURIComponent(body);
+  ];
+  window.location.href = mailto("Order Flow — 3-day trial request", body);
 });
 document.getElementById("dl-btn")?.addEventListener("click", startDownload);
 document.querySelectorAll("[data-apk]").forEach((el) => {
@@ -151,25 +146,25 @@ const armPriceCounts = (() => {
 })();
 armPriceCounts();
 
-// Plan CTA: pre-filled WhatsApp message per plan
+// Plan CTA: pre-filled email draft per plan
 document.querySelectorAll(".plan-cta").forEach((a) => {
   a.addEventListener("click", (e) => {
     e.preventDefault();
     const plan = a.dataset.plan || "a plan";
     const body = [
+      "Hello Jathol,",
+      "",
+      `I would like the ${plan} for Order Flow. Please share the payment details and the steps to activate Main on our shop Wi-Fi.`,
+      "",
       "Name: ",
       "Business Name: ",
       "Email: ",
       "Phone number: ",
       "Business model: ",
       "",
-      "Hello Jathol,",
-      "",
-      `I would like the ${plan} plan for Order Flow. Please share the payment details and the steps to activate Main on our shop Wi-Fi.`,
-      "",
       "Thank you.",
-    ].join("\n");
-    window.location.href = "https://wa.me/Jathol_Jutt?text=" + encodeURIComponent(body);
+    ];
+    window.location.href = mailto("Order Flow — " + plan, body);
   });
 });
 
