@@ -29,6 +29,8 @@ Kept so a continuation session never re-investigates closed problems.
 - git history secret scan: CLEAN (53 commits, no PATs/keys/creds). Deps: only dev wrangler ^4.20; CDN three@0.128 + google fonts pinned & disclosed. Debug sweep: no console.log/eval/debugger in shipped JS.
 - git-status caveat hit again: pushed branch tip c371b72 (PR #7 → main carries site+security; merging = Pages rebuilds, CI untouched since APK build only runs on v* tags). User still owes: real SSM/address/email for biz block, and setting ADMIN_PASSWORD_HASH + ADMIN_SECRET (openssl rand -hex 32) as secrets on the order-flow-v2 Pages project.
 
+- contact switch (site): jathol.org custom domain; contact@jathol.org is the front door everywhere (nav, plan CTAs, trial form, contact, footer, biz card, legal pages); trial/plan forms open pre-filled MAILTO drafts via site.js mailto(); WhatsApp only as 'Urgent' path + app-behaviour copy; email auto-reply delivered to user. Commit on arena = after c86432c.
+
 ## Standing rules (user)
 - Additive-only edits; change only what was asked. l10n EN+UR parity (CI test scans `.t('key')` literals — both maps must contain every used key; when inserting lines after `'slip_heading'` style anchors, mind trailing commas!).
 - Full ritual each version: pubspec version → kAppVersion → FALLBACK_TAG in 3× download.js (website/functions, root functions, cloudflare_dashboard) → commit → push branch → tag vX-rc1 → `gh run watch <id> --exit-status` (~8.5 min) → retag vX on tip → verify `gh release view vX --json assets` (field isLatest does NOT exist in this gh) → **delete rc release + rc tags local+remote** → fetch_page `https://order-flow-v2.pages.dev/download?meta=1` (works again 2026-09-15).
