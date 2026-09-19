@@ -31,6 +31,8 @@ Kept so a continuation session never re-investigates closed problems.
 
 - contact switch (site): jathol.org custom domain; contact@jathol.org is the front door everywhere (nav, plan CTAs, trial form, contact, footer, biz card, legal pages); trial/plan forms open pre-filled MAILTO drafts via site.js mailto(); WhatsApp only as 'Urgent' path + app-behaviour copy; email auto-reply delivered to user. Commit on arena = after c86432c.
 
+- WhatsApp purge (site): ALL wa.me/wa-main/wa-foot wiring removed (site.js WA constants gone); plan CTAs, contact block, biz card, guide support lines, privacy PDPA + third-party list now email-only. New website/public/contact.html = professional contact page (6 pre-filled mailto drafts, what-to-include, response-time table, business details). Footer redesigned on all 7 pages: brand col (email + 24h promise) + Explore/Support/Legal ul-li columns; styles.css?v=4. Only app-behaviour 'WhatsApp' words remain (receipt share, QR page button, in-app lock screen). Commit ff29884 on arena.
+
 ## Standing rules (user)
 - Additive-only edits; change only what was asked. l10n EN+UR parity (CI test scans `.t('key')` literals — both maps must contain every used key; when inserting lines after `'slip_heading'` style anchors, mind trailing commas!).
 - Full ritual each version: pubspec version → kAppVersion → FALLBACK_TAG in 3× download.js (website/functions, root functions, cloudflare_dashboard) → commit → push branch → tag vX-rc1 → `gh run watch <id> --exit-status` (~8.5 min) → retag vX on tip → verify `gh release view vX --json assets` (field isLatest does NOT exist in this gh) → **delete rc release + rc tags local+remote** → fetch_page `https://order-flow-v2.pages.dev/download?meta=1` (works again 2026-09-15).
