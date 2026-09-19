@@ -5,22 +5,6 @@ function mailto(subject, lines) {
     "&body=" + encodeURIComponent(lines.join("\n"));
 }
 
-// The one WhatsApp link left on the site is the URGENT path, not the front door.
-const WA_URGENT =
-  "https://wa.me/Jathol_Jutt?text=" +
-  encodeURIComponent(
-    [
-      "Hello Jathol — urgent from my shop (my till/service is affected):",
-      "",
-      "Name: ",
-      "Shop: ",
-      "What is happening: ",
-    ].join("\n"),
-  );
-
-document.querySelectorAll("#wa-main").forEach((a) => {
-  if (a) a.href = WA_URGENT;
-});
 
 const year = document.getElementById("y");
 if (year) year.textContent = String(new Date().getFullYear());

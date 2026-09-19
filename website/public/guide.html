@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="./styles.css?v=3"/>
+  <link rel="stylesheet" href="./styles.css?v=4"/>
   <style>
     .guide-head { padding: 90px 0 40px; }
     .guide-head .sec-sub { color: var(--muted); }
@@ -53,7 +53,7 @@
         <a href="./index.html#product">Product</a>
         <a href="./index.html#download">Download</a>
         <a href="#toc">Contents</a>
-        <a href="./index.html#contact">Contact</a>
+        <a href="./contact.html">Contact</a>
       </nav>
       <div class="nav-cta">
         <a class="btn btn-mint" href="./index.html#download" data-apk>Get the app</a>
@@ -572,8 +572,8 @@
               <li><b>Print fails:</b> run the printer's Test page. LAN: check IP/port 9100 and same network. Bluetooth: pair in Android settings first, allow Nearby devices permission.</li>
               <li><b>Drawer won't open:</b> is it plugged into the receipt printer's kick port? Try Open drawer now. Some printers need the drawer enabled in their own settings.</li>
               <li><b>Offline queue:</b> the station chip shows queued work; it flushes automatically when Main is back.</li>
-              <li><b>License locked:</b> the key was reset or revoked — WhatsApp @Jathol_Jutt from the lock screen.</li>
-              <li>Anything else: email <strong>contact@jathol.org</strong> — answered within 24 hours — or WhatsApp <strong>@Jathol_Jutt</strong> when it is urgent.</li>
+              <li><b>License locked:</b> the key was reset or revoked — email <strong>contact@jathol.org</strong> from the lock screen and we reset it.</li>
+              <li>Anything else: email <strong>contact@jathol.org</strong> — answered within 24 hours, Monday to Saturday.</li>
             </ul>
           </div>
           <div class="lang-card ur">
@@ -583,8 +583,8 @@
               <li><b>پرنٹ ناکام:</b> پرنٹر کا ٹیسٹ صفحہ چلائیں۔ LAN: IP/پورٹ 9100 اور وہی نیٹ ورک چیک کریں۔ بلوٹوتھ: پہلے اینڈرائیڈ سیٹنگز میں پیئر کریں، Nearby devices اجازت دیں۔</li>
               <li><b>دراز نہیں کھلتی:</b> کیا کیبل رسید والے پرنٹر کے کِک پورٹ میں ہے؟ ابھی دراز کھولیں آزمائیں۔ کچھ پرنٹرز میں دراز اپنی سیٹنگز سے آن کرنی پڑتی ہے۔</li>
               <li><b>آف لائن قطار:</b> اسٹیشن چپ پر جمع کام دکھاتی ہے؛ Main واپس آتے ہی خود بھیج دیتی ہے۔</li>
-              <li><b>لائسنس لاک:</b> کی ری سیٹ یا منسوخ ہوئی — لاک اسکرین سے واٹس ایپ @Jathol_Jutt کریں۔</li>
-              <li>کوئی اور مسئلہ: ای میل <strong>contact@jathol.org</strong> (24 گھنٹے میں جواب) — یا فوری معاملے پر واٹس ایپ <strong>@Jathol_Jutt</strong>۔</li>
+              <li><b>لائسنس لاک:</b> کی ری سیٹ یا منسوخ ہوئی — لاک اسکرین سے <strong>contact@jathol.org</strong> پر ای میل کریں، ہم ری سیٹ کر دیں گے۔</li>
+              <li>کوئی اور مسئلہ: ای میل <strong>contact@jathol.org</strong> — 24 گھنٹے میں جواب، پیر تا ہفتہ۔</li>
             </ul>
           </div>
         </div>
@@ -782,22 +782,44 @@
 
   <footer>
     <div class="wrap foot">
-      <div>© <span id="y"></span> Jathol · Order Flow</div>
-      <div>
-        <a href="./index.html">Home</a>
-        ·
-        <a href="./privacy.html">Privacy</a>
-        ·
-        <a href="./terms.html">Terms</a>
-        ·
-        <a href="./refunds.html">Refunds</a>
-        ·
-        <a href="./cookies.html">Cookies</a>
-        ·
-        <a href="./index.html#download">Download</a>
-        ·
-        <a id="wa-foot" target="_blank" rel="noopener">WhatsApp</a>
+      <div class="foot-brand">
+        <p class="foot-logo"><img src="./media/logo.png" alt=""/> <b>ORDER FLOW</b></p>
+        <p>Offline-first Wi&#8209;Fi point of sale for restaurants, caf&#233;s, minimarkets and delivery shops.</p>
+        <p class="foot-mail"><a href="mailto:contact@jathol.org">contact@jathol.org</a><span>Replies within 24 hours &#183; Mon&#8211;Sat, GMT+8</span></p>
       </div>
+      <nav class="foot-nav" aria-label="Explore">
+        <h3>Explore</h3>
+        <ul>
+          <li><a href="./index.html">Home</a></li>
+          <li><a href="./index.html#product">Product</a></li>
+          <li><a href="./index.html#plans">Plans</a></li>
+          <li><a href="./index.html#how">How it works</a></li>
+          <li><a href="./index.html#download">Download</a></li>
+          <li><a href="./contact.html">Contact</a></li>
+        </ul>
+      </nav>
+      <nav class="foot-nav" aria-label="Support">
+        <h3>Support</h3>
+        <ul>
+          <li><a href="./index.html#trial">3-day trial</a></li>
+          <li><a href="./contact.html#licence">Licence &amp; keys</a></li>
+          <li><a href="./contact.html#reset">Binding reset</a></li>
+          <li><a href="./contact.html#printers">Printer setup</a></li>
+          <li><a href="./guide.html">User guide</a></li>
+        </ul>
+      </nav>
+      <nav class="foot-nav" aria-label="Legal">
+        <h3>Legal</h3>
+        <ul>
+          <li><a href="./privacy.html">Privacy</a></li>
+          <li><a href="./terms.html">Terms</a></li>
+          <li><a href="./refunds.html">Refunds</a></li>
+          <li><a href="./cookies.html">Cookies</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="wrap foot-base">
+      <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow &#8212; built and supported in Malaysia. Business registration and registered address appear on every licence receipt, and are provided on request before you buy.</p>
     </div>
   </footer>
   <script src="./site.js"></script>
