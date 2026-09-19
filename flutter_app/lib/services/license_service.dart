@@ -45,7 +45,7 @@ class LicenseService {
     required String licenseKey,
     required String deviceId,
   }) async {
-    final base = kDefaultApiBase;
+    final base = apiBase.trim().isNotEmpty ? apiBase.trim() : kDefaultApiBase;
     final uri = Uri.parse(_join(base, '/api/v1/license/validate'));
     try {
       final res = await http

@@ -3,6 +3,8 @@ import 'package:order_flow/core/role_access.dart';
 import 'package:order_flow/models/models.dart';
 import 'package:order_flow/models/reducer.dart';
 import 'package:order_flow/services/cloud_relay.dart';
+import 'package:order_flow/services/print_service.dart';
+import 'package:order_flow/state/app_controller.dart';
 
 void main() {
   test('PosOrder split payment round-trips through json', () {
@@ -289,5 +291,51 @@ void main() {
     expect(parts[3], 'https://order-flow-v2.pages.dev');
     expect(CloudRelay.parsePairing('garbage'), isNull);
     expect(CloudRelay.parsePairing('OF1:a:b:c'), isNull);
+  });
+
+  test('deleteCategory reassigns products instead of deleting them', () {
+    final store = AppStore();
+    store.categories.add(MenuCategory(id: 'c1', name: 'Mains'));
+    store.products.add(MenuProduct(id: 'p1', categoryId: 'c1', name: 'Steak', price: 10));
+    StoreReducer.apply(store, NetCommand(name: 'deleteCategory', payload: {'id': 'c1'}));
+    expect(store.products, hasLength(1));
+    expect(store.products.first.name, 'Steak');
+    expect(store.products.first.categoryId, isNot('c1'));
+    expect(store.categories.any((c) => c.id == 'c1'), isFalse);
+    expect(
+      store.categories.any((c) => c.id == 'uncat' || c.name.toLowerCase() == 'uncategorized'),
+      isTrue,
+    );
+  });
+
+  test('PrintService.formatQty keeps wholes whole and trims weight decimals', () {
+    expect(PrintService.formatQty(2), '2');
+    expect(PrintService.formatQty(2.0), '2');
+    expect(PrintService.formatQty(1.5), '1.5');
+    expect(PrintService.formatQty(0.250), '0.25');
+    expect(PrintService.formatQty(1.125), '1.125');
+  });
+
+  test('AppSnapshot copyWith clearIp/clearError actually null the fields', () {
+    final snap = AppSnapshot(
+      ready: true,
+      session: SessionPrefs(),
+      store: AppStore(),
+      gate: LicenseGate.ready,
+      serverOn: false,
+      connected: false,
+      lanIp: '10.0.0.1',
+      busy: false,
+      error: 'boom',
+      notices: const [],
+      online: true,
+      clients: const [],
+      pendingSync: 0,
+    );
+    final next = snap.copyWith(clearIp: true, clearError: true);
+    expect(next.lanIp, isNull);
+    expect(next.error, isNull);
+    expect(snap.lanIp, '10.0.0.1');
+    expect(snap.error, 'boom');
   });
 }

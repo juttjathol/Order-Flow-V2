@@ -701,6 +701,8 @@ class L10n {
     'print_size_auto': 'Auto (58 mm)',
     'print_size_hint': 'Auto prints the safe 58 mm layout (32 chars per line). Pick the printer’s real width for wide receipts — letters never stretch, lines just get longer.',
     'prebill_print': 'Pre-bill',
+    'import_fail': 'Could not import that backup.',
+    'shift_none': 'No shift open — tap to start',
 };
 
   static const _ur = {
@@ -1378,6 +1380,8 @@ class L10n {
     'print_size_auto': 'خودکار (58 ملی میٹر)',
     'print_size_hint': 'خودکار محفوظ 58 ملی میٹر فارمیٹ پرنٹ کرتا ہے (ہر لائن 32 حروف)۔ چوڑی رسید کے لیے پرنٹر کی اصل چوڑائی چنیں — حروف کھنچتے نہیں، بس لائنیں لمبی ہوتی ہیں۔',
     'prebill_print': 'پری بل',
+    'import_fail': 'یہ بیک اپ لگ نہیں سکا۔',
+    'shift_none': 'شفٹ بند ہے — کھولنے کے لیے دبائیں',
 };
 
   static const _table = {'en': _en, 'ur': _ur};

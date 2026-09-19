@@ -303,7 +303,7 @@
   var tableId=qs.get('table')||'';
   var tableName=qs.get('name')||'';
   var lang=navigator.language&&navigator.language.indexOf('ur')===0?'ur':'en';
-  var menu=null,curCat='',cart=loadCart(),openId=null,openQty=1,openMods={},sending=false,fireOn='pay';
+  var menu=null,curCat='',cart=loadCart(),openId=null,openQty=1,openMods={},sending=false,fireOn='pay',statusTimer=null;
   var T={
     en:{menu:'Menu',cart:'Your order',review:'Review & send',send:'Confirm & send',
       add:'Add to order',keep:'Keep browsing',again:'Order something else',
@@ -316,6 +316,11 @@
       bodyFire:'Your ticket is printing in the kitchen right now. Sit back, we will bring it over.',
       payBox:'Show this ticket number at the counter to pay.',
       items:function(n){return n+(n===1?' item':' items');},
+      stReceived:'Received at the counter',
+      stPreparing:'The kitchen is cooking',
+      stReady:'Ready — we will bring it over',
+      stPaid:'Paid. Thank you!',
+      stCancelled:'This order was cancelled',
       subtotal:'Subtotal',tax:'Tax',service:'Service',total:'Total',
       vatnote:'Tax &amp; service charge, if any, are settled at the counter.',
       call:'Call',wa:'WhatsApp',hrs:'hours',of:'of',noStock:'—'},
@@ -330,6 +335,11 @@
       bodyFire:'آپ کی ٹکٹ کچن میں نکل رہی ہے۔ بیٹھیں، ہم پہنچا دیں گے۔',
       payBox:'ادائیگی کے لیے کاؤنٹر پر یہ ٹکٹ نمبر بتائیں۔',
       items:function(n){return n+' آئٹم';},
+      stReceived:'کاؤنٹر پر موصول ہو گیا',
+      stPreparing:'کچن پکا رہا ہے',
+      stReady:'تیار ہے — ہم پہنچا دیں گے',
+      stPaid:'ادا ہو گیا۔ شکریہ!',
+      stCancelled:'یہ آرڈر منسوخ ہو گیا',
       subtotal:'ذیلی رقم',tax:'ٹیکس',service:'سروس',total:'کل',
       vatnote:'ٹیکس اور سروس چارج (اگر ہو) کاؤنٹر پر ادا کیے جاتے ہیں۔',
       call:'کال',wa:'واٹس ایپ',hrs:'اوقات',of:'از',noStock:'—'}
@@ -582,7 +592,7 @@
       var tk=$('ok-ticket');tk.classList.remove('fly');void tk.offsetWidth;
       $('ok-pop').classList.add('on');vib([12,40,12]);
       setTimeout(function(){tk.classList.add('fly');},1400);
-      setTimeout(function(){$('ok-pop').classList.remove('on');},6500);
+      watchTicket(d.ticket||'');
     }catch(err){
       $('err').textContent=/table_gone/.test(err.message)?(lang==='ur'?'یہ ٹیبل اب دستیاب نہیں — عملہ آپ کی مدد کرے گا۔':'This table is no longer available — please call your server.'):L('err');
       $('err').classList.add('on');
@@ -592,7 +602,35 @@
       $('send-t').textContent=L('send');
     }
   };
-  $('ok-again').onclick=function(){$('ok-pop').classList.remove('on');};
+  function statusLabel(st){
+    if(st==='preparing')return L('stPreparing');
+    if(st==='ready')return L('stReady');
+    if(st==='paid')return L('stPaid');
+    if(st==='cancelled')return L('stCancelled');
+    return L('stReceived');
+  }
+  function watchTicket(ticket){
+    if(statusTimer){clearInterval(statusTimer);statusTimer=null;}
+    if(!ticket)return;
+    var n=0;
+    statusTimer=setInterval(async function(){
+      n++; if(n>90){clearInterval(statusTimer);statusTimer=null;return;}
+      try{
+        var r=await fetch('/order/status?ticket='+encodeURIComponent(ticket),{headers:{'Accept':'application/json'}});
+        var d=await r.json();
+        if(d&&d.ok&&d.status){
+          $('ok-body').textContent=statusLabel(d.status);
+          if(d.status==='ready'||d.status==='paid'||d.status==='cancelled'){
+            clearInterval(statusTimer);statusTimer=null;
+          }
+        }
+      }catch(e){}
+    },4000);
+  }
+  $('ok-again').onclick=function(){
+    $('ok-pop').classList.remove('on');
+    if(statusTimer){clearInterval(statusTimer);statusTimer=null;}
+  };
 
   $('lang').onclick=function(){lang=lang==='en'?'ur':'en';applyBrand();renderCats();renderGrid();};
 

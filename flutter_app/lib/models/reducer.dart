@@ -99,8 +99,35 @@ class StoreReducer {
         bump();
         break;
       case 'deleteCategory':
-        store.categories.removeWhere((e) => e.id == p['id']);
-        store.products.removeWhere((e) => e.categoryId == p['id']);
+        final catId = '${p['id']}';
+        final inUse = store.products.any((e) => e.categoryId == catId);
+        if (inUse) {
+          MenuCategory? fallback;
+          for (final c in store.categories) {
+            if (c.id != catId &&
+                (c.id == 'uncat' || c.name.toLowerCase() == 'uncategorized')) {
+              fallback = c;
+              break;
+            }
+          }
+          fallback ??= store.categories.where((c) => c.id != catId).cast<MenuCategory?>().firstWhere(
+                (c) => c != null,
+                orElse: () => null,
+              );
+          if (fallback == null) {
+            fallback = MenuCategory(
+              id: 'uncat',
+              name: 'Uncategorized',
+              nameUr: 'غیر زمرہ بند',
+              sort: 999,
+            );
+            store.categories.add(fallback);
+          }
+          for (final prod in store.products) {
+            if (prod.categoryId == catId) prod.categoryId = fallback.id;
+          }
+        }
+        store.categories.removeWhere((e) => e.id == catId);
         bump();
         break;
       case 'upsertProduct':

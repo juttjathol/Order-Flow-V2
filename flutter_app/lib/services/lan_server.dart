@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
+import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/constants.dart';
@@ -32,6 +34,51 @@ class LanServer {
   HttpServer? _server;
   final _sockets = <WebSocketChannel>{};
   final clients = <String, ClientInfo>{};
+  final _socketDevice = <WebSocketChannel, String>{};
+  final _lanSecret = const Uuid().v4();
+
+  String _tokenFor(String deviceId) =>
+      sha256.convert(utf8.encode('$_lanSecret|$deviceId')).toString().substring(0, 32);
+
+  String? _bearer(Request req) {
+    final h = req.headers['authorization'] ?? req.headers['Authorization'] ?? '';
+    if (h.toLowerCase().startsWith('bearer ')) return h.substring(7).trim();
+    return null;
+  }
+
+  ClientInfo? _clientFromReq(Request req) {
+    final device = (req.headers['x-of-device'] ?? req.headers['X-OF-Device'] ?? '').trim();
+    final tok = _bearer(req);
+    if (device.isEmpty || tok == null || tok.isEmpty) return null;
+    if (tok != _tokenFor(device)) return null;
+    return clients[device];
+  }
+
+  NetCommand _bindRole(NetCommand cmd, String? deviceId) {
+    final bound = deviceId != null ? clients[deviceId] : null;
+    if (bound != null && bound.role.isNotEmpty) {
+      return NetCommand(
+        id: cmd.id,
+        name: cmd.name,
+        payload: cmd.payload,
+        actor: cmd.actor.isNotEmpty ? cmd.actor : bound.name,
+        role: bound.role,
+        at: cmd.at,
+      );
+    }
+    // Never trust a self-reported main/manager from an unidentified station.
+    if (cmd.role == 'main' || cmd.role == 'manager') {
+      return NetCommand(
+        id: cmd.id,
+        name: cmd.name,
+        payload: cmd.payload,
+        actor: cmd.actor,
+        role: '',
+        at: cmd.at,
+      );
+    }
+    return cmd;
+  }
 
   bool get running => _server != null;
   int get port => _server?.port ?? kLanPort;
@@ -49,6 +96,7 @@ class LanServer {
       ..get('/order', _qrPage)
       ..get('/order.html', _qrPage)
       ..get('/order/menu', _qrMenu)
+      ..get('/order/status', _qrStatus)
       ..post('/order/submit', _qrSubmit)
       ..get('/ws', webSocketHandler(_onWs));
 
@@ -66,6 +114,7 @@ class LanServer {
     }
     _sockets.clear();
     clients.clear();
+    _socketDevice.clear();
     await _server?.close(force: true);
     _server = null;
   }
@@ -86,8 +135,12 @@ class LanServer {
 
   void broadcastNotice(AppNotice notice) {
     final msg = jsonEncode({'type': 'notify', 'notice': notice.toJson()});
-    for (final s in _sockets) {
-      s.sink.add(msg);
+    for (final s in _sockets.toList()) {
+      try {
+        s.sink.add(msg);
+      } catch (_) {
+        _sockets.remove(s);
+      }
     }
   }
 
@@ -104,7 +157,7 @@ class LanServer {
   static const _corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-OF-Device',
   };
 
   static const _headers = {
@@ -143,8 +196,12 @@ class LanServer {
 
   Response _join(Request req) => _health(req);
 
-  Response _state(Request req) =>
-      _json({'ok': true, 'store': readStore().toJson()});
+  Response _state(Request req) {
+    if (_clientFromReq(req) == null) {
+      return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
+    }
+    return _json({'ok': true, 'store': readStore().toJson()});
+  }
 
   Future<Response> _command(Request req) async {
     try {
@@ -152,7 +209,12 @@ class LanServer {
       if (body is! Map) {
         return _json({'ok': false, 'error': 'invalid'}, status: 400);
       }
-      final cmd = NetCommand.fromJson(Map<String, dynamic>.from(body));
+      var cmd = NetCommand.fromJson(Map<String, dynamic>.from(body));
+      final who = _clientFromReq(req);
+      if (who == null) {
+        return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
+      }
+      cmd = _bindRole(cmd, who.deviceId);
       if (!RoleAccess.allow(cmd.role, cmd)) {
         return _json({'ok': false, 'error': 'forbidden'}, status: 403);
       }
@@ -408,10 +470,55 @@ class LanServer {
         'ticket': placed.ticketNo,
         'total': placed.total,
         'fireOn': created.store.qrFireOn,
+        'status': created.store.qrFireOn == 'order' ? 'preparing' : 'received',
+        'table': placed.tableName ?? '',
       });
     } catch (e) {
       return _json({'ok': false, 'error': e.toString()}, status: 500);
     }
+  }
+
+  Response _qrStatus(Request req) {
+    if (!qrEnabled) return _json({'ok': false, 'error': 'disabled'}, status: 403);
+    final ticket = (req.url.queryParameters['ticket'] ?? '').trim();
+    if (ticket.isEmpty) {
+      return _json({'ok': false, 'error': 'missing'}, status: 400);
+    }
+    final needle = ticket.startsWith('#') ? ticket : '#$ticket';
+    PosOrder? order;
+    for (final o in readStore().orders) {
+      if (o.ticketNo == ticket || o.ticketNo == needle || o.id == ticket) {
+        order = o;
+        break;
+      }
+    }
+    if (order == null || order.channel != 'qr') {
+      return _json({'ok': false, 'error': 'not_found'}, status: 404);
+    }
+    String stage;
+    switch (order.status) {
+      case OrderStatus.preparing:
+        stage = 'preparing';
+        break;
+      case OrderStatus.ready:
+      case OrderStatus.served:
+        stage = 'ready';
+        break;
+      case OrderStatus.paid:
+        stage = 'paid';
+        break;
+      case OrderStatus.cancelled:
+        stage = 'cancelled';
+        break;
+      default:
+        stage = order.sentAt != null ? 'preparing' : 'received';
+    }
+    return _json({
+      'ok': true,
+      'ticket': order.ticketNo,
+      'status': stage,
+      'table': order.tableName ?? '',
+    });
   }
 
   void _onWs(WebSocketChannel socket, String? _) {
@@ -445,16 +552,30 @@ class LanServer {
               return;
             }
             if (id.isNotEmpty) {
+              _socketDevice[socket] = id;
               clients[id] = ClientInfo(
                 deviceId: id,
                 name: (data['name'] ?? '').toString(),
                 role: (data['role'] ?? '').toString(),
               );
+              try {
+                socket.sink.add(jsonEncode({
+                  'type': 'hello',
+                  'token': _tokenFor(id),
+                  'store': readStore().toJson(),
+                  'name': shopName,
+                  'model': modelName,
+                }));
+              } catch (_) {}
             }
           } else if (type == 'command') {
             final raw = data['command'];
             if (raw is Map) {
-              final cmd = NetCommand.fromJson(Map<String, dynamic>.from(raw));
+              final deviceId = _socketDevice[socket];
+              if (deviceId == null) return;
+              var cmd = NetCommand.fromJson(Map<String, dynamic>.from(raw));
+              cmd = _bindRole(cmd, deviceId);
+              if (!RoleAccess.allow(cmd.role, cmd)) return;
               if (StoreGuard.denyReason(readStore(), cmd).isNotEmpty) return;
               StoreGuard.sanitize(readStore(), cmd);
               final result = onCommand(cmd);
@@ -464,8 +585,16 @@ class LanServer {
           }
         } catch (_) {}
       },
-      onDone: () => _sockets.remove(socket),
-      onError: (_) => _sockets.remove(socket),
+      onDone: () {
+        final id = _socketDevice.remove(socket);
+        _sockets.remove(socket);
+        if (id != null) clients.remove(id);
+      },
+      onError: (_) {
+        final id = _socketDevice.remove(socket);
+        _sockets.remove(socket);
+        if (id != null) clients.remove(id);
+      },
       cancelOnError: true,
     );
   }

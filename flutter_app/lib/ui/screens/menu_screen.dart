@@ -190,6 +190,18 @@ Future<void> editCategory(BuildContext context, WidgetRef ref, {MenuCategory? ex
           if (existing != null)
             TextButton(
               onPressed: () async {
+                final sure = await showDialog<bool>(
+                  context: ctx,
+                  builder: (d) => AlertDialog(
+                    title: Text(s.t('delete')),
+                    content: Text(s.t('confirm_delete')),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+                      FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('delete'))),
+                    ],
+                  ),
+                );
+                if (sure != true) return;
                 await ref.ctrl.dispatch(NetCommand(name: 'deleteCategory', payload: {'id': existing.id}));
                 if (ctx.mounted) Navigator.pop(ctx, false);
               },
@@ -337,6 +349,18 @@ Future<void> editProduct(
               if (existing != null)
                 TextButton(
                   onPressed: () async {
+                    final sure = await showDialog<bool>(
+                      context: ctx,
+                      builder: (d) => AlertDialog(
+                        title: Text(s.t('delete')),
+                        content: Text(s.t('confirm_delete')),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+                          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('delete'))),
+                        ],
+                      ),
+                    );
+                    if (sure != true) return;
                     await ref.ctrl.dispatch(NetCommand(name: 'deleteProduct', payload: {'id': existing.id}));
                     if (ctx.mounted) Navigator.pop(ctx, false);
                   },

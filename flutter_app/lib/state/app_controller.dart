@@ -105,9 +105,9 @@ class AppSnapshot {
       gate: gate ?? this.gate,
       serverOn: serverOn ?? this.serverOn,
       connected: connected ?? this.connected,
-      lanIp: clearIp ? lanIp : (lanIp ?? this.lanIp),
+      lanIp: clearIp ? null : (lanIp ?? this.lanIp),
       busy: busy ?? this.busy,
-      error: clearError ? error : (error ?? this.error),
+      error: clearError ? null : (error ?? this.error),
       notices: notices ?? this.notices,
       online: online ?? this.online,
       clients: clients ?? this.clients,
@@ -185,8 +185,18 @@ class AppController extends Notifier<AppSnapshot> {
       ..clear()
       ..addAll(_storage.loadSeenIds());
     final started = DateTime.now();
-    final session = _storage.loadSession();
-    final store = await _storage.loadStore();
+    SessionPrefs session;
+    try {
+      session = _storage.loadSession();
+    } catch (_) {
+      session = SessionPrefs(deviceId: _storage.hardwareDeviceId());
+    }
+    AppStore store;
+    try {
+      store = await _storage.loadStore();
+    } catch (_) {
+      store = AppStore();
+    }
     final remain = const Duration(milliseconds: 1000) -
         DateTime.now().difference(started);
     if (remain > Duration.zero) await Future.delayed(remain);
@@ -260,7 +270,7 @@ class AppController extends Notifier<AppSnapshot> {
 
   void _schedulePersist() {
     _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(milliseconds: 450), () {
+    _saveTimer = Timer(const Duration(milliseconds: 150), () {
       unawaited(persist());
     });
   }
@@ -414,7 +424,7 @@ class AppController extends Notifier<AppSnapshot> {
     state = state.copyWith(busy: true, clearError: true, error: null);
     state.session.license.key = key.trim();
     final result = await _license.validate(
-      apiBase: kDefaultApiBase,
+      apiBase: state.session.apiBase,
       licenseKey: key,
       deviceId: state.session.deviceId,
     );
@@ -462,7 +472,7 @@ class AppController extends Notifier<AppSnapshot> {
       return;
     }
     final result = await _license.validate(
-      apiBase: kDefaultApiBase,
+      apiBase: session.apiBase,
       licenseKey: session.license.key,
       deviceId: session.deviceId,
     );

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -11,6 +12,16 @@ import 'bluetooth_printer.dart';
 
 class PrintService {
   final bluetooth = BluetoothPrinter();
+  final _lanChain = <String, Future<void>>{};
+
+  /// Receipt qty: whole numbers stay whole; weights keep up to 3 decimals.
+  static String formatQty(num qty) {
+    if (qty % 1 == 0) return qty.toInt().toString();
+    var s = qty.toStringAsFixed(3);
+    s = s.replaceFirst(RegExp(r'0+$'), '');
+    if (s.endsWith('.')) s = s.substring(0, s.length - 1);
+    return s;
+  }
 
   /// ESC/POS drawer kick: pulse pin 2 for 50ms (most drawers open on 25).
   /// Harmless on printers without a drawer port — the printer just ignores it.
@@ -47,17 +58,24 @@ class PrintService {
     if (cfg.host.trim().isEmpty) {
       throw Exception('Printer is not configured');
     }
-    final socket = await Socket.connect(
-      cfg.host.trim(),
-      cfg.port <= 0 ? 9100 : cfg.port,
-      timeout: const Duration(seconds: 6),
-    );
-    try {
-      socket.add(bytes);
-      await socket.flush();
-    } finally {
-      await socket.close();
-    }
+    final host = cfg.host.trim();
+    final port = cfg.port <= 0 ? 9100 : cfg.port;
+    final key = '$host:$port';
+    final job = (_lanChain[key] ?? Future<void>.value()).then((_) async {
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(seconds: 6),
+      );
+      try {
+        socket.add(bytes);
+        await socket.flush();
+      } finally {
+        await socket.close();
+      }
+    });
+    _lanChain[key] = job.catchError((_) {});
+    return job;
   }
 
   /// Kicks the cash drawer through the given printer (ESC/POS pin-2 pulse).
@@ -89,7 +107,7 @@ class PrintService {
     if (order.customerName.isNotEmpty) w.writeln(order.customerName);
     w.writeln('--------------------------------');
     for (final line in order.lines) {
-      final qty = line.qty.toStringAsFixed(line.qty % 1 == 0 ? 0 : 1);
+      final qty = formatQty(line.qty);
       w.writeln('$qty x ${line.name}   ${m(line.lineTotal)}');
       if (line.notes.isNotEmpty) w.writeln('   * ${line.notes}');
     }
@@ -229,7 +247,7 @@ class PrintService {
         if (l > amtW) amtW = l;
       }
       if (amtW > 14) amtW = 14;
-      const qtyW = 4;
+      const qtyW = 6;
       final nameW = (chars - amtW - qtyW).clamp(8, 512);
       await _columns(b, ['Item', 'Qty', 'Amount'], nameW: nameW, qtyW: qtyW, amtW: amtW);
       String? last;
@@ -238,7 +256,7 @@ class PrintService {
           last = entry.course;
           await line('-- ${entry.course.toUpperCase()} --');
         }
-        final qty = entry.qty.toStringAsFixed(entry.qty % 1 == 0 ? 0 : 1);
+        final qty = formatQty(entry.qty);
         final nameLines = wrapLines(entry.name, nameW);
         for (var i = 0; i < nameLines.length; i++) {
           await _columns(b, [
@@ -256,7 +274,7 @@ class PrintService {
           last = entry.course;
           await line('-- ${entry.course.toUpperCase()} --');
         }
-        final qty = entry.qty.toStringAsFixed(entry.qty % 1 == 0 ? 0 : 1);
+        final qty = formatQty(entry.qty);
         await line('$qty x ${entry.name}');
         if (entry.notes.isNotEmpty) await line('  * ${entry.notes}');
       }

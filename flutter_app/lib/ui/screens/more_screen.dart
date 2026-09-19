@@ -152,7 +152,7 @@ class MoreScreen extends ConsumerWidget {
             }
           } catch (e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('import_fail'))));
             }
           }
         }),
@@ -164,7 +164,32 @@ class MoreScreen extends ConsumerWidget {
       }),
       _row(Icons.manage_accounts, s.t('roles'), () => leaveRoleWithPin(context, ref)),
       _row(Icons.language, s.t('language'), () {
-        ref.ctrl.setLocale(snap.session.locale == 'en' ? 'ur' : 'en');
+        showModalBottomSheet<void>(
+          context: context,
+          builder: (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(s.t('english')),
+                  trailing: snap.session.locale == 'en' ? const Icon(Icons.check, color: OfColors.emerald) : null,
+                  onTap: () {
+                    ref.ctrl.setLocale('en');
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  title: Text(s.t('urdu')),
+                  trailing: snap.session.locale == 'ur' ? const Icon(Icons.check, color: OfColors.emerald) : null,
+                  onTap: () {
+                    ref.ctrl.setLocale('ur');
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
       }),
       _row(Icons.brightness_6, s.t('theme'), () {
         final next = switch (snap.session.theme) {

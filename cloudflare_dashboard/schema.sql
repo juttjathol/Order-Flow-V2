@@ -57,3 +57,15 @@ CREATE TABLE IF NOT EXISTS cloud_msgs (
   created_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_cloud_msgs_room ON cloud_msgs(room, id);
+
+-- Audit trail for bind / validate / revoke / reset (never a shop-data backup).
+CREATE TABLE IF NOT EXISTS license_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  license_id TEXT,
+  license_key TEXT,
+  event TEXT NOT NULL,
+  device_id TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_license_events_key ON license_events(license_key, created_at);

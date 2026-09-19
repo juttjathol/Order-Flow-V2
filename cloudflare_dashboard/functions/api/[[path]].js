@@ -130,18 +130,23 @@ function generateKey() {
   return `OF-${block()}-${block()}-${block()}-${block()}`;
 }
 
-async function tokenKeyMaterial(env) {
-  const enc2 = new TextEncoder();
-  if (env.ADMIN_SECRET) return enc2.encode(env.ADMIN_SECRET);
-  const pw = env.ADMIN_PASSWORD || "";
-  if (!pw) return null;
-  // Legacy setups without ADMIN_SECRET: derive a stable key from the password
-  // digest instead of using it raw as HMAC material.
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", enc2.encode("of-admin|" + pw)));
+// SEC-04: HMAC session tokens are keyed ONLY by ADMIN_SECRET (never the
+// login password). Import as a CryptoKey — SubtleCrypto will not sign with a raw Uint8Array.
+async function hmacKey(env) {
+  const secret = String(env.ADMIN_SECRET || "").trim();
+  if (!secret) return null;
+  return crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
 }
 
 async function issueToken(env, hours = 12) {
-  const key = await tokenKeyMaterial(env);
+  const key = await hmacKey(env);
+  if (!key) throw new Error("no_admin_secret");
   const payload = btoa(JSON.stringify({ iat: Date.now(), exp: Date.now() + hours * 3600_000 }));
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
   return `${payload}.${[...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
@@ -151,7 +156,7 @@ async function verifyToken(env, header) {
   if (!header || !header.startsWith("Bearer ")) return false;
   const token = header.slice(7).trim();
   if (!token.includes(".")) return false;
-  const key = await tokenKeyMaterial(env);
+  const key = await hmacKey(env);
   if (!key) return false;
   const [payload, sig] = token.split(".");
   if (!/^[0-9a-f]{64}$/.test(sig || "")) return false;
@@ -169,6 +174,40 @@ async function verifyToken(env, header) {
   } catch {
     return false;
   }
+}
+
+let eventsSchemaChecked = false;
+async function ensureLicenseEvents(db) {
+  if (eventsSchemaChecked) return;
+  eventsSchemaChecked = true;
+  try {
+    await db.prepare("SELECT 1 FROM license_events LIMIT 1").first();
+  } catch {
+    try {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS license_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          license_id TEXT,
+          license_key TEXT,
+          event TEXT NOT NULL,
+          device_id TEXT,
+          detail TEXT,
+          created_at TEXT NOT NULL
+        )`,
+      ).run();
+    } catch {}
+  }
+}
+
+async function logLicenseEvent(db, { licenseId, licenseKey, event, deviceId, detail }) {
+  try {
+    await db.prepare(
+      `INSERT INTO license_events (license_id, license_key, event, device_id, detail, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(licenseId || "", licenseKey || "", event, deviceId || "", detail || "", nowIso())
+      .run();
+  } catch {}
 }
 
 // PBKDF2 password hash: pbkdf2-sha256$<iterations>$<saltHex>$<hashHex>
@@ -233,10 +272,14 @@ export async function onRequest(context) {
   if (!env.ADMIN_PASSWORD && !env.ADMIN_PASSWORD_HASH) {
     return json({ ok: false, error: "not_configured", message: "Set ADMIN_PASSWORD_HASH (preferred) or ADMIN_PASSWORD." }, 500);
   }
+  if (!String(env.ADMIN_SECRET || "").trim()) {
+    return json({ ok: false, error: "not_configured", message: "Set ADMIN_SECRET (openssl rand -hex 32)." }, 500);
+  }
   if (!env.DB) {
     return json({ ok: false, error: "d1_not_configured", message: "Bind a D1 database as DB." }, 500);
   }
   await ensurePlanColumns(env.DB);
+  await ensureLicenseEvents(env.DB);
 
   const path = pathOf(context);
   const method = request.method.toUpperCase();
@@ -389,6 +432,7 @@ export async function onRequest(context) {
 
       if (method === "DELETE" && !action) {
         await env.DB.prepare("DELETE FROM licenses WHERE id = ?").bind(id).run();
+        await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "delete" });
         return json({ ok: true });
       }
       if (method === "POST" && action === "reset-device") {
@@ -397,6 +441,12 @@ export async function onRequest(context) {
         )
           .bind(id)
           .run();
+        await logLicenseEvent(env.DB, {
+          licenseId: id,
+          licenseKey: row.license_key,
+          event: "reset-device",
+          deviceId: row.bound_device_id || "",
+        });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
       }
@@ -405,11 +455,18 @@ export async function onRequest(context) {
         await env.DB.prepare("UPDATE licenses SET expires_at = ? WHERE id = ?")
           .bind(nextExp, id)
           .run();
+        await logLicenseEvent(env.DB, {
+          licenseId: id,
+          licenseKey: row.license_key,
+          event: "extend",
+          detail: nextExp,
+        });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
       }
       if (method === "POST" && action === "revoke") {
         await env.DB.prepare("UPDATE licenses SET status = 'revoked' WHERE id = ?").bind(id).run();
+        await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "revoke" });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
       }
@@ -444,6 +501,7 @@ async function handleValidate(env, body) {
     .bind(licenseKey)
     .first();
   if (!row) {
+    await logLicenseEvent(env.DB, { licenseKey, event: "not_found", deviceId });
     return json({
       ok: false,
       valid: false,
@@ -452,6 +510,7 @@ async function handleValidate(env, body) {
     }, 404);
   }
   if (row.status === "revoked") {
+    await logLicenseEvent(env.DB, { licenseId: row.id, licenseKey, event: "revoked", deviceId });
     return json({
       ok: false,
       valid: false,
@@ -460,6 +519,7 @@ async function handleValidate(env, body) {
     }, 403);
   }
   if (row.expires_at && new Date(row.expires_at) < new Date()) {
+    await logLicenseEvent(env.DB, { licenseId: row.id, licenseKey, event: "expired", deviceId });
     return json({
       ok: false,
       valid: false,
@@ -470,6 +530,7 @@ async function handleValidate(env, body) {
   }
   if (row.bound_device_id && row.bound_device_id !== deviceId) {
     // Never echo the bound device id back — the fact of a conflict is enough.
+    await logLicenseEvent(env.DB, { licenseId: row.id, licenseKey, event: "bound_other", deviceId });
     return json({
       ok: false,
       valid: false,
@@ -486,6 +547,12 @@ async function handleValidate(env, body) {
   )
     .bind(deviceId, bindNow ? nowIso() : row.bound_at, nowIso(), row.id)
     .run();
+  await logLicenseEvent(env.DB, {
+    licenseId: row.id,
+    licenseKey,
+    event: bindNow ? "bind" : "validate",
+    deviceId,
+  });
 
   const customer = await customerById(env.DB, row.customer_id);
   const next = await licenseById(env.DB, row.id);

@@ -1226,6 +1226,20 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 
   Future<void> _voidOrder(PosOrder order) async {
+    final s = ref.s;
+    if (!await confirmManagerPin(context, ref)) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.t('cancel_order')),
+        content: Text(s.t('confirm_cancel')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('cancel_order'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
     final reason = await _askVoid();
     if (reason == null) return;
     order.notes = [order.notes, 'VOID: $reason'].where((e) => e.isNotEmpty).join(' | ');
