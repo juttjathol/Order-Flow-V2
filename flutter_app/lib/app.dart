@@ -45,11 +45,19 @@ class OrderFlowApp extends ConsumerWidget {
       ],
       routerConfig: router,
       builder: (context, child) {
+        // v1.1.70 — respect the user's font-size setting, but within a range
+        // the layouts are actually designed for: tiny OS text stays legible
+        // and huge OS text never blows sheets/dialogs off screen.
+        final mq = MediaQuery.of(context);
+        final scaled = MediaQuery(
+          data: mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.35)),
+          child: child ?? const SizedBox.shrink(),
+        );
         return ScrollConfiguration(
           behavior: const _OfScroll(),
           child: Directionality(
             textDirection: l10n.direction,
-            child: ReadyBannerHost(child: child ?? const SizedBox.shrink()),
+            child: ReadyBannerHost(child: scaled),
           ),
         );
       },

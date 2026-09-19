@@ -10,6 +10,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/menu_import.dart';
 
 class MenuScreen extends ConsumerStatefulWidget {
   const MenuScreen({super.key});
@@ -50,13 +51,24 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: s.t('search'),
-                prefixIcon: const Icon(Icons.search),
-              ),
-              onChanged: (v) => setState(() => q = v),
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: s.t('search'),
+                      prefixIcon: const Icon(Icons.search),
+                    ),
+                    onChanged: (v) => setState(() => q = v),
+                  ),
+                ),
+                IconButton(
+                  tooltip: s.t('menu_scan'),
+                  icon: const Icon(Icons.document_scanner_outlined),
+                  onPressed: () => openMenuImport(context, ref),
+                ),
+              ],
             ),
           ),
           SizedBox(
@@ -178,6 +190,18 @@ Future<void> editCategory(BuildContext context, WidgetRef ref, {MenuCategory? ex
           if (existing != null)
             TextButton(
               onPressed: () async {
+                final sure = await showDialog<bool>(
+                  context: ctx,
+                  builder: (d) => AlertDialog(
+                    title: Text(s.t('delete')),
+                    content: Text(s.t('confirm_delete')),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+                      FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('delete'))),
+                    ],
+                  ),
+                );
+                if (sure != true) return;
                 await ref.ctrl.dispatch(NetCommand(name: 'deleteCategory', payload: {'id': existing.id}));
                 if (ctx.mounted) Navigator.pop(ctx, false);
               },
@@ -325,6 +349,18 @@ Future<void> editProduct(
               if (existing != null)
                 TextButton(
                   onPressed: () async {
+                    final sure = await showDialog<bool>(
+                      context: ctx,
+                      builder: (d) => AlertDialog(
+                        title: Text(s.t('delete')),
+                        content: Text(s.t('confirm_delete')),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(d, false), child: Text(s.t('cancel'))),
+                          FilledButton(onPressed: () => Navigator.pop(d, true), child: Text(s.t('delete'))),
+                        ],
+                      ),
+                    );
+                    if (sure != true) return;
                     await ref.ctrl.dispatch(NetCommand(name: 'deleteProduct', payload: {'id': existing.id}));
                     if (ctx.mounted) Navigator.pop(ctx, false);
                   },

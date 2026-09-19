@@ -1,14 +1,87 @@
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Max-Age": "86400",
+// v1.1.72 security layer: shared helpers (throttle, hardening headers,
+// origin-allowlisted CORS, constant-time compares, PBKDF2).
+import { sec, throttle, ipOf, corsFor, safeEqual, pbkdf2Hex } from "../../_security.js";
+
+// Per-request CORS headers; set once at the top of onRequest before any await.
+const CTX = { cors: {} };
+
+// v1.1.59 — plan & entitlements catalog. Keys here must match
+// kFeatureCatalog in flutter_app/lib/models/models_plans.dart exactly.
+const CORE_FEATURE_KEYS = new Set([
+  "multi_terminal", "station_printers", "qr_ordering", "loyalty", "split_payment",
+  "refunds", "customer_display", "reservations", "recipe_costing", "wastage",
+  "purchases", "advanced_reports", "eighty_six",
+]);
+// v1.1.60: extras that belong to the custom plan only. Must match
+// kFeatureCatalog in the app (kFeatureCatalog lists ALL fifteen).
+const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding"]);
+const MODEL_KEYS = new Set(["restaurant", "retail", "fastfood", "services"]);
+const PLAN_PRESETS = {
+  starter: [],
+  growth: [...CORE_FEATURE_KEYS],
+  custom: [...FEATURE_KEYS],
+  full: [...FEATURE_KEYS],
 };
+
+// Add plan columns to databases created before v1.1.59 (idempotent, once per isolate).
+let planSchemaChecked = false;
+async function ensurePlanColumns(db) {
+  if (planSchemaChecked) return;
+  planSchemaChecked = true;
+  try {
+    await db.prepare("SELECT plan FROM licenses LIMIT 1").first();
+  } catch {
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN plan TEXT NOT NULL DEFAULT 'full'").run(); } catch {}
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN allowed_models TEXT").run(); } catch {}
+    try { await db.prepare("ALTER TABLE licenses ADD COLUMN allowed_features TEXT").run(); } catch {}
+  }
+}
+
+function parseJsonArray(raw) {
+  if (raw == null || raw === "") return null;
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+// null result → legacy row created before plans existed: the app keeps ALL
+// features on. Once a plan is saved the arrays are explicit (possibly empty).
+function accessOf(row) {
+  if (row == null) return null;
+  const models = parseJsonArray(row.allowed_models);
+  const features = parseJsonArray(row.allowed_features);
+  if (models === null && features === null && (!row.plan || row.plan === "full")) {
+    return null;
+  }
+  return {
+    plan: row.plan || "full",
+    allowedModels: models ?? [...MODEL_KEYS],
+    allowedFeatures: features ?? [...FEATURE_KEYS],
+  };
+}
+
+function normalizeAccess(body) {
+  const plan = ["starter", "growth", "custom", "full"].includes(body.plan) ? body.plan : "full";
+  const models = Array.isArray(body.allowedModels)
+    ? body.allowedModels.filter((m) => MODEL_KEYS.has(m))
+    : [...MODEL_KEYS];
+  const features = Array.isArray(body.allowedFeatures)
+    ? body.allowedFeatures.filter((f) => FEATURE_KEYS.has(f))
+    : [...PLAN_PRESETS[plan]];
+  return {
+    plan,
+    models: models.length ? models : [...MODEL_KEYS],
+    features,
+  };
+}
 
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...CORS, ...extra },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...sec(), ...CTX.cors, ...extra },
   });
 }
 
@@ -20,10 +93,12 @@ function pathOf(context) {
   return url.pathname.replace(/^\/api\/?/, "").replace(/^\/+|\/+$/g, "");
 }
 
-async function readJson(request) {
+async function readJson(request, maxBytes = 65536) {
   try {
+    const len = Number(request.headers.get("content-length") || 0);
+    if (len > maxBytes) return {};
     const text = await request.text();
-    if (!text) return {};
+    if (!text || text.length > maxBytes) return {};
     const data = JSON.parse(text);
     return data && typeof data === "object" ? data : {};
   } catch {
@@ -55,34 +130,44 @@ function generateKey() {
   return `OF-${block()}-${block()}-${block()}-${block()}`;
 }
 
-async function hmacHex(secret, data) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
+// SEC-04: HMAC session tokens are keyed ONLY by ADMIN_SECRET (never the
+// login password). Import as a CryptoKey — SubtleCrypto will not sign with a raw Uint8Array.
+async function hmacKey(env) {
+  const secret = String(env.ADMIN_SECRET || "").trim();
+  if (!secret) return null;
+  return crypto.subtle.importKey(
     "raw",
-    enc.encode(secret),
+    new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"],
+    ["sign", "verify"],
   );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
-  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function issueToken(env, hours = 12) {
-  const secret = env.ADMIN_SECRET || env.ADMIN_PASSWORD;
+  const key = await hmacKey(env);
+  if (!key) throw new Error("no_admin_secret");
   const payload = btoa(JSON.stringify({ iat: Date.now(), exp: Date.now() + hours * 3600_000 }));
-  const sig = await hmacHex(secret, payload);
-  return `${payload}.${sig}`;
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return `${payload}.${[...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
 async function verifyToken(env, header) {
   if (!header || !header.startsWith("Bearer ")) return false;
   const token = header.slice(7).trim();
-  const secret = env.ADMIN_SECRET || env.ADMIN_PASSWORD;
-  if (!secret || !token.includes(".")) return false;
+  if (!token.includes(".")) return false;
+  const key = await hmacKey(env);
+  if (!key) return false;
   const [payload, sig] = token.split(".");
-  const expect = await hmacHex(secret, payload);
-  if (expect !== sig) return false;
+  if (!/^[0-9a-f]{64}$/.test(sig || "")) return false;
+  const sigBytes = new Uint8Array((sig.match(/../g) || []).map((h) => parseInt(h, 16)));
+  let ok = false;
+  try {
+    ok = await crypto.subtle.verify("HMAC", key, sigBytes, new TextEncoder().encode(payload));
+  } catch {
+    return false;
+  }
+  if (!ok) return false;
   try {
     const body = JSON.parse(atob(payload));
     return Number(body.exp) > Date.now();
@@ -91,8 +176,54 @@ async function verifyToken(env, header) {
   }
 }
 
-function requireAdminPassword(env) {
-  return env.ADMIN_PASSWORD || "";
+let eventsSchemaChecked = false;
+async function ensureLicenseEvents(db) {
+  if (eventsSchemaChecked) return;
+  eventsSchemaChecked = true;
+  try {
+    await db.prepare("SELECT 1 FROM license_events LIMIT 1").first();
+  } catch {
+    try {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS license_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          license_id TEXT,
+          license_key TEXT,
+          event TEXT NOT NULL,
+          device_id TEXT,
+          detail TEXT,
+          created_at TEXT NOT NULL
+        )`,
+      ).run();
+    } catch {}
+  }
+}
+
+async function logLicenseEvent(db, { licenseId, licenseKey, event, deviceId, detail }) {
+  try {
+    await db.prepare(
+      `INSERT INTO license_events (license_id, license_key, event, device_id, detail, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(licenseId || "", licenseKey || "", event, deviceId || "", detail || "", nowIso())
+      .run();
+  } catch {}
+}
+
+// PBKDF2 password hash: pbkdf2-sha256$<iterations>$<saltHex>$<hashHex>
+// (generate with: node scripts/hash-pass.mjs 'your password')
+async function verifyAdminPassword(env, given) {
+  const stored = String(env.ADMIN_PASSWORD_HASH || "").trim();
+  if (stored) {
+    const m = /^pbkdf2-sha256\$(\d+)\$([0-9a-f]+)\$([0-9a-f]+)$/i.exec(stored);
+    if (!m || typeof given !== "string" || !given) return false;
+    const iters = Math.min(Math.max(Number(m[1]) || 0, 100000), 1000000);
+    const calc = await pbkdf2Hex(given, m[2], iters);
+    return await safeEqual(calc, m[3].toLowerCase());
+  }
+  const legacy = String(env.ADMIN_PASSWORD || "");
+  if (!legacy || typeof given !== "string" || !given) return false;
+  return await safeEqual(given, legacy); // constant-time fallback for plaintext secret
 }
 
 async function customerById(db, id) {
@@ -115,6 +246,9 @@ function publicLicense(row, customer) {
     lastValidatedAt: row.last_validated_at,
     createdAt: row.created_at,
     binding: row.bound_device_id ? "bound" : "unbound",
+    plan: row.plan || "full",
+    allowedModels: accessOf(row)?.allowedModels ?? null,
+    allowedFeatures: accessOf(row)?.allowedFeatures ?? null,
     customer: customer
       ? {
           id: customer.id,
@@ -129,12 +263,23 @@ function publicLicense(row, customer) {
 
 export async function onRequest(context) {
   const { request, env } = context;
+  CTX.cors = corsFor(env, request); // set before the first await; cross-origin only for allowlisted origins
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS });
+    const allowed = Boolean(CTX.cors["Access-Control-Allow-Origin"]);
+    const h = { ...sec(), Allow: "GET,POST,PATCH,DELETE,OPTIONS", ...(allowed ? { "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Max-Age": "600", ...CTX.cors } : {}) };
+    return new Response(null, { status: allowed ? 204 : 403, headers: h });
+  }
+  if (!env.ADMIN_PASSWORD && !env.ADMIN_PASSWORD_HASH) {
+    return json({ ok: false, error: "not_configured", message: "Set ADMIN_PASSWORD_HASH (preferred) or ADMIN_PASSWORD." }, 500);
+  }
+  if (!String(env.ADMIN_SECRET || "").trim()) {
+    return json({ ok: false, error: "not_configured", message: "Set ADMIN_SECRET (openssl rand -hex 32)." }, 500);
   }
   if (!env.DB) {
     return json({ ok: false, error: "d1_not_configured", message: "Bind a D1 database as DB." }, 500);
   }
+  await ensurePlanColumns(env.DB);
+  await ensureLicenseEvents(env.DB);
 
   const path = pathOf(context);
   const method = request.method.toUpperCase();
@@ -145,16 +290,18 @@ export async function onRequest(context) {
     }
 
     if (path === "v1/license/validate" && method === "POST") {
+      if (throttle(`validate|${ipOf(request)}`, 60, 600000)) {
+        return json({ ok: false, valid: false, error: "slow_down" }, 429, { "Retry-After": "600" });
+      }
       return handleValidate(env, await readJson(request));
     }
 
     if (path === "admin/login" && method === "POST") {
-      const body = await readJson(request);
-      const expected = requireAdminPassword(env);
-      if (!expected) {
-        return json({ ok: false, error: "not_configured", message: "Set ADMIN_PASSWORD secret." }, 500);
+      if (throttle(`login|${ipOf(request)}`, 8, 300000)) {
+        return json({ ok: false, error: "slow_down", message: "Too many attempts — wait a few minutes." }, 429, { "Retry-After": "300" });
       }
-      if ((body.password || "") !== expected) {
+      const body = await readJson(request);
+      if (!(await verifyAdminPassword(env, body.password))) {
         return json({ ok: false, error: "unauthorized", message: "Invalid password." }, 401);
       }
       const token = await issueToken(env);
@@ -251,15 +398,26 @@ export async function onRequest(context) {
       const id = crypto.randomUUID();
       const key = (body.licenseKey || generateKey()).toUpperCase();
       const expires = addDays(null, Number.isFinite(days) ? days : 365);
+      const access = normalizeAccess(body);
       try {
         await env.DB.prepare(
-          `INSERT INTO licenses (id, customer_id, license_key, status, expires_at, created_at)
-           VALUES (?, ?, ?, 'active', ?, ?)`,
+          `INSERT INTO licenses (id, customer_id, license_key, status, expires_at, created_at, plan, allowed_models, allowed_features)
+           VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)`,
         )
-          .bind(id, customerId, key, expires, nowIso())
+          .bind(
+            id,
+            customerId,
+            key,
+            expires,
+            nowIso(),
+            access.plan,
+            JSON.stringify(access.models),
+            JSON.stringify(access.features),
+          )
           .run();
       } catch (e) {
-        return json({ ok: false, error: "key_conflict", message: String(e) }, 409);
+        console.error("key insert failed:", e && e.message);
+        return json({ ok: false, error: "key_conflict", message: "That key already exists — generate another." }, 409);
       }
       const row = await licenseById(env.DB, id);
       return json({ ok: true, license: publicLicense(row, customer) }, 201);
@@ -274,6 +432,7 @@ export async function onRequest(context) {
 
       if (method === "DELETE" && !action) {
         await env.DB.prepare("DELETE FROM licenses WHERE id = ?").bind(id).run();
+        await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "delete" });
         return json({ ok: true });
       }
       if (method === "POST" && action === "reset-device") {
@@ -282,6 +441,12 @@ export async function onRequest(context) {
         )
           .bind(id)
           .run();
+        await logLicenseEvent(env.DB, {
+          licenseId: id,
+          licenseKey: row.license_key,
+          event: "reset-device",
+          deviceId: row.bound_device_id || "",
+        });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
       }
@@ -290,19 +455,39 @@ export async function onRequest(context) {
         await env.DB.prepare("UPDATE licenses SET expires_at = ? WHERE id = ?")
           .bind(nextExp, id)
           .run();
+        await logLicenseEvent(env.DB, {
+          licenseId: id,
+          licenseKey: row.license_key,
+          event: "extend",
+          detail: nextExp,
+        });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
       }
       if (method === "POST" && action === "revoke") {
         await env.DB.prepare("UPDATE licenses SET status = 'revoked' WHERE id = ?").bind(id).run();
+        await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "revoke" });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
+      }
+      if (method === "POST" && action === "access") {
+        const body = await readJson(request);
+        const access = normalizeAccess(body);
+        await env.DB.prepare(
+          "UPDATE licenses SET plan = ?, allowed_models = ?, allowed_features = ? WHERE id = ?",
+        )
+          .bind(access.plan, JSON.stringify(access.models), JSON.stringify(access.features), id)
+          .run();
+        const next = await licenseById(env.DB, id);
+        const cust = await customerById(env.DB, next.customer_id);
+        return json({ ok: true, license: publicLicense(next, cust) });
       }
     }
 
     return json({ ok: false, error: "not_found", path }, 404);
   } catch (error) {
-    return json({ ok: false, error: "server_error", message: String(error) }, 500);
+    console.error("api error:", path, error && error.message); // details stay server-side
+    return json({ ok: false, error: "server_error", message: "Something went wrong on our side." }, 500);
   }
 }
 
@@ -316,6 +501,7 @@ async function handleValidate(env, body) {
     .bind(licenseKey)
     .first();
   if (!row) {
+    await logLicenseEvent(env.DB, { licenseKey, event: "not_found", deviceId });
     return json({
       ok: false,
       valid: false,
@@ -324,6 +510,7 @@ async function handleValidate(env, body) {
     }, 404);
   }
   if (row.status === "revoked") {
+    await logLicenseEvent(env.DB, { licenseId: row.id, licenseKey, event: "revoked", deviceId });
     return json({
       ok: false,
       valid: false,
@@ -332,6 +519,7 @@ async function handleValidate(env, body) {
     }, 403);
   }
   if (row.expires_at && new Date(row.expires_at) < new Date()) {
+    await logLicenseEvent(env.DB, { licenseId: row.id, licenseKey, event: "expired", deviceId });
     return json({
       ok: false,
       valid: false,
@@ -341,12 +529,13 @@ async function handleValidate(env, body) {
     }, 403);
   }
   if (row.bound_device_id && row.bound_device_id !== deviceId) {
+    // Never echo the bound device id back — the fact of a conflict is enough.
+    await logLicenseEvent(env.DB, { licenseId: row.id, licenseKey, event: "bound_other", deviceId });
     return json({
       ok: false,
       valid: false,
       error: "bound_to_other_device",
       message: "This key is already bound to another device. Reset binding in the admin dashboard.",
-      boundDeviceId: row.bound_device_id,
     }, 409);
   }
 
@@ -358,9 +547,16 @@ async function handleValidate(env, body) {
   )
     .bind(deviceId, bindNow ? nowIso() : row.bound_at, nowIso(), row.id)
     .run();
+  await logLicenseEvent(env.DB, {
+    licenseId: row.id,
+    licenseKey,
+    event: bindNow ? "bind" : "validate",
+    deviceId,
+  });
 
   const customer = await customerById(env.DB, row.customer_id);
   const next = await licenseById(env.DB, row.id);
+  const access = accessOf(next);
   return json({
     ok: true,
     valid: true,
@@ -377,5 +573,9 @@ async function handleValidate(env, body) {
       email: customer?.email || "",
     },
     graceHours: 48,
+    // v1.1.59 plan entitlements — null lists keep the app at full access.
+    plan: access ? access.plan : "full",
+    allowedModels: access ? access.allowedModels : null,
+    allowedFeatures: access ? access.allowedFeatures : null,
   });
 }

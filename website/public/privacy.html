@@ -4,43 +4,140 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Privacy · Order Flow by Jathol</title>
+  <meta name="description" content="How Jathol handles personal data on this website and in the Order Flow app. Offline-first POS — no ads, no analytics, no sale of data."/>
   <link rel="icon" href="./media/logo.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="./styles.css"/>
+  <link rel="stylesheet" href="./styles.css?v=5"/>
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   <header class="nav">
     <div class="wrap nav-inner">
       <a class="brand" href="./index.html"><img src="./media/logo.png" alt=""/>ORDER FLOW</a>
+      <a class="btn btn-ghost" href="./contact.html">Contact us</a>
       <a class="btn btn-mint" href="./index.html">Back to site</a>
     </div>
   </header>
-  <main class="wrap" style="padding:56px 0 80px;max-width:760px">
+  <main id="main" class="wrap" style="padding:56px 0 80px;max-width:760px">
     <p class="kicker">Legal</p>
     <h1 style="font-size:48px">Privacy policy</h1>
-    <p class="sec-sub">Last updated: 28 August 2026. Order Flow (Jathol) is an offline-first point-of-sale app. This page is the public policy for the app and this website.</p>
-    <h2 class="sec-title" style="font-size:28px;margin-top:32px">Who we are</h2>
-    <p class="sec-sub">The app is published by Jathol. Support is WhatsApp <strong>@Jathol_Jutt</strong> only.</p>
-    <h2 class="sec-title" style="font-size:28px;margin-top:28px">What stays on the shop device</h2>
-    <p class="sec-sub">Menu, photos, prices, stock, tickets, customers, staff, printers and settings are stored on the Main phone. Stations talk to Main over shop Wi‑Fi. We do not host your live sales in the cloud.</p>
-    <h2 class="sec-title" style="font-size:28px;margin-top:28px">What is sent online</h2>
+    <p class="sec-sub">Last updated: 17 September 2026. Order Flow (Jathol) is an offline-first point-of-sale system. This page is the public policy for this website and the Order Flow app. It is written to be read — if anything here conflicts with marketing copy, this page wins.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:32px">Rangkaian pendek (Bahasa Melayu)</h2>
+    <p class="sec-sub">Laman web ini tidak mengumpul data anda secara automatik dan tiada penjejakan iklan. Borang percubaan hanya membuka draf e-mel yang anda sendiri hantar; maklumat itu tidak disimpan di pelayan kami. Dalam aplikasi Order Flow, jualan, menu dan pelanggan anda tinggal pada peranti kedai. Kami hanya melihat kunci lesen dan ID peranti rawak untuk pengaktifan. Untuk soalan atau pembetulan data, e-mel <strong>contact@jathol.org</strong>. Butiran penuh di bawah.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Who we are</h2>
+    <p class="sec-sub">The app and this website are operated by <strong>Jathol</strong>, a Malaysia-based developer. For the purposes of the Personal Data Protection Act 2010 (PDPA), Jathol is the data controller for the small amount of data described below. Support and licensing run through <a href="mailto:contact@jathol.org">contact@jathol.org</a> — we answer every message within 24 hours, Monday to Saturday, GMT+8. Company registration and address details are provided on your license receipt and on request.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">What this website collects</h2>
     <ul class="sec-sub">
-      <li>License check: license key and a random device ID go to the Jathol license service so Main can activate.</li>
-      <li>This website may log that an app file was requested. The file is delivered from Jathol’s server.</li>
-      <li>If you tap WhatsApp, WhatsApp receives the message you send.</li>
-      <li>No advertising IDs, no analytics SDKs, no sale of shop data.</li>
+      <li><b>Nothing in a database.</b> The site is static. There are no accounts, no sign-in, no server-side profiles.</li>
+      <li><b>Trial &amp; plan forms.</b> They open a pre-filled draft in your own email app; the form never sends itself and this website stores nothing. Jathol only receives the email you decide to send. Email on the form is optional — a phone number is enough to issue a key.</li>
+      <li><b>Download.</b> The APK is served by our own worker; Cloudflare (hosting) may see standard request metadata such as IP address and user agent for security and abuse prevention. We do not add our own logging.</li>
+      <li><b>Currency preview.</b> If you accept our cookie/storage choice, the site may read your country (from the Cloudflare edge, not a third-party geo service), fetch exchange rates from open.er-api.com and remember your pick in local storage. This is display-only; billing is always in RM. Decline, and none of it happens.</li>
     </ul>
-    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Permissions</h2>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Third-party services loaded by this site</h2>
     <ul class="sec-sub">
-      <li>Camera — barcode and join QR (optional).</li>
-      <li>Bluetooth — printers (optional).</li>
-      <li>Nearby Wi‑Fi / location — Android may need this to read the shop IP. We do not map you.</li>
-      <li>Notifications / foreground service — keep Main’s shop server alive.</li>
+      <li><b>Google Fonts</b> (fonts.googleapis.com / fonts.gstatic.com) — web fonts. Your IP is visible to Google when the style loads. No cookies are set by the font CDN for a plain CSS request.</li>
+      <li><b>jsDelivr CDN</b> (cdn.jsdelivr.net) — the Three.js library, used only for the decorative hero animation. It loads before any consent because it sets nothing and stores nothing; your IP is visible to the CDN.</li>
+      <li><b>open.er-api.com</b> — exchange rates, only after you accept our storage choice.</li>
+      <li><b>Cloudflare</b> — hosting, the small /geo helper and basic bot protection (<code>__cf_bm</code> cookie). See the <a href="./cookies.html">cookies policy</a>.</li>
     </ul>
-    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Deletion</h2>
-    <p class="sec-sub">Uninstall the app to remove local shop data on that phone. To reset a license binding, WhatsApp @Jathol_Jutt with the device ID from More → License.</p>
-    <p class="sec-sub" style="margin-top:24px">Questions: WhatsApp @Jathol_Jutt</p>
+    <p class="note">We removed an IP-geolocation lookup to a third-party service (ipapi.co) in September 2026 — the site now derives country only from the Cloudflare edge, and only after consent.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">What the app does with shop data</h2>
+    <p class="sec-sub">Menu, photos, prices, stock, tickets, customers, staff, printers and settings are stored on the Main device (and mirrored only to the devices in your shop). Stations talk to Main over the shop Wi-Fi. On the cloud-networking option for custom plans, traffic between your devices passes through an encrypted Jathol relay; it is a corridor, not storage — shop records are not kept there for the till to work, and are not read for any purpose other than keeping your room in sync or responding to you.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">What the app sends online</h2>
+    <ul class="sec-sub">
+      <li>License activation and the periodic online check: your 16-character license key and a random device ID go to the Jathol license service. This is what binds one key to one Main device and lets us reset a binding when you ask. It has no access to sales data.</li>
+      <li>APK update checks read the release info served by this site's worker.</li>
+      <li>No advertising IDs, no analytics SDKs, no crash reporters, and no sale or sharing of shop data. Ever.</li>
+    </ul>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Device permissions (all optional to use)</h2>
+    <ul class="sec-sub">
+      <li>Camera — barcode scanning, menu photos and station join-QR.</li>
+      <li>Bluetooth &amp; nearby devices — pairing and printing to ESC/POS devices.</li>
+      <li>Wi-Fi state (Android may present this as location) — needed to read the shop network so stations can find Main. We never map or track you.</li>
+      <li>Notifications &amp; foreground service — keep Main's shop server alive during trading.</li>
+      <li>Photos/files — attaching images to menu items.</li>
+    </ul>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Your data is also in your hands</h2>
+    <p class="sec-sub">Because the till lives on your devices, you are the controller of your customers' and staff's data inside the app (names, phone numbers, orders, loyalty points). Use it only for running your shop; keep the Main device locked and updated; delete customer records when you no longer need them. If a shop using Order Flow receives a customer data request, that request is handled by the shop, not by Jathol.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Retention &amp; deletion</h2>
+    <ul class="sec-sub">
+      <li>License service: key status, bound device ID and last-seen timestamps persist while your subscription is active and for a short period after it ends, for billing and dispute handling. Resetting a binding erases the old device ID.</li>
+      <li>Emails: we keep the thread only as long as needed to serve the request and to honour the receipt/refund record described in the <a href="./refunds.html">refund policy</a>.</li>
+      <li>Shop data: uninstalling the app removes it from that device. There is no cloud copy to delete for standard plans.</li>
+    </ul>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Your rights (PDPA 2010, as amended)</h2>
+    <p class="sec-sub">You may ask us to access and correct the limited personal data we hold about you (licence records and our email threads), withdraw consent for optional processing (currency preview — just decline it, or clear site storage), and ask how your data is used. To exercise a right, email <a href="mailto:contact@jathol.org">contact@jathol.org</a> with “PDPA request” in the subject — we answer data requests first. You may also complain to the Personal Data Protection Commissioner (Jabatan Perlindungan Data Peribadi) if you feel we failed you. Where the amended PDPA grants portability or notifies you of a breach, we will act within the timeframes the law requires.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Children</h2>
+    <p class="sec-sub">Order Flow is a business tool and the website is not directed at children. We do not knowingly collect data from anyone under 18.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Transfers outside Malaysia</h2>
+    <p class="sec-sub">Cloudflare hosting and the CDNs above operate on global infrastructure, so the narrow data paths described here may cross borders. Shop sales data on standard plans does not leave your devices at all.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Security</h2>
+    <p class="sec-sub">HTTPS everywhere on our side, encrypted cloud rooms when you opt into them, license keys never stored in plaintext on your phone, and the station protocol is closed to your own room. No system is unbreakable — we fix reported issues as they land.</p>
+
+    <h2 class="sec-title" style="font-size:28px;margin-top:28px">Changes</h2>
+    <p class="sec-sub">If this policy changes in a material way, this page gets a new date and the app's guide banner mentions it. Continued use after a change means you accept it — asking first is always fine.</p>
+
+    <p class="sec-sub" style="margin-top:24px">
+      Questions: <a href="mailto:contact@jathol.org">contact@jathol.org</a> (within 24 h) · <a href="./contact.html">Contact page</a> ·
+      See also <a href="./terms.html">Terms</a> · <a href="./refunds.html">Refunds</a> · <a href="./cookies.html">Cookies</a>
+    </p>
   </main>
+  <footer>
+    <div class="wrap foot">
+      <div class="foot-brand">
+        <p class="foot-logo"><img src="./media/logo.png" alt=""/> <b>ORDER FLOW</b></p>
+        <p>Offline-first Wi&#8209;Fi point of sale for restaurants, caf&#233;s, minimarkets and delivery shops.</p>
+        <p class="foot-mail"><a href="mailto:contact@jathol.org">contact@jathol.org</a><span>Replies within 24 hours &#183; Mon&#8211;Sat, GMT+8</span></p>
+      </div>
+      <nav class="foot-nav" aria-label="Explore">
+        <h3>Explore</h3>
+        <ul>
+          <li><a href="./index.html">Home</a></li>
+          <li><a href="./index.html#product">Product</a></li>
+          <li><a href="./index.html#plans">Plans</a></li>
+          <li><a href="./index.html#how">How it works</a></li>
+          <li><a href="./index.html#download">Download</a></li>
+          <li><a href="./contact.html">Contact</a></li>
+        </ul>
+      </nav>
+      <nav class="foot-nav" aria-label="Support">
+        <h3>Support</h3>
+        <ul>
+          <li><a href="./index.html#trial">3-day trial</a></li>
+          <li><a href="./contact.html#licence">Licence &amp; keys</a></li>
+          <li><a href="./contact.html#reset">Binding reset</a></li>
+          <li><a href="./contact.html#printers">Printer setup</a></li>
+          <li><a href="./guide.html">User guide</a></li>
+        </ul>
+      </nav>
+      <nav class="foot-nav" aria-label="Legal">
+        <h3>Legal</h3>
+        <ul>
+          <li><a href="./privacy.html">Privacy</a></li>
+          <li><a href="./terms.html">Terms</a></li>
+          <li><a href="./refunds.html">Refunds</a></li>
+          <li><a href="./cookies.html">Cookies</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="wrap foot-base">
+      <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow &#8212; built and supported in Malaysia. Business registration and registered address appear on every licence receipt, and are provided on request before you buy.</p>
+    </div>
+  </footer>
+  <script defer src="./legal.js"></script>
 </body>
 </html>

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -137,20 +138,45 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 14),
+          // Quick actions follow the business model: a restaurant's home
+          // reaches for the kitchen, a mart's for the register, a salon's
+          // for the day book — same tile row, different tools on it.
           Row(
-            children: [
-              Expanded(child: _QuickTile(icon: Icons.add, label: s.t('new_order'), onTap: () => context.push('/taker'))),
-              const SizedBox(width: 8),
-              Expanded(child: _QuickTile(icon: Icons.qr_code_scanner, label: s.t('scan_sku'), onTap: () => scanStock(context, ref))),
-              const SizedBox(width: 8),
-              Expanded(child: _QuickTile(icon: Icons.wifi, label: s.t('connect_main'), onTap: () => context.push('/connect'))),
-              const SizedBox(width: 8),
-              Expanded(child: _QuickTile(icon: Icons.outdoor_grill, label: s.t('role_kitchen'), onTap: () => context.go('/kitchen'))),
-            ],
+            children: _tiles(
+              switch (store.model) {
+                BusinessModel.retail => [
+                    (Icons.point_of_sale, s.t('new_sale'), () => context.push('/taker')),
+                    (Icons.qr_code_scanner, s.t('scan_sku'), () => scanStock(context, ref)),
+                    (Icons.inventory_2, s.t('stock'), () => context.push('/manager')),
+                    (Icons.wifi, s.t('connect_main'), () => context.push('/connect')),
+                  ],
+                BusinessModel.fastfood => [
+                    (Icons.confirmation_number, s.t('new_order'), () => context.push('/taker')),
+                    (Icons.qr_code_scanner, s.t('scan_sku'), () => scanStock(context, ref)),
+                    (Icons.queue, s.t('queue'), () => context.push('/main')),
+                    (Icons.notifications_active, s.t('ready_to_serve'), () => context.push('/main')),
+                  ],
+                BusinessModel.services => [
+                    (Icons.event, s.t('add_appointment'), () => context.push('/main')),
+                    (Icons.local_activity, s.t('walk_in'), () => context.push('/desk')),
+                    (Icons.inventory_2, s.t('stock'), () => context.push('/manager')),
+                    (Icons.wifi, s.t('connect_main'), () => context.push('/connect')),
+                  ],
+                _ => [
+                    (Icons.add, s.t('new_order'), () => context.push('/taker')),
+                    (Icons.qr_code_scanner, s.t('scan_sku'), () => scanStock(context, ref)),
+                    (Icons.wifi, s.t('connect_main'), () => context.push('/connect')),
+                    (Icons.outdoor_grill, s.t('role_kitchen'), () => context.go('/kitchen')),
+                  ],
+              },
+            ),
           ),
           const SizedBox(height: 16),
           if (snap.isMain)
-            _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
+            _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp())
+                .animate()
+                .fadeIn(duration: 260.ms)
+                .slideY(begin: 0.04, end: 0, duration: 300.ms, curve: Curves.easeOutCubic),
           if (snap.isMain || snap.isManager) ...[
             const SizedBox(height: 16),
             Row(
@@ -186,6 +212,7 @@ class HomeScreen extends ConsumerWidget {
           ],
           const SizedBox(height: 22),
           GridView.count(
+            padding: EdgeInsets.zero,
             crossAxisCount: wide ? 4 : 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -238,7 +265,9 @@ class HomeScreen extends ConsumerWidget {
                         ),
                     ],
                   ),
-                ),
+                ).animate(delay: (i * 70).ms)
+                    .fadeIn(duration: 240.ms)
+                    .slideY(begin: 0.06, end: 0, duration: 300.ms, curve: Curves.easeOutCubic),
             ],
           ),
           const SizedBox(height: 28),
@@ -424,6 +453,19 @@ class _ChartsFoldState extends State<_ChartsFold> {
       ],
     );
   }
+}
+
+/// 8px gaps between Expanded tiles — identical layout to the old static row.
+List<Widget> _tiles(List<(IconData, String, VoidCallback)> specs) {
+  final out = <Widget>[];
+  for (var i = 0; i < specs.length; i++) {
+    if (i > 0) out.add(const SizedBox(width: 8));
+    final ic = specs[i].$1;
+    final lb = specs[i].$2;
+    final cb = specs[i].$3;
+    out.add(Expanded(child: _QuickTile(icon: ic, label: lb, onTap: cb)));
+  }
+  return out;
 }
 
 class _QuickTile extends StatelessWidget {

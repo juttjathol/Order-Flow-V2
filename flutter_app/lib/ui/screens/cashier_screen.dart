@@ -71,6 +71,37 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
       body: Column(
         children: [
           const OffsiteOrderBar(),
+          Material(
+            color: (ref.snap.store.shiftCashier.isEmpty ? OfColors.warn : OfColors.mint)
+                .withValues(alpha: 0.16),
+            child: InkWell(
+              onTap: () => startShift(context, ref),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.badge,
+                      color: ref.snap.store.shiftCashier.isEmpty ? OfColors.warn : OfColors.mint,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        ref.snap.store.shiftCashier.isEmpty
+                            ? s.t('shift_none')
+                            : '${s.t('shift_open')}: ${ref.snap.store.shiftCashier}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    Text(
+                      ref.snap.store.shiftCashier.isEmpty ? s.t('start_shift') : s.t('end_shift'),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Wrap(

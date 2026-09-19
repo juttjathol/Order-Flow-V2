@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -9,11 +11,43 @@ import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
 import '../widgets/station_printer.dart';
 
-class KitchenScreen extends ConsumerWidget {
+class KitchenScreen extends ConsumerStatefulWidget {
   const KitchenScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<KitchenScreen> createState() => _KitchenScreenState();
+}
+
+class _KitchenScreenState extends ConsumerState<KitchenScreen> {
+  Timer? _tick;
+  final _seen = <String>{};
+  final _lateAlerted = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  void _alert(Set<String> ids) {
+    if (ids.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.heavyImpact();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.s;
     final orders = ref.snap.store.orders
         .where((o) =>
@@ -21,6 +55,22 @@ class KitchenScreen extends ConsumerWidget {
             o.status == OrderStatus.preparing ||
             o.status == OrderStatus.ready)
         .toList();
+    final ids = orders.map((o) => o.id).toSet();
+    final fresh = ids.difference(_seen);
+    if (_seen.isNotEmpty && fresh.isNotEmpty) {
+      _alert(fresh);
+    }
+    _seen
+      ..addAll(ids)
+      ..removeWhere((id) => !ids.contains(id));
+    _lateAlerted.removeWhere((id) => !ids.contains(id));
+    final justLate = <String>{};
+    for (final o in orders) {
+      final mins = DateTime.now().difference(o.sentAt ?? o.createdAt).inMinutes;
+      if (mins >= 20 && _lateAlerted.add(o.id)) justLate.add(o.id);
+    }
+    if (justLate.isNotEmpty) _alert(justLate);
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -66,9 +116,9 @@ class KitchenScreen extends ConsumerWidget {
               itemBuilder: (_, i) {
                 final o = orders[i];
                 final mins = DateTime.now().difference(o.sentAt ?? o.createdAt).inMinutes;
-                final ageColor = mins >= 15
+                final ageColor = mins >= 20
                     ? OfColors.danger
-                    : mins >= 8
+                    : mins >= 10
                         ? OfColors.warn
                         : OfColors.mint;
                 final lines = (List<OrderLine>.from(o.lines))
@@ -167,7 +217,10 @@ class KitchenScreen extends ConsumerWidget {
 
   String _age(PosOrder o) {
     final start = o.sentAt ?? o.createdAt;
-    final m = DateTime.now().difference(start).inMinutes;
+    final d = DateTime.now().difference(start);
+    final m = d.inMinutes;
+    final sec = d.inSeconds % 60;
+    if (m <= 0) return '${sec}s';
     return '${m}m';
   }
 

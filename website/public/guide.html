@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="./styles.css"/>
+  <link rel="stylesheet" href="./styles.css?v=5"/>
   <style>
     .guide-head { padding: 90px 0 40px; }
     .guide-head .sec-sub { color: var(--muted); }
@@ -30,6 +30,18 @@
     .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: rgba(61,220,151,.14); border: 1px solid rgba(61,220,151,.4); color: var(--mint); font-size: 12px; font-weight: 700; margin-bottom: 10px; }
     .version-note { padding: 12px 16px; border-radius: 14px; background: rgba(230,195,92,.12); border: 1px solid rgba(230,195,92,.4); color: var(--gold); font-weight: 700; font-size: 14px; display: inline-block; }
     .back-top { display: inline-block; margin-top: 14px; font-weight: 700; color: var(--mint); text-decoration: none; }
+    /* v1.1.61 arrangement: guide fits every phone width */
+    .guide-head .sec-title, .section h2, .toc a { text-wrap: balance; }
+    .lang-card p, .lang-card li { overflow-wrap: break-word; text-wrap: pretty; }
+    .toc { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+    @media (max-width: 640px) {
+      .guide-head { padding: 56px 0 28px; }
+      .toc { gap: 8px; }
+      .toc a { padding: 11px 13px; font-size: 13px; border-radius: 13px; }
+      .lang-card { padding: 15px 15px; }
+      .version-note { display: block; font-size: 13px; }
+      .section { padding: 26px 0; }
+    }
   </style>
 </head>
 <body>
@@ -41,7 +53,7 @@
         <a href="./index.html#product">Product</a>
         <a href="./index.html#download">Download</a>
         <a href="#toc">Contents</a>
-        <a href="#contact">WhatsApp</a>
+        <a href="./contact.html">Contact</a>
       </nav>
       <div class="nav-cta">
         <a class="btn btn-mint" href="./index.html#download" data-apk>Get the app</a>
@@ -55,7 +67,7 @@
         <p class="kicker">User guide · رہنمائے صارف</p>
         <h1 class="sec-title">Every feature, step by step.<br/>ہر فیچر، قدم بہ قدم۔</h1>
         <p class="sec-sub">The complete manual for Order Flow — how to set up the shop, run every station, handle payments, printers, the cash drawer, loyalty, reports and refunds. English and Urdu on one page.</p>
-        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.58 · ایپ ورژن 1.1.58 کے مطابق</p>
+        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.72 — kitchen wait clock + sound, cashier shift banner, PIN-gated voids, QR ticket status, safer LAN stations · ایپ ورژن 1.1.72 کے مطابق — کچن کا انتظار گھڑی اور آواز، کیشیئر شفٹ بینر، PIN سے منسوخ، QR ٹکٹ کی حالت، محفوظ LAN اسٹیشنز</p>
       </div>
     </section>
 
@@ -81,6 +93,13 @@
         <a href="#settings">17 · Settings &amp; backup</a>
         <a href="#hardware">18 · Hardware tips</a>
         <a href="#fix">19 · Troubleshooting</a>
+        <a href="#qr">20 · QR table ordering</a>
+        <a href="#recipes">21 · Recipes &amp; margin</a>
+        <a href="#wastage">22 · Wastage log</a>
+        <a href="#purchasing">23 · Suppliers &amp; purchasing</a>
+        <a href="#plans">24 · Plans &amp; license access</a>
+        <a href="#cloud">25 · Cloud networking</a>
+        <a href="#brand">26 · Branded QR page</a>
       </div>
     </div>
 
@@ -175,9 +194,15 @@
           <div class="lang-card">
             <h4 class="en">English</h4>
             <ol>
+              <li><b>New in 1.1.65 — Menu Scan:</b> Menu tab → scanner icon → take a photo of the menu (or upload a menu PDF). Names, prices and categories are read <b>on the phone itself</b> — no internet, nothing uploaded anywhere.</li>
+              <li><b>v1.1.70 — imports no longer dead-end:</b> a price in the middle of a row (size or unit after it) no longer loses the item, and when a page's price style can't be matched at all the review sheet still lists every readable dish line with a <b>blank price</b> — tick what you want, type prices, import. Rows read without a price arrive <b>unticked</b> on purpose, so only what you confirm enters the menu.</li>
+              <li><b>v1.1.71 — PDF reading fixed:</b> PDF pages were being scanned on a transparent canvas, which the text recognizer reads as a blank image — now every page is painted on <b>white paper</b> first, so typed and scanned PDF menus produce items again. Pressing Import with nothing ticked now tells you, instead of doing nothing.</li>
+              <li>In the review sheet that opens: un-tick any wrong line, tap a name or price to fix it, choose the category, add anything missed — then <b>Import</b> creates all of it in one tap. Items already on the menu are skipped automatically.</li>
+              <li>Works best with English / Malay (Latin script) menus — lay them flat, fill the frame, good light. A PDF export of the menu is the most reliable scan. Urdu-script menus cannot be read by any on-device scanner, so type those manually.</li>
               <li>Menu tab → add categories (e.g. Drinks, Mains) and products with photo, price and SKU.</li>
               <li>Add <b>modifiers</b> per product: Size (small / large), Spice level, and priced Add-ons.</li>
               <li>Link a product to a stock item so sales deduct inventory automatically.</li>
+              <li>Deleting a category asks for confirmation and <b>moves its dishes to Uncategorized</b> — it never wipes the products. Deleting a dish also asks first.</li>
               <li>Long-press a product on the order screen to 86 it (mark unavailable) — it greys out everywhere instantly.</li>
               <li>Currency symbol is configurable in Bill profile; every price uses it.</li>
             </ol>
@@ -185,9 +210,15 @@
           <div class="lang-card ur">
             <h4>اردو</h4>
             <ol>
+              <li><b>1.1.65 کا نیا فیچر — مینیو اسکین:</b> مینیو ٹیب → اسکینر آئیکن → مینیو کی تصویر لیں (یا مینیو کی PDF اپ لوڈ کریں)۔ نام، قیمتیں اور کیٹگریز <b>فون پر ہی</b> پڑھے جاتے ہیں — انٹرنیٹ کی ضرورت نہیں، کچھ بھی کہیں بھیجھا نہیں جاتا۔</li>
+              <li><b>v1.1.70 — اب امپورٹ ادھورا نہیں رکتا:</b> قطار کے بیچ میں قیمت (اس کے بعد سائز/ناپے والی لفظ) کی وجہ سے آئٹم اب نہیں کھو جاتا، اور اگر قیمت کا انداز بالکل نہ پہچانا جا سکے تو ریویو شیٹ پڑھے گئے تمام آئٹم نام <b>خالی قیمت</b> کے ساتھ دکھاتی ہے — جو چاہیں ٹک کریں، قیمت لکھیں، امپورٹ کریں۔ بے قیمت قطاریں جان بوجھ پر ٹک کھلی رہتی ہیں تاکہ صرف آپ کی تصدیق شدہ اشیاء مینیو میں جائیں۔</li>
+              <li><b>v1.1.71 — PDF پڑھنا ٹھیک ہوا:</b> PDF کے صفحات شفاف کینواس پر اسکین ہو رہے تھے جسے ٹیکسٹ ریڈنگ بالکل خالی تصویر سمجھتی تھی — اب ہر صفحہ پہلے <b>سفید کاغذ</b> پر بنایا جاتا ہے، پس لکھی ہوئی یا سکین شدہ PDF مینیوز سے دوبارہ آئٹمز ملتے ہیں۔ اور بغیر کوئی آئٹم ٹک کیے امپورٹ دبانے پر اب پیغام ملتا ہے، خاموش نہیں۔</li>
+              <li>کھلنے والی ریویو شیٹ میں: غلط لائن کا ٹِک ہٹائیں، نام یا قیمت ٹیپ کر کے درست کریں، کیٹگری منتخب کریں، چھوٹی ہوئی چیز شامل کریں — پھر <b>Import</b> ایک ہی ٹیپ سب بنا دیتا ہے۔ جو آئٹمز پہلے سے مینیو میں ہیں وہ خود چھوڑ دیے جاتے ہیں۔</li>
+              <li>انگریزی / ملائیشین (لاطین حروف) مینیو سب سے بہتر پڑھے جاتے ہیں — مینیو ہموار رکھیں، پورا فریم میں آئے، اچھی روشنی ہو۔ مینیو کی PDF سب سے قابلِ اعتماد اسکین دیتی ہے۔ اردو مینیو کسی بھی آف لائن اسکینر سے پڑھے نہیں جا سکتے، ان کے لیے ہاتھ سے لکھیں۔</li>
               <li>مینیو ٹیب → کیٹگریز (مثلاً ڈرنکس، مینز) اور پروڈکٹس تصویر، قیمت اور SKU کے ساتھ بنائیں۔</li>
               <li>ہر پروڈکٹ پر <b>موڈیفائر</b> لگائیں: سائز (چھوٹا / بڑا)، مصالحہ، اور قیمت والے ایڈ آن۔</li>
               <li>پروڈکٹ کو اسٹاک آئٹم سے جوڑیں تاکہ سیل پر انوینٹری خود کم ہو۔</li>
+              <li>کیٹگری حذف کرنے پر تصدیق پوچھتی ہے اور اس کے پکوان <b>غیر زمرہ بند</b> میں چلے جاتے ہیں — پروڈکٹس مٹتے نہیں۔ آئٹم حذف بھی پہلے پوچھتا ہے۔</li>
               <li>آرڈر اسکرین پر پروڈکٹ کو دیر تک دبائیں تو 86 ہو جاتی ہے (دستیاب نہیں) — ہر جگہ فوراً۔</li>
               <li>کرنسی کا نشان بل پروفائل میں بدلیں؛ ہر قیمت اسی میں دکھتی ہے۔</li>
             </ol>
@@ -309,6 +340,12 @@
             <ul>
               <li><b>Shop printers (Main):</b> More → Hardware → Printers. Add LAN (IP + port 9100) or Bluetooth ESC/POS printers and assign each to a role (kitchen, cashier…).</li>
               <li><b>Every station's own printer:</b> tap the printer icon in the station's top bar. Pick a Bluetooth printer or type a LAN IP. The station then prints everything itself, independent of Main.</li>
+              <li><b>Bluetooth printing (v1.1.68)</b> now works with <b>any</b> Bluetooth printer — old Classic (SPP) models like the common 58mm portables, and modern Low-Energy ones. Pair the printer once in Android settings (PIN 0000 usually), pick it in the printer sheet, and print. The Auto / Classic / LE chips let you force a link type if a picky printer needs the nudge; error toasts now quote the printer's real complaint.</li>
+              <li>These printers serve <b>one connection at a time</b>: while your station has a Bluetooth printer selected, Order Flow <b>holds that link open</b> like a real POS — so back-to-back prints (and the Test button) always reach the printer. Use <b>Use shop printer</b> to let it go.</li>
+              <li><b>Paper size (v1.1.69):</b> each printer screen has Auto / 58 / 76 / 80 / 100 mm. Auto keeps the safe 58 mm layout; wider choices only lengthen lines — letters keep their native shape. Transparent PNG logos print correctly now (alpha is composited on white, mostly-dark artwork auto-inverts).</li>
+              <li><b>Receipt layout (v1.1.70):</b> the shop name prints on <b>one line</b> — double-size only when it actually fits, so long names no longer wrap mid-word. The logo keeps a margin (≈80% width, centered), Ticket and time share one line (time right-aligned), the item table gained its <b>Amount</b> header, and the stray double-hash on ticket numbers is fixed.</li>
+              <li><b>Footer per slip type (v1.1.70):</b> every slip editor in the bill profile has its own <b>Slip footer</b> field — delivery can end with a delivery note, takeaway with its own thanks, the cash receipt with another. Leave it empty and that slip just uses the shop footer.</li>
+              <li><b>Pay &amp; Print</b> — the payment sheet's button settles and prints the customer receipt on your station's printer; <b>Pre-bill</b> next to it prints the running total marked “NOT PAID YET” without settling anything. Kitchen tickets print the ticket number, table and TAKEAWAY/DELIVERY in double height.</li>
               <li><b>Bill profile:</b> shop name, address, phone, tax ID, footer, logo image, pay QR — all print on the receipt.</li>
               <li>Separate slip templates for kitchen / counter / takeaway / delivery — choose what each shows.</li>
               <li>Test button on every printer screen sends a test page. Reprint any ticket from More → Reprint.</li>
@@ -319,6 +356,12 @@
             <ul>
               <li><b>دکان کے پرنٹرز (Main):</b> More → ہارڈویئر → پرنٹرز۔ LAN (IP + پورٹ 9100) یا بلوٹوتھ ESC/POS پرنٹر شامل کریں اور ہر کردار (کچن، کیشیئر…) کو پرنٹر تفویض کریں۔</li>
               <li><b>ہر اسٹیشن کا اپنا پرنٹر:</b> اسٹیشن کی اوپری بار میں پرنٹر آئیکن دبائیں۔ بلوٹوتھ پرنٹر چنیں یا LAN IP لکھیں۔ پھر یہ اسٹیشن سب کچھ خود پرنٹ کرتا ہے، Main سے آزاد۔</li>
+              <li><b>بلوٹوتھ پرنٹنگ (v1.1.68)</b> اب <b>ہر</b> بلوٹوتھ پرنٹر کے ساتھ چلتی ہے — پرانے کلاسیک (SPP) جیسے عام 58mm پورٹیبل، اور نئے Low-Energy والے۔ پرنٹر کو ایک بار Android سیٹنگز میں جوڑیں (PIN عام طور پر 0000)، پرنٹر اسکرین سے چنیں، اور پرنٹ کریں۔ Auto / Classic / LE چپس اُس سرکٹ پرنٹر کے لیے مخصوص لنک منتخب کرنے دیتے ہیں؛ اور خرابی کا پیغام اب پرنٹر کی اصل شکایت لکھتا ہے۔</li>
+              <li>یہ پرنٹر ایک وقت میں <b>ایک ہی کنکشن</b> چلاتے ہیں: جب آپ کے اسٹیشن کا بلوٹوتھ پرنٹر منتخب ہو تو Order Flow وہ لنک کھلا رکھتا ہے (اصل POS کی طرح) — لگاتار پرنٹ اور ٹیسٹ بٹن ہمیشہ پرنٹر تک پہنچتے ہیں۔ چھوڑنے کے لیے <b>Use shop printer</b> دبائیں۔</li>
+              <li><b>کاغذ کی سائز (v1.1.69):</b> ہر پرنٹر اسکرین پر Auto / 58 / 76 / 80 / 100 ملی میٹر۔ خودکار محفوظ 58mm فارمیٹ رکھتا ہے؛ چوڑی سائز صرف لائنیں لمبی کرتی ہے — حروف اپنی اصل شکل میں رہتے ہیں۔ شفاف PNG لوگو اب صحیح پرنٹ ہوتے ہیں (شفافیت سفید کاغذ پر بدلتی ہے، زیادہ کالا آرٹ خودبخود الٹ جاتا ہے)۔</li>
+              <li><b>رسید کا فارمیٹ (v1.1.70):</b> دکان کا نام <b>ایک لائن</b> میں چھپتا ہے — بڑا فونٹ تب ہی جب واقعی فٹ ہو، لمبے نام اب ادھورے نہیں ٹوٹتے۔ لوگو کیناروں سے لگتا نہیں (≈80% چوڑائی، درمیان)، ٹکٹ نمبر اور وقت ایک ہی لائن میں (وقت دائیں طرف)، آئٹم ٹیبل میں <b>رقم</b> کا ہیڈر، اور ٹکٹ پر ڈپل ہیش (#) کی خرابی دور۔</li>
+              <li><b>ہر رسید کا اپنا فوٹر (v1.1.70):</b> بل پروفائل کی ہر سِلپ ایڈیٹر میں اب <b>رسید کا فوٹر</b> خانہ ہے — ڈیلیوری پر الگ پیغام، ٹیک اوے پر الگ، کیش رسید پر الگ۔ خالی چھوڑیں تو دکان کا فوٹر لگے گا۔</li>
+              <li><b>Pay &amp; Print</b> — ادائیگی اسکرین کا بٹن بل وصول کر کے کسٹمر رسید آپ کے اسٹیشن کے پرنٹر پر نکالتا ہے؛ اس کے ساتھ <b>پری بل</b> بٹن چلتا حساب “NOT PAID YET” لکھ کر پرنٹ کرتا ہے، کوئی ادائیگی ہوئے بغیر۔ کچن ٹکٹ پر ٹکٹ نمبر، ٹیبل اور TAKEAWAY/DELIVERY دُگنی اونچائی میں ہوتے ہیں۔</li>
               <li><b>بل پروفائل:</b> دکان کا نام، پتہ، فون، ٹیکس ID، فوٹر، لوگو تصویر، پے QR — سب رسید پر پرنٹ ہوتا ہے۔</li>
               <li>کچن / کاؤنٹر / ٹیک اوے / ڈیلیوری کے لیے الگ سلپ ٹیمپلیٹس — جو دکھانا ہو منتخب کریں۔</li>
               <li>ہر پرنٹر اسکرین پر ٹیسٹ بٹن سے ٹیسٹ صفحہ نکلتا ہے۔ More → دوبارہ پرنٹ سے کوئی بھی ٹکٹ دوبارہ نکالیں۔</li>
@@ -395,7 +438,7 @@
             <ul>
               <li><b>X report</b> (More → X): today's sales, payment breakdown per method (split-aware), hourly sales, voids, refunds — without closing anything.</li>
               <li><b>Z report / Day close</b>: finalises the day and records the closing time.</li>
-              <li><b>Shifts:</b> cashier opens with a float, ends with counted cash; reports show who worked.</li>
+              <li><b>Shifts:</b> cashier opens with a float, ends with counted cash; reports show who worked. The cashier screen now shows a tap-to-open / tap-to-close banner so a closed drawer is never silent.</li>
               <li>Home shows sales, open orders and charts live.</li>
             </ul>
           </div>
@@ -404,7 +447,7 @@
             <ul>
               <li><b>X رپورٹ</b> (More → X): آج کی سیل، ہر طریقے کی ادائیگی کی تفصیل (تقسیم ادائیگی سمیت)، گھنٹہ وار سیل، منسوخ، رقم واپسیاں — بغیر کچھ بند کیے۔</li>
               <li><b>Z رپورٹ / دن بند</b>: دن مکمل کرتا ہے اور بند ہونے کا وقت محفوظ کرتا ہے۔</li>
-              <li><b>شفٹس:</b> کیشیئر فلوٹ سے شروع کرتا ہے، گنی ہوئی کیش پر ختم کرتا ہے؛ رپورٹس دکھاتی ہیں کس نے کام کیا۔</li>
+              <li><b>شفٹس:</b> کیشیئر فلوٹ سے شروع کرتا ہے، گنی ہوئی کیش پر ختم کرتا ہے؛ رپورٹس دکھاتی ہیں کس نے کام کیا۔ کیشیئر اسکرین پر اب بینر ہے — دبا کر شفٹ کھولیں یا بند کریں، بند دراز خاموش نہیں رہتی۔</li>
               <li>ہوم پر سیل، کھلے آرڈر اور چارٹس لائیو دکھتے ہیں۔</li>
             </ul>
           </div>
@@ -417,7 +460,7 @@
           <div class="lang-card">
             <h4 class="en">English</h4>
             <ul>
-              <li><b>Void</b> an open order from its More menu with a reason — it moves to the void report.</li>
+              <li><b>Void</b> an open order from its More menu: manager PIN, a confirm, then a reason — it moves to the void report.</li>
               <li><b>Refund</b> a paid order: tap the exchange icon on the paid ticket, confirm the manager PIN. Stock returns to inventory automatically and the refund shows in reports.</li>
               <li>Every void and refund keeps a written reason on the ticket.</li>
             </ul>
@@ -425,7 +468,7 @@
           <div class="lang-card ur">
             <h4>اردو</h4>
             <ul>
-              <li>کھلے آرڈر کو اس کے More مینو سے وجہ کے ساتھ <b>منسوخ</b> کریں — یہ منسوخی رپورٹ میں آتا ہے۔</li>
+              <li>کھلے آرڈر کو اس کے More مینو سے <b>منسوخ</b> کریں: مینیجر PIN، تصدیق، پھر وجہ — یہ منسوخی رپورٹ میں آتا ہے۔</li>
               <li>ادا شدہ آرڈر کی <b>رقم واپس</b> کریں: ادا شدہ ٹکٹ پر ایکسچینج آئیکن دبائیں، مینیجر PIN دیں۔ اسٹاک خود واپس آتا ہے اور رپورٹس میں واپسی نظر آتی ہے۔</li>
               <li>ہر منسوخی اور واپسی کی وجہ ٹکٹ پر لکھی رہتی ہے۔</li>
             </ul>
@@ -477,9 +520,9 @@
           <div class="lang-card">
             <h4 class="en">English</h4>
             <ul>
-              <li><b>Language:</b> English / اردو per device, from More.</li>
+              <li><b>Language:</b> English / اردو per device, from More — a sheet lists both instead of toggling blindly.</li>
               <li><b>Theme:</b> light / dark / system.</li>
-              <li><b>Backup:</b> More → Export backup shares a JSON file; import restores everything on Main.</li>
+              <li><b>Backup:</b> More → Export backup shares a JSON file; import restores everything on Main. A failed import now shows a clear message instead of a raw error.</li>
               <li><b>Staff &amp; PIN:</b> staff list with duty (on shift / meal break / tea break / offline) and manager PIN for discounts, refunds and role changes.</li>
               <li><b>License:</b> view key, device ID and expiry; WhatsApp button for support.</li>
             </ul>
@@ -487,7 +530,7 @@
           <div class="lang-card ur">
             <h4>اردو</h4>
             <ul>
-              <li><b>زبان:</b> ہر ڈیوائس پر English / اردو، More سے۔</li>
+              <li><b>زبان:</b> ہر ڈیوائس پر English / اردو، More سے — شیٹ دونوں زبانیں دکھاتی ہے، اندھا ٹوگل نہیں۔</li>
               <li><b>تھیم:</b> لائٹ / ڈارک / سسٹم۔</li>
               <li><b>بیک اپ:</b> More → ایکسپورٹ بیک اپ JSON فائل شیئر کرتا ہے؛ امپورٹ سے Main پر سب بحال ہو جاتا ہے۔</li>
               <li><b>اسٹاف اور PIN:</b> ڈیوٹی کے ساتھ اسٹاف (آن شفٹ / کھانا / چائے / آف لائن) اور رعایت، واپسی اور کردار بدلنے کے لیے مینیجر PIN۔</li>
@@ -506,7 +549,7 @@
               <li><b>Printers:</b> any ESC/POS 58/80mm thermal printer — LAN (TCP 9100) or Bluetooth. Keep the printer on the same Wi-Fi as Main.</li>
               <li><b>Cash drawer:</b> any RJ11 kick drawer — plugs into the receipt printer, never directly into the phone.</li>
               <li><b>Barcode guns:</b> USB/Bluetooth guns work as keyboards — just focus the search or scan box. The built-in camera scanner does the same without hardware.</li>
-              <li><b>Kitchen sound:</b> station notifications + vibration announce ready orders; keep the kitchen device's volume up.</li>
+              <li><b>Kitchen sound:</b> station notifications + vibration announce ready orders; keep the kitchen device's volume up. The wait clock ticks live — tickets turn amber at 10 minutes and red at 20, and the kitchen beeps on new and late tickets.</li>
             </ul>
           </div>
           <div class="lang-card ur">
@@ -515,7 +558,7 @@
               <li><b>پرنٹرز:</b> کوئی بھی ESC/POS 58/80mm تھرمل پرنٹر — LAN (TCP 9100) یا بلوٹوتھ۔ پرنٹر اسی وائی فائی پر رکھیں جس پر Main ہے۔</li>
               <li><b>کیش دراز:</b> کوئی بھی RJ11 کِک دراز — رسید والے پرنٹر میں لگتی ہے، فون میں کبھی نہیں۔</li>
               <li><b>بارکوڈ گن:</b> USB/بلوٹوتھ گنیں کی بورڈ کی طرح کام کرتی ہیں — سرچ یا سکین باکس پر توجہ رکھیں۔ بلٹ ان کیمرہ سکینر بغیر ہارڈویئر یہی کام کرتا ہے۔</li>
-              <li><b>کچن کی آواز:</b> اسٹیشن نوٹیفکیشن + وائبریشن تیار آرڈر بتاتے ہیں؛ کچن ڈیوائس کی آواز اونچی رکھیں۔</li>
+              <li><b>کچن کی آواز:</b> اسٹیشن نوٹیفکیشن + وائبریشن تیار آرڈر بتاتے ہیں؛ کچن ڈیوائس کی آواز اونچی رکھیں۔ انتظار کی گھڑی لائیو چلتی ہے — 10 منٹ پر پیلا، 20 منٹ پر سرخ، اور نئے یا دیر والے ٹکٹ پر کچن کی آواز بجتی ہے۔</li>
             </ul>
           </div>
         </div>
@@ -529,10 +572,10 @@
             <ul>
               <li><b>Station won't connect:</b> same Wi-Fi as Main? Is Main's server on (Home → Server ON)? Re-type the IP.</li>
               <li><b>Print fails:</b> run the printer's Test page. LAN: check IP/port 9100 and same network. Bluetooth: pair in Android settings first, allow Nearby devices permission.</li>
-              <li><b>Drawer won't open:</b> is it plugged into the receipt printer's kick port? Try Open drawer now. Some printers need the drawer enabled in their own settings.</li>
+              <li><b>Drawer won't open:</b> is it plugged into the receipt printer's kick port? Try Open drawer now. Some printers need the drawer enabters need the drawer enabled in their own settings.</li>
               <li><b>Offline queue:</b> the station chip shows queued work; it flushes automatically when Main is back.</li>
-              <li><b>License locked:</b> the key was reset or revoked — WhatsApp @Jathol_Jutt from the lock screen.</li>
-              <li>Anything else: WhatsApp <strong>@Jathol_Jutt</strong>.</li>
+              <li><b>License locked:</b> the key was reset or revoked — email <strong>contact@jathol.org</strong> from the lock screen and we reset it.</li>
+              <li>Anything else: email <strong>contact@jathol.org</strong> — answered within 24 hours, Monday to Saturday.</li>
             </ul>
           </div>
           <div class="lang-card ur">
@@ -542,8 +585,192 @@
               <li><b>پرنٹ ناکام:</b> پرنٹر کا ٹیسٹ صفحہ چلائیں۔ LAN: IP/پورٹ 9100 اور وہی نیٹ ورک چیک کریں۔ بلوٹوتھ: پہلے اینڈرائیڈ سیٹنگز میں پیئر کریں، Nearby devices اجازت دیں۔</li>
               <li><b>دراز نہیں کھلتی:</b> کیا کیبل رسید والے پرنٹر کے کِک پورٹ میں ہے؟ ابھی دراز کھولیں آزمائیں۔ کچھ پرنٹرز میں دراز اپنی سیٹنگز سے آن کرنی پڑتی ہے۔</li>
               <li><b>آف لائن قطار:</b> اسٹیشن چپ پر جمع کام دکھاتی ہے؛ Main واپس آتے ہی خود بھیج دیتی ہے۔</li>
-              <li><b>لائسنس لاک:</b> کی ری سیٹ یا منسوخ ہوئی — لاک اسکرین سے واٹس ایپ @Jathol_Jutt کریں۔</li>
-              <li>کوئی اور مسئلہ: واٹس ایپ <strong>@Jathol_Jutt</strong>۔</li>
+              <li><b>لائسنس لاک:</b> کی ری سیٹ یا منسوخ ہوئی — لاک اسکرین سے <strong>contact@jathol.org</strong> پر ای میل کریں، ہم ری سیٹ کر دیں گے۔</li>
+              <li>کوئی اور مسئلہ: ای میل <strong>contact@jathol.org</strong> — 24 گھنٹے میں جواب، پیر تا ہفتہ۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="qr">
+        <h2>20 · QR table ordering <span style="color:var(--muted);font-size:.6em">کیو آر ٹیبل آرڈرنگ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Switch it on: <b>More → Plan extras → QR ordering → enable</b>. Main must be on Wi-Fi; the address looks like <b>http://192.168.x.x:8787/order</b>.</li>
+              <li>For a single table open the <b>Tables</b> tab → <b>QR icon</b> → show, print or share that table's code. Guests scan it and the menu opens with the table already attached.</li>
+              <li>The guest page works in <b>English and Urdu</b> (toggle at the top), shows photos, prices, modifiers and notes — no app to install.</li>
+              <li><b>v1.1.70 page fixes:</b> prices and totals now use your own currency symbol with thousands separators (previously some shops saw “true1,200” style totals), product photos (JPEG or PNG) render on the menu cards, and the success screen now shows the order total next to the ticket number. <b>v1.1.71:</b> on narrow phones the floating <i>Your order</i> bar could hang off the right edge so <b>Review &amp; send</b> was unreachable — orders never left the guest's phone. The bar is now always fully on screen and tappable. <b>v1.1.72:</b> after send, the ticket card keeps polling the kitchen — received, cooking, ready, paid or cancelled — so guests are not left guessing.</li>
+              <li>Submitting a web order creates a normal ticket with the <b>QR</b> badge. By default it fires to the kitchen (printers included) <b>the moment the counter marks it paid</b> — and the kitchen slip carries the table number so food lands at the right table. Prefer cooking at submit? Switch to <b>At submit</b> in the same QR sheet.</li>
+              <li>On custom plans the page shows <b>your</b> shop's name, tagline, hours, contact and colour — set it all under <a href="#brand">Your brand page</a> (§26).</li>
+              <li>Switch ordering off any time — the page closes instantly for new scans. Orders are accepted only on the shop Wi-Fi, never from the internet.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>آن کرنے کا طریقہ: <b>مزید → پلان ایسٹرا → کیو آر آرڈرنگ → آن</b>۔ Main وائی فائی پر ہو؛ پتہ ایسا ہوگا <b>http://192.168.x.x:8787/order</b>۔</li>
+              <li>اکلے ٹیبل کے لیے <b>ٹیبلز</b> ٹیب → <b>کوڈ آئیکن</b> → کوڈ دکھائیں، پرنٹ یا شیئر کریں۔ مہمان سکین کریں تو ٹیبل پہلے سے جڑا ہوا مینو کھلے گا۔</li>
+              <li>مہمان کا صفحہ <b>انگریزی اور اردو</b> دونوں میں چلتا ہے (اوپر بٹن)، تصاویر، قیمتیں، موڈیفائر اور ہدایت دکھاتا ہے — کوئی ایپ انسٹال کرنے کی ضرورت نہیں۔</li>
+              <li><b>v1.1.70 اصلاحات:</b> اب قیمتیں اور کل رقم آپ کے کرنسی نشاں اور ہزار کی علامت (کما) کے ساتھ درست نظر آتی ہیں، مینیو کی تصاویر (JPEG یا PNG) صحیح کھلتی ہیں، اور کامیابی کی اسکرین پر ٹکٹ نمبر کے ساتھ آرڈر کی <b>کل رقم</b> بھی لکھی آتی ہے۔ <b>v1.1.71:</b> چھوٹی اسکرین والے فونوں پر <i>Your order</i> بار دائیں طرف سے کٹ جاتا تھا جس سے <b>Review &amp; send</b> بٹن تک پہنچ نہیں ہوتی تھی — آرڈر کسٹمر کے فون سے باہر ہی نہیں جاتا تھا۔ اب بار ہمیشہ پورا نظر آتا ہے۔ <b>v1.1.72:</b> آرڈر بھیجنے کے بعد ٹکٹ کارڈ کچن سے حالت پوچھتا رہتا ہے — موصول، پک رہا، تیار، ادا یا منسوخ — مہمان اندازے پر نہیں رہتے۔</li>
+              <li>آرڈر بھیجنے پر عام ٹکٹ بنتی ہے جس پر <b>QR</b> نشان ہوتا ہے۔ ڈیفالٹ میں ٹکٹ کچن (اور پرنٹر) پر اسی وقت جاتی ہے جب <b>کاؤنٹر ادائیگی وصول کر لے</b> — اور کچن سِلپ پر ٹیبل نمبر بھی ہوتا ہے تاکہ کھانا درست ٹیبل پر پہنچے۔ اگر آرڈر بھیجتے ہی پکانا شروع کرنا ہو تو اسی QR شیٹ میں <b>بھیجتے ہی</b> منتخب کریں۔</li>
+              <li>کسٹم پلان پر یہ صفحہ <b>آپ کی دکان</b> کا نام، ٹیاگ لائن، اوقات، رابطہ اور رنگ دکھاتا ہے — سیٹنگ <a href="#brand">برانڈ صفحہ</a> (§26) سے۔</li>
+              <li>کبھی بھی بند کر دیں — نئے سکین فوراً بند ہو جائیں گے۔ آرڈر صرف دکان کے وائی فائی پر قبول ہوتے ہیں، انٹرنیٹ سے کبھی نہیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="recipes">
+        <h2>21 · Recipes &amp; margin <span style="color:var(--muted);font-size:.6em">ریسیپی اور مارجن</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>First give every stock item its <b>cost</b> (Stock tab). Then open <b>More → Plan extras → Recipes &amp; margins</b>.</li>
+              <li>Tap an item and add ingredients with the quantity used per sale (e.g. 0.5 kg flour + 2 eggs). The list shows cost, profit and margin percent per item.</li>
+              <li>Margins under <b>25%</b> are flagged in red so you can fix the price or the plate before it costs you.</li>
+              <li>Recipe costing is separate from auto-deduction — your existing inventory link keeps working exactly as before.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>پہلے ہر اسٹاک آئٹم کی <b>قیمتِ اصل (کاسٹ)</b> لکھیں (اسٹاک ٹیب)۔ پھر <b>مزید → پلان ایسٹرا → ریسیپیاں اور منافع</b> کھولیں۔</li>
+              <li>آئٹم کھول کر فی فروخت مقدار کے ساتھ اجزاء شامل کریں (مثلاً آٹا 0.5 کلو + انڈے 2)۔ فہرست ہر آئٹم کی کاسٹ، منافع اور مارجن٪ دکھاتی ہے۔</li>
+              <li><b>25%</b> سے کم مارجن سرخ رنگ میں نظر آتا ہے تاکہ قیمت یا پلیٹ درست کر سکیں۔</li>
+              <li>ریسیپی کاسٹنگ الگ حساب ہے — آپ کا موجودہ خودکار اسٹاک ڈیڈکشن بالکل ویسا ہی چلے گا۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="wastage">
+        <h2>22 · Wastage log <span style="color:var(--muted);font-size:.6em">ویسٹیج لاگ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>More → Plan extras → Wastage log → Log waste</b>: pick the stock item, the quantity lost and an optional reason (spoiled, burnt…).</li>
+              <li>Wasted quantity leaves inventory immediately, and its cost is counted in the <b>Wasted this week</b> total and in Insights.</li>
+              <li>Logged it wrong? The undo arrow puts the stock back and erases the entry.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>مزید → پلان ایسٹرا → ویسٹیج لاگ → ویسٹیج درج کریں</b>: اسٹاک آئٹم، ضائع مقدار اور وجہ (خراب، جل گیا…) لکھیں۔</li>
+              <li>ضائع مقدار فوراً اسٹاک سے نکل جاتی ہے، اور اس کا نقصان <b>اس ہفتے کا ضیاع</b> اور انسائٹ میں شامل ہو جاتا ہے۔</li>
+              <li>غلطی ہو گئی؟ واپس (undo) تیر اسٹاک لوٹا دیتا ہے اور اندراج مٹا دیتا ہے۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="purchasing">
+        <h2>23 · Suppliers &amp; purchasing <span style="color:var(--muted);font-size:.6em">سپلائر اور خریداری</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>More → Plan extras → Purchasing</b>: keep your suppliers (name, phone) on the Suppliers tab.</li>
+              <li>Create a purchase order: supplier, one line per stock item with quantity and unit cost. The PO gets a number like <b>PO-501</b> automatically.</li>
+              <li>When the delivery arrives, tap <b>Receive stock</b> — quantities are added to inventory and the item cost is updated to the latest price you paid.</li>
+              <li>Open orders can still be cancelled; received and cancelled POs stay in the list for reference.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>مزید → پلان ایسٹرا → خریداری</b>: سپلائر ٹیب میں اپنی سپلائرز کی فہرست رکھیں (نام، فون)۔</li>
+              <li>نیا پرچیز آرڈر: سپلائر، ہر اسٹاک آئٹم کی لائن، مقدار اور فی یونٹ قیمت۔ نمبر خود بن جاتا ہے جیسے <b>PO-501</b>۔</li>
+              <li>سامنے آنے پر <b>اسٹاک وصول کریں</b> دبائیں — مقدار انوینٹری میں شامل ہو جاتی ہے اور آئٹم کی کاسٹ تازہ خریداری پر سیٹ ہوتی ہے۔</li>
+              <li>کھلا آرڈر منسوخ ہو سکتا ہے؛ وصول شدہ اور منسوخ شدہ پی او حوالے کے لیے فہرست میں رہتے ہیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="plans">
+        <h2>24 · Plans &amp; license access <span style="color:var(--muted);font-size:.6em">پلان اور لائسنس رسائی</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Every license key now carries a <b>plan</b> (Starter / Growth / Custom / Full), the <b>business models</b> it may run and the <b>features</b> it may use. Starter RM 79 / month, Growth RM 149 / month — see the <a href="./index.html#plans">Plans</a> page.</li>
+              <li>What is switched on for your key is exactly what the app shows. Locked extras appear with a <b>lock icon</b> in More → Plan extras — tap it to message Jathol on WhatsApp and upgrade.</li>
+              <li>Keys issued before plans existed keep <b>every feature on</b> — nothing changes for existing shops unless Jathol sets a plan on your key.</li>
+              <li>The app re-checks your key online every 15 minutes and keeps working <b>48 hours offline</b>; plan changes apply on the next check. The QR ordering page and station connections are enforced by Main itself, so the plan is respected on every device.</li>
+              <li>Plan summary is visible in <b>More → License</b> (plan name, enabled models and feature count).</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>ہر لائسنس کی کے ساتھ اب <b>پلان</b> (اسٹارٹر / گروتھ / کسٹم / فل)، اجازت یافتہ <b>بزنس ماڈلز</b> اور <b>فیچرز</b> محفوظ ہوتے ہیں۔ اسٹارٹر 79 روپے ماہانہ، گروتھ 149 روپے ماہانہ — <a href="./index.html#plans">پلان</a> صفحہ دیکھیں۔</li>
+              <li>آپ کی کی پر جو آن ہے، ایپ میں وہی نظر آتا ہے۔ بند فیچر <b>تالے کے نشان</b> کے ساتھ More → پلان ایسٹرا میں ہوتے ہیں — دبائیں تو جھٹول کو واٹس ایپ پیغام تیار ہوتا ہے۔</li>
+              <li>پلان آنے سے پہلے جاری شدہ پرانی چابیاں <b>ہر فیچر آن</b> رکھتی ہیں — جھٹول پلان سیٹ نہ کرے تو کسی دکان کا کچھ نہیں بدلتا۔</li>
+              <li>ایپ ہر 15 منٹ میں آن لائن چیک کرتی ہے اور <b>48 گھنٹے آف لائن</b> چلتی ہے؛ پلان کی تبدیلی اگلے چیک پر لاگو ہوتی ہے۔ کیو آر آرڈرنگ اور اسٹیشن کنکشن Main خود کنٹرول کرتا ہے، اس لیے پلان ہر ڈیوائس پر لاگو رہتا ہے۔</li>
+              <li>پلان کا خلاصہ <b>مزید → لائسنس</b> میں نظر آتا ہے (پلان، ماڈلز اور فیچرز کی گنتی)۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="cloud">
+        <h2>25 · Cloud networking <span style="color:var(--muted);font-size:.6em">کلاؤڈ نیٹ ورکنگ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li><b>1 · Open a room (Main only).</b> <b>More → Plan extras → Cloud networking → Open cloud room</b> (custom plan). The sheet shows a QR, a big <b>JOIN CODE</b>, and the full pairing text underneath.</li>
+              <li><b>2 · Pair each device with the long pairing text, not the short code.</b> On the other phone: same menu → Join box → paste the <b>OF1:…</b> text (on Main, tap it → Select all → Copy). Any phone's camera can also read that QR into text to copy. The six-character JOIN CODE is only to spot your own room; typed alone it will not join — room addresses are deliberately unguessable and listed nowhere.</li>
+              <li><b>3 · Then forget it is on.</b> While the shop Wi‑Fi is healthy everything runs over the LAN and the cloud sleeps. The moment a phone loses its LAN link — router died, or someone walked to the back on 4G — it talks through the room instead: orders reach Main in seconds, a blip just queues the work on the phone (the pending count shows it) and flushes by itself when the link returns. Nothing is ever re-typed.</li>
+              <li><b>The cloud is a corridor, never a store.</b> Every message is encrypted by your devices before it leaves them, deleted once all your devices have read it, and expires on its own in about 30 minutes even if nobody reads it. Shop data lives only on Main's device — backups stay entirely in your hands (§17).</li>
+              <li><b>Honest errors.</b> If a room will not open, the message now names the true reason: <b>license</b> (the key is not on a cloud-enabled plan — message Jathol), <b>relay</b> (server hiccup — try again in a minute), or <b>network</b> (that phone has no internet). Mid-shift, an amber line <i>"Relay unreachable — retrying automatically"</i> (1.1.67) means only the corridor is jammed — your work stays safely queued on the device.</li>
+              <li><b>Keep the pairing sheet private.</b> That QR and OF1 text <i>are</i> the key to your open room — anyone holding them can join while it stays open. Do not photograph it into public chats. When service ends, <b>Close cloud room</b>: closing wipes the room, and re-opening issues fresh credentials, so any old pairing stops working instantly.</li>
+              <li><b>Two-minute field test (do it once, calm):</b> pair a station, put it on mobile data with Wi‑Fi switched off, send a test order — it lands on Main in seconds. Now you trust the fallback before the night you actually need it.</li>
+              <li>Guest table QR (§20) stays local on purpose — this section is for your own devices only, never for public traffic.</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li><b>۱ · روم کھولیں (صرف Main)۔</b> <b>مزید → پلان ایسٹرا → کلاؤڈ نیٹ ورکنگ → Open cloud room</b> (کسٹم پلان)۔ اسکرین پر QR، بڑا <b>JOIN CODE</b>، اور نیچے مکمل پیئرنگ ٹیکسٹ آئے گا۔</li>
+              <li><b>۲ · ہر ڈیوائس لمبی پیئرنگ ٹیکسٹ سے جوڑیں، چھوٹے کوڈ سے نہیں۔</b> دوسرے فون پر: وہی مینیو → Join خانہ → <b>OF1:…</b> ٹیکسٹ paste کریں (Main پر اسے ٹیپ کر کے Select all → Copy)۔ کسی بھی فون کے کیمرے سے QR سکین کر کے بھی یہ ٹیکسٹ مل سکتا ہے۔ چھ حرفی JOIN CODE صرف اپنی روم پہچاننے کے لیے ہے؛ اکیلا وہ کوڈ جوڑنے کے لیے کافی نہیں، کیونکہ روم کا پتہ اندازے سے نہیں مل سکتا اور وہ کہیں فہرست شدہ نہیں ہے۔</li>
+              <li><b>۳ · پھر بھول جائیں کہ یہ آن ہے۔</b> دکان کا وائی فائی ٹھیک رہے تو سب LAN پر چلتا ہے اور کلاؤڈ سوئے رہتا ہے۔ جیسے ہی کوئی فون اپنا LAN لنک کھوئے — روٹر مر جائے یا کوئی موبائل ڈیٹا پر پیچھے چلا جائے — وہ روم کے راستے بات کرنے لگتا ہے: آرڈر سیکنڈوں میں Main تک، اور رابطہ ٹوٹے تو کام فون کی قطار میں رک جاتا ہے (گنتی دکھائی دیتی ہے) اور لنک واپسی پر خودبخود بھیج دیا جاتا ہے۔ کچھ دوبارہ ٹائپ نہیں کرنا پڑتا۔</li>
+              <li><b>کلاؤڈ گزرگاہ ہے، گودام کبھی نہیں۔</b> ہر پیغام ڈیوائس چھوڑنے سے پہلے ہی خفیہ ہو جاتا ہے، آپ کی سب ڈیوائسز کے پڑھتے ہی حذف ہو جاتا ہے، اور کوئی نہ پڑھے تو قریباً 30 منٹ میں خود مٹ جاتا ہے۔ دکان کا ڈیٹا صرف Main کے ڈیوائس پر رہتا ہے — بیک اپ مکمل طور پر آپ کے ہاتھ میں (§17)۔</li>
+              <li><b>خرابی ہو تو پیغام سچی وجہ بتاتا ہے۔</b> روم نہ کھلے تو پیغام وجہ نام لیتا ہے: <b>لائسنس</b> (یہ چابی کلاؤڈ والے پلان پر نہیں — جاثول کو پیغام کریں)، <b>ریلے</b> (سرور کی عارضی خرابی — ایک منٹ بعد کوشش)، یا <b>نیٹ ورک</b> (اس فون پر انٹرنیٹ نہیں)۔ شفٹ کے دوران زرد لکھ <i>"Relay unreachable — retrying automatically"</i> (1.1.67) کا مطلب صرف یہ کہ راستہ عارضی بند ہے — آپ کا کام فون کی قطار میں محفوظ ہے۔</li>
+              <li><b>پیئرنگ اسکرین کو ذاتی رکھیں۔</b> وہ QR اور OF1 ٹیکسٹ ہی آپ کی کھلی روم کی چابی ہیں — جس کے پاس ہوں وہ روم کھلی رہنے تک جُڑ سکتا ہے۔ پبلک چیٹس میں اس کی تصویر نہ بھیجیں۔ سروس ختم پر <b>روم بند کریں</b>: بند ہوتے ہی روم مٹ جاتی ہے اور کھولنے پر نئی تفصیلت بنتی ہے — پرانی پیئرنگ فوراً بےکار ہو جاتی ہے۔</li>
+              <li><b>دو منٹ کا ٹیسٹ (ایک بار، سکون میں کریں):</b> ایک اسٹیشن جوڑیں، اسے موبائل ڈیٹا پر وائی فائی بند کر کے رکھیں، ٹیسٹ آرڈر بھیجیں — سیکنڈوں میں Main پر نظر آئے گا۔ پھر جس رات اصل بندش ہو، آپ بچت پر پہلے اعتماد رکھتے ہیں۔</li>
+              <li>مہمانوں کا ٹیبل QR (§20) جان بوجھ کر لوکل ہی رہتا ہے — یہ سیکشن صرف آپ کی اپنی ڈیوائسز کے لیے ہے، عوامی ٹرافک کے لیے کبھی نہیں۔</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="brand">
+        <h2>26 · Branded QR page <span style="color:var(--muted);font-size:.6em">آپ کا برانڈڈ QR صفحہ</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ul>
+              <li>Make the guest ordering page your own: <b>More → Plan extras → QR ordering → Your brand page</b> (custom plan). Then hit each table's QR and it opens under your name.</li>
+              <li>Set the <b>shop name, tagline, address, opening hours, a welcome note, phone and WhatsApp</b>, and pick an <b>accent colour</b> — the whole page (buttons, prices, cart) repaints instantly.</li>
+              <li>Leave a field blank and the page falls back to your bill-profile details (§9) — so it already looks branded before you touch anything.</li>
+              <li>Guests get the full experience: animated menu cards, photos, modifier chips, notes, a cart drawer with totals, and a success ticket with their table and ticket number — with <b>English/Urdu</b> built in and working on any phone on the network, no install.</li>
+              <li>Changes save with one tap and every later scan sees them immediately. Printing table QR stands is unchanged (§20).</li>
+            </ul>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ul>
+              <li>مہمانوں کا آرڈر صفحہ اپنی پہچان کا بنائیں: <b>مزید → پلان ایسٹرا → کیو آر آرڈرنگ → آپ کا برانڈ صفحہ</b> (کسٹم پلان)۔ پھر ہر ٹیبل کا QR کھولیں تو صفحہ آپ کے نام سے کھلے گا۔</li>
+              <li><b>دکان کا نام، ٹیاگ لائن، پتہ، اوقات، خوش آمدید پیغام، فون اور واٹس ایپ</b> لکھیں اور <b>نمایاں رنگ</b> چنیں — پورا صفحہ (بٹن، قیمتیں، ٹوکری) فوراً اسی رنگ میں سج جاتا ہے۔</li>
+              <li>کوئی خانہ خالی چھوڑ دیں تو وہ اپنی بل پروفائل (§9) کی تفصیل دکھائے گا — یعنی بغیر کچھ بدلیے بھی صفحہ برانڈڈ لگتا ہے۔</li>
+              <li>مہمانوں کو پورا تجربہ ملتا ہے: متحرک مینیو کارڈ، تصاویر، موڈیفائر، ہدایت، کل رقم کے ساتھ ٹوکری، اور کامیابی کی ٹکٹ جس میں ٹیبل اور ٹکٹ نمبر ہو — <b>انگریزی/اردو</b> کے ساتھ، ہر فون پر چلتا ہے، کوئی ایپ نہیں چاہیے۔</li>
+              <li>تبدیلیاں ایک بٹن سے محفوظ ہوتی ہیں اور اگلے ہی سکین پر نظر آتی ہیں۔ ٹیبل QR اسٹینڈ پرنٹ کرنے کا طریقہ وہی ہے (§20)۔</li>
             </ul>
           </div>
         </div>
@@ -557,18 +784,46 @@
 
   <footer>
     <div class="wrap foot">
-      <div>© <span id="y"></span> Jathol · Order Flow</div>
-      <div>
-        <a href="./index.html">Home</a>
-        ·
-        <a href="./privacy.html">Privacy</a>
-        ·
-        <a href="./index.html#download">Download</a>
-        ·
-        <a id="wa-foot" target="_blank" rel="noopener">WhatsApp</a>
+      <div class="foot-brand">
+        <p class="foot-logo"><img src="./media/logo.png" alt=""/> <b>ORDER FLOW</b></p>
+        <p>Offline-first Wi&#8209;Fi point of sale for restaurants, caf&#233;s, minimarkets and delivery shops.</p>
+        <p class="foot-mail"><a href="mailto:contact@jathol.org">contact@jathol.org</a><span>Replies within 24 hours &#183; Mon&#8211;Sat, GMT+8</span></p>
       </div>
+      <nav class="foot-nav" aria-label="Explore">
+        <h3>Explore</h3>
+        <ul>
+          <li><a href="./index.html">Home</a></li>
+          <li><a href="./index.html#product">Product</a></li>
+          <li><a href="./index.html#plans">Plans</a></li>
+          <li><a href="./index.html#how">How it works</a></li>
+          <li><a href="./index.html#download">Download</a></li>
+          <li><a href="./contact.html">Contact</a></li>
+        </ul>
+      </nav>
+      <nav class="foot-nav" aria-label="Support">
+        <h3>Support</h3>
+        <ul>
+          <li><a href="./index.html#trial">3-day trial</a></li>
+          <li><a href="./contact.html#licence">Licence &amp; keys</a></li>
+          <li><a href="./contact.html#reset">Binding reset</a></li>
+          <li><a href="./contact.html#printers">Printer setup</a></li>
+          <li><a href="./guide.html">User guide</a></li>
+        </ul>
+      </nav>
+      <nav class="foot-nav" aria-label="Legal">
+        <h3>Legal</h3>
+        <ul>
+          <li><a href="./privacy.html">Privacy</a></li>
+          <li><a href="./terms.html">Terms</a></li>
+          <li><a href="./refunds.html">Refunds</a></li>
+          <li><a href="./cookies.html">Cookies</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="wrap foot-base">
+      <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow &#8212; built and supported in Malaysia. Business registration and registered address appear on every licence receipt, and are provided on request before you buy.</p>
     </div>
   </footer>
-  <script src="./site.js"></script>
+  <script src="./site.js?v=5"></script>
 </body>
 </html>

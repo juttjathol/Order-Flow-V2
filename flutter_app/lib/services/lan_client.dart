@@ -15,6 +15,7 @@ class LanClient {
     required this.onStore,
     required this.onNotice,
     required this.onStatus,
+    this.onReject,
   });
 
   final String host;
@@ -22,11 +23,18 @@ class LanClient {
   final void Function(AppStore store) onStore;
   final void Function(AppNotice notice) onNotice;
   final void Function(bool connected) onStatus;
+  /// v1.1.59: Main refused this station (e.g. plan without multi_terminal).
+  final void Function(String reason)? onReject;
 
   WebSocketChannel? _ws;
   StreamSubscription? _sub;
   Timer? _ping;
+  Timer? _reconnectTimer;
   bool _closed = false;
+  bool _rejected = false;
+  bool _opening = false;
+  String? _token;
+  String _deviceId = '';
 
   String get base => 'http://$host:$port';
 
@@ -45,6 +53,7 @@ class LanClient {
     required String role,
   }) async {
     _closed = false;
+    _rejected = false;
     final health = await probe(host, port: port);
     if (health['ok'] != true) {
       throw Exception('Main device refused the connection');
@@ -57,6 +66,9 @@ class LanClient {
     required String name,
     required String role,
   }) async {
+    _opening = true;
+    _deviceId = deviceId;
+    _reconnectTimer?.cancel();
     await _sub?.cancel();
     await _ws?.sink.close();
     _ws = IOWebSocketChannel.connect(Uri.parse('ws://$host:$port/ws'));
@@ -67,6 +79,8 @@ class LanClient {
           if (data is! Map) return;
           final map = Map<String, dynamic>.from(data);
           final type = map['type'];
+          final tok = (map['token'] ?? '').toString();
+          if (tok.isNotEmpty) _token = tok;
           if (type == 'hello' || type == 'state') {
             if (map['store'] is Map) {
               onStore(AppStore.fromJson(Map<String, dynamic>.from(map['store'] as Map)));
@@ -76,19 +90,28 @@ class LanClient {
             onNotice(
               AppNotice.fromJson(Map<String, dynamic>.from(map['notice'] as Map)),
             );
+          } else if (type == 'rejected') {
+            _rejected = true;
+            onStatus(false);
+            onReject?.call((map['reason'] ?? '').toString());
           }
         } catch (_) {}
       },
       onDone: () {
         onStatus(false);
-        if (!_closed) _reconnect(deviceId: deviceId, name: name, role: role);
+        if (!_closed && !_rejected) {
+          _scheduleReconnect(deviceId: deviceId, name: name, role: role);
+        }
       },
       onError: (_) {
         onStatus(false);
-        if (!_closed) _reconnect(deviceId: deviceId, name: name, role: role);
+        if (!_closed && !_rejected) {
+          _scheduleReconnect(deviceId: deviceId, name: name, role: role);
+        }
       },
       cancelOnError: true,
     );
+    _opening = false;
     _ws!.sink.add(jsonEncode({
       'type': 'hello',
       'deviceId': deviceId,
@@ -103,28 +126,46 @@ class LanClient {
     });
   }
 
-  void _reconnect({
+  void _scheduleReconnect({
     required String deviceId,
     required String name,
     required String role,
   }) {
-    Future<void>.delayed(const Duration(seconds: 2), () async {
-      if (_closed) return;
+    if (_closed || _rejected || _opening) return;
+    if (_reconnectTimer != null && _reconnectTimer!.isActive) return;
+    _reconnectTimer = Timer(const Duration(seconds: 2), () async {
+      if (_closed || _rejected || _opening) return;
       try {
         await _openWs(deviceId: deviceId, name: name, role: role);
       } catch (_) {
-        if (!_closed) {
-          _reconnect(deviceId: deviceId, name: name, role: role);
+        if (!_closed && !_rejected) {
+          _scheduleReconnect(deviceId: deviceId, name: name, role: role);
         }
       }
     });
   }
 
+  Map<String, String> get _authHeaders => {
+        'Content-Type': 'application/json',
+        if (_token != null && _token!.isNotEmpty) 'Authorization': 'Bearer $_token',
+        if (_deviceId.isNotEmpty) 'X-OF-Device': _deviceId,
+      };
+
+  Future<void> _waitToken({int ms = 1000}) async {
+    final until = DateTime.now().add(Duration(milliseconds: ms));
+    while ((_token == null || _token!.isEmpty) &&
+        !_closed &&
+        DateTime.now().isBefore(until)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
   Future<Map<String, dynamic>> send(NetCommand cmd) async {
+    await _waitToken();
     final res = await http
         .post(
           Uri.parse('$base/command'),
-          headers: const {'Content-Type': 'application/json'},
+          headers: _authHeaders,
           body: jsonEncode(cmd.toJson()),
         )
         .timeout(const Duration(seconds: 8));
@@ -140,10 +181,11 @@ class LanClient {
   }
 
   Future<Map<String, dynamic>> driverCall(Map<String, dynamic> payload) async {
+    await _waitToken();
     final res = await http
         .post(
           Uri.parse('$base/driver/status'),
-          headers: const {'Content-Type': 'application/json'},
+          headers: _authHeaders,
           body: jsonEncode(payload),
         )
         .timeout(const Duration(seconds: 6));
@@ -155,6 +197,8 @@ class LanClient {
   Future<void> close() async {
     _closed = true;
     _ping?.cancel();
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     await _sub?.cancel();
     await _ws?.sink.close();
     _ws = null;

@@ -87,6 +87,8 @@ class PosOrder {
     this.held = false,
     this.voidReason = '',
     this.sentAt,
+    this.channel = '',
+    this.staffId,
   })  : lines = lines ?? <OrderLine>[],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -118,6 +120,12 @@ class PosOrder {
   bool held;
   String voidReason;
   DateTime? sentAt;
+  /// '' = staff-entered ticket, 'qr' = customer self-order web page (v1.1.59).
+  String channel;
+  /// Optional attribution to a StaffMember id for per-staff reports (v1.1.59).
+  String? staffId;
+
+  bool get isQr => channel == 'qr';
 
   double get subtotal =>
       lines.fold<double>(0, (s, l) => s + l.lineTotal) - discount;
@@ -166,6 +174,8 @@ class PosOrder {
         'held': held,
         'voidReason': voidReason,
         'sentAt': sentAt?.toIso8601String(),
+        'channel': channel,
+        'staffId': staffId,
       };
 
   factory PosOrder.fromJson(Map<String, dynamic> j) => PosOrder(
@@ -203,6 +213,8 @@ class PosOrder {
         held: parseBool(j['held']),
         voidReason: parseStr(j['voidReason']) ?? '',
         sentAt: j['sentAt'] == null ? null : parseTime(j['sentAt']),
+        channel: parseStr(j['channel']) ?? '',
+        staffId: parseStr(j['staffId']),
       );
 }
 
@@ -404,6 +416,8 @@ class PrinterConfig {
     this.transport = 'lan',
     this.btAddress = '',
     this.btName = '',
+    this.btTransport = 'auto',
+    this.paperMm = 0,
     this.drawer = false,
   }) : id = id ?? newId();
 
@@ -416,6 +430,10 @@ class PrinterConfig {
   String transport;
   String btAddress;
   String btName;
+  /// v1.1.68: 'auto' | 'spp' (Bluetooth Classic) | 'ble' (GATT).
+  String btTransport;
+  /// Paper width in mm (0 = auto → 58). v1.1.69: 58/76/80/100 supported.
+  int paperMm;
   /// Cash drawer attached to this printer's kick port (RJ11).
   bool drawer;
 
@@ -438,6 +456,8 @@ class PrinterConfig {
         transport: transport,
         btAddress: btAddress,
         btName: btName,
+        btTransport: btTransport,
+        paperMm: paperMm,
         drawer: drawer,
       );
 
@@ -450,6 +470,8 @@ class PrinterConfig {
         'transport': transport,
         'btAddress': btAddress,
         'btName': btName,
+        'btTransport': btTransport,
+        'paperMm': paperMm,
         'drawer': drawer,
       };
 
@@ -464,6 +486,8 @@ class PrinterConfig {
       transport: parseStr(m['transport']) ?? 'lan',
       btAddress: parseStr(m['btAddress']) ?? '',
       btName: parseStr(m['btName']) ?? '',
+      btTransport: parseStr(m['btTransport']) ?? 'auto',
+      paperMm: parseInt(m['paperMm'], 0),
       drawer: parseBool(m['drawer']),
     );
   }

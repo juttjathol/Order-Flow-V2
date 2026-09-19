@@ -8,11 +8,17 @@ import '../../core/theme.dart';
 import '../../services/bluetooth_printer.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/plan_lock.dart';
 
 /// Printer settings for THIS device (any station or Main).
 /// Choosing a local printer overrides the shop-level printer targets
 /// for everything this device prints (kitchen slips, receipts, drawer).
 Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async {
+  // v1.1.59 plan gate — legacy keys (no plan set) are unaffected.
+  if (!ref.snap.canFeature('station_printers')) {
+    await showPlanLock(context, ref, featureKey: 'station_printers');
+    return;
+  }
   final s = ref.s;
   List<BtDevice> bonded = const [];
   var btErr = '';
@@ -24,6 +30,9 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
     text: ref.snap.session.localNetPort.toString(),
   );
   var selectedBt = ref.read(appControllerProvider).session.localBtAddress;
+  var selTransport = ref.read(appControllerProvider).session.localBtTransport;
+  List<BtDevice> ble = const [];
+  var scanning = false;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -37,6 +46,7 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
           });
           try {
             final connect = await Permission.bluetoothConnect.request();
+            await Permission.bluetoothScan.request();
             if (connect.isPermanentlyDenied) {
               btErr = s.t('bt_permission_settings');
               bonded = const [];
@@ -57,6 +67,16 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
             btErr = s.t('bluetooth_off');
           }
           if (ctx.mounted) setSt(() => loading = false);
+        }
+
+        Future<void> scanBle() async {
+          setSt(() => scanning = true);
+          try {
+            ble = await BluetoothPrinter().bleScan();
+          } catch (_) {
+            ble = const [];
+          }
+          if (ctx.mounted) setSt(() => scanning = false);
         }
 
         if (!started) {
@@ -100,10 +120,21 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                 SnackBar(content: Text(s.t('print_ok'))),
               );
             }
-          } catch (_) {
+          } on PlatformException catch (e) {
+            if (context.mounted) {
+              final why = e.code == 'bt_permission'
+                  ? s.t('bt_permission_retry')
+                  : '${s.t('print_fail')}: ${_errCap(e.message ?? '')}';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(why)),
+              );
+            }
+          } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(s.t('print_fail'))),
+                SnackBar(
+                    content:
+                        Text('${s.t('print_fail')}: ${_errCap(e.toString())}')),
               );
             }
           }
@@ -159,25 +190,57 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                                     child: Text(s.t('open_app_settings')),
                                   ),
                                 Expanded(
-                                  child: bonded.isEmpty
-                                      ? Center(child: Text(s.t('no_bt_printers'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted)))
-                                      : ListView.builder(
-                                          itemCount: bonded.length,
+                                  child: () {
+                                    final seen = bonded.map((e) => e.address).toSet();
+                                    final all = [
+                                      ...bonded,
+                                      ...ble.where((d) => !seen.contains(d.address)),
+                                    ];
+                                    if (all.isEmpty) {
+                                      return Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(18),
+                                          child: Text(
+                                            '${s.t('no_bt_printers')}\n${s.t('bt_pair_first')}',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                                color: OfColors.muted, height: 1.5),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return ListView.builder(
+                                          itemCount: all.length,
                                           itemBuilder: (_, i) {
-                                            final d = bonded[i];
+                                            final d = all[i];
                                             final sel = selectedBt == d.address;
                                             return ListTile(
-                                              leading: Icon(Icons.print, color: sel ? OfColors.emerald : OfColors.muted),
+                                              leading: Icon(
+                                                  d.transport == 'ble'
+                                                      ? Icons.bluetooth
+                                                      : Icons.print,
+                                                  color: sel ? OfColors.emerald : OfColors.muted),
                                               title: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                                               subtitle: Text(d.address),
-                                              trailing: sel ? const Icon(Icons.check_circle, color: OfColors.emerald) : null,
+                                              trailing: sel
+                                                  ? const Icon(Icons.check_circle,
+                                                      color: OfColors.emerald)
+                                                  : (d.transport == 'ble'
+                                                      ? const Text('LE',
+                                                          style: TextStyle(
+                                                              color: OfColors.info,
+                                                              fontWeight: FontWeight.w800))
+                                                      : null),
                                               onTap: () async {
                                                 selectedBt = d.address;
+                                                selTransport =
+                                                    d.transport == 'ble' ? 'ble' : 'auto';
                                                 setSt(() {});
                                                 await ref.ctrl.setLocalBluetoothPrinter(
                                                   address: d.address,
                                                   name: d.name,
                                                   enabled: true,
+                                                  transport: selTransport,
                                                 );
                                                 if (context.mounted) {
                                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -187,7 +250,8 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                                               },
                                             );
                                           },
-                                        ),
+                                        );
+                                  }(),
                                 ),
                                 TextButton.icon(
                                   onPressed: loading ? null : loadBt,
@@ -196,6 +260,42 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                                       : const Icon(Icons.refresh),
                                   label: Text(s.t('pick_bt_printer')),
                                 ),
+                                TextButton.icon(
+                                  onPressed: scanning ? null : scanBle,
+                                  icon: scanning
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      : const Icon(Icons.bluetooth_searching),
+                                  label: Text(s.t(scanning ? 'bt_scanning' : 'bt_ble_scan')),
+                                ),
+                                if (selectedBt.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Wrap(
+                                      alignment: WrapAlignment.center,
+                                      spacing: 6,
+                                      children: [
+                                        for (final t in const ['auto', 'spp', 'ble'])
+                                          ChoiceChip(
+                                            label: Text(t == 'spp'
+                                                ? s.t('bt_via_classic')
+                                                : t == 'ble'
+                                                    ? s.t('bt_via_le')
+                                                    : s.t('bt_via_auto')),
+                                            selected: selTransport == t,
+                                            onSelected: (_) async {
+                                              selTransport = t;
+                                              setSt(() {});
+                                              await ref.ctrl.setLocalBluetoothPrinter(
+                                                address: selectedBt,
+                                                name: ref.snap.session.localBtName,
+                                                enabled: true,
+                                                transport: t,
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             )
                           : Column(
@@ -223,6 +323,29 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                             ),
                 ),
                 const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    s.t('print_size'),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                ),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final mm in const [0, 58, 76, 80, 100])
+                      ChoiceChip(
+                        label: Text(mm == 0 ? s.t('print_size_auto') : '$mm mm'),
+                        selected: ref.snap.session.localPaperMm == mm,
+                        onSelected: (_) => ref.ctrl.setLocalPaperMm(mm),
+                      ),
+                  ],
+                ),
+                Text(
+                  s.t('print_size_hint'),
+                  style: const TextStyle(color: OfColors.muted, fontSize: 11, height: 1.3),
+                ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     TextButton.icon(
@@ -242,6 +365,30 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                     ),
                     const Spacer(),
                     TextButton.icon(
+                      onPressed: hasLocal
+                          ? () async {
+                              try {
+                                await ref.ctrl.printer
+                                    .openDrawer(ref.ctrl.deviceLocalPrinter()!);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(s.t('drawer_opened'))),
+                                  );
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(s.t('drawer_failed'))),
+                                  );
+                                }
+                              }
+                            }
+                          : null,
+                      icon: const Icon(Icons.unarchive),
+                      label: Text(s.t('drawer_test')),
+                    ),
+                    const SizedBox(width: 4),
+                    TextButton.icon(
                       onPressed: hasLocal ? testPrinter : null,
                       icon: const Icon(Icons.print),
                       label: Text(s.t('test_print')),
@@ -260,3 +407,6 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
     ),
   );
 }
+
+/// Toast-size error detail: printer complaints can be long.
+String _errCap(String s) => s.length <= 140 ? s : '${s.substring(0, 137)}…';
