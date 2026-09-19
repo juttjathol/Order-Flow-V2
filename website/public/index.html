@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="./styles.css?v=4"/>
+  <link rel="stylesheet" href="./styles.css?v=5"/>
   <meta name="theme-color" content="#03110c"/>
 </head>
 <body>
@@ -391,7 +391,7 @@
           <details open><summary>Does my sales data go to the cloud?</summary><p>No. Tickets, menu and stock live on Main. The website only checks the license and serves this app file.</p></details>
           <details><summary>What if the internet drops?</summary><p>Selling continues on shop Wi‑Fi. Stations can queue work and flush when Main is reachable. License has an offline grace window.</p></details>
           <details><summary>How do I install the app?</summary><p>Download from this page on your Android phone, then allow install from this site when Android asks. Jathol will advise you when a store listing is available.</p></details>
-          <details><summary>Can I try before I buy?</summary><p>Yes. Fill the 3-day trial form — a ready-made email opens in your mail app. Send it and Jathol replies within 24 hours with your trial key.</p></details>
+          <details><summary>Can I try before I buy?</summary><p>Yes. Fill the 3-day trial form — a draft opens on this page. Send it from Gmail or your mail app and Jathol replies within 24 hours with your trial key.</p></details>
           <details><summary>How do I buy a key?</summary><p>Email <a href="mailto:contact@jathol.org">contact@jathol.org</a> with your name, business and phone — Jathol issues the 16-character key, normally within 24 hours.</p></details>
           <details><summary>What does it cost?</summary><p>Starter is <b>RM 79/month</b> and Growth is <b>RM 149/month</b>; large shops get custom pricing. See the <a href="#plans">Plans</a> section — the license decides which features your key unlocks.</p></details>
           <details><summary>What hardware does it work with?</summary><p>Any Android phone or tablet, LAN or Bluetooth ESC/POS thermal printers, barcode guns (USB/Bluetooth or the built-in camera scanner), and a cash drawer plugged into the receipt printer's RJ11 port.</p></details>
@@ -424,7 +424,7 @@
             <span>I have read the <a href="./privacy.html" target="_blank" rel="noopener">privacy policy</a> and the <a href="./terms.html" target="_blank" rel="noopener">terms</a>, and I agree to Jathol contacting me by email about my trial. My details are not stored by this website — they go only into the email draft I review and send myself.</span></label>
           <p class="note" lang="ms">Dengan menghantar borang ini anda memberi kebenaran untuk dihubungi melalui e-mel bagi tujuan percubaan sahaja (Akta Perlindungan Data Peribadi 2010).</p>
           <button class="btn btn-mint" type="submit">Send trial request</button>
-          <p class="note">Nothing is sent until you press send in your own email app. We reply within 24 hours, Monday to Saturday (GMT+8).</p>
+          <p class="note">Nothing is sent until you press send in Gmail or your own email app. We reply within 24 hours, Monday to Saturday (GMT+8).</p>
         </form>
       </div>
     </section>
@@ -439,7 +439,7 @@
         <div class="wa" data-par="-0.04">
           <p class="kicker">Direct</p>
           <h3>Start a license request — the email writes itself.</h3>
-          <a class="btn btn-gold" id="mail-main" href="mailto:contact@jathol.org?subject=Order%20Flow%20license%20request">Email contact@jathol.org</a>
+          <a class="btn btn-gold js-mail-draft" id="mail-main" href="mailto:contact@jathol.org?subject=Order%20Flow%20license%20request" data-mail-subject="Order Flow — licence enquiry" data-mail-body="Hello Jathol,&#10;&#10;I would like an Order Flow licence.&#10;&#10;Name:&#10;Shop / business:&#10;Phone:&#10;Plan of interest (Starter / Growth / Custom):&#10;How many terminals:&#10;&#10;Thank you.">Email contact@jathol.org</a>
           <a class="btn btn-ghost" href="./contact.html" style="margin-top:10px">Contact page &amp; email drafts</a>
           <address class="biz-card">
             <b>Jathol</b> — developer &amp; vendor of Order Flow<br/>
@@ -508,8 +508,9 @@
   </div>
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script defer src="./hero3d.js"></script>
-  <script src="./site.js"></script>
+  <script src="./site.js?v=5"></script>
   <script src="./fx3d.js" defer></script>
   <script src="./reactbits.js?v=2" defer></script>
 </body>
 </html>
+tml>

@@ -5,6 +5,151 @@ function mailto(subject, lines) {
     "&body=" + encodeURIComponent(lines.join("\n"));
 }
 
+// Ready-made contact buttons used to be raw mailto: links. On Windows Chrome
+// with no default mail app — and inside an iframe preview — those clicks do
+// nothing at all. Open an on-page draft instead; Gmail / copy always work.
+function mailUrls(subject, body) {
+  const q = (k, v) => k + "=" + encodeURIComponent(v);
+  return {
+    mailto: "mailto:" + EMAIL + "?" + q("subject", subject) + "&" + q("body", body),
+    gmail: "https://mail.google.com/mail/?view=cm&fs=1&tf=1&" +
+      q("to", EMAIL) + "&" + q("su", subject) + "&" + q("body", body),
+  };
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;left:-9999px;top:0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (_) {}
+  ta.remove();
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  }
+  fallbackCopy(text);
+  return Promise.resolve();
+}
+
+let mailDraftLastFocus = null;
+
+function ensureDraftUi() {
+  let root = document.getElementById("mail-draft");
+  if (root) return root;
+
+  root = document.createElement("div");
+  root.id = "mail-draft";
+  root.className = "mail-draft";
+  root.hidden = true;
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-modal", "true");
+  root.setAttribute("aria-labelledby", "md-title");
+  root.innerHTML =
+    '<div class="mail-draft-card">' +
+      '<button type="button" class="mail-draft-x" data-md-close aria-label="Close draft">&times;</button>' +
+      '<p class="kicker">Email draft</p>' +
+      '<h2 id="md-title">Ready to send</h2>' +
+      '<p class="mail-draft-hint">Edit the message, then open it in Gmail, copy it, or hand it to your mail app. Nothing is sent from this website.</p>' +
+      '<p class="mail-draft-label">To</p>' +
+      '<p class="mail-draft-to">' + EMAIL + '</p>' +
+      '<label class="mail-draft-label" for="md-subject">Subject</label>' +
+      '<input id="md-subject" data-md-subject autocomplete="off"/>' +
+      '<label class="mail-draft-label" for="md-body">Message</label>' +
+      '<textarea id="md-body" data-md-body rows="12"></textarea>' +
+      '<p class="mail-draft-status" data-md-status hidden></p>' +
+      '<div class="mail-draft-actions">' +
+        '<a class="btn btn-mint" data-md-gmail target="_blank" rel="noopener">Open in Gmail</a>' +
+        '<button type="button" class="btn btn-ghost" data-md-copy>Copy draft</button>' +
+        '<a class="btn btn-ghost" data-md-app>Open mail app</a>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(root);
+
+  const card = root.querySelector(".mail-draft-card");
+  const status = root.querySelector("[data-md-status]");
+  const subjectEl = root.querySelector("[data-md-subject]");
+  const bodyEl = root.querySelector("[data-md-body]");
+  const gmailA = root.querySelector("[data-md-gmail]");
+  const appA = root.querySelector("[data-md-app]");
+
+  function current() {
+    return { subject: subjectEl.value, body: bodyEl.value };
+  }
+  function syncHrefs() {
+    const { subject, body } = current();
+    const urls = mailUrls(subject, body);
+    gmailA.href = urls.gmail;
+    appA.href = urls.mailto;
+  }
+  function setStatus(msg) {
+    if (!msg) { status.hidden = true; status.textContent = ""; return; }
+    status.hidden = false;
+    status.textContent = msg;
+  }
+
+  subjectEl.addEventListener("input", syncHrefs);
+  bodyEl.addEventListener("input", syncHrefs);
+  root._syncHrefs = syncHrefs;
+  root._setStatus = setStatus;
+
+  root.addEventListener("click", (e) => {
+    if (e.target === root) closeMailDraft();
+  });
+  card.addEventListener("click", (e) => e.stopPropagation());
+  root.querySelector("[data-md-close]").addEventListener("click", closeMailDraft);
+  root.querySelector("[data-md-copy]").addEventListener("click", () => {
+    const { subject, body } = current();
+    const text = "To: " + EMAIL + "\nSubject: " + subject + "\n\n" + body;
+    copyText(text).then(() => setStatus("Copied. Paste into Gmail, Outlook, or any mail app."));
+  });
+  appA.addEventListener("click", () => {
+    setStatus("If nothing opened, your computer has no mail app set. Use Gmail or Copy draft.");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !root.hidden) closeMailDraft();
+  });
+  return root;
+}
+
+function openMailDraft(subject, body) {
+  const root = ensureDraftUi();
+  mailDraftLastFocus = document.activeElement;
+  root.querySelector("[data-md-subject]").value = subject || "Order Flow enquiry";
+  root.querySelector("[data-md-body]").value = body || "";
+  root._syncHrefs();
+  root._setStatus("");
+  root.hidden = false;
+  document.body.style.overflow = "hidden";
+  const ta = root.querySelector("[data-md-body]");
+  ta.focus();
+  try { ta.setSelectionRange(0, 0); } catch (_) {}
+}
+
+function closeMailDraft() {
+  const root = document.getElementById("mail-draft");
+  if (!root || root.hidden) return;
+  root.hidden = true;
+  document.body.style.overflow = "";
+  if (mailDraftLastFocus && typeof mailDraftLastFocus.focus === "function") {
+    try { mailDraftLastFocus.focus(); } catch (_) {}
+  }
+}
+
+document.querySelectorAll(".js-mail-draft").forEach((a) => {
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    openMailDraft(
+      a.getAttribute("data-mail-subject") || "Order Flow enquiry",
+      (a.getAttribute("data-mail-body") || "").replace(/\r\n/g, "\n"),
+    );
+  });
+});
+
 
 const year = document.getElementById("y");
 if (year) year.textContent = String(new Date().getFullYear());
@@ -78,7 +223,7 @@ document.getElementById("trial-form")?.addEventListener("submit", (e) => {
     "",
     "Thank you.",
   ];
-  window.location.href = mailto("Order Flow — 3-day trial request", body);
+  openMailDraft("Order Flow — 3-day trial request", body.join("\n"));
 });
 document.getElementById("dl-btn")?.addEventListener("click", startDownload);
 document.querySelectorAll("[data-apk]").forEach((el) => {
@@ -148,7 +293,7 @@ document.querySelectorAll(".plan-cta").forEach((a) => {
       "",
       "Thank you.",
     ];
-    window.location.href = mailto("Order Flow — " + plan, body);
+    openMailDraft("Order Flow — " + plan, body.join("\n"));
   });
 });
 

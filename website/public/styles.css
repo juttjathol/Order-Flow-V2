@@ -862,3 +862,56 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline:3px solid
   .foot { grid-template-columns: 1fr 1fr; }
   .foot-brand { grid-column: 1 / -1; }
 }
+
+/* On-page email draft (contact cards, plan CTAs, trial form).
+   mailto: is a silent no-op on Windows Chrome with no mail app — this sheet
+   always opens, then Gmail / copy / mail-app are the user's choice. */
+.mail-draft {
+  position: fixed; inset: 0; z-index: 1400;
+  background: rgba(3, 17, 12, .78);
+  backdrop-filter: blur(10px);
+  display: grid; place-items: center;
+  padding: 18px;
+}
+.mail-draft[hidden] { display: none !important; }
+.mail-draft-card {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(92vh, 860px);
+  overflow: auto;
+  background: linear-gradient(180deg, #0c2d22, #071a14);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 28px 26px 22px;
+  box-shadow: var(--shadow);
+}
+.mail-draft-card h2 { font-family: var(--display); font-size: 28px; font-weight: 500; margin: 4px 0 8px; }
+.mail-draft-hint { color: var(--muted); font-size: 13.5px; line-height: 1.65; margin: 0 0 18px; }
+.mail-draft-label {
+  display: block; font-size: 11px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); margin: 12px 0 6px;
+}
+.mail-draft-to { margin: 0; color: var(--mint); font-weight: 700; font-size: 16px; }
+.mail-draft-card input, .mail-draft-card textarea {
+  width: 100%; font: inherit; font-weight: 500; color: var(--ink);
+  background: #03140e; border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px 14px; outline: none;
+}
+.mail-draft-card textarea { min-height: 200px; resize: vertical; line-height: 1.55; }
+.mail-draft-card input:focus, .mail-draft-card textarea:focus {
+  border-color: var(--mint); box-shadow: 0 0 0 3px rgba(61,220,151,.18);
+}
+.mail-draft-status { margin: 12px 0 0; font-size: 13px; color: var(--gold); }
+.mail-draft-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.mail-draft-actions .btn { flex: 1 1 auto; min-height: 46px; }
+.mail-draft-x {
+  position: absolute; top: 14px; right: 14px;
+  width: 36px; height: 36px; border: 0; border-radius: 999px;
+  background: rgba(255,255,255,.06); color: var(--ink);
+  font-size: 22px; line-height: 1; cursor: pointer;
+}
+.mail-draft-x:hover { background: rgba(61,220,151,.18); }
+@media (max-width: 520px) {
+  .mail-draft-card { padding: 22px 16px 18px; }
+  .mail-draft-actions .btn { flex: 1 1 100%; }
+}
