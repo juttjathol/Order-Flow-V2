@@ -26,3 +26,34 @@ Continue my existing project: repo `juttjathol/Order-Flow-V2`, workspace `/home/
 **Open PR:** #7 — `arena/01a06fe3-order-flow-v2` → `main` — carries v1.1.59 (app + dashboard + website), the website currency engine, the hero CSS fix, the replaceState entitlements clamp, **and all v1.1.60 work (release tag v1.1.60 will point at the final branch commit; merge only after explicit owner approval)**. The *last merged* release PR was v1.1.57-era.
 
 **Next version will be 1.1.60.**
+
+---
+
+## v1.1.73 — security harden (this session)
+
+Server (Cloudflare Pages Functions):
+- S1: `_security.js` imports are `../` from `api/[[path]].js` and `../../` from `api/cloud/[[path]].js`. `scripts/check-imports.mjs` + wrangler pages functions build both pass.
+- S2: `GET /api/cloud/?diag=1` requires `DIAG_TOKEN` (Bearer or `?token=`). Unset token → 401.
+- S3: `ipOf` uses only `cf-connecting-ip`. D1 `rate_limits` table (schema.sql + runtime CREATE) plus in-memory throttle.
+- S4: validate rejects oversized key/device/version; `not_found` logs capped; license_events pruned at 90 days.
+- S5: PBKDF2 clamped to 100000 (`hash-pass.mjs` + login). `admin/me` and login return `warn: plaintext_admin_password` when only `ADMIN_PASSWORD` is set.
+- S6: `/open` still returns `secret` so old Mains pair, plus `noSecret: true` for new apps. Open checks bound device. Send can re-check license (10 min cache) when `licenseKey` is sent. Pull/leave throttled. Idle rooms with no pull/message for 24h are deleted. 30 min message TTL unchanged.
+- S7: APK picker skips draft / prerelease / `-rcN` and requires asset name `app-release.apk` on all three `download.js` copies. **FALLBACK_TAG left at v1.1.72.** A fourth copy was not on disk (REFUTED).
+- S8: per-request CORS (no `CTX.cors` race). Plan/events schema flags set after success. Admin token in `sessionStorage` (migrates once from localStorage).
+- S9: if `LICENSE_SIGNING_KEY` (PKCS8 base64 Ed25519) is set, validate replies include `signature`/`nonce`/`signedAt`. `scripts/gen-license-keys.mjs` generates a pair.
+
+App:
+- A1: LAN hello role allowlist; 20-minute first-run device auto-approve then pending + Approve/Deny; HMAC-SHA256 64-hex tokens; CORS only `http://<Host>`; web command whitelist; unpaired drivers cannot `setDriverStatus`; `/command` 500 body is `server_error`.
+- A2: QR 12 orders/table/hour and 60/IP/hour; `sanitizeText` on QR + receipts.
+- A3: `parsePairing` requires `https://`. New apps generate the AES secret locally when the server sends `noSecret`. Cloud commands still cannot run privileged names unless role is main.
+- A4: license lock only on JSON `{not_found,revoked,expired}` — HTML 404 and 5xx do not lock. Optional Ed25519 verify (`kLicenseRequireSig = false`). Public key in `kLicensePubKey`.
+- A5: manager PIN stored as `sha256$salt$digest` with 5-fail / 5-minute lockout. Plaintext PINs still work once and are rehashed. **Gap:** station void/refund/closeDay still cannot send the PIN in the command without breaking old APKs, so Main does not reject those commands for a missing PIN.
+- A6: `android:allowBackup="false"`. `usesCleartextTraffic` left true (LAN).
+
+Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do not edit workflows or Android signing.
+
+**MANUAL STEPS**
+1. Cloudflare Pages secrets: `LICENSE_SIGNING_KEY` (PKCS8 base64 printed at end of the v1.1.73 report), optional `DIAG_TOKEN`.
+2. Owner creates GitHub tag `v1.1.73` when ready.
+3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
+4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
