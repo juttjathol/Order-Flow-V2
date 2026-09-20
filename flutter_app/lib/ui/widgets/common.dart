@@ -329,14 +329,41 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
                   elevation: 8,
                   borderRadius: BorderRadius.circular(16),
                   child: ListTile(
-                    leading: Icon(top.kind == 'kitchen' ? Icons.outdoor_grill : Icons.notifications_active, color: Colors.black87),
+                    leading: Icon(
+                      top.kind == 'kitchen'
+                          ? Icons.outdoor_grill
+                          : top.kind == 'device'
+                              ? Icons.phonelink
+                              : Icons.notifications_active,
+                      color: Colors.black87,
+                    ),
                     title: Text(top.title, style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.black87)),
                     subtitle: Text(top.body, style: const TextStyle(color: Colors.black87)),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.black87),
-                      onPressed: () => ref.read(appControllerProvider.notifier).dismissNotice(top.id),
-                    ),
+                    trailing: top.kind == 'device' && top.orderId != null
+                        ? Row(mainAxisSize: MainAxisSize.min, children: [
+                            TextButton(
+                              onPressed: () {
+                                final id = top.orderId!;
+                                ref.read(appControllerProvider.notifier).dismissNotice(top.id);
+                                unawaited(ref.read(appControllerProvider.notifier).approveDevice(id));
+                              },
+                              child: Text(ref.s.t('approve')),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, color: Colors.black87),
+                              onPressed: () {
+                                final id = top.orderId;
+                                ref.read(appControllerProvider.notifier).dismissNotice(top.id);
+                                if (id != null) unawaited(ref.read(appControllerProvider.notifier).denyDevice(id));
+                              },
+                            ),
+                          ])
+                        : IconButton(
+                            icon: const Icon(Icons.close, color: Colors.black87),
+                            onPressed: () => ref.read(appControllerProvider.notifier).dismissNotice(top.id),
+                          ),
                     onTap: () {
+                      if (top.kind == 'device') return;
                       ref.read(appControllerProvider.notifier).dismissNotice(top.id);
                       if (top.orderId != null) context.push('/order/${top.orderId}');
                     },

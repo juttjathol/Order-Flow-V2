@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:ed25519_edwards/ed25519_edwards.dart' as ed;
 import 'package:http/http.dart' as http;
 
 import '../core/constants.dart';
@@ -62,14 +64,23 @@ class LicenseService {
           )
           .timeout(const Duration(seconds: 20));
       final body = _decode(res.body);
-      final error = (body['error'] ?? '').toString();
+      var error = (body['error'] ?? '').toString();
+      if (res.statusCode >= 500) {
+        return LicenseResult(ok: false, valid: false, error: 'network', message: 'server');
+      }
+      if (res.statusCode == 404 && error.isEmpty) {
+        return LicenseResult(ok: false, valid: false, error: 'network', message: 'not_json');
+      }
+      if (!_sigOk(body, licenseKey.trim(), deviceId) && (body['signature'] != null || kLicenseRequireSig)) {
+        return LicenseResult(ok: false, valid: false, error: 'bad_sig');
+      }
       final valid = body['valid'] == true && res.statusCode < 400;
       return LicenseResult(
         ok: body['ok'] == true || valid,
         valid: valid,
         error: error.isNotEmpty
             ? error
-            : (valid ? '' : (res.statusCode == 404 ? 'not_found' : 'invalid')),
+            : (valid ? '' : 'invalid'),
         message: (body['message'] ?? '').toString(),
         customerName: _nested(body, 'customer', 'name'),
         businessName: _nested(body, 'customer', 'businessName'),
@@ -143,6 +154,30 @@ class LicenseService {
     current.valid = false;
     current.message = result.message.isEmpty ? result.error : result.message;
     return current;
+  }
+
+  bool _sigOk(Map<String, dynamic> body, String licenseKey, String deviceId) {
+    final sig = (body['signature'] ?? '').toString();
+    if (sig.isEmpty) return !kLicenseRequireSig;
+    if (kLicensePubKey.isEmpty) return !kLicenseRequireSig;
+    final features = _stringList(body['allowedFeatures']) ?? const <String>[];
+    final models = _stringList(body['allowedModels']) ?? const <String>[];
+    final f = [...features]..sort();
+    final m = [...models]..sort();
+    final canonical =
+        'v1|$licenseKey|$deviceId|${body['status'] ?? 'active'}|${body['expiresAt'] ?? ''}|${body['plan'] ?? ''}|${f.join(',')}|${m.join(',')}|${body['signedAt'] ?? ''}|${body['nonce'] ?? ''}';
+    try {
+      final der = base64Decode(kLicensePubKey);
+      final raw = Uint8List.fromList(der.sublist(der.length - 32));
+      final pub = ed.PublicKey(raw);
+      return ed.verify(
+        pub,
+        Uint8List.fromList(utf8.encode(canonical)),
+        Uint8List.fromList(base64Decode(sig)),
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   String _join(String base, String path) {

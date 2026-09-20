@@ -7,6 +7,7 @@ import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
 import 'package:image/image.dart' as img;
 
 import '../core/money.dart';
+import '../core/sanitize.dart';
 import '../models/models.dart';
 import 'bluetooth_printer.dart';
 
@@ -104,12 +105,12 @@ class PrintService {
     } else {
       w.writeln(order.type.name.toUpperCase());
     }
-    if (order.customerName.isNotEmpty) w.writeln(order.customerName);
+    if (order.customerName.isNotEmpty) w.writeln(sanitizeText(order.customerName));
     w.writeln('--------------------------------');
     for (final line in order.lines) {
       final qty = formatQty(line.qty);
-      w.writeln('$qty x ${line.name}   ${m(line.lineTotal)}');
-      if (line.notes.isNotEmpty) w.writeln('   * ${line.notes}');
+      w.writeln('$qty x ${sanitizeText(line.name)}   ${m(line.lineTotal)}');
+      if (line.notes.isNotEmpty) w.writeln('   * ${sanitizeText(line.notes)}');
     }
     w.writeln('--------------------------------');
     if (order.discount > 0) w.writeln('Discount: - ${m(order.discount)}');
@@ -182,7 +183,7 @@ class PrintService {
     final b = EscPos(chars)..init();
 
     Future<void> line(String value, {String align = 'left', bool big = false}) =>
-        _line(b, value, align: align, big: big);
+        _line(b, sanitizeText(value), align: align, big: big);
     void rule() => b.text('-' * (chars - 1));
 
     // v1.1.69 — Focus-Point-style layout: dashed rules, everything wraps
@@ -257,14 +258,14 @@ class PrintService {
           await line('-- ${entry.course.toUpperCase()} --');
         }
         final qty = formatQty(entry.qty);
-        final nameLines = wrapLines(entry.name, nameW);
+        final nameLines = wrapLines(sanitizeText(entry.name), nameW);
         for (var i = 0; i < nameLines.length; i++) {
           await _columns(b, [
             i == 0 ? nameLines[i] : '',
             i == 0 ? qty : '',
             i == 0 ? m(entry.lineTotal) : '',
           ], nameW: nameW, qtyW: qtyW, amtW: amtW);
-          if (entry.notes.isNotEmpty) await line('  * ${entry.notes}');
+          if (entry.notes.isNotEmpty) await line('  * ${sanitizeText(entry.notes)}');
         }
       }
     } else {
@@ -275,13 +276,13 @@ class PrintService {
           await line('-- ${entry.course.toUpperCase()} --');
         }
         final qty = formatQty(entry.qty);
-        await line('$qty x ${entry.name}');
-        if (entry.notes.isNotEmpty) await line('  * ${entry.notes}');
+        await line('$qty x ${sanitizeText(entry.name)}');
+        if (entry.notes.isNotEmpty) await line('  * ${sanitizeText(entry.notes)}');
       }
     }
     if (order.notes.isNotEmpty) {
       rule();
-      await line('NOTE: ${order.notes}');
+      await line('NOTE: ${sanitizeText(order.notes)}');
     }
     if (slip.showTotals) {
       rule();

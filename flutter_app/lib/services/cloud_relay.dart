@@ -127,8 +127,10 @@ class CloudRelay {
     }
     if (res == null) return const CloudOpenResult.fail('cloud_unreachable');
     if (res['ok'] == true) {
+      final local = List.generate(32, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
+      final secret = res['noSecret'] == true ? local : '${res['secret']}';
       return CloudOpenResult.ok(
-          CloudRoom('${res['room']}', '${res['secret']}', '${res['code']}'));
+          CloudRoom('${res['room']}', secret, '${res['code']}'));
     }
     final e = '${res['error'] ?? ''}';
     if (e == 'plan') return const CloudOpenResult.fail('plan');
@@ -172,6 +174,7 @@ class CloudRelay {
     if (parts.length != 5 || parts[0] != 'OF1') return null;
     try {
       final url = utf8.decode(base64Url.decode(base64Url.normalize(parts[4])));
+      if (!url.startsWith('https://')) return null;
       return [parts[1], parts[2], parts[3], url];
     } catch (_) {
       return null;

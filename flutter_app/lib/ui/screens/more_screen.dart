@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
+import '../../core/pin_crypto.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../services/bluetooth_printer.dart';
@@ -31,6 +32,7 @@ class MoreScreen extends ConsumerWidget {
       _row(Icons.people, s.t('customers_book'), () => _customers(context, ref)),
       _row(Icons.account_balance_wallet, s.t('shift'), () => _shiftCash(context, ref)),
       _row(Icons.badge, s.t('staff'), () => _staff(context, ref)),
+      if (snap.isMain) _row(Icons.phonelink, s.t('devices'), () => _devices(context, ref)),
       if (model == BusinessModel.restaurant || model == BusinessModel.fastfood)
         _row(Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
       if (model == BusinessModel.services)
@@ -391,7 +393,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
   final cur = TextEditingController(text: p.currencySymbol);
   final tax = TextEditingController(text: p.taxRate.toString());
   final svc = TextEditingController(text: p.serviceRate.toString());
-  final pin = TextEditingController(text: p.managerPin);
+  final pin = TextEditingController(text: PinCrypto.isHashed(p.managerPin) ? '' : p.managerPin);
   final qrLabel = TextEditingController(text: p.payQrLabel);
   var prefix = p.currencyPrefix;
   await showModalBottomSheet<void>(
@@ -545,7 +547,10 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     TextField(controller: svc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('service_rate'))),
                     const SizedBox(height: 8),
                     if (ref.snap.isMain)
-                      TextField(controller: pin, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: s.t('set_pin'))),
+                      TextField(controller: pin, obscureText: true, keyboardType: TextInputType.number, decoration: InputDecoration(
+                        labelText: s.t('set_pin'),
+                        hintText: PinCrypto.isHashed(p.managerPin) ? s.t('pin_is_set') : null,
+                      )),
                     SwitchListTile(value: prefix, onChanged: (v) => setSt(() => prefix = v), title: Text(s.t('prefix_currency'))),
                     const SizedBox(height: 12),
                     Text(s.t('slip_pay_qr'), style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -586,7 +591,9 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     logoBase64: p.logoBase64,
                     payQrBase64: p.payQrBase64,
                     payQrLabel: qrLabel.text.trim(),
-                    managerPin: ref.snap.isMain ? pin.text.trim() : p.managerPin,
+                    managerPin: ref.snap.isMain
+                        ? (pin.text.trim().isEmpty ? p.managerPin : PinCrypto.hash(pin.text.trim()))
+                        : p.managerPin,
                     invoiceLabel: invoiceLabel.text.trim(),
                     taxRegNo: taxReg.text.trim(),
                     kitchenSlip: p.kitchenSlip,
@@ -1596,6 +1603,55 @@ Future<void> _reservations(BuildContext context, WidgetRef ref) async {
                             .toList(),
                       ),
               ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Future<void> _devices(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Consumer(
+      builder: (ctx, ref, _) {
+        final pending = ref.snap.pendingClients;
+        final live = ref.snap.clients;
+        final approved = ref.snap.session.approvedDeviceIds;
+        return SizedBox(
+          height: MediaQuery.sizeOf(ctx).height * 0.7,
+          child: ListView(
+            children: [
+              ListTile(title: Text(s.t('devices'), style: const TextStyle(fontWeight: FontWeight.w800))),
+              if (pending.isNotEmpty) ListTile(title: Text(s.t('pending_devices'))),
+              ...pending.map((c) => ListTile(
+                    title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(c.role),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      TextButton(onPressed: () => ref.ctrl.approveDevice(c.deviceId), child: Text(s.t('approve'))),
+                      TextButton(onPressed: () => ref.ctrl.denyDevice(c.deviceId), child: Text(s.t('deny'))),
+                    ]),
+                  )),
+              ListTile(title: Text(s.t('connected'))),
+              ...live.map((c) => ListTile(
+                    title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text('${c.role} · ${c.deviceId}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.link_off),
+                      onPressed: () => ref.ctrl.revokeDevice(c.deviceId),
+                    ),
+                  )),
+              if (approved.isNotEmpty) ListTile(title: Text(s.t('approved_devices'))),
+              ...approved.where((id) => live.every((c) => c.deviceId != id)).map((id) => ListTile(
+                    title: Text(id),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.remove_circle_outline),
+                      onPressed: () => ref.ctrl.revokeDevice(id),
+                    ),
+                  )),
             ],
           ),
         );
