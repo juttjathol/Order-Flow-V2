@@ -527,7 +527,10 @@ class AppController extends Notifier<AppSnapshot> {
       session: state.session,
       gate: LicenseGate.ready,
     ));
-    _sdel(BusinessModel model) async {
+    _server?.broadcastState();
+  }
+
+  Future<void> changeBusinessModel(BusinessModel model) async {
     if (!state.isMain) return;
     if (!state.store.entitlements.allowsModel(model.name)) {
       state = state.copyWith(error: 'plan_model');
