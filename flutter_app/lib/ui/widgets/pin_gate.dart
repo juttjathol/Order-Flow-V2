@@ -6,10 +6,17 @@ import '../../state/app_controller.dart';
 import 'common.dart';
 
 Future<bool> confirmManagerPin(BuildContext context, WidgetRef ref, {bool requiredForCashier = false}) async {
+  final ctrlApp = ref.read(appControllerProvider.notifier);
   final pin = ref.read(appControllerProvider).store.profile.managerPin;
   if (pin.isEmpty) return true;
   final s = ref.s;
-  final ctrl = TextEditingController();
+  if (ctrlApp.managerPinLocked()) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('pin_locked'))));
+    }
+    return false;
+  }
+  final field = TextEditingController();
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -20,7 +27,7 @@ Future<bool> confirmManagerPin(BuildContext context, WidgetRef ref, {bool requir
           Text(requiredForCashier ? s.t('pin_for_cashier') : s.t('pin_required'), style: const TextStyle(color: OfColors.muted)),
           const SizedBox(height: 10),
           TextField(
-            controller: ctrl,
+            controller: field,
             obscureText: true,
             keyboardType: TextInputType.number,
             autofocus: true,
@@ -31,14 +38,16 @@ Future<bool> confirmManagerPin(BuildContext context, WidgetRef ref, {bool requir
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
         FilledButton(
-          onPressed: () => Navigator.pop(ctx, ctrl.text.trim() == pin),
+          onPressed: () => Navigator.pop(ctx, ctrlApp.checkManagerPin(field.text.trim())),
           child: Text(s.t('continue')),
         ),
       ],
     ),
   );
   if (ok != true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('pin_wrong'))));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+      ctrlApp.managerPinLocked() ? s.t('pin_locked') : s.t('pin_wrong'),
+    )));
   }
   return ok == true;
 }

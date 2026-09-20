@@ -1,4 +1,5 @@
 import '../models/models.dart';
+import 'lan_policy.dart';
 
 /// Plan/license gating (v1.1.59). Runs after RoleAccess, on Main for remote
 /// commands and locally for this device. Legacy keys (allOn) allow
@@ -69,7 +70,7 @@ class RoleAccess {
     // Empty / web dashboard on the shop LAN is the owner console.
     if (cmd.name == 'setStaffDuty') return role != AppRole.none;
     if (role == AppRole.none && (roleName.isEmpty || roleName == 'web')) {
-      return true;
+      return kWebCommands.contains(cmd.name);
     }
 
     const ticketWrite = {
@@ -123,7 +124,7 @@ class RoleAccess {
       case AppRole.specialist:
         return cmd.name == 'upsertAppointment';
       case AppRole.none:
-        return roleName.isEmpty || roleName == 'web';
+        return kWebCommands.contains(cmd.name);
       case AppRole.main:
         return true;
       case AppRole.manager:

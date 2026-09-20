@@ -8,7 +8,9 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../core/constants.dart';
+import '../core/lan_policy.dart';
 import '../core/l10n.dart';
+import '../core/pin_crypto.dart';
 import '../core/role_access.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
@@ -44,6 +46,7 @@ class AppSnapshot {
     required this.online,
     required this.clients,
     required this.pendingSync,
+    this.pendingClients = const [],
     this.cloudDegraded = false,
   });
 
@@ -59,6 +62,7 @@ class AppSnapshot {
   final List<AppNotice> notices;
   final bool online;
   final List<ClientInfo> clients;
+  final List<ClientInfo> pendingClients;
   final int pendingSync;
   /// True while a cloud room is open but the relay cannot be reached —
   /// the relay keeps retrying on its own; nothing is lost meanwhile.
@@ -93,6 +97,7 @@ class AppSnapshot {
     List<AppNotice>? notices,
     bool? online,
     List<ClientInfo>? clients,
+    List<ClientInfo>? pendingClients,
     int? pendingSync,
     bool? cloudDegraded,
     bool clearError = false,
@@ -111,6 +116,7 @@ class AppSnapshot {
       notices: notices ?? this.notices,
       online: online ?? this.online,
       clients: clients ?? this.clients,
+      pendingClients: pendingClients ?? this.pendingClients,
       pendingSync: pendingSync ?? this.pendingSync,
       cloudDegraded: cloudDegraded ?? this.cloudDegraded,
     );
@@ -521,10 +527,7 @@ class AppController extends Notifier<AppSnapshot> {
       session: state.session,
       gate: LicenseGate.ready,
     ));
-    _server?.broadcastState();
-  }
-
-  Future<void> changeBusinessModel(BusinessModel model) async {
+    _sdel(BusinessModel model) async {
     if (!state.isMain) return;
     if (!state.store.entitlements.allowsModel(model.name)) {
       state = state.copyWith(error: 'plan_model');
@@ -566,9 +569,38 @@ class AppController extends Notifier<AppSnapshot> {
   Future<void> startServer() async {
     if (state.session.license.locked) return;
     if (!state.session.license.valid && !state.session.license.inGrace) return;
+    _ensureLanTrustWindow();
     _server ??= LanServer(
       readStore: () => state.store,
       onCommand: _localApply,
+      deviceGate: LanDeviceGate(
+        isApproved: (id) => state.session.approvedDeviceIds.contains(id),
+        inOpenWindow: () {
+          final until = state.session.lanTrustUntilMs;
+          return until != null && DateTime.now().millisecondsSinceEpoch < until;
+        },
+        onAutoApprove: (id) {
+          if (!state.session.approvedDeviceIds.contains(id)) {
+            state.session.approvedDeviceIds.add(id);
+            _schedulePersist();
+          }
+        },
+        onPending: (info) {
+          state = state.copyWith(
+            pendingClients: _server?.pending.values.toList() ?? [info],
+            notices: [
+              AppNotice(
+                id: newId(),
+                title: 'Device waiting',
+                body: '${info.name} (${info.role}) wants to join',
+                kind: 'device',
+                orderId: info.deviceId,
+              ),
+              ...state.notices,
+            ].take(20).toList(),
+          );
+        },
+      ),
     );
     try {
       await _server!.start(port: kLanPort);
@@ -584,7 +616,74 @@ class AppController extends Notifier<AppSnapshot> {
     }
   }
 
+  void _ensureLanTrustWindow() {
+    final s = state.session;
+    if (s.lanTrustUntilMs == null && s.approvedDeviceIds.isEmpty) {
+      s.lanTrustUntilMs = DateTime.now().millisecondsSinceEpoch + 20 * 60 * 1000;
+      _schedulePersist();
+    }
+  }
+
+  Future<void> approveDevice(String deviceId) async {
+    if (!state.session.approvedDeviceIds.contains(deviceId)) {
+      state.session.approvedDeviceIds.add(deviceId);
+    }
+    _server?.approveDevice(deviceId);
+    _emit(state.copyWith(
+      session: state.session,
+      clients: _server?.clients.values.toList() ?? state.clients,
+      pendingClients: _server?.pending.values.toList() ?? const [],
+    ));
+  }
+
+  Future<void> denyDevice(String deviceId) async {
+    _server?.denyDevice(deviceId);
+    state = state.copyWith(pendingClients: _server?.pending.values.toList() ?? const []);
+  }
+
+  Future<void> revokeDevice(String deviceId) async {
+    state.session.approvedDeviceIds.remove(deviceId);
+    _server?.revokeDevice(deviceId);
+    _emit(state.copyWith(
+      session: state.session,
+      clients: _server?.clients.values.toList() ?? state.clients,
+      pendingClients: _server?.pending.values.toList() ?? const [],
+    ));
+  }
+
+  bool managerPinLocked() {
+    return state.session.pinLockedUntilMs > DateTime.now().millisecondsSinceEpoch;
+  }
+
+  bool checkManagerPin(String pin) {
+    final s = state.session;
+    if (s.pinLockedUntilMs > DateTime.now().millisecondsSinceEpoch) return false;
+    final stored = state.store.profile.managerPin;
+    if (stored.isEmpty) return true;
+    if (!PinCrypto.verify(stored, pin)) {
+      s.pinFails += 1;
+      if (s.pinFails >= 5) {
+        s.pinFails = 0;
+        s.pinLockedUntilMs = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
+      }
+      _schedulePersist();
+      return false;
+    }
+    s.pinFails = 0;
+    s.pinLockedUntilMs = 0;
+    if (stored.isNotEmpty && !PinCrypto.isHashed(stored)) {
+      unawaited(dispatch(NetCommand(name: 'setProfile', payload: {
+        'profile': (state.store.profile.copy()..managerPin = PinCrypto.hash(pin)).toJson(),
+      })));
+    }
+    _schedulePersist();
+    return true;
+  }
+
   ReduceResult _localApply(NetCommand cmd) {
+    if (isPrivileged(cmd.name, cmd.role) && cmd.role != AppRole.main.name) {
+      return ReduceResult(state.store);
+    }
     if (!RoleAccess.allow(cmd.role, cmd)) {
       return ReduceResult(state.store);
     }

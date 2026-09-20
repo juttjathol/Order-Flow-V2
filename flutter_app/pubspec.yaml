@@ -1,7 +1,7 @@
 name: order_flow
 description: Offline-first multi-device POS for restaurants, retail, fast food, and services.
 publish_to: "none"
-version: 1.1.72+72
+version: 1.1.73+73
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -26,6 +26,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.15.0
   http: ^1.2.2
   crypto: ^3.0.3
+  ed25519_edwards: ^0.3.1
   encrypt: ^5.0.3
   image: ^4.3.0
   image_picker: ^1.1.2

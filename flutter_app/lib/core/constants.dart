@@ -30,6 +30,10 @@ const String kPrivacyUrl = 'https://jathol.pages.dev/privacy';
 const String kGuideUrl = 'https://jathol.pages.dev/guide';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.1.72';
+const String kAppVersion = '1.1.73';
+/// SPKI (base64) Ed25519 public key matching LICENSE_SIGNING_KEY. Empty sigs
+/// are accepted until kLicenseRequireSig is flipped.
+const String kLicensePubKey = 'MCowBQYDK2VwAyEAzeJ0BlqBL6FVgYPYPtOOn4YL6liQTGW8vS1zhP6N5HY=';
+const bool kLicenseRequireSig = false;
 const String kJoinScheme = 'orderflow';
 const String kDefaultCurrency = 'Rs';

@@ -12,9 +12,24 @@ import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/constants.dart';
+import '../core/lan_policy.dart';
 import '../core/role_access.dart';
+import '../core/sanitize.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
+
+class LanDeviceGate {
+  LanDeviceGate({
+    required this.isApproved,
+    required this.inOpenWindow,
+    required this.onAutoApprove,
+    this.onPending,
+  });
+  final bool Function(String deviceId) isApproved;
+  final bool Function() inOpenWindow;
+  final void Function(String deviceId) onAutoApprove;
+  final void Function(ClientInfo info)? onPending;
+}
 
 typedef StoreReader = AppStore Function();
 typedef CommandHandler = ReduceResult Function(NetCommand cmd);
@@ -23,10 +38,12 @@ class LanServer {
   LanServer({
     required this.readStore,
     required this.onCommand,
+    this.deviceGate,
   });
 
   final StoreReader readStore;
   final CommandHandler onCommand;
+  final LanDeviceGate? deviceGate;
 
   String get shopName => readStore().profile.businessName;
   String get modelName => readStore().model.name;
@@ -34,11 +51,18 @@ class LanServer {
   HttpServer? _server;
   final _sockets = <WebSocketChannel>{};
   final clients = <String, ClientInfo>{};
+  final pending = <String, ClientInfo>{};
+  final _waiting = <String, WebSocketChannel>{};
   final _socketDevice = <WebSocketChannel, String>{};
   final _lanSecret = const Uuid().v4();
+  final _qrByTable = <String, List<int>>{};
+  final _qrByIp = <String, List<int>>{};
 
-  String _tokenFor(String deviceId) =>
-      sha256.convert(utf8.encode('$_lanSecret|$deviceId')).toString().substring(0, 32);
+  String _tokenFor(String deviceId, [String? role]) {
+    final r = role ?? clients[deviceId]?.role ?? (deviceId == 'web-console' ? 'web' : '');
+    final hmac = Hmac(sha256, utf8.encode(_lanSecret));
+    return hmac.convert(utf8.encode('$deviceId|$r')).toString();
+  }
 
   String? _bearer(Request req) {
     final h = req.headers['authorization'] ?? req.headers['Authorization'] ?? '';
@@ -51,6 +75,10 @@ class LanServer {
     final tok = _bearer(req);
     if (device.isEmpty || tok == null || tok.isEmpty) return null;
     if (tok != _tokenFor(device)) return null;
+    if (device == 'web-console') {
+      return clients[device] ??
+          ClientInfo(deviceId: 'web-console', name: 'Web', role: 'web');
+    }
     return clients[device];
   }
 
@@ -114,6 +142,8 @@ class LanServer {
     }
     _sockets.clear();
     clients.clear();
+    pending.clear();
+    _waiting.clear();
     _socketDevice.clear();
     await _server?.close(force: true);
     _server = null;
@@ -144,24 +174,44 @@ class LanServer {
     }
   }
 
+  Map<String, String> _corsFor(Request request) {
+    final origin = request.headers['origin'];
+    final host = request.headers['host'];
+    if (!corsOriginOk(origin, host)) return {};
+    if (origin == null || origin.isEmpty) {
+      return {
+        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-OF-Device',
+      };
+    }
+    return {
+      'Access-Control-Allow-Origin': origin,
+      'Vary': 'Origin',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-OF-Device',
+    };
+  }
+
   Middleware get _cors => (inner) {
         return (request) async {
+          final origin = request.headers['origin'];
+          final host = request.headers['host'];
+          if (!corsOriginOk(origin, host)) {
+            return Response.forbidden(
+              jsonEncode({'ok': false, 'error': 'origin'}),
+              headers: {'Content-Type': 'application/json'},
+            );
+          }
+          final h = _corsFor(request);
           if (request.method == 'OPTIONS') {
-            return Response.ok('', headers: _corsHeaders);
+            return Response.ok('', headers: h);
           }
           final res = await inner(request);
-          return res.change(headers: _corsHeaders);
+          return res.change(headers: {...h, ...res.headers});
         };
       };
 
-  static const _corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-OF-Device',
-  };
-
   static const _headers = {
-    ..._corsHeaders,
     'Content-Type': 'application/json; charset=utf-8',
   };
 
@@ -169,10 +219,13 @@ class LanServer {
 
   Future<Response> _dashboard(Request req) async {
     _dashboardHtml ??= await rootBundle.loadString('assets/web/index.html');
+    final html = _dashboardHtml!.replaceFirst(
+      '/*OF_AUTH*/',
+      'window.OF_TOKEN="${_tokenFor('web-console', 'web')}";window.OF_DEVICE="web-console";',
+    );
     return Response.ok(
-      _dashboardHtml,
+      html,
       headers: {
-        ..._corsHeaders,
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store',
       },
@@ -205,16 +258,33 @@ class LanServer {
 
   Future<Response> _command(Request req) async {
     try {
-      final body = jsonDecode(await req.readAsString());
+      final raw = await req.readAsString();
+      if (raw.length > 32 * 1024) {
+        return _json({'ok': false, 'error': 'too_large'}, status: 413);
+      }
+      final body = jsonDecode(raw);
       if (body is! Map) {
         return _json({'ok': false, 'error': 'invalid'}, status: 400);
       }
       var cmd = NetCommand.fromJson(Map<String, dynamic>.from(body));
+      if (cmd.role.isEmpty && cmd.actor == 'web') {
+        cmd = NetCommand(
+          id: cmd.id,
+          name: cmd.name,
+          payload: cmd.payload,
+          actor: cmd.actor,
+          role: 'web',
+          at: cmd.at,
+        );
+      }
       final who = _clientFromReq(req);
       if (who == null) {
         return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
       }
       cmd = _bindRole(cmd, who.deviceId);
+      if (isPrivileged(cmd.name, cmd.role)) {
+        return _json({'ok': false, 'error': 'forbidden'}, status: 403);
+      }
       if (!RoleAccess.allow(cmd.role, cmd)) {
         return _json({'ok': false, 'error': 'forbidden'}, status: 403);
       }
@@ -233,7 +303,7 @@ class LanServer {
         'payload': cmd.payload,
       });
     } catch (e) {
-      return _json({'ok': false, 'error': e.toString()}, status: 500);
+      return _json({'ok': false, 'error': 'server_error'}, status: 500);
     }
   }
 
@@ -244,9 +314,19 @@ class LanServer {
         return _json({'ok': false}, status: 400);
       }
       final map = Map<String, dynamic>.from(body);
+      final who = _clientFromReq(req);
+      if (who == null) {
+        return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
+      }
       if (map['name'] == 'pairDriver' &&
           !readStore().entitlements.allowsFeature('multi_terminal')) {
         return _json({'ok': false, 'error': 'plan_stations'}, status: 403);
+      }
+      if (map['name'] != 'pairDriver') {
+        final paired = readStore().drivers.any((d) => d.deviceId == who.deviceId);
+        if (!paired) {
+          return _json({'ok': false, 'error': 'unpaired'}, status: 403);
+        }
       }
       final cmd = NetCommand(
         name: map['name'] == 'pairDriver' ? 'pairDriver' : 'setDriverStatus',
@@ -268,7 +348,7 @@ class LanServer {
         'store': result.store.toJson(),
       });
     } catch (e) {
-      return _json({'ok': false, 'error': e.toString()}, status: 500);
+      return _json({'ok': false, 'error': 'server_error'}, status: 500);
     }
   }
 
@@ -293,7 +373,6 @@ class LanServer {
     return Response.ok(
       _qrHtml,
       headers: {
-        ..._corsHeaders,
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store',
       },
@@ -308,7 +387,6 @@ class LanServer {
         '<p style=\"color:#9bb5a8\">QR ordering is not enabled on this shop.<br>'
         'Ask the cashier to take your order.</p></div>',
         headers: {
-          ..._corsHeaders,
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         },
@@ -367,10 +445,29 @@ class LanServer {
     });
   }
 
+  bool _qrLimited(String tableId, String ip) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    List<int> bucket(Map<String, List<int>> map, String key) {
+      final a = map.putIfAbsent(key, () => <int>[]);
+      a.removeWhere((t) => now - t > 3600000);
+      return a;
+    }
+    final t = bucket(_qrByTable, tableId.isEmpty ? '_' : tableId);
+    final i = bucket(_qrByIp, ip.isEmpty ? '_' : ip);
+    if (t.length >= 12 || i.length >= 60) return true;
+    t.add(now);
+    i.add(now);
+    return false;
+  }
+
   Future<Response> _qrSubmit(Request req) async {
     if (!qrEnabled) return _json({'ok': false, 'error': 'disabled'}, status: 403);
     try {
-      final body = jsonDecode(await req.readAsString());
+      final rawBody = await req.readAsString();
+      if (rawBody.length > 16 * 1024) {
+        return _json({'ok': false, 'error': 'too_large'}, status: 413);
+      }
+      final body = jsonDecode(rawBody);
       if (body is! Map) return _json({'ok': false}, status: 400);
       final store = readStore();
       final rawItems = body['items'];
@@ -378,7 +475,11 @@ class LanServer {
         return _json({'ok': false, 'error': 'empty'}, status: 400);
       }
       FloorTable? table;
-      final tableId = (body['tableId'] ?? '').toString();
+      final tableId = sanitizeText((body['tableId'] ?? '').toString());
+      final ip = (req.headers['x-real-ip'] ?? req.requestedUri.host);
+      if (_qrLimited(tableId, ip)) {
+        return _json({'ok': false, 'error': 'rate_limited'}, status: 429);
+      }
       if (tableId.isNotEmpty) {
         table = store.tableById(tableId);
         if (table == null) {
@@ -411,7 +512,7 @@ class LanServer {
             }
           }
         }
-        final note = (raw['note'] ?? '').toString().trim();
+        final note = sanitizeText((raw['note'] ?? '').toString().trim());
         final label = modNames.isEmpty
             ? product.name
             : '${product.name} (${modNames.join(', ')})';
@@ -436,8 +537,8 @@ class LanServer {
         type: table != null ? OrderType.dineIn : OrderType.takeaway,
         tableId: table?.id,
         tableName: table?.name,
-        customerName: (body['name'] ?? '').toString().trim(),
-        customerPhone: (body['phone'] ?? '').toString().trim(),
+        customerName: sanitizeText((body['name'] ?? '').toString().trim()),
+        customerPhone: sanitizeText((body['phone'] ?? '').toString().trim()),
         notes: 'QR self-order',
         channel: 'qr',
       );
@@ -474,7 +575,7 @@ class LanServer {
         'table': placed.tableName ?? '',
       });
     } catch (e) {
-      return _json({'ok': false, 'error': e.toString()}, status: 500);
+      return _json({'ok': false, 'error': 'server_error'}, status: 500);
     }
   }
 
@@ -521,14 +622,72 @@ class LanServer {
     });
   }
 
-  void _onWs(WebSocketChannel socket, String? _) {
+  bool _deviceAllowed(String deviceId, String name, String role) {
+    if (deviceId == 'web-console') return true;
+    final gate = deviceGate;
+    if (gate == null) return true;
+    if (gate.isApproved(deviceId)) return true;
+    if (gate.inOpenWindow()) {
+      gate.onAutoApprove(deviceId);
+      return true;
+    }
+    final info = ClientInfo(deviceId: deviceId, name: name, role: role);
+    pending[deviceId] = info;
+    gate.onPending?.call(info);
+    return false;
+  }
+
+  void approveDevice(String deviceId) {
+    deviceGate?.onAutoApprove(deviceId);
+    final socket = _waiting.remove(deviceId);
+    final info = pending.remove(deviceId);
+    if (socket == null || info == null) return;
+    _admit(socket, info);
+  }
+
+  void denyDevice(String deviceId) {
+    final socket = _waiting.remove(deviceId);
+    pending.remove(deviceId);
+    try {
+      socket?.sink.add(jsonEncode({'type': 'error', 'error': 'denied'}));
+      socket?.sink.close();
+    } catch (_) {}
+  }
+
+  void revokeDevice(String deviceId) {
+    pending.remove(deviceId);
+    denyDevice(deviceId);
+    final drop = <WebSocketChannel>[];
+    for (final e in _socketDevice.entries) {
+      if (e.value == deviceId) drop.add(e.key);
+    }
+    for (final s in drop) {
+      try {
+        s.sink.add(jsonEncode({'type': 'error', 'error': 'revoked'}));
+        s.sink.close();
+      } catch (_) {}
+      _sockets.remove(s);
+      _socketDevice.remove(s);
+    }
+    clients.remove(deviceId);
+  }
+
+  void _admit(WebSocketChannel socket, ClientInfo info) {
     _sockets.add(socket);
-    socket.sink.add(jsonEncode({
-      'type': 'hello',
-      'store': readStore().toJson(),
-      'name': shopName,
-      'model': modelName,
-    }));
+    _socketDevice[socket] = info.deviceId;
+    clients[info.deviceId] = info;
+    try {
+      socket.sink.add(jsonEncode({
+        'type': 'hello',
+        'token': _tokenFor(info.deviceId, info.role),
+        'store': readStore().toJson(),
+        'name': shopName,
+        'model': modelName,
+      }));
+    } catch (_) {}
+  }
+
+  void _onWs(WebSocketChannel socket, String? _) {
     socket.stream.listen(
       (event) {
         try {
@@ -538,6 +697,11 @@ class LanServer {
           if (type == 'hello') {
             final id = (data['deviceId'] ?? '').toString();
             final roleName = (data['role'] ?? '').toString();
+            final name = sanitizeText((data['name'] ?? '').toString());
+            if (!helloRoleOk(roleName) || id.isEmpty) {
+              socket.sink.add(jsonEncode({'type': 'error', 'error': 'bad_role'}));
+              return;
+            }
             final isStation = roleName.isNotEmpty &&
                 roleName != 'web' &&
                 roleName != 'main';
@@ -548,26 +712,17 @@ class LanServer {
                     {'type': 'rejected', 'reason': 'plan_stations'}));
                 unawaited(socket.sink.close());
               } catch (_) {}
-              _sockets.remove(socket);
               return;
             }
-            if (id.isNotEmpty) {
-              _socketDevice[socket] = id;
-              clients[id] = ClientInfo(
-                deviceId: id,
-                name: (data['name'] ?? '').toString(),
-                role: (data['role'] ?? '').toString(),
-              );
+            final info = ClientInfo(deviceId: id, name: name, role: roleName);
+            if (!_deviceAllowed(id, name, roleName)) {
+              _waiting[id] = socket;
               try {
-                socket.sink.add(jsonEncode({
-                  'type': 'hello',
-                  'token': _tokenFor(id),
-                  'store': readStore().toJson(),
-                  'name': shopName,
-                  'model': modelName,
-                }));
+                socket.sink.add(jsonEncode({'type': 'pending', 'error': 'pending_approval'}));
               } catch (_) {}
+              return;
             }
+            _admit(socket, info);
           } else if (type == 'command') {
             final raw = data['command'];
             if (raw is Map) {
@@ -575,6 +730,7 @@ class LanServer {
               if (deviceId == null) return;
               var cmd = NetCommand.fromJson(Map<String, dynamic>.from(raw));
               cmd = _bindRole(cmd, deviceId);
+              if (isPrivileged(cmd.name, cmd.role)) return;
               if (!RoleAccess.allow(cmd.role, cmd)) return;
               if (StoreGuard.denyReason(readStore(), cmd).isNotEmpty) return;
               StoreGuard.sanitize(readStore(), cmd);
@@ -588,12 +744,18 @@ class LanServer {
       onDone: () {
         final id = _socketDevice.remove(socket);
         _sockets.remove(socket);
-        if (id != null) clients.remove(id);
+        if (id != null) {
+          clients.remove(id);
+          _waiting.remove(id);
+        }
       },
       onError: (_) {
         final id = _socketDevice.remove(socket);
         _sockets.remove(socket);
-        if (id != null) clients.remove(id);
+        if (id != null) {
+          clients.remove(id);
+          _waiting.remove(id);
+        }
       },
       cancelOnError: true,
     );

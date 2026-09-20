@@ -199,9 +199,17 @@
   <footer>Jathol</footer>
   <script>
     let store = null, catId = null, unlocked = false, activeOrderId = null;
+    /*OF_AUTH*/
+    function authHeaders() {
+      const h = { 'Content-Type': 'application/json' };
+      if (window.OF_TOKEN) h['Authorization'] = 'Bearer ' + window.OF_TOKEN;
+      if (window.OF_DEVICE) h['X-OF-Device'] = window.OF_DEVICE;
+      return h;
+    }
     function needPin() {
       const pin = store?.profile?.managerPin || '';
       if (!pin || unlocked) return true;
+      if (String(pin).indexOf('sha256$') === 0) return true;
       const typed = prompt('Manager PIN') || '';
       if (typed !== pin) { alert('Wrong PIN'); return false; }
       unlocked = true;
@@ -215,13 +223,13 @@
       return p.currencyPrefix === false ? (v + ' ' + s) : (s + ' ' + v);
     };
     async function load() {
-      const r = await fetch('/state');
+      const r = await fetch('/state', { headers: authHeaders() });
       const j = await r.json();
       store = j.store;
       render();
     }
     async function cmd(name, payload) {
-      await fetch('/command', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, payload, actor:'web' }) });
+      await fetch('/command', { method:'POST', headers: authHeaders(), body: JSON.stringify({ name, payload, role:'web', actor:'web' }) });
       await load();
     }
     function show(page) {

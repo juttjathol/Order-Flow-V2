@@ -171,8 +171,13 @@ class SessionPrefs {
     this.localNetHost = '',
     this.localNetPort = kEscPosPort,
     this.localNetEnabled = false,
+    List<String>? approvedDeviceIds,
+    this.lanTrustUntilMs,
+    this.pinFails = 0,
+    this.pinLockedUntilMs = 0,
     LicenseRecord? license,
-  }) : license = license ?? LicenseRecord();
+  })  : license = license ?? LicenseRecord(),
+        approvedDeviceIds = approvedDeviceIds ?? <String>[];
 
   String deviceId;
   /// Cloud relay room this device runs against (v1.1.60). Main opens the
@@ -203,6 +208,10 @@ class SessionPrefs {
   String localNetHost;
   int localNetPort;
   bool localNetEnabled;
+  List<String> approvedDeviceIds;
+  int? lanTrustUntilMs;
+  int pinFails;
+  int pinLockedUntilMs;
   LicenseRecord license;
 
   bool get hasLocalBtPrinter =>
@@ -236,6 +245,10 @@ class SessionPrefs {
         'localNetHost': localNetHost,
         'localNetPort': localNetPort,
         'localNetEnabled': localNetEnabled,
+        'approvedDeviceIds': approvedDeviceIds,
+        'lanTrustUntilMs': lanTrustUntilMs,
+        'pinFails': pinFails,
+        'pinLockedUntilMs': pinLockedUntilMs,
         'license': license.toJson(),
       };
 
@@ -266,6 +279,10 @@ class SessionPrefs {
       localNetHost: parseStr(m['localNetHost']) ?? '',
       localNetPort: parseInt(m['localNetPort'], kEscPosPort),
       localNetEnabled: parseBool(m['localNetEnabled']),
+      approvedDeviceIds: (m['approvedDeviceIds'] as List?)?.map((e) => e.toString()).toList() ?? <String>[],
+      lanTrustUntilMs: m['lanTrustUntilMs'] == null ? null : parseInt(m['lanTrustUntilMs'], 0),
+      pinFails: parseInt(m['pinFails'], 0),
+      pinLockedUntilMs: parseInt(m['pinLockedUntilMs'], 0),
       license: LicenseRecord.fromJson(
         m['license'] is Map ? Map<String, dynamic>.from(m['license'] as Map) : null,
       ),
