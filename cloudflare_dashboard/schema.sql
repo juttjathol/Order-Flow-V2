@@ -69,3 +69,12 @@ CREATE TABLE IF NOT EXISTS license_events (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_license_events_key ON license_events(license_key, created_at);
+
+-- Shared D1 rate-limit windows (login / license / relay). Runtime also
+-- CREATE TABLE IF NOT EXISTS so existing DBs pick this up without a migration.
+CREATE TABLE IF NOT EXISTS rate_limits (
+  k TEXT NOT NULL,
+  w INTEGER NOT NULL,
+  n INTEGER NOT NULL,
+  PRIMARY KEY (k, w)
+);

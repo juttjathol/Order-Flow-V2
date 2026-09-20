@@ -22,8 +22,7 @@ function overLimit(key, max, windowMs) {
   return a.length > max;
 }
 function ipOf(request) {
-  return (request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "na")
-    .split(",")[0].trim();
+  return (request.headers.get("cf-connecting-ip") || "na").split(",")[0].trim();
 }
 let metaCache = { t: 0, body: null, status: 200 };
 const SEC = {
@@ -43,7 +42,12 @@ function ghHeaders(env, extra = {}) {
 }
 
 function apkAsset(release) {
-  return (release.assets || []).find((a) => String(a.name || "").toLowerCase().endsWith(".apk"));
+  return (release.assets || []).find((a) => String(a.name || "") === "app-release.apk");
+}
+
+function skipRelease(release) {
+  if (!release || release.draft || release.prerelease) return true;
+  return /-rc\d*/i.test(String(release.tag_name || ""));
 }
 
 async function latestApk(env) {
@@ -54,7 +58,7 @@ async function latestApk(env) {
     const list = await listRes.json();
     if (Array.isArray(list)) {
       for (const release of list) {
-        if (release.draft) continue;
+        if (skipRelease(release)) continue;
         const asset = apkAsset(release);
         if (asset) return { release, asset };
       }
@@ -66,8 +70,10 @@ async function latestApk(env) {
   });
   if (latestRes.ok) {
     const release = await latestRes.json();
-    const asset = apkAsset(release);
-    if (asset) return { release, asset };
+    if (!skipRelease(release)) {
+      const asset = apkAsset(release);
+      if (asset) return { release, asset };
+    }
   }
 
   // Rate-limited or API blip: fall back to the pinned release tag so shoppers

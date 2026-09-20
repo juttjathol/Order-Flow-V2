@@ -1,5 +1,27 @@
+const TOKEN_KEY = "of_admin_token";
+function readToken() {
+  try {
+    const s = sessionStorage.getItem(TOKEN_KEY);
+    if (s) return s;
+    const old = localStorage.getItem(TOKEN_KEY);
+    if (old) {
+      sessionStorage.setItem(TOKEN_KEY, old);
+      localStorage.removeItem(TOKEN_KEY);
+      return old;
+    }
+  } catch {}
+  return "";
+}
+function writeToken(v) {
+  try {
+    if (v) sessionStorage.setItem(TOKEN_KEY, v);
+    else sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+}
+
 const state = {
-  token: localStorage.getItem("of_admin_token") || "",
+  token: readToken(),
   customers: [],
   licenses: [],
   theme: localStorage.getItem("of_theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
@@ -270,12 +292,13 @@ async function boot() {
     return;
   }
   try {
-    await api("admin/me");
+    const me = await api("admin/me");
+    showPlainWarn(me && me.warn === "plaintext_admin_password");
     showApp(true);
     await refresh();
   } catch {
     state.token = "";
-    localStorage.removeItem("of_admin_token");
+    writeToken("");
     showApp(false);
   }
 }
@@ -289,7 +312,8 @@ $("login-form").addEventListener("submit", async (e) => {
       body: JSON.stringify({ password: $("password").value }),
     });
     state.token = res.token;
-    localStorage.setItem("of_admin_token", res.token);
+    writeToken(res.token);
+    showPlainWarn(res.warn === "plaintext_admin_password");
     showApp(true);
     await refresh();
   } catch (err) {
@@ -297,9 +321,14 @@ $("login-form").addEventListener("submit", async (e) => {
   }
 });
 
+function showPlainWarn(on) {
+  const el = $("plain-warn");
+  if (el) el.classList.toggle("hidden", !on);
+}
+
 $("logout-btn").addEventListener("click", () => {
   state.token = "";
-  localStorage.removeItem("of_admin_token");
+  writeToken("");
   showApp(false);
 });
 

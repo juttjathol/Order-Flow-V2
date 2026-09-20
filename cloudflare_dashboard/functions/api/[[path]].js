@@ -1,9 +1,6 @@
 // v1.1.72 security layer: shared helpers (throttle, hardening headers,
 // origin-allowlisted CORS, constant-time compares, PBKDF2).
-import { sec, throttle, ipOf, corsFor, safeEqual, pbkdf2Hex } from "../../_security.js";
-
-// Per-request CORS headers; set once at the top of onRequest before any await.
-const CTX = { cors: {} };
+import { sec, throttle, ipOf, corsFor, safeEqual, pbkdf2Hex, d1Limit, licenseCanonical } from "../_security.js";
 
 // v1.1.59 — plan & entitlements catalog. Keys here must match
 // kFeatureCatalog in flutter_app/lib/models/models_plans.dart exactly.
@@ -27,13 +24,17 @@ const PLAN_PRESETS = {
 let planSchemaChecked = false;
 async function ensurePlanColumns(db) {
   if (planSchemaChecked) return;
-  planSchemaChecked = true;
   try {
     await db.prepare("SELECT plan FROM licenses LIMIT 1").first();
+    planSchemaChecked = true;
   } catch {
     try { await db.prepare("ALTER TABLE licenses ADD COLUMN plan TEXT NOT NULL DEFAULT 'full'").run(); } catch {}
     try { await db.prepare("ALTER TABLE licenses ADD COLUMN allowed_models TEXT").run(); } catch {}
     try { await db.prepare("ALTER TABLE licenses ADD COLUMN allowed_features TEXT").run(); } catch {}
+    try {
+      await db.prepare("SELECT plan FROM licenses LIMIT 1").first();
+      planSchemaChecked = true;
+    } catch {}
   }
 }
 
@@ -78,10 +79,10 @@ function normalizeAccess(body) {
   };
 }
 
-function json(data, status = 200, extra = {}) {
+function jsonOut(data, status = 200, extra = {}, cors = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...sec(), ...CTX.cors, ...extra },
+    headers: { "Content-Type": "application/json; charset=utf-8", ...sec(), ...cors, ...extra },
   });
 }
 
@@ -179,9 +180,9 @@ async function verifyToken(env, header) {
 let eventsSchemaChecked = false;
 async function ensureLicenseEvents(db) {
   if (eventsSchemaChecked) return;
-  eventsSchemaChecked = true;
   try {
     await db.prepare("SELECT 1 FROM license_events LIMIT 1").first();
+    eventsSchemaChecked = true;
   } catch {
     try {
       await db.prepare(
@@ -195,6 +196,7 @@ async function ensureLicenseEvents(db) {
           created_at TEXT NOT NULL
         )`,
       ).run();
+      eventsSchemaChecked = true;
     } catch {}
   }
 }
@@ -217,7 +219,7 @@ async function verifyAdminPassword(env, given) {
   if (stored) {
     const m = /^pbkdf2-sha256\$(\d+)\$([0-9a-f]+)\$([0-9a-f]+)$/i.exec(stored);
     if (!m || typeof given !== "string" || !given) return false;
-    const iters = Math.min(Math.max(Number(m[1]) || 0, 100000), 1000000);
+    const iters = Math.min(Math.max(Number(m[1]) || 0, 1), 100000);
     const calc = await pbkdf2Hex(given, m[2], iters);
     return await safeEqual(calc, m[3].toLowerCase());
   }
@@ -263,10 +265,11 @@ function publicLicense(row, customer) {
 
 export async function onRequest(context) {
   const { request, env } = context;
-  CTX.cors = corsFor(env, request); // set before the first await; cross-origin only for allowlisted origins
+  const cors = corsFor(env, request);
+  const json = (data, status = 200, extra = {}) => jsonOut(data, status, extra, cors);
   if (request.method === "OPTIONS") {
-    const allowed = Boolean(CTX.cors["Access-Control-Allow-Origin"]);
-    const h = { ...sec(), Allow: "GET,POST,PATCH,DELETE,OPTIONS", ...(allowed ? { "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Max-Age": "600", ...CTX.cors } : {}) };
+    const allowed = Boolean(cors["Access-Control-Allow-Origin"]);
+    const h = { ...sec(), Allow: "GET,POST,PATCH,DELETE,OPTIONS", ...(allowed ? { "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization", "Access-Control-Max-Age": "600", ...cors } : {}) };
     return new Response(null, { status: allowed ? 204 : 403, headers: h });
   }
   if (!env.ADMIN_PASSWORD && !env.ADMIN_PASSWORD_HASH) {
@@ -290,14 +293,16 @@ export async function onRequest(context) {
     }
 
     if (path === "v1/license/validate" && method === "POST") {
-      if (throttle(`validate|${ipOf(request)}`, 60, 600000)) {
+      const ip = ipOf(request);
+      if (throttle(`validate|${ip}`, 60, 600000) || await d1Limit(env.DB, `validate|${ip}`, 60, 600000)) {
         return json({ ok: false, valid: false, error: "slow_down" }, 429, { "Retry-After": "600" });
       }
-      return handleValidate(env, await readJson(request));
+      return handleValidate(env, await readJson(request), json);
     }
 
     if (path === "admin/login" && method === "POST") {
-      if (throttle(`login|${ipOf(request)}`, 8, 300000)) {
+      const ip = ipOf(request);
+      if (throttle(`login|${ip}`, 8, 300000) || await d1Limit(env.DB, `login|${ip}`, 8, 300000)) {
         return json({ ok: false, error: "slow_down", message: "Too many attempts — wait a few minutes." }, 429, { "Retry-After": "300" });
       }
       const body = await readJson(request);
@@ -305,7 +310,9 @@ export async function onRequest(context) {
         return json({ ok: false, error: "unauthorized", message: "Invalid password." }, 401);
       }
       const token = await issueToken(env);
-      return json({ ok: true, token, expiresHours: 12 });
+      const hashed = String(env.ADMIN_PASSWORD_HASH || "").trim();
+      const warn = (!hashed && String(env.ADMIN_PASSWORD || "")) ? "plaintext_admin_password" : undefined;
+      return json({ ok: true, token, expiresHours: 12, ...(warn ? { warn } : {}) });
     }
 
     const authed = await verifyToken(env, request.headers.get("Authorization") || "");
@@ -314,7 +321,9 @@ export async function onRequest(context) {
     }
 
     if (path === "admin/me" && method === "GET") {
-      return json({ ok: true, role: "admin" });
+      const hashed = String(env.ADMIN_PASSWORD_HASH || "").trim();
+      const warn = (!hashed && String(env.ADMIN_PASSWORD || "")) ? "plaintext_admin_password" : undefined;
+      return json({ ok: true, role: "admin", ...(warn ? { warn } : {}) });
     }
 
     if (path === "admin/stats" && method === "GET") {
@@ -491,17 +500,43 @@ export async function onRequest(context) {
   }
 }
 
-async function handleValidate(env, body) {
+async function signLicensePayload(env, canonical) {
+  const raw = String(env.LICENSE_SIGNING_KEY || "").trim();
+  if (!raw) return null;
+  let der;
+  try { der = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)); } catch { return null; }
+  try {
+    const key = await crypto.subtle.importKey("pkcs8", der, { name: "Ed25519" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign({ name: "Ed25519" }, key, new TextEncoder().encode(canonical));
+    return btoa(String.fromCharCode(...new Uint8Array(sig)));
+  } catch {
+    return null;
+  }
+}
+
+async function pruneLicenseEvents(db) {
+  try {
+    await db.prepare("DELETE FROM license_events WHERE created_at < datetime('now', '-90 days')").run();
+  } catch {}
+}
+
+async function handleValidate(env, body, json) {
   const licenseKey = String(body.licenseKey || body.license_key || "").trim().toUpperCase();
   const deviceId = String(body.deviceId || body.device_id || "").trim();
+  const appVersion = String(body.appVersion || body.app_version || "").trim();
   if (!licenseKey || !deviceId) {
     return json({ ok: false, valid: false, error: "missing_fields" }, 400);
+  }
+  if (licenseKey.length > 40 || deviceId.length > 80 || appVersion.length > 32) {
+    return json({ ok: false, valid: false, error: "invalid_input" }, 400);
   }
   const row = await env.DB.prepare("SELECT * FROM licenses WHERE license_key = ?")
     .bind(licenseKey)
     .first();
   if (!row) {
-    await logLicenseEvent(env.DB, { licenseKey, event: "not_found", deviceId });
+    if (!throttle(`nf|${licenseKey.slice(0, 8)}`, 20, 60 * 60 * 1000)) {
+      await logLicenseEvent(env.DB, { licenseKey, event: "not_found", deviceId });
+    }
     return json({
       ok: false,
       valid: false,
@@ -557,7 +592,8 @@ async function handleValidate(env, body) {
   const customer = await customerById(env.DB, row.customer_id);
   const next = await licenseById(env.DB, row.id);
   const access = accessOf(next);
-  return json({
+  await pruneLicenseEvents(env.DB);
+  const payload = {
     ok: true,
     valid: true,
     status: next.status,
@@ -577,5 +613,25 @@ async function handleValidate(env, body) {
     plan: access ? access.plan : "full",
     allowedModels: access ? access.allowedModels : null,
     allowedFeatures: access ? access.allowedFeatures : null,
+  };
+  const signedAt = nowIso();
+  const nonce = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const canonical = licenseCanonical({
+    licenseKey: next.license_key,
+    deviceId,
+    status: next.status,
+    expiresAt: next.expires_at,
+    plan: payload.plan,
+    features: payload.allowedFeatures || [],
+    models: payload.allowedModels || [],
+    signedAt,
+    nonce,
   });
+  const signature = await signLicensePayload(env, canonical);
+  if (signature) {
+    payload.signedAt = signedAt;
+    payload.nonce = nonce;
+    payload.signature = signature;
+  }
+  return json(payload);
 }

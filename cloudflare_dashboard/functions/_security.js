@@ -1,6 +1,8 @@
 // Shared security helpers for Order Flow Pages Functions (import-only module;
 // files starting with "_" are never routed by Cloudflare Pages).
 
+export const PBKDF2_MAX_ITERS = 100000;
+
 // Baseline hardening headers for every API response.
 export function sec() {
   return {
@@ -26,9 +28,10 @@ export function throttle(key, max, windowMs = 60000) {
   return a.length > max; // true → over limit
 }
 
+// Trust Cloudflare's connecting IP only. x-forwarded-for is attacker-controlled.
 export function ipOf(request) {
-  return (request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "na")
-    .split(",")[0].trim();
+  const v = String(request.headers.get("cf-connecting-ip") || "").trim();
+  return v.split(",")[0].trim() || "na";
 }
 
 // CORS: off by default. Same-origin dashboard needs nothing; cross-origin is
@@ -63,13 +66,62 @@ export async function safeEqual(a, b) {
   return d === 0;
 }
 
-// PBKDF2-SHA256 (Web Crypto) — works in Workers AND in node for the helper
-// script that generates hashes.
+// PBKDF2-SHA256. Workers cap iterations at 100000 — clamp so login cannot 500.
 export async function pbkdf2Hex(password, saltHex, iterations) {
+  const iters = Math.min(Math.max(Number(iterations) || 0, 1), PBKDF2_MAX_ITERS);
   const km = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: hexToBytes(saltHex), iterations, hash: "SHA-256" },
+    { name: "PBKDF2", salt: hexToBytes(saltHex), iterations: iters, hash: "SHA-256" },
     km, 256,
   );
   return bytesToHex(bits);
+}
+
+let rateSchemaChecked = false;
+export async function ensureRateLimits(db) {
+  if (rateSchemaChecked || !db) return;
+  try {
+    await db.prepare(
+      `CREATE TABLE IF NOT EXISTS rate_limits (
+        k TEXT NOT NULL,
+        w INTEGER NOT NULL,
+        n INTEGER NOT NULL,
+        PRIMARY KEY (k, w)
+      )`,
+    ).run();
+    rateSchemaChecked = true;
+  } catch {}
+}
+
+// D1 fixed-window limiter. Returns true when over limit. Fail-open on DB errors.
+export async function d1Limit(db, key, max, windowMs) {
+  if (!db) return false;
+  await ensureRateLimits(db);
+  const w = Math.floor(Date.now() / windowMs);
+  try {
+    await db.prepare("DELETE FROM rate_limits WHERE w < ?").bind(w - 3).run();
+  } catch {}
+  try {
+    await db.prepare(
+      "INSERT INTO rate_limits (k, w, n) VALUES (?, ?, 1) ON CONFLICT(k, w) DO UPDATE SET n = n + 1",
+    ).bind(key, w).run();
+    const row = await db.prepare("SELECT n FROM rate_limits WHERE k = ? AND w = ?").bind(key, w).first();
+    return Number(row?.n || 0) > max;
+  } catch {
+    return false;
+  }
+}
+
+export function licenseCanonical({
+  licenseKey, deviceId, status, expiresAt, plan, features, models, signedAt, nonce,
+}) {
+  const f = [...(features || [])].map(String).sort().join(",");
+  const m = [...(models || [])].map(String).sort().join(",");
+  return `v1|${licenseKey}|${deviceId}|${status}|${expiresAt || ""}|${plan || ""}|${f}|${m}|${signedAt}|${nonce || ""}`;
+}
+
+export function publicApkRelease(release, asset) {
+  if (!release || release.draft || release.prerelease) return false;
+  if (/-rc\d*/i.test(String(release.tag_name || ""))) return false;
+  return String(asset?.name || "") === "app-release.apk";
 }

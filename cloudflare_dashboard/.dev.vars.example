@@ -21,3 +21,10 @@ GITHUB_TOKEN=
 # Cross-origin API access: comma-separated exact origins, or leave empty
 # (recommended) so /api only answers same-origin requests.
 ALLOWED_ORIGINS=
+
+# Optional. When set, GET /api/cloud/?diag=1 requires Bearer or ?token=.
+DIAG_TOKEN=
+
+# Optional Ed25519 PKCS8 (base64). When set, license validate replies are signed.
+# Generate: node scripts/gen-license-keys.mjs
+# LICENSE_SIGNING_KEY=

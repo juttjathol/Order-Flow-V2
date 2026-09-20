@@ -11,7 +11,7 @@
 // there is no list/query endpoint of any kind. Rooms open only for licenses
 // whose plan includes the "cloud_sync" feature.
 
-import { sec, throttle, ipOf } from "../../../_security.js";
+import { sec, throttle, ipOf, corsFor, d1Limit } from "../../_security.js";
 
 const PLAN_FEATURE_KEY = "cloud_sync";
 const MSG_TTL_MS = 30 * 60 * 1000; // rows never live longer than ~30 min
@@ -19,10 +19,10 @@ const MSG_CAP = 400; // newest-rows cap per room
 const MAX_DEVICES = 16;
 const MAX_MSG_LEN = 1_300_000; // encrypted payload size cap
 
-function j(status, body, extra = {}) {
+function j(status, body, extra = {}, cors = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", ...sec(), ...extra },
+    headers: { "content-type": "application/json", ...sec(), ...cors, ...extra },
   });
 }
 
@@ -61,7 +61,6 @@ function randomCode() {
 let cloudSchemaChecked = false;
 async function ensureCloudSchema(db) {
   if (cloudSchemaChecked) return;
-  cloudSchemaChecked = true;
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS cloud_rooms (
       room TEXT PRIMARY KEY,
@@ -93,6 +92,7 @@ async function ensureCloudSchema(db) {
   // Additive columns — older apps simply never send hot, which reads as idle.
   try { await db.prepare(`ALTER TABLE cloud_devices ADD COLUMN hot INTEGER NOT NULL DEFAULT 0`).run(); } catch {}
   try { await db.prepare(`ALTER TABLE cloud_devices ADD COLUMN last_seen INTEGER`).run(); } catch {}
+  cloudSchemaChecked = true;
 }
 
 function parseJsonArray(raw) {
@@ -106,13 +106,14 @@ function parseJsonArray(raw) {
 }
 
 // Mirrors accessOf() in the license API: null ⇒ legacy row, everything on.
-async function licenseAllowsCloud(db, licenseKey) {
+async function licenseAllowsCloud(db, licenseKey, deviceId) {
   if (!licenseKey) return false;
   const row = await db
-    .prepare("SELECT status, expires_at, allowed_features FROM licenses WHERE license_key = ?1")
+    .prepare("SELECT status, expires_at, allowed_features, bound_device_id FROM licenses WHERE license_key = ?1")
     .bind(licenseKey.toUpperCase().trim()).first();
   if (!row || row.status !== "active") return false;
   if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return false;
+  if (row.bound_device_id && deviceId && row.bound_device_id !== deviceId) return false;
   const features = parseJsonArray(row.allowed_features);
   return features === null || features.includes(PLAN_FEATURE_KEY);
 }
@@ -148,14 +149,60 @@ async function prune(db, room) {
   } catch {}
 }
 
+const licCache = new Map();
+async function cachedLicenseOk(db, licenseKey, deviceId) {
+  const k = `${licenseKey}:${deviceId || ""}`;
+  const hit = licCache.get(k);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.ok;
+  const ok = await licenseAllowsCloud(db, licenseKey, deviceId);
+  licCache.set(k, { at: Date.now(), ok });
+  if (licCache.size > 2000) {
+    const now = Date.now();
+    for (const [kk, v] of licCache) if (now - v.at > 20 * 60 * 1000) licCache.delete(kk);
+  }
+  return ok;
+}
+
+async function pruneIdleRooms(db) {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  try {
+    const stale = await db.prepare(
+      `SELECT room FROM cloud_rooms WHERE created_at < ?1
+         AND room NOT IN (SELECT room FROM cloud_devices WHERE last_seen IS NOT NULL AND last_seen >= ?1)
+         AND room NOT IN (SELECT room FROM cloud_msgs WHERE created_at >= ?1)`,
+    ).bind(cutoff).all();
+    for (const r of stale.results || []) {
+      await db.batch([
+        db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(r.room),
+        db.prepare("DELETE FROM cloud_devices WHERE room = ?1").bind(r.room),
+        db.prepare("DELETE FROM cloud_rooms WHERE room = ?1").bind(r.room),
+      ]);
+    }
+  } catch {}
+}
+
+function diagTokenOk(env, request) {
+  const want = String(env.DIAG_TOKEN || "").trim();
+  if (!want) return false;
+  const got = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim()
+    || new URL(request.url).searchParams.get("token") || "";
+  const n = Math.max(want.length, got.length);
+  let d = want.length ^ got.length;
+  for (let i = 0; i < n; i++) d |= (want.charCodeAt(i) || 0) ^ (got.charCodeAt(i) || 0);
+  return d === 0;
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
+  const cors = corsFor(env, request);
+  const reply = (status, body, extra = {}) => j(status, body, extra, cors);
   const db = env.DB;
-  if (!db) return j(500, { ok: false, error: "no_db" });
+  if (!db) return reply(500, { ok: false, error: "no_db" });
   try {
     await ensureCloudSchema(db);
+    await pruneIdleRooms(db);
   } catch (e) {
-    return j(500, { ok: false, error: "db" });
+    return reply(500, { ok: false, error: "db" });
   }
 
   const path = new URL(request.url).pathname.replace(/^\/api\/cloud\/?/, "").replace(/\/$/, "");
@@ -168,6 +215,7 @@ export async function onRequest(context) {
     // tells us WHICH D1 failure it actually is (daily write quota, a missing
     // column, a DB lock) without device logs.
     if (new URL(request.url).searchParams.get("diag") === "1") {
+      if (!diagTokenOk(env, request)) return reply(401, { ok: false, error: "unauthorized" });
       const steps = [];
       const t0 = Date.now();
       const scratch = "diag-" + randomHex(8);
@@ -211,7 +259,7 @@ export async function onRequest(context) {
       // so diag passing here proves /open can read the licenses table.
       try {
         await db
-          .prepare("SELECT status, expires_at, allowed_features FROM licenses WHERE license_key = ?1")
+          .prepare("SELECT status, expires_at, allowed_features, bound_device_id FROM licenses WHERE license_key = ?1")
           .bind("DIAG-PROBE").first();
         steps.push("lic_select:ok");
       } catch (e) {
@@ -236,7 +284,7 @@ export async function onRequest(context) {
   try {
     if (path === "open") {
       if (throttle(`cloud-open|${ipOf(request)}`, 20, 300000)) return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "300" });
-      const allowed = await licenseAllowsCloud(db, String(body.licenseKey || ""));
+      const allowed = await licenseAllowsCloud(db, String(body.licenseKey || ""), String(body.deviceId || ""));
       if (!allowed) return j(403, { ok: false, error: "plan" });
       const licenseKey = String(body.licenseKey || "").slice(0, 80);
       const mainDevice = String(body.deviceId || "").slice(0, 160);
@@ -268,7 +316,9 @@ export async function onRequest(context) {
           .bind(room, mainDevice, now)
       );
       await db.batch(stmts);
-      return j(200, { ok: true, room, secret, code });
+      // Keep `secret` so already-installed Mains can pair. New apps ignore it
+      // when noSecret is true and generate the AES key locally.
+      return j(200, { ok: true, room, secret, code, noSecret: true });
     }
 
     if (path === "join") {
@@ -290,6 +340,9 @@ export async function onRequest(context) {
     }
 
     if (path === "leave") {
+      if (throttle(`cloud-leave|${ipOf(request)}`, 20, 60000) || await d1Limit(db, `cloud-leave|${ipOf(request)}`, 20, 60000)) {
+        return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "60" });
+      }
       const room = String(body.room || "");
       const dev = String(body.deviceId || "");
       const row = await db.prepare("SELECT main_device FROM cloud_rooms WHERE room = ?1").bind(room).first();
@@ -310,6 +363,10 @@ export async function onRequest(context) {
       const room = String(body.room || "");
       const msg = typeof body.msg === "string" ? body.msg : "";
       if (!room || msg.length === 0 || msg.length > MAX_MSG_LEN) return j(400, { ok: false, error: "args" });
+      if (body.licenseKey) {
+        const okLic = await cachedLicenseOk(db, String(body.licenseKey), String(body.device || ""));
+        if (!okLic) return j(403, { ok: false, error: "plan" });
+      }
       const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (!open) return j(404, { ok: false, error: "no_room" });
       await db
