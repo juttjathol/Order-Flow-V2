@@ -100,11 +100,7 @@ class PrintService {
     if (p.taxRegNo.isNotEmpty) w.writeln('Reg. No: ${p.taxRegNo}');
     w.writeln('--------------------------------');
     w.writeln('Ticket ${order.ticketNo}  ${'${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}:${two(now.minute)}'}');
-    if (order.tableName?.isNotEmpty == true) {
-      w.writeln('Table ${order.tableName}');
-    } else {
-      w.writeln(order.type.name.toUpperCase());
-    }
+    w.writeln(order.kitchenWhere);
     if (order.customerName.isNotEmpty) w.writeln(sanitizeText(order.customerName));
     w.writeln('--------------------------------');
     for (final line in order.lines) {
@@ -221,14 +217,7 @@ class PrintService {
       await line(gap >= 1 ? '$label${' ' * gap}${when}' : label);
       if (gap < 1) await line(when);
     }
-    if (order.tableName?.isNotEmpty == true) {
-      await line(
-        order.isQr ? '>>> QR TABLE ${order.tableName} <<<' : 'Table ${order.tableName}',
-        big: kitchen,
-      );
-    } else {
-      await line(order.type.name.toUpperCase(), big: kitchen);
-    }
+    await line(order.kitchenWhere, big: kitchen);
     if (slip.showCustomer) {
       if (order.customerName.isNotEmpty) await line(order.customerName);
       if (order.customerPhone.isNotEmpty) await line(order.customerPhone);

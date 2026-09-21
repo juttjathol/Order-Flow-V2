@@ -29,6 +29,8 @@ class AppStore {
     this.ticketSeq = 1000,
     this.seeded = false,
     this.lastDayClose,
+    this.shiftClosed = false,
+    this.shiftNo = 0,
     this.shiftCashier = '',
     DateTime? shiftStartedAt,
     this.shiftFloat = 0,
@@ -85,6 +87,10 @@ class AppStore {
   int ticketSeq;
   bool seeded;
   DateTime? lastDayClose;
+  /// Shop-level lock (v1.1.74). Distinct from cashier float startShift/endShift.
+  /// When true, createOrder is denied until a manager opens the next shift.
+  bool shiftClosed;
+  int shiftNo;
   String shiftCashier;
   DateTime? shiftStartedAt;
   double shiftFloat;
@@ -167,6 +173,8 @@ class AppStore {
         'ticketSeq': ticketSeq,
         'seeded': seeded,
         'lastDayClose': lastDayClose?.toIso8601String(),
+        'shiftClosed': shiftClosed,
+        'shiftNo': shiftNo,
         'shiftCashier': shiftCashier,
         'shiftStartedAt': shiftStartedAt?.toIso8601String(),
         'shiftFloat': shiftFloat,
@@ -225,6 +233,8 @@ class AppStore {
       ticketSeq: parseInt(m['ticketSeq'], 1000),
       seeded: parseBool(m['seeded']),
       lastDayClose: m['lastDayClose'] == null ? null : parseTime(m['lastDayClose']),
+      shiftClosed: parseBool(m['shiftClosed']),
+      shiftNo: parseInt(m['shiftNo']),
       shiftCashier: parseStr(m['shiftCashier']) ?? '',
       shiftStartedAt: m['shiftStartedAt'] == null ? null : parseTime(m['shiftStartedAt']),
       shiftFloat: parseNum(m['shiftFloat']),
@@ -304,6 +314,37 @@ class AppStore {
     if (id == null) return null;
     for (final t in tables) {
       if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  /// Resolve a floor table by id **or** display name (QR guests send either).
+  FloorTable? tableByRef(String? idOrName) {
+    if (idOrName == null) return null;
+    final n = idOrName.trim();
+    if (n.isEmpty) return null;
+    final byId = tableById(n);
+    if (byId != null) return byId;
+    final low = n.toLowerCase();
+    for (final t in tables) {
+      if (t.name.toLowerCase() == low) return t;
+    }
+    return null;
+  }
+
+  /// Display helper: live open ticket for a table even if currentOrderId is stale.
+  /// Does not mutate the table (safe to call from build).
+  PosOrder? openOrderForTable(FloorTable t) {
+    if (t.currentOrderId != null) {
+      final o = orderById(t.currentOrderId);
+      if (o != null &&
+          o.status != OrderStatus.paid &&
+          o.status != OrderStatus.cancelled) {
+        return o;
+      }
+    }
+    for (final o in openOrders) {
+      if (o.tableId == t.id) return o;
     }
     return null;
   }

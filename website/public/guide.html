@@ -67,7 +67,7 @@
         <p class="kicker">User guide · رہنمائے صارف</p>
         <h1 class="sec-title">Every feature, step by step.<br/>ہر فیچر، قدم بہ قدم۔</h1>
         <p class="sec-sub">The complete manual for Order Flow — how to set up the shop, run every station, handle payments, printers, the cash drawer, loyalty, reports and refunds. English and Urdu on one page.</p>
-        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.73 — security harden: station approval, hashed manager PIN, safer cloud pairing · ایپ ورژن 1.1.73 کے مطابق — سیکیورٹی: اسٹیشن منظوری، ہیش شدہ مینیجر PIN، محفوظ کلاؤڈ جوڑ</p>
+        <p class="version-note" style="margin-top:18px">Updated for app version 1.1.74 — QR kitchen tickets print the table number, busy tables show how long, live ticket search, Shift close · ایپ ورژن 1.1.74 کے مطابق — کیو آر کچن ٹکٹ پر ٹیبل نمبر، مصروف ٹیبل کا وقت، لائیو ٹکٹ تلاش، شفٹ بند</p>
       </div>
     </section>
 
@@ -257,7 +257,9 @@
             <h4 class="en">English</h4>
             <ul>
               <li>Tables / Queue tab: tap a table to open its ticket; live colors = free / ordered / ready.</li>
-              <li><b>Send to kitchen</b> prints the kitchen slip and alerts the pass with sound + vibration.</li>
+              <li><b>v1.1.74 — busy clock:</b> every occupied table shows how long it has been busy (mm:ss, then hours). A QR order on that table marks it busy the same way as a waiter ticket.</li>
+              <li><b>v1.1.74 — search live tickets:</b> Home, kitchen, cashier and the tablet floor rail have a search box. Type a ticket number (with or without #), table, or guest name.</li>
+              <li><b>Send to kitchen</b> prints the kitchen slip and alerts the pass with sound + vibration. The slip prints the <b>table number</b> in large type — a QR dine-in ticket never prints as TAKEAWAY.</li>
               <li><b>Hold</b> pauses a ticket; un-hold resumes. <b>Fire course</b> sends only one course to kitchen.</li>
               <li><b>Move / merge tables</b>, <b>split bill</b> or <b>split evenly</b> from the ticket's More menu.</li>
               <li>Discounts and complimentary tickets need the manager PIN.</li>
@@ -268,7 +270,9 @@
             <h4>اردو</h4>
             <ul>
               <li>ٹیبلز / قطار ٹیب: ٹیبل دبا کر ٹکٹ کھولیں؛ زندہ رنگ = خالی / آرڈر / تیار۔</li>
-              <li><b>Send to kitchen</b> کچن پرچہ پرنٹ کرتا ہے اور پاس کو آواز + وائبریشن سے خبردار کرتا ہے۔</li>
+              <li><b>v1.1.74 — مصروف گھڑی:</b> ہر مصروف ٹیبل دکھاتا ہے کتنی دیر سے مصروف ہے (منٹ:سیکنڈ، پھر گھنٹے)۔ اس ٹیبل پر QR آرڈر بھی ویٹر ٹکٹ کی طرح اسے مصروف کرتا ہے۔</li>
+              <li><b>v1.1.74 — لائیو ٹکٹ تلاش:</b> ہوم، کچن، کیشیئر اور ٹیبلٹ فلور پر سرچ باکس ہے۔ ٹکٹ نمبر (# کے ساتھ یا بغیر)، ٹیبل یا مہمان کا نام لکھیں۔</li>
+              <li><b>Send to kitchen</b> کچن پرچہ پرنٹ کرتا ہے اور پاس کو آواز + وائبریشن سے خبردار کرتا ہے۔ پرچہ پر <b>ٹیبل نمبر</b> بڑا چھپتا ہے — QR ڈائن اِن ٹکٹ کبھی TAKEAWAY نہیں چھپتی۔</li>
               <li><b>Hold</b> ٹکٹ روکتا ہے؛ دوبارہ کھولنے پر جاری۔ <b>Fire course</b> صرف ایک کورس کچن بھیجتا ہے۔</li>
               <li>ٹکٹ کے More مینو سے <b>ٹیبل بدلیں / جوڑیں</b>، <b>بل تقسیم کریں</b> یا <b>برابر تقسیم کریں</b>۔</li>
               <li>رعایت اور مفت ٹکٹ کے لیے مینیجر PIN درکار ہے۔</li>
@@ -345,7 +349,7 @@
               <li><b>Paper size (v1.1.69):</b> each printer screen has Auto / 58 / 76 / 80 / 100 mm. Auto keeps the safe 58 mm layout; wider choices only lengthen lines — letters keep their native shape. Transparent PNG logos print correctly now (alpha is composited on white, mostly-dark artwork auto-inverts).</li>
               <li><b>Receipt layout (v1.1.70):</b> the shop name prints on <b>one line</b> — double-size only when it actually fits, so long names no longer wrap mid-word. The logo keeps a margin (≈80% width, centered), Ticket and time share one line (time right-aligned), the item table gained its <b>Amount</b> header, and the stray double-hash on ticket numbers is fixed.</li>
               <li><b>Footer per slip type (v1.1.70):</b> every slip editor in the bill profile has its own <b>Slip footer</b> field — delivery can end with a delivery note, takeaway with its own thanks, the cash receipt with another. Leave it empty and that slip just uses the shop footer.</li>
-              <li><b>Pay &amp; Print</b> — the payment sheet's button settles and prints the customer receipt on your station's printer; <b>Pre-bill</b> next to it prints the running total marked “NOT PAID YET” without settling anything. Kitchen tickets print the ticket number, table and TAKEAWAY/DELIVERY in double height.</li>
+              <li><b>Pay &amp; Print</b> — the payment sheet's button settles and prints the customer receipt on your station's printer; <b>Pre-bill</b> next to it prints the running total marked “NOT PAID YET” without settling anything. Kitchen tickets print the ticket number and table in double height; takeaway/delivery slips still say TAKEAWAY/DELIVERY. <b>v1.1.74:</b> a QR table ticket prints <b>QR TABLE T4</b>, never TAKEAWAY.</li>
               <li><b>Bill profile:</b> shop name, address, phone, tax ID, footer, logo image, pay QR — all print on the receipt.</li>
               <li>Separate slip templates for kitchen / counter / takeaway / delivery — choose what each shows.</li>
               <li>Test button on every printer screen sends a test page. Reprint any ticket from More → Reprint.</li>
@@ -361,7 +365,7 @@
               <li><b>کاغذ کی سائز (v1.1.69):</b> ہر پرنٹر اسکرین پر Auto / 58 / 76 / 80 / 100 ملی میٹر۔ خودکار محفوظ 58mm فارمیٹ رکھتا ہے؛ چوڑی سائز صرف لائنیں لمبی کرتی ہے — حروف اپنی اصل شکل میں رہتے ہیں۔ شفاف PNG لوگو اب صحیح پرنٹ ہوتے ہیں (شفافیت سفید کاغذ پر بدلتی ہے، زیادہ کالا آرٹ خودبخود الٹ جاتا ہے)۔</li>
               <li><b>رسید کا فارمیٹ (v1.1.70):</b> دکان کا نام <b>ایک لائن</b> میں چھپتا ہے — بڑا فونٹ تب ہی جب واقعی فٹ ہو، لمبے نام اب ادھورے نہیں ٹوٹتے۔ لوگو کیناروں سے لگتا نہیں (≈80% چوڑائی، درمیان)، ٹکٹ نمبر اور وقت ایک ہی لائن میں (وقت دائیں طرف)، آئٹم ٹیبل میں <b>رقم</b> کا ہیڈر، اور ٹکٹ پر ڈپل ہیش (#) کی خرابی دور۔</li>
               <li><b>ہر رسید کا اپنا فوٹر (v1.1.70):</b> بل پروفائل کی ہر سِلپ ایڈیٹر میں اب <b>رسید کا فوٹر</b> خانہ ہے — ڈیلیوری پر الگ پیغام، ٹیک اوے پر الگ، کیش رسید پر الگ۔ خالی چھوڑیں تو دکان کا فوٹر لگے گا۔</li>
-              <li><b>Pay &amp; Print</b> — ادائیگی اسکرین کا بٹن بل وصول کر کے کسٹمر رسید آپ کے اسٹیشن کے پرنٹر پر نکالتا ہے؛ اس کے ساتھ <b>پری بل</b> بٹن چلتا حساب “NOT PAID YET” لکھ کر پرنٹ کرتا ہے، کوئی ادائیگی ہوئے بغیر۔ کچن ٹکٹ پر ٹکٹ نمبر، ٹیبل اور TAKEAWAY/DELIVERY دُگنی اونچائی میں ہوتے ہیں۔</li>
+              <li><b>Pay &amp; Print</b> — ادائیگی اسکرین کا بٹن بل وصول کر کے کسٹمر رسید آپ کے اسٹیشن کے پرنٹر پر نکالتا ہے؛ اس کے ساتھ <b>پری بل</b> بٹن چلتا حساب “NOT PAID YET” لکھ کر پرنٹ کرتا ہے، کوئی ادائیگی ہوئے بغیر۔ کچن ٹکٹ پر ٹکٹ نمبر اور ٹیبل دُگنی اونچائی میں ہوتے ہیں؛ ٹیک اوے/ڈیلیوری سِلپ اب بھی TAKEAWAY/DELIVERY لکھتی ہے۔ <b>v1.1.74:</b> QR ٹیبل ٹکٹ <b>QR TABLE T4</b> چھاپتی ہے، کبھی TAKEAWAY نہیں۔</li>
               <li><b>بل پروفائل:</b> دکان کا نام، پتہ، فون، ٹیکس ID، فوٹر، لوگو تصویر، پے QR — سب رسید پر پرنٹ ہوتا ہے۔</li>
               <li>کچن / کاؤنٹر / ٹیک اوے / ڈیلیوری کے لیے الگ سلپ ٹیمپلیٹس — جو دکھانا ہو منتخب کریں۔</li>
               <li>ہر پرنٹر اسکرین پر ٹیسٹ بٹن سے ٹیسٹ صفحہ نکلتا ہے۔ More → دوبارہ پرنٹ سے کوئی بھی ٹکٹ دوبارہ نکالیں۔</li>
@@ -437,8 +441,9 @@
             <h4 class="en">English</h4>
             <ul>
               <li><b>X report</b> (More → X): today's sales, payment breakdown per method (split-aware), hourly sales, voids, refunds — without closing anything.</li>
-              <li><b>Z report / Day close</b>: finalises the day and records the closing time.</li>
-              <li><b>Shifts:</b> cashier opens with a float, ends with counted cash; reports show who worked. The cashier screen now shows a tap-to-open / tap-to-close banner so a closed drawer is never silent.</li>
+              <li><b>Z report</b>: today's totals without locking the shop.</li>
+              <li><b>v1.1.74 — Shift close</b> (Home or More → Reports, was “Day close”): a manager or Main closes the shop shift. Open tickets stay open. <b>New orders are blocked</b> until someone opens the next shift — the till shows a popup; guests on the QR page see the same. <b>Open shift</b> asks for the <b>manager PIN</b> only.</li>
+              <li><b>Cashier float:</b> cashier opens with a float, ends with counted cash; reports show who worked. The cashier screen now shows a tap-to-open / tap-to-close banner so a closed drawer is never silent. That float is separate from Shift close.</li>
               <li>Home shows sales, open orders and charts live.</li>
             </ul>
           </div>
@@ -446,8 +451,9 @@
             <h4>اردو</h4>
             <ul>
               <li><b>X رپورٹ</b> (More → X): آج کی سیل، ہر طریقے کی ادائیگی کی تفصیل (تقسیم ادائیگی سمیت)، گھنٹہ وار سیل، منسوخ، رقم واپسیاں — بغیر کچھ بند کیے۔</li>
-              <li><b>Z رپورٹ / دن بند</b>: دن مکمل کرتا ہے اور بند ہونے کا وقت محفوظ کرتا ہے۔</li>
-              <li><b>شفٹس:</b> کیشیئر فلوٹ سے شروع کرتا ہے، گنی ہوئی کیش پر ختم کرتا ہے؛ رپورٹس دکھاتی ہیں کس نے کام کیا۔ کیشیئر اسکرین پر اب بینر ہے — دبا کر شفٹ کھولیں یا بند کریں، بند دراز خاموش نہیں رہتی۔</li>
+              <li><b>Z رپورٹ</b>: آج کے کل بغیر دکان لاک کیے۔</li>
+              <li><b>v1.1.74 — شفٹ بند</b> (ہوم یا مزید → رپورٹس، پہلے “دن بند”): مینیجر یا Main دکان کی شفٹ بند کرتا ہے۔ کھلے ٹکٹ کھلے رہتے ہیں۔ <b>نئے آرڈر بند</b> رہتے ہیں جب تک اگلی شفٹ نہ کھلے — ٹِل پر پاپ اپ، QR صفحے پر بھی وہی پیغام۔ <b>شفٹ کھولیں</b> صرف <b>مینیجر PIN</b> مانگتا ہے۔</li>
+              <li><b>کیشیئر فلوٹ:</b> کیشیئر فلوٹ سے شروع کرتا ہے، گنی ہوئی کیش پر ختم کرتا ہے؛ رپورٹس دکھاتی ہیں کس نے کام کیا۔ کیشیئر اسکرین پر اب بینر ہے — دبا کر شفٹ کھولیں یا بند کریں، بند دراز خاموش نہیں رہتی۔ یہ فلوٹ شفٹ بند سے الگ ہے۔</li>
               <li>ہوم پر سیل، کھلے آرڈر اور چارٹس لائیو دکھتے ہیں۔</li>
             </ul>
           </div>
@@ -600,9 +606,10 @@
             <ul>
               <li>Switch it on: <b>More → Plan extras → QR ordering → enable</b>. Main must be on Wi-Fi; the address looks like <b>http://192.168.x.x:8787/order</b>.</li>
               <li>For a single table open the <b>Tables</b> tab → <b>QR icon</b> → show, print or share that table's code. Guests scan it and the menu opens with the table already attached.</li>
+              <li><b>v1.1.74 — no table on the link?</b> The cart asks the guest to pick a table from your floor map. Sending without a table is refused (<b>need table</b>). A code for a deleted table shows <b>table gone</b>. If the shop shift is closed, the page says so and will not take new orders.</li>
               <li>The guest page works in <b>English and Urdu</b> (toggle at the top), shows photos, prices, modifiers and notes — no app to install.</li>
               <li><b>v1.1.70 page fixes:</b> prices and totals now use your own currency symbol with thousands separators (previously some shops saw “true1,200” style totals), product photos (JPEG or PNG) render on the menu cards, and the success screen now shows the order total next to the ticket number. <b>v1.1.71:</b> on narrow phones the floating <i>Your order</i> bar could hang off the right edge so <b>Review &amp; send</b> was unreachable — orders never left the guest's phone. The bar is now always fully on screen and tappable. <b>v1.1.72:</b> after send, the ticket card keeps polling the kitchen — received, cooking, ready, paid or cancelled — so guests are not left guessing.</li>
-              <li>Submitting a web order creates a normal ticket with the <b>QR</b> badge. By default it fires to the kitchen (printers included) <b>the moment the counter marks it paid</b> — and the kitchen slip carries the table number so food lands at the right table. Prefer cooking at submit? Switch to <b>At submit</b> in the same QR sheet.</li>
+              <li>Submitting a web order creates a normal <b>dine-in</b> ticket with the <b>QR</b> badge and that table number. The kitchen slip prints <b>QR TABLE T4</b> (never TAKEAWAY). The table turns busy and the floor clock starts. By default it fires to the kitchen (printers included) <b>the moment the counter marks it paid</b>. Prefer cooking at submit? Switch to <b>At submit</b> in the same QR sheet.</li>
               <li>On custom plans the page shows <b>your</b> shop's name, tagline, hours, contact and colour — set it all under <a href="#brand">Your brand page</a> (§26).</li>
               <li>Switch ordering off any time — the page closes instantly for new scans. Orders are accepted only on the shop Wi-Fi, never from the internet.</li>
             </ul>
@@ -822,6 +829,12 @@
     </div>
     <div class="wrap foot-base">
       <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow &#8212; built and supported in Malaysia. Business registration and registered address appear on every licence receipt, and are provided on request before you buy.</p>
+    </div>
+  </footer>
+  <script src="./site.js?v=5"></script>
+</body>
+</html>
+ buy.</p>
     </div>
   </footer>
   <script src="./site.js?v=5"></script>

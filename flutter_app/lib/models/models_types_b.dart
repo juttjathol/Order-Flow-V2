@@ -89,6 +89,7 @@ class PosOrder {
     this.sentAt,
     this.channel = '',
     this.staffId,
+    this.shiftNo = 0,
   })  : lines = lines ?? <OrderLine>[],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -124,8 +125,46 @@ class PosOrder {
   String channel;
   /// Optional attribution to a StaffMember id for per-staff reports (v1.1.59).
   String? staffId;
+  /// Shop shift number stamped at create (v1.1.74). 0 = before shifts existed.
+  int shiftNo;
 
   bool get isQr => channel == 'qr';
+
+  /// Kitchen / receipt banner: table number when set, else a readable type
+  /// (never the raw enum `DINEIN`, and never TAKEAWAY for a dine-in ticket).
+  String get kitchenWhere {
+    final name = tableName?.trim();
+    if (name != null && name.isNotEmpty) {
+      return isQr ? '>>> QR TABLE $name <<<' : 'Table $name';
+    }
+    switch (type) {
+      case OrderType.dineIn:
+        return 'DINE IN';
+      case OrderType.takeaway:
+        return 'TAKEAWAY';
+      case OrderType.delivery:
+        return 'DELIVERY';
+      case OrderType.retail:
+        return 'RETAIL';
+      case OrderType.service:
+        return 'SERVICE';
+    }
+  }
+
+  bool matchesQuery(String q) {
+    final t = q.trim().toLowerCase();
+    if (t.isEmpty) return true;
+    final ticket = ticketNo.toLowerCase();
+    final tBare = t.replaceAll('#', '');
+    final ticketBare = ticket.replaceAll('#', '');
+    return ticket.contains(t) ||
+        (tBare.isNotEmpty && ticketBare.contains(tBare)) ||
+        customerName.toLowerCase().contains(t) ||
+        (tableName ?? '').toLowerCase().contains(t) ||
+        notes.toLowerCase().contains(t) ||
+        createdBy.toLowerCase().contains(t) ||
+        type.name.toLowerCase().contains(t);
+  }
 
   double get subtotal =>
       lines.fold<double>(0, (s, l) => s + l.lineTotal) - discount;
@@ -176,6 +215,7 @@ class PosOrder {
         'sentAt': sentAt?.toIso8601String(),
         'channel': channel,
         'staffId': staffId,
+        'shiftNo': shiftNo,
       };
 
   factory PosOrder.fromJson(Map<String, dynamic> j) => PosOrder(
@@ -215,6 +255,7 @@ class PosOrder {
         sentAt: j['sentAt'] == null ? null : parseTime(j['sentAt']),
         channel: parseStr(j['channel']) ?? '',
         staffId: parseStr(j['staffId']),
+        shiftNo: parseInt(j['shiftNo']),
       );
 }
 

@@ -73,7 +73,10 @@ class MoreScreen extends ConsumerWidget {
         title: s.t('insights'),
         onTap: () => showInsights(context, ref),
       ),
-      if (snap.isMain || snap.isManager) _row(Icons.lock_clock, s.t('day_close'), () => _closeDay(context, ref)),
+      if (snap.isMain || snap.isManager)
+        snap.store.shiftClosed
+            ? _row(Icons.lock_open, s.t('open_shop_shift'), () => openShopShift(context, ref))
+            : _row(Icons.lock_clock, s.t('day_close'), () => closeShopShift(context, ref)),
     ];
     final extras = <Widget>[
       if (snap.isMain)
@@ -1308,34 +1311,6 @@ Future<void> _services(BuildContext context, WidgetRef ref) async {
       ),
     ),
   );
-}
-
-Future<void> _closeDay(BuildContext context, WidgetRef ref) async {
-  final s = ref.s;
-  final store = ref.snap.store;
-  final today = store.salesOn(DateTime.now());
-  final open = store.openOrders.length;
-  final last = store.lastDayClose;
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(s.t('day_close')),
-      content: Text(
-        '${s.t('day_close_open')}\n${s.t('today_sales')}: ${moneyOf(ref.snap, today)}\n${s.t('open_orders')}: $open'
-        '${last == null ? '' : '\n${s.t('last_close')}: $last'}',
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('day_close'))),
-      ],
-    ),
-  );
-  if (ok == true) {
-    await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {}));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
-    }
-  }
 }
 
 Future<void> _reports(BuildContext context, WidgetRef ref) async {

@@ -70,6 +70,18 @@ int parseInt(Object? raw, [int fallback = 0]) {
   return fallback;
 }
 
+/// Live "how long has this table been busy" clock (mm:ss or h:mm:ss).
+String formatBusyClock(DateTime start, [DateTime? now]) {
+  var d = (now ?? DateTime.now()).difference(start);
+  if (d.isNegative) d = Duration.zero;
+  final h = d.inHours;
+  final m = d.inMinutes.remainder(60);
+  final s = d.inSeconds.remainder(60);
+  String two(int n) => n.toString().padLeft(2, '0');
+  if (h > 0) return '$h:${two(m)}:${two(s)}';
+  return '${two(m)}:${two(s)}';
+}
+
 bool parseBool(Object? raw, [bool fallback = false]) {
   if (raw is bool) return raw;
   if (raw is num) return raw != 0;

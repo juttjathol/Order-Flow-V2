@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
 import 'floor_screen.dart';
 
@@ -40,6 +41,8 @@ class FrontDeskScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
+          if (!await ensureCanCreateOrder(context, ref)) return;
+          if (!context.mounted) return;
           final store = ref.snap.store;
           final order = PosOrder(
             id: newId(),

@@ -776,6 +776,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ),
     );
     if (ok != true || picked.isEmpty) return;
+    if (!await ensureCanCreateOrder(context, ref)) return;
+    if (!mounted) return;
     final move = order.lines.where((l) => picked.contains(l.id)).toList();
     final child = PosOrder(
       id: newId(),

@@ -22,6 +22,7 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen> {
   Timer? _tick;
   final _seen = <String>{};
   final _lateAlerted = <String>{};
+  String q = '';
 
   @override
   void initState() {
@@ -51,9 +52,10 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen> {
     final s = ref.s;
     final orders = ref.snap.store.orders
         .where((o) =>
-            o.status == OrderStatus.open ||
-            o.status == OrderStatus.preparing ||
-            o.status == OrderStatus.ready)
+            (o.status == OrderStatus.open ||
+                o.status == OrderStatus.preparing ||
+                o.status == OrderStatus.ready) &&
+            o.matchesQuery(q))
         .toList();
     final ids = orders.map((o) => o.id).toSet();
     final fresh = ids.difference(_seen);
@@ -102,7 +104,11 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen> {
           IconButton(onPressed: () => leaveRoleWithPin(context, ref), icon: const Icon(Icons.logout)),
         ],
       ),
-      body: orders.isEmpty
+      body: Column(
+        children: [
+          TicketSearchField(onChanged: (v) => setState(() => q = v)),
+          Expanded(
+            child: orders.isEmpty
           ? EmptyState(icon: Icons.soup_kitchen, message: s.t('no_orders'))
           : GridView.builder(
               padding: const EdgeInsets.all(20),
@@ -212,6 +218,9 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen> {
                 );
               },
             ),
+          ),
+        ],
+      ),
     );
   }
 

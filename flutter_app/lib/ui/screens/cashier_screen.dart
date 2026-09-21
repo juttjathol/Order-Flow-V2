@@ -19,14 +19,15 @@ class CashierScreen extends ConsumerStatefulWidget {
 
 class _CashierScreenState extends ConsumerState<CashierScreen> {
   String filter = 'all';
+  String q = '';
 
   @override
   Widget build(BuildContext context) {
     final s = ref.s;
     final orders = ref.snap.store.orders.where((o) {
       if (o.status == OrderStatus.paid || o.status == OrderStatus.cancelled) return false;
-      if (filter == 'held') return o.held;
-      return true;
+      if (filter == 'held' && !o.held) return false;
+      return o.matchesQuery(q);
     }).toList();
     return Scaffold(
       appBar: AppBar(
@@ -54,6 +55,8 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
       floatingActionButton: ref.snap.store.model == BusinessModel.retail
           ? FloatingActionButton.extended(
               onPressed: () async {
+                if (!await ensureCanCreateOrder(context, ref)) return;
+                if (!context.mounted) return;
                 final store = ref.snap.store;
                 final order = PosOrder(
                   id: newId(),
@@ -102,6 +105,7 @@ class _CashierScreenState extends ConsumerState<CashierScreen> {
               ),
             ),
           ),
+          TicketSearchField(onChanged: (v) => setState(() => q = v)),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: Wrap(

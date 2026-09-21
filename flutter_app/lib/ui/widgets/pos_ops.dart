@@ -370,3 +370,79 @@ Future<void> startShift(BuildContext context, WidgetRef ref) async {
     }));
   }
 }
+
+/// Shop-level shift lock (not the cashier float). Dispatch is silent when
+/// denied, so every createOrder path must call this first.
+Future<bool> ensureCanCreateOrder(BuildContext context, WidgetRef ref) async {
+  if (!ref.read(appControllerProvider).store.shiftClosed) return true;
+  final s = ref.s;
+  final canOpen = ref.read(appControllerProvider).isMain ||
+      ref.read(appControllerProvider).isManager;
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('shift_closed_title')),
+      content: Text(s.t('shift_closed_body')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        if (canOpen)
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('open_shop_shift'))),
+      ],
+    ),
+  );
+  if (go != true) return false;
+  if (!await confirmManagerPin(context, ref)) return false;
+  await ref.ctrl.dispatch(NetCommand(name: 'openShift', payload: {}));
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('open_shop_shift_ok'))));
+  }
+  return !ref.read(appControllerProvider).store.shiftClosed;
+}
+
+Future<void> openShopShift(BuildContext context, WidgetRef ref) async {
+  if (!ref.read(appControllerProvider).store.shiftClosed) return;
+  final s = ref.s;
+  if (!await confirmManagerPin(context, ref)) return;
+  await ref.ctrl.dispatch(NetCommand(name: 'openShift', payload: {}));
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('open_shop_shift_ok'))));
+  }
+}
+
+Future<void> closeShopShift(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final store = ref.snap.store;
+  final today = store.salesOn(DateTime.now());
+  final paid = store.orders.where((o) => o.status == OrderStatus.paid).where((o) {
+    final d = DateTime.now();
+    return o.updatedAt.year == d.year && o.updatedAt.month == d.month && o.updatedAt.day == d.day;
+  });
+  final cash = paid.where((o) => o.payment == PaymentMethod.cash).fold<double>(0, (a, o) => a + o.total);
+  final card = paid.where((o) => o.payment == PaymentMethod.card).fold<double>(0, (a, o) => a + o.total);
+  final open = store.openOrders.length;
+  final last = store.lastDayClose;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('day_close')),
+      content: Text(
+        '${s.t('day_close_open')}\n\n'
+        '${s.t('today_sales')}: ${moneyOf(ref.snap, today)}\n'
+        '${s.t('cash')}: ${moneyOf(ref.snap, cash)}\n'
+        '${s.t('card')}: ${moneyOf(ref.snap, card)}\n'
+        '${s.t('open_orders')}: $open'
+        '${last == null ? '' : '\n${s.t('last_close')}: $last'}',
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('day_close'))),
+      ],
+    ),
+  );
+  if (ok == true) {
+    await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {}));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
+    }
+  }
+}

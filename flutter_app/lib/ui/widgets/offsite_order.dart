@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import 'common.dart';
+import 'pos_ops.dart';
 
 class OffsiteOrderBar extends ConsumerWidget {
   const OffsiteOrderBar({super.key});
@@ -163,6 +164,8 @@ Future<void> startOffsiteOrder(
     ),
   );
   if (ok != true) return;
+  if (!await ensureCanCreateOrder(context, ref)) return;
+  if (!context.mounted) return;
 
   final order = PosOrder(
     id: newId(),

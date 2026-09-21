@@ -19,6 +19,9 @@ class StoreGuard {
   };
 
   static String denyReason(AppStore store, NetCommand cmd) {
+    // Shop shift lock is independent of the license plan — even allOn
+    // keys cannot start a ticket while the shift is closed.
+    if (cmd.name == 'createOrder' && store.shiftClosed) return 'shift_closed';
     final ent = store.entitlements;
     if (ent.allOn) return '';
     // Only Main may push entitlements into the shared store.
@@ -61,7 +64,9 @@ class RoleAccess {
   static bool allow(String roleName, NetCommand cmd) {
     final role = enumParse(AppRole.values, roleName, AppRole.none);
     if (role == AppRole.main) return true;
-    if (cmd.name == 'closeDay') return role == AppRole.manager;
+    if (cmd.name == 'closeDay' || cmd.name == 'openShift') {
+      return role == AppRole.manager;
+    }
     if (role == AppRole.manager) {
       return cmd.name != 'replaceState' &&
           cmd.name != 'seedModel' &&

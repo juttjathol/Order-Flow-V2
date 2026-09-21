@@ -338,4 +338,180 @@ void main() {
     expect(snap.lanIp, '10.0.0.1');
     expect(snap.error, 'boom');
   });
+
+  // ── v1.1.74: QR table on kitchen slip, busy clock, live search, shop shift ─
+
+  test('v1.1.74 kitchenWhere prints table, never TAKEAWAY for a table ticket', () {
+    final qr = PosOrder(
+      id: 'q1',
+      ticketNo: '#1101',
+      type: OrderType.dineIn,
+      tableName: 'T4',
+      channel: 'qr',
+    );
+    expect(qr.kitchenWhere, '>>> QR TABLE T4 <<<');
+    expect(qr.kitchenWhere.contains('TAKEAWAY'), isFalse);
+
+    final dine = PosOrder(
+      id: 'd1',
+      ticketNo: '#1102',
+      type: OrderType.dineIn,
+      tableName: 'T2',
+    );
+    expect(dine.kitchenWhere, 'Table T2');
+
+    final take = PosOrder(
+      id: 't1',
+      ticketNo: '#1103',
+      type: OrderType.takeaway,
+    );
+    expect(take.kitchenWhere, 'TAKEAWAY');
+
+    final bareDine = PosOrder(
+      id: 'd2',
+      ticketNo: '#1104',
+      type: OrderType.dineIn,
+    );
+    expect(bareDine.kitchenWhere, 'DINE IN');
+  });
+
+  test('v1.1.74 kitchenWhere and shiftNo survive json + stale patch', () {
+    final store = AppStore();
+    final order = PosOrder(
+      id: 'o74',
+      ticketNo: '#74',
+      type: OrderType.dineIn,
+      tableName: 'T8',
+      channel: 'qr',
+      shiftNo: 3,
+    );
+    StoreReducer.apply(
+      store,
+      NetCommand(name: 'createOrder', role: 'web', payload: {'order': order.toJson()}),
+    );
+    final placed = store.orders.first;
+    placed.channel = 'qr';
+    placed.tableName = 'T8';
+    placed.shiftNo = 3;
+    final stale = PosOrder.fromJson({
+      'id': placed.id,
+      'ticketNo': placed.ticketNo,
+      'type': placed.type.name,
+      'status': placed.status.name,
+      'tableName': 'T8',
+    });
+    StoreReducer.apply(
+      store,
+      NetCommand(name: 'patchOrder', role: 'cashier', payload: {'order': stale.toJson()}),
+    );
+    final after = store.orders.first;
+    expect(after.channel, 'qr');
+    expect(after.shiftNo, 3);
+    expect(after.kitchenWhere, '>>> QR TABLE T8 <<<');
+  });
+
+  test('v1.1.74 matchesQuery finds ticket number with or without hash', () {
+    final o = PosOrder(
+      id: 's1',
+      ticketNo: '#2044',
+      type: OrderType.dineIn,
+      tableName: 'T9',
+      customerName: 'Amina',
+    );
+    expect(o.matchesQuery(''), isTrue);
+    expect(o.matchesQuery('2044'), isTrue);
+    expect(o.matchesQuery('#2044'), isTrue);
+    expect(o.matchesQuery('t9'), isTrue);
+    expect(o.matchesQuery('amina'), isTrue);
+    expect(o.matchesQuery('missing'), isFalse);
+  });
+
+  test('v1.1.74 formatBusyClock is mm:ss then h:mm:ss', () {
+    final start = DateTime(2026, 9, 22, 12, 0, 0);
+    expect(formatBusyClock(start, start), '00:00');
+    expect(formatBusyClock(start, start.add(const Duration(seconds: 65))), '01:05');
+    expect(formatBusyClock(start, start.add(const Duration(hours: 1, minutes: 2, seconds: 3))), '1:02:03');
+  });
+
+  test('v1.1.74 tableByRef matches id or name; openOrderForTable ignores stale id', () {
+    final table = FloorTable(id: 'tbl-1', name: 'T1');
+    final live = PosOrder(
+      id: 'live',
+      ticketNo: '#1',
+      type: OrderType.dineIn,
+      tableId: 'tbl-1',
+      tableName: 'T1',
+    );
+    final paid = PosOrder(
+      id: 'old',
+      ticketNo: '#0',
+      type: OrderType.dineIn,
+      tableId: 'tbl-1',
+      status: OrderStatus.paid,
+    );
+    table.currentOrderId = paid.id;
+    final store = AppStore(tables: [table], orders: [paid, live]);
+    expect(store.tableByRef('tbl-1')?.name, 'T1');
+    expect(store.tableByRef('t1')?.id, 'tbl-1');
+    expect(store.tableByRef('gone'), isNull);
+    expect(store.openOrderForTable(table)?.id, 'live');
+  });
+
+  test('v1.1.74 shop shift lock blocks createOrder until openShift', () {
+    final store = AppStore(shiftNo: 2);
+    store.tables.add(FloorTable(id: 't1', name: 'T1'));
+    expect(StoreGuard.denyReason(store, NetCommand(name: 'createOrder', role: 'web')), isEmpty);
+
+    StoreReducer.apply(store, NetCommand(name: 'closeDay', role: 'manager', payload: {}));
+    expect(store.shiftClosed, isTrue);
+    expect(StoreGuard.denyReason(store, NetCommand(name: 'createOrder', role: 'main')), 'shift_closed');
+
+    final before = store.orders.length;
+    StoreReducer.apply(
+      store,
+      NetCommand(name: 'createOrder', role: 'web', payload: {
+        'order': PosOrder(id: 'blocked', ticketNo: '', type: OrderType.dineIn).toJson(),
+      }),
+    );
+    expect(store.orders.length, before);
+
+    expect(RoleAccess.allow('manager', NetCommand(name: 'openShift')), isTrue);
+    expect(RoleAccess.allow('cashier', NetCommand(name: 'openShift')), isFalse);
+    expect(RoleAccess.allow('cashier', NetCommand(name: 'closeDay')), isFalse);
+
+    final rev = store.revision;
+    StoreReducer.apply(store, NetCommand(name: 'openShift', role: 'manager', payload: {}));
+    expect(store.shiftClosed, isFalse);
+    expect(store.shiftNo, 3);
+    expect(store.revision, greaterThan(rev));
+
+    StoreReducer.apply(store, NetCommand(name: 'openShift', role: 'manager', payload: {}));
+    expect(store.shiftNo, 3, reason: 'opening an already-open shift is a no-op');
+
+    StoreReducer.apply(
+      store,
+      NetCommand(name: 'createOrder', role: 'web', payload: {
+        'order': PosOrder(
+          id: 'ok',
+          ticketNo: '',
+          type: OrderType.dineIn,
+          tableId: 't1',
+          tableName: 'T1',
+          channel: 'qr',
+        ).toJson(),
+      }),
+    );
+    expect(store.orders, isNotEmpty);
+    expect(store.orders.first.shiftNo, 3);
+    expect(store.orders.first.kitchenWhere, '>>> QR TABLE T1 <<<');
+    expect(store.tableById('t1')!.status, isNot(TableStatus.free));
+    expect(store.tableById('t1')!.occupiedAt, isNotNull);
+  });
+
+  test('v1.1.74 shiftClosed round-trips on the store', () {
+    final store = AppStore(shiftClosed: true, shiftNo: 4);
+    final copy = AppStore.fromJson(store.toJson());
+    expect(copy.shiftClosed, isTrue);
+    expect(copy.shiftNo, 4);
+  });
 }

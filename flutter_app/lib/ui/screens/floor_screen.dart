@@ -11,6 +11,7 @@ import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/offsite_order.dart';
 import '../widgets/plan_extras.dart';
+import '../widgets/pos_ops.dart';
 
 class FloorScreen extends ConsumerWidget {
   const FloorScreen({super.key, this.manage = true});
@@ -36,22 +37,30 @@ class FloorScreen extends ConsumerWidget {
   }
 }
 
-class _TicketRail extends ConsumerWidget {
+class _TicketRail extends ConsumerStatefulWidget {
   const _TicketRail();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TicketRail> createState() => _TicketRailState();
+}
+
+class _TicketRailState extends ConsumerState<_TicketRail> {
+  String q = '';
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.s;
-    final orders = ref.snap.store.openOrders;
+    final orders = ref.snap.store.openOrders.where((o) => o.matchesQuery(q)).toList();
     return ColoredBox(
       color: Theme.of(context).cardColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(22, 22, 22, 12),
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 4),
             child: Text(s.t('live_board'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
           ),
+          TicketSearchField(onChanged: (v) => setState(() => q = v)),
           Expanded(
             child: orders.isEmpty
                 ? EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
@@ -135,7 +144,7 @@ class _TablesMap extends ConsumerWidget {
                           runSpacing: 8,
                           children: [
                             StatusChip(s.t('free'), color: OfColors.emerald),
-                            StatusChip(s.t('ordered'), color: OfColors.warn),
+                            StatusChip(s.t('busy'), color: OfColors.warn),
                             StatusChip(s.t('ready'), color: OfColors.mint),
                           ],
                         ),
@@ -172,9 +181,19 @@ class _TablesMap extends ConsumerWidget {
                     itemCount: store.tables.length,
                     itemBuilder: (_, i) {
                       final t = store.tables[i];
-                      final ticket = t.currentOrderId == null ? null : store.orderById(t.currentOrderId);
-                      final color = tableColor(t.status);
-                      final mins = ticket == null ? null : now.difference(ticket.createdAt).inMinutes;
+                      final ticket = store.openOrderForTable(t);
+                      final occupied = ticket != null || t.status != TableStatus.free;
+                      final color = t.status == TableStatus.ready
+                          ? tableColor(TableStatus.ready)
+                          : occupied
+                              ? tableColor(TableStatus.ordered)
+                              : tableColor(TableStatus.free);
+                      final start = ticket?.createdAt ?? t.occupiedAt;
+                      final chip = t.status == TableStatus.ready
+                          ? s.t('ready')
+                          : occupied
+                              ? s.t('busy')
+                              : s.t('free');
                       return Material(
                         color: OfColors.card(context),
                         elevation: 0,
@@ -204,10 +223,15 @@ class _TablesMap extends ConsumerWidget {
                                 const SizedBox(height: 4),
                                 Text('${t.seats} ${s.t('seats_n')}', style: TextStyle(color: OfColors.mute(context), fontSize: 14)),
                                 const Spacer(),
-                                StatusChip(s.t(t.status.name), color: color),
+                                StatusChip(chip, color: color),
+                                if (occupied && start != null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(formatBusyClock(start, now),
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: 0.4)),
+                                ],
                                 if (ticket != null) ...[
-                                  const SizedBox(height: 10),
-                                  Text('${ticket.ticketNo}  ·  ${mins}m', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                                  const SizedBox(height: 6),
+                                  Text(ticket.ticketNo, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                                   MoneyText(ticket.total, style: const TextStyle(fontSize: 16)),
                                 ],
                               ],
@@ -225,8 +249,9 @@ class _TablesMap extends ConsumerWidget {
   }
 
   Future<void> _openTable(BuildContext context, WidgetRef ref, FloorTable t) async {
-    if (t.currentOrderId != null) {
-      context.push('/order/${t.currentOrderId}');
+    final live = ref.snap.store.openOrderForTable(t);
+    if (live != null) {
+      context.push('/order/${live.id}');
       return;
     }
     final recent = ref.snap.store.orders.where((o) =>
@@ -245,6 +270,8 @@ class _TablesMap extends ConsumerWidget {
       );
       if (go != true) return;
     }
+    if (!await ensureCanCreateOrder(context, ref)) return;
+    if (!context.mounted) return;
     final store = ref.snap.store;
     final order = PosOrder(
       id: newId(),
@@ -295,6 +322,7 @@ class _TablesMap extends ConsumerWidget {
         seats: int.tryParse(seats.text) ?? 4,
         status: existing?.status ?? TableStatus.free,
         currentOrderId: existing?.currentOrderId,
+        occupiedAt: existing?.occupiedAt,
       );
       await ref.ctrl.dispatch(NetCommand(name: 'upsertTable', payload: {'table': table.toJson()}));
     }
@@ -965,7 +993,7 @@ class _FloorClockState extends State<_FloorClock> {
   @override
   void initState() {
     super.initState();
-    _t = Timer.periodic(const Duration(seconds: 20), (_) {
+    _t = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => now = DateTime.now());
     });
   }
@@ -981,6 +1009,8 @@ class _FloorClockState extends State<_FloorClock> {
 }
 
 Future<void> _newSale(BuildContext context, WidgetRef ref) async {
+  if (!await ensureCanCreateOrder(context, ref)) return;
+  if (!context.mounted) return;
   final store = ref.snap.store;
   final order = PosOrder(
     id: newId(),
@@ -994,6 +1024,8 @@ Future<void> _newSale(BuildContext context, WidgetRef ref) async {
 }
 
 Future<void> _newTicket(BuildContext context, WidgetRef ref, OrderType type) async {
+  if (!await ensureCanCreateOrder(context, ref)) return;
+  if (!context.mounted) return;
   final store = ref.snap.store;
   final order = PosOrder(
     id: newId(),

@@ -442,6 +442,7 @@ class LanServer {
       'tables': store.tables
           .map((t) => {'id': t.id, 'name': t.name})
           .toList(),
+      'shiftClosed': store.shiftClosed,
     });
   }
 
@@ -474,17 +475,23 @@ class LanServer {
       if (rawItems is! List || rawItems.isEmpty) {
         return _json({'ok': false, 'error': 'empty'}, status: 400);
       }
-      FloorTable? table;
-      final tableId = sanitizeText((body['tableId'] ?? '').toString());
-      final ip = (req.headers['x-real-ip'] ?? req.requestedUri.host);
-      if (_qrLimited(tableId, ip)) {
-        return _json({'ok': false, 'error': 'rate_limited'}, status: 429);
+      if (store.shiftClosed) {
+        return _json({'ok': false, 'error': 'shift_closed'}, status: 403);
       }
+      FloorTable? table;
+      final tableId = sanitizeText((body['tableId'] ?? body['table'] ?? '').toString());
+      final ip = (req.headers['x-real-ip'] ?? req.requestedUri.host);
       if (tableId.isNotEmpty) {
-        table = store.tableById(tableId);
+        table = store.tableByRef(tableId);
         if (table == null) {
           return _json({'ok': false, 'error': 'table_gone'}, status: 400);
         }
+      } else if (store.tables.isNotEmpty) {
+        // Floor map is live — never silently default a guest order to TAKEAWAY.
+        return _json({'ok': false, 'error': 'need_table'}, status: 400);
+      }
+      if (_qrLimited(table?.id ?? tableId, ip)) {
+        return _json({'ok': false, 'error': 'rate_limited'}, status: 429);
       }
       final lines = <Map<String, dynamic>>[];
       for (final raw in rawItems.take(40)) {
@@ -550,8 +557,21 @@ class LanServer {
           'order': {...order.toJson(), 'lines': lines},
         },
       );
+      final deny = StoreGuard.denyReason(store, createCmd);
+      if (deny.isNotEmpty) {
+        return _json({'ok': false, 'error': deny}, status: 403);
+      }
       final created = onCommand(createCmd);
-      final placed = created.store.orders.first;
+      PosOrder? placed;
+      for (final o in created.store.orders) {
+        if (o.id == order.id) {
+          placed = o;
+          break;
+        }
+      }
+      if (placed == null) {
+        return _json({'ok': false, 'error': 'shift_closed'}, status: 403);
+      }
       // 'order' mode fires straight away; 'pay' mode (v1.1.60 default) waits
       // for the counter — Main then fires it with the table number.
       AppNotice? notice;

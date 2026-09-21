@@ -161,6 +161,9 @@
   input.field{width:100%;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;
     font-size:14px;background:#f8faf9;outline:none;margin-bottom:10px}
   input.field:focus{border-color:var(--ac)}
+  select.field{width:100%;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;
+    font-size:14px;background:#f8faf9;outline:none;margin-bottom:10px;-webkit-appearance:none}
+  select.field:focus{border-color:var(--ac)}
 
   .biggo{width:100%;margin-top:16px;background:var(--ac);color:#fff;font-weight:900;font-size:15.5px;
     padding:15px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:10px;
@@ -274,6 +277,7 @@
     <div id="cart-rows" style="overflow-y:auto"></div>
     <div class="ctot" id="cart-tot"></div>
     <div class="body" style="padding-top:14px">
+      <select class="field" id="f-table" style="display:none"></select>
       <input class="field" id="f-name" autocomplete="name"/>
       <input class="field" id="f-phone" inputmode="tel" autocomplete="tel"/>
       <button class="biggo" id="send" type="button"><span id="send-t">Send to kitchen</span></button>
@@ -323,6 +327,10 @@
       stCancelled:'This order was cancelled',
       subtotal:'Subtotal',tax:'Tax',service:'Service',total:'Total',
       vatnote:'Tax &amp; service charge, if any, are settled at the counter.',
+      pickTable:'Select your table',
+      needTable:'Please pick your table before sending.',
+      shiftClosed:'The shop shift is closed. Please ask staff.',
+      tableGone:'This table is no longer available — please call your server.',
       call:'Call',wa:'WhatsApp',hrs:'hours',of:'of',noStock:'—'},
     ur:{menu:'مینو',cart:'آپ کا آرڈر',review:'دیکھیں اور بھیجیں',send:'تصدیق کر کے بھیجیں',
       add:'آرڈر میں شامل کریں',keep:'دیکھتے رہیں',again:'کچی اور آرڈر کریں',
@@ -342,6 +350,10 @@
       stCancelled:'یہ آرڈر منسوخ ہو گیا',
       subtotal:'ذیلی رقم',tax:'ٹیکس',service:'سروس',total:'کل',
       vatnote:'ٹیکس اور سروس چارج (اگر ہو) کاؤنٹر پر ادا کیے جاتے ہیں۔',
+      pickTable:'ٹیبل منتخب کریں',
+      needTable:'بھیجنے سے پہلے ٹیبل منتخب کریں۔',
+      shiftClosed:'شفٹ بند ہے — عملہ سے پوچھیں۔',
+      tableGone:'یہ ٹیبل اب دستیاب نہیں — عملہ آپ کی مدد کرے گا۔',
       call:'کال',wa:'واٹس ایپ',hrs:'اوقات',of:'از',noStock:'—'}
   };
   function t(k){return T[lang][k];}
@@ -356,6 +368,34 @@
   function saveCart(){try{localStorage.setItem('of-cart',JSON.stringify(cart));}catch(e){}}
 
   /* ── brand + static chrome ── */
+  function fillTables(){
+    var sel=$('f-table');
+    var tables=(menu&&menu.tables)||[];
+    var fromQs=qs.get('table')||'';
+    if(fromQs){
+      var hit=null;
+      for(var i=0;i<tables.length;i++){
+        if(tables[i].id===fromQs||tables[i].name===fromQs||(tableName&&tables[i].name===tableName)){hit=tables[i];break;}
+      }
+      if(hit){tableId=hit.id;tableName=hit.name;}
+      sel.style.display='none';
+      return;
+    }
+    if(!tables.length){sel.style.display='none';return;}
+    sel.style.display='';
+    var opts='<option value=\"\">'+escapeHtml(L('pickTable'))+'</option>';
+    for(var j=0;j<tables.length;j++){
+      var selAttr=tables[j].id===tableId?' selected':'';
+      opts+='<option value=\"'+escapeHtml(tables[j].id)+'\"'+selAttr+'>'+escapeHtml(tables[j].name)+'</option>';
+    }
+    sel.innerHTML=opts;
+    sel.onchange=function(){
+      tableId=sel.value;
+      tableName='';
+      for(var k=0;k<tables.length;k++){if(tables[k].id===tableId){tableName=tables[k].name;break;}}
+      applyBrand();
+    };
+  }
   function applyBrand(){
     var b=(menu&&menu.brand)||{};
     var acc=/^#[0-9a-fA-F]{6}$/.test(b.accent||'')?b.accent:'';
@@ -412,6 +452,11 @@
     if(!menu||menu.ok!==true)throw new Error('off');
     fireOn=menu.fireOn==='order'?'order':'pay';
     $('err').classList.remove('on');
+    fillTables();
+    if(menu.shiftClosed){
+      $('err').textContent=L('shiftClosed');
+      $('err').classList.add('on');
+    }
     applyBrand();renderCats();renderGrid();observers();updateBar();
   }
 
@@ -569,11 +614,16 @@
   /* ── send ── */
   $('send').onclick=async function(){
     if(sending||!cartCount())return;
+    var chosen=tableId||($('f-table')&&$('f-table').value)||'';
+    if(!chosen&&menu&&menu.tables&&menu.tables.length){
+      try{$('cart-dlg').close();}catch(e){}
+      $('err').textContent=L('needTable');$('err').classList.add('on');return;
+    }
     sending=true;$('send').disabled=true;
     $('send-t').innerHTML='<span class="spinner"></span>';
     try{
       var r=await fetch('/order/submit',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({tableId:tableId,name:$('f-name').value.trim(),phone:$('f-phone').value.trim(),
+        body:JSON.stringify({tableId:chosen,name:$('f-name').value.trim(),phone:$('f-phone').value.trim(),
           items:Object.keys(cart).map(function(pid){var l=cart[pid];
             var mods=[];for(var mid in l.mods){if(l.mods[mid])mods.push(mid);}
             return {productId:pid,qty:l.qty,mods:mods,note:l.note||''};})})});
@@ -594,7 +644,8 @@
       setTimeout(function(){tk.classList.add('fly');},1400);
       watchTicket(d.ticket||'');
     }catch(err){
-      $('err').textContent=/table_gone/.test(err.message)?(lang==='ur'?'یہ ٹیبل اب دستیاب نہیں — عملہ آپ کی مدد کرے گا۔':'This table is no longer available — please call your server.'):L('err');
+      var msg=String(err&&err.message||'');
+      $('err').textContent=/need_table/.test(msg)?L('needTable'):/table_gone/.test(msg)?L('tableGone'):/shift_closed/.test(msg)?L('shiftClosed'):L('err');
       $('err').classList.add('on');
       $('err').onclick=function(){location.reload();};
     }finally{

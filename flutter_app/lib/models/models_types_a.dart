@@ -239,6 +239,7 @@ class FloorTable {
     this.seats = 4,
     this.status = TableStatus.free,
     this.currentOrderId,
+    this.occupiedAt,
   });
 
   String id;
@@ -246,6 +247,7 @@ class FloorTable {
   int seats;
   TableStatus status;
   String? currentOrderId;
+  DateTime? occupiedAt;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -253,6 +255,7 @@ class FloorTable {
         'seats': seats,
         'status': status.name,
         'currentOrderId': currentOrderId,
+        'occupiedAt': occupiedAt?.toIso8601String(),
       };
 
   factory FloorTable.fromJson(Map<String, dynamic> j) => FloorTable(
@@ -261,6 +264,7 @@ class FloorTable {
         seats: parseInt(j['seats'], 4),
         status: enumParse(TableStatus.values, j['status'], TableStatus.free),
         currentOrderId: parseStr(j['currentOrderId']),
+        occupiedAt: j['occupiedAt'] == null ? null : parseTime(j['occupiedAt']),
       );
 }
 

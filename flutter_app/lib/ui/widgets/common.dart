@@ -386,6 +386,26 @@ Color statusColor(OrderStatus s) => switch (s) {
       OrderStatus.cancelled => OfColors.danger,
     };
 
+class TicketSearchField extends ConsumerWidget {
+  const TicketSearchField({super.key, required this.onChanged});
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: ref.s.t('search'),
+          prefixIcon: const Icon(Icons.search),
+          isDense: true,
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
 Color tableColor(TableStatus s) => switch (s) {
       TableStatus.free => OfColors.emerald,
       TableStatus.ordered => OfColors.warn,

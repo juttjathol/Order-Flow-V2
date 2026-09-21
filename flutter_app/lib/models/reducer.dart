@@ -78,6 +78,12 @@ class StoreReducer {
         final t = FloorTable.fromJson(mapOf(p['table']));
         final i = store.tables.indexWhere((e) => e.id == t.id);
         if (i >= 0) {
+          final prev = store.tables[i];
+          t.occupiedAt ??= prev.occupiedAt;
+          if (t.currentOrderId == null && prev.currentOrderId != null) {
+            t.currentOrderId = prev.currentOrderId;
+            t.status = prev.status;
+          }
           store.tables[i] = t;
         } else {
           store.tables.add(t);
@@ -167,10 +173,12 @@ class StoreReducer {
         bump();
         break;
       case 'createOrder':
+        if (store.shiftClosed) break;
         final order = PosOrder.fromJson(mapOf(p['order']));
         order.ticketNo = store.nextTicket();
         order.taxRate = store.profile.taxRate;
         order.serviceRate = store.profile.serviceRate;
+        order.shiftNo = store.shiftNo;
         // v1.1.59: attribute the sale to a staff member when we can —
         // from the station's chosen staff id, else by matching names.
         if (order.staffId == null && cmd.actor.isNotEmpty) {
@@ -182,7 +190,7 @@ class StoreReducer {
           }
         }
         store.orders.insert(0, order);
-        _syncTable(store, order);
+        _syncTable(store, order.tableId);
         bump();
         break;
       case 'patchOrder':
@@ -198,13 +206,23 @@ class StoreReducer {
           if (!mapOf(p['order']).containsKey('staffId')) {
             incoming.staffId = prevOrder.staffId;
           }
+          if (!mapOf(p['order']).containsKey('shiftNo')) {
+            incoming.shiftNo = prevOrder.shiftNo;
+          }
           store.orders[i] = incoming;
-          _syncTable(store, incoming);
+          _syncTable(store, incoming.tableId);
         }
         bump();
         break;
       case 'closeDay':
         store.lastDayClose = DateTime.now();
+        store.shiftClosed = true;
+        bump();
+        break;
+      case 'openShift':
+        if (!store.shiftClosed) break;
+        store.shiftClosed = false;
+        store.shiftNo += 1;
         bump();
         break;
       case 'startShift':
@@ -245,15 +263,11 @@ class StoreReducer {
         final order = store.orderById(parseStr(p['orderId']));
         final table = store.tableById(parseStr(p['tableId']));
         if (order != null && table != null) {
-          final old = store.tableById(order.tableId);
-          if (old != null && old.currentOrderId == order.id) {
-            old.currentOrderId = null;
-            old.status = TableStatus.free;
-          }
+          final oldId = order.tableId;
           order.tableId = table.id;
           order.tableName = table.name;
-          table.currentOrderId = order.id;
-          table.status = order.status == OrderStatus.ready ? TableStatus.ready : TableStatus.ordered;
+          _syncTable(store, oldId);
+          _syncTable(store, table.id);
         }
         bump();
         break;
@@ -264,8 +278,8 @@ class StoreReducer {
           keep.lines.addAll(drop.lines);
           drop.status = OrderStatus.cancelled;
           drop.voidReason = 'merged into ${keep.ticketNo}';
-          _syncTable(store, drop);
-          _syncTable(store, keep);
+          _syncTable(store, drop.tableId);
+          _syncTable(store, keep.tableId);
         }
         bump();
         break;
@@ -334,7 +348,7 @@ class StoreReducer {
             _restoreStock(store, order);
             order.stockDeducted = false;
           }
-          _syncTable(store, order);
+          _syncTable(store, order.tableId);
           if (next == OrderStatus.preparing && prev != OrderStatus.preparing) {
             final label = order.tableName?.isNotEmpty == true
                 ? 'Table ${order.tableName}'
@@ -383,7 +397,7 @@ class StoreReducer {
               kind: 'kitchen',
             );
           }
-          _syncTable(store, order);
+          _syncTable(store, order.tableId);
         }
         bump();
         break;
@@ -616,21 +630,27 @@ class StoreReducer {
     return ReduceResult(store, notice: notice);
   }
 
-  static void _syncTable(AppStore store, PosOrder order) {
-    if (order.tableId == null) return;
-    final table = store.tableById(order.tableId);
+  static void _syncTable(AppStore store, String? tableId) {
+    if (tableId == null || tableId.isEmpty) return;
+    final table = store.tableById(tableId);
     if (table == null) return;
-    if (order.status == OrderStatus.paid ||
-        order.status == OrderStatus.cancelled) {
-      if (table.currentOrderId == order.id) {
-        table.currentOrderId = null;
-        table.status = TableStatus.free;
-      }
+    final open = store.openOrders.where((o) => o.tableId == tableId).toList();
+    if (open.isEmpty) {
+      table.currentOrderId = null;
+      table.status = TableStatus.free;
+      table.occupiedAt = null;
       return;
     }
-    table.currentOrderId = order.id;
-    table.status =
-        order.status == OrderStatus.ready ? TableStatus.ready : TableStatus.ordered;
+    final live = open.first;
+    table.currentOrderId = live.id;
+    table.status = open.any((o) => o.status == OrderStatus.ready)
+        ? TableStatus.ready
+        : TableStatus.ordered;
+    DateTime earliest = open.first.createdAt;
+    for (final o in open) {
+      if (o.createdAt.isBefore(earliest)) earliest = o.createdAt;
+    }
+    table.occupiedAt ??= earliest;
   }
 
   static void _deductStock(AppStore store, PosOrder order) {

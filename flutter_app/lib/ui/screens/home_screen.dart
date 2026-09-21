@@ -17,6 +17,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/pos_ops.dart';
 import 'stock_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -202,9 +203,11 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => _dayClose(context, ref),
-                    icon: const Icon(Icons.lock_clock),
-                    label: Text(s.t('day_close')),
+                    onPressed: () => store.shiftClosed
+                        ? openShopShift(context, ref)
+                        : closeShopShift(context, ref),
+                    icon: Icon(store.shiftClosed ? Icons.lock_open : Icons.lock_clock),
+                    label: Text(s.t(store.shiftClosed ? 'open_shop_shift' : 'day_close')),
                   ),
                 ),
               ],
@@ -279,61 +282,7 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 14),
-          if (store.openOrders.isEmpty)
-            EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
-          else
-            ...store.openOrders.take(10).map((o) {
-              final age = DateTime.now().difference(o.createdAt);
-              final mins = age.inMinutes;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: OfCard(
-                  onTap: () => context.push('/order/${o.id}'),
-                  onLongPress: () => _deleteTicket(context, ref, o),
-                  padding: EdgeInsets.zero,
-                  child: IntrinsicHeight(
-                    child: Row(
-                      children: [
-                        Container(width: 8, color: statusColor(o.status)),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${o.ticketNo}  ·  ${o.tableName ?? o.type.name}',
-                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        '${o.lines.length} ${s.t('items')}  ·  ${s.t('open_for')} ${mins}m',
-                                        style: TextStyle(color: OfColors.mute(context), fontSize: 14),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    StatusChip(s.t(o.status.name), color: statusColor(o.status)),
-                                    const SizedBox(height: 8),
-                                    MoneyText(o.total, style: const TextStyle(fontSize: 20)),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
+          const _LiveTickets(),
           const SizedBox(height: 12),
           _ChartsFold(store: store, snap: snap, s: s, wide: wide),
         ],
@@ -363,39 +312,80 @@ Future<void> _deleteTicket(BuildContext context, WidgetRef ref, PosOrder o) asyn
   }));
 }
 
-Future<void> _dayClose(BuildContext context, WidgetRef ref) async {
-  final s = ref.s;
-  final store = ref.snap.store;
-  final today = store.salesOn(DateTime.now());
-  final paid = store.orders.where((o) => o.status == OrderStatus.paid).where((o) {
-    final d = DateTime.now();
-    return o.updatedAt.year == d.year && o.updatedAt.month == d.month && o.updatedAt.day == d.day;
-  });
-  final cash = paid.where((o) => o.payment == PaymentMethod.cash).fold<double>(0, (a, o) => a + o.total);
-  final card = paid.where((o) => o.payment == PaymentMethod.card).fold<double>(0, (a, o) => a + o.total);
-  final open = store.openOrders.length;
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(s.t('day_close')),
-      content: Text(
-        '${s.t('day_close_open')}\n\n'
-        '${s.t('today_sales')}: ${moneyOf(ref.snap, today)}\n'
-        '${s.t('cash')}: ${moneyOf(ref.snap, cash)}\n'
-        '${s.t('card')}: ${moneyOf(ref.snap, card)}\n'
-        '${s.t('open_orders')}: $open',
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('day_close'))),
+class _LiveTickets extends ConsumerStatefulWidget {
+  const _LiveTickets();
+
+  @override
+  ConsumerState<_LiveTickets> createState() => _LiveTicketsState();
+}
+
+class _LiveTicketsState extends ConsumerState<_LiveTickets> {
+  String q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final s = ref.s;
+    final list = ref.snap.store.openOrders.where((o) => o.matchesQuery(q)).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TicketSearchField(onChanged: (v) => setState(() => q = v)),
+        if (list.isEmpty)
+          EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
+        else
+          ...list.map((o) {
+            final mins = DateTime.now().difference(o.createdAt).inMinutes;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: OfCard(
+                onTap: () => context.push('/order/${o.id}'),
+                onLongPress: () => _deleteTicket(context, ref, o),
+                padding: EdgeInsets.zero,
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      Container(width: 8, color: statusColor(o.status)),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${o.ticketNo}  ·  ${o.tableName ?? o.type.name}',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${o.lines.length} ${s.t('items')}  ·  ${s.t('open_for')} ${mins}m',
+                                      style: TextStyle(color: OfColors.mute(context), fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  StatusChip(s.t(o.status.name), color: statusColor(o.status)),
+                                  const SizedBox(height: 8),
+                                  MoneyText(o.total, style: const TextStyle(fontSize: 20)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
       ],
-    ),
-  );
-  if (ok == true) {
-    await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {}));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
-    }
+    );
   }
 }
 
