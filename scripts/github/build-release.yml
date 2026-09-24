@@ -43,7 +43,19 @@ jobs:
 
       - name: Build release APK
         working-directory: flutter_app
-        run: flutter build apk --release --no-tree-shake-icons
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --release --no-tree-shake-icons 2>&1 | tee build-apk.log
+
+      - name: Surface build errors (diagnostics)
+        if: failure()
+        shell: bash
+        run: |
+          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-apk.log 2>/dev/null | head -40; } | while IFS= read -r line; do
+            esc=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
+            echo "::error ::$esc"
+          done
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -80,7 +92,19 @@ jobs:
 
       - name: Build Windows release
         working-directory: flutter_app
-        run: flutter build windows --release --no-tree-shake-icons
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build windows --release --no-tree-shake-icons 2>&1 | tee build-windows.log
+
+      - name: Surface build errors (diagnostics)
+        if: failure()
+        shell: bash
+        run: |
+          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-windows.log 2>/dev/null | head -40; } | while IFS= read -r line; do
+            esc=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
+            echo "::error ::$esc"
+          done
 
       - name: Zip Windows build
         working-directory: flutter_app/build/windows/x64/runner/Release

@@ -1,11 +1,13 @@
 import 'dart:ffi';
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
+
 /// Raw ESC/POS printing through the Windows print spooler.
 ///
 /// Any printer installed in Windows works — USB thermal printers almost
 /// always install as "Generic / Text Only" with exactly this raw path, and
-/// vendor drivers accept RAW jobs too. No new package dependency: winspool
+/// vendor drivers accept RAW jobs too. Only native calls involved: winspool
 /// is called directly through dart:ffi. Everything no-ops off Windows.
 class WindowsRawPrinter {
   WindowsRawPrinter._();

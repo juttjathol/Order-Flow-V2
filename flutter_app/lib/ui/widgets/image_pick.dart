@@ -12,7 +12,7 @@ import '../../core/platform_check.dart';
 /// image_picker backend, so we go through the OS file dialog (file_picker)
 /// instead — same bytes either way.
 Future<List<int>?> pickImageBytes({
-  int maxWidth = 600,
+  double maxWidth = 600,
   int imageQuality = 70,
 }) async {
   if (!kIsWeb && OfPlatform.isDesktop) {
