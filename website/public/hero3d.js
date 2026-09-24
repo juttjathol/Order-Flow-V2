@@ -22,7 +22,7 @@
   const cam = new THREE.PerspectiveCamera(56, 1, 1, 500);
   cam.position.z = 96;
 
-  const C1 = new THREE.Color("#3ddc97"), C2 = new THREE.Color("#e8c36a"), C3 = new THREE.Color("#7dffc4");
+  const C1 = new THREE.Color("#163E2E"), C2 = new THREE.Color("#C99026"), C3 = new THREE.Color("#8C7A65");
   const mk = (N, r0, r1, size, op) => {
     const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
@@ -33,7 +33,7 @@
       pos[i*3+1] = Math.sin(a) * r * .58 + (t - .5) * 16;
       pos[i*3+2] = (Math.random() - .5) * 46 + Math.sin(a * 2) * 5;
       const mix = Math.min(1, Math.max(0, 1 - (r - r0) / (r1 - r0 + .001) + (Math.random() - .5) * .5));
-      const c = C1.clone().lerp(Math.random() < .18 ? C2 : C3, mix);
+      const c = C1.clone().lerp(Math.random() < .25 ? C2 : C3, mix);
       col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
     }
     const g = new THREE.BufferGeometry();
@@ -41,17 +41,17 @@
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
     return new THREE.Points(g, new THREE.PointsMaterial({
       size, vertexColors: true, transparent: true, opacity: op,
-      depthWrite: false, blending: THREE.AdditiveBlending,
+      depthWrite: false, blending: THREE.NormalBlending,
     }));
   };
-  const ring = mk(3400, 30, 66, 1.25, .85);
-  const far  = mk(900, 78, 150, .8, .34);
+  const ring = mk(2600, 30, 66, 1.2, .35);
+  const far  = mk(800, 78, 150, .75, .18);
   ring.rotation.x = .30; far.rotation.x = .24;
   scene.add(ring, far);
 
   const torus = new THREE.Mesh(
     new THREE.TorusGeometry(52, .16, 6, 96),
-    new THREE.MeshBasicMaterial({ color: 0x3ddc97, transparent: true, opacity: .20 })
+    new THREE.MeshBasicMaterial({ color: 0x163E2E, transparent: true, opacity: .08 })
   );
   torus.rotation.x = 1.18; scene.add(torus);
 

@@ -288,7 +288,10 @@ Widget _recipeRow(BuildContext context, WidgetRef ref, AppStore st, MenuProduct 
       ),
       trailing: Text('${pct.toStringAsFixed(0)}%',
           style: TextStyle(
-              fontWeight: FontWeight.w900, color: low ? OfColors.danger : OfColors.mint)),
+              fontWeight: FontWeight.w900,
+              color: low
+                  ? OfColors.danger
+                  : (OfColors.isDark(context) ? OfColors.mint : OfColors.forest))),
       onTap: () => _editRecipe(context, ref, p),
     ),
   );

@@ -277,7 +277,14 @@ class HomeScreen extends ConsumerWidget {
           const SizedBox(height: 28),
           Row(
             children: [
-              Container(width: 4, height: 22, decoration: BoxDecoration(color: OfColors.mint, borderRadius: BorderRadius.circular(4))),
+              Container(
+                width: 4,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: OfColors.isDark(context) ? OfColors.mint : OfColors.forest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
               const SizedBox(width: 10),
               Text(s.t('live_board'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
             ],
@@ -742,7 +749,11 @@ class _ServerCardState extends State<_ServerCard> {
                       },
                       child: Text(
                         'http://$ip:$kLanPort',
-                        style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800, decoration: TextDecoration.underline),
+                        style: TextStyle(
+                          color: OfColors.isDark(context) ? OfColors.mint : OfColors.forest,
+                          fontWeight: FontWeight.w800,
+                          decoration: TextDecoration.underline,
+                        ),
                       ),
                     ),
                   const SizedBox(height: 6),
@@ -759,8 +770,8 @@ class _ServerCardState extends State<_ServerCard> {
                     ),
                   TextButton.icon(
                     onPressed: onRefresh,
-                    icon: const Icon(Icons.refresh, color: OfColors.mint),
-                    label: Text(s.t('refresh'), style: const TextStyle(color: OfColors.mint)),
+                    icon: Icon(Icons.refresh, color: OfColors.isDark(context) ? OfColors.mint : OfColors.forest),
+                    label: Text(s.t('refresh'), style: TextStyle(color: OfColors.isDark(context) ? OfColors.mint : OfColors.forest)),
                   ),
                 ],
               ),

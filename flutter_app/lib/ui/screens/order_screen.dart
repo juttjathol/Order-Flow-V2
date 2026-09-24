@@ -905,7 +905,14 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               const SizedBox(height: 12),
               Align(alignment: Alignment.centerLeft, child: Text(s.t('tendered'), style: const TextStyle(color: OfColors.muted))),
               Text(tender.isEmpty ? '0' : tender, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 28)),
-              if (received >= target) Text('${s.t('change_due')}  ${moneyOf(ref.snap, received - target)}', style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800)),
+              if (received >= target)
+                Text(
+                  '${s.t('change_due')}  ${moneyOf(ref.snap, received - target)}',
+                  style: TextStyle(
+                    color: OfColors.isDark(context) ? OfColors.mint : OfColors.forest,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               if (tender.isNotEmpty && received < target) Text(s.t('cash_short'), style: const TextStyle(color: OfColors.danger, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               Wrap(

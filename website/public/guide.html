@@ -15,21 +15,21 @@
     .guide-head .sec-sub { color: var(--muted); }
     .toc { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 28px 0 10px; }
     .toc a { display: block; padding: 14px 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-weight: 700; font-size: 14px; }
-    .toc a:hover { border-color: var(--mint); transform: translateY(-2px); }
+    .toc a:hover { border-color: var(--forest); color: var(--forest); transform: translateY(-2px); }
     .section { padding: 30px 0; border-top: 1px solid var(--line); }
-    .section h2 { font-family: var(--display); font-size: clamp(26px, 3vw, 38px); margin-bottom: 8px; }
+    .section h2 { font-family: var(--display); font-size: clamp(26px, 3vw, 38px); margin-bottom: 8px; color: var(--ink-heading); }
     .lang-block { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
     @media (max-width: 860px) { .lang-block { grid-template-columns: 1fr; } }
-    .lang-card { padding: 18px 20px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+    .lang-card { padding: 18px 20px; border-radius: 18px; background: var(--card); border: 1.5px solid var(--line); box-shadow: var(--shadow-card); }
     .lang-card.ur { direction: rtl; text-align: right; }
-    .lang-card h4 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--mint); margin-bottom: 10px; }
+    .lang-card h4 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); font-weight: 800; margin-bottom: 10px; }
     .lang-card h4.en { direction: ltr; text-align: left; }
-    .lang-card ol, .lang-card ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 8px; line-height: 1.6; }
-    .lang-card p { margin: 0 0 8px; line-height: 1.6; }
-    .lang-card li::marker { color: var(--gold); font-weight: 800; }
-    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: rgba(61,220,151,.14); border: 1px solid rgba(61,220,151,.4); color: var(--mint); font-size: 12px; font-weight: 700; margin-bottom: 10px; }
-    .version-note { padding: 12px 16px; border-radius: 14px; background: rgba(230,195,92,.12); border: 1px solid rgba(230,195,92,.4); color: var(--gold); font-weight: 700; font-size: 14px; display: inline-block; }
-    .back-top { display: inline-block; margin-top: 14px; font-weight: 700; color: var(--mint); text-decoration: none; }
+    .lang-card ol, .lang-card ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 8px; line-height: 1.6; color: var(--ink); }
+    .lang-card p { margin: 0 0 8px; line-height: 1.6; color: var(--ink); }
+    .lang-card li::marker { color: var(--forest); font-weight: 800; }
+    .pill { display: inline-block; padding: 4px 12px; border-radius: 999px; background: var(--cream-surface); border: 1px solid var(--line); color: var(--ink); font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .version-note { padding: 12px 18px; border-radius: 14px; background: var(--card); border: 1.5px solid var(--line); color: var(--ink); box-shadow: var(--shadow-card); font-weight: 600; font-size: 14px; display: inline-block; }
+    .back-top { display: inline-block; margin-top: 14px; font-weight: 700; color: var(--forest); text-decoration: underline; text-underline-offset: 3px; }
     /* v1.1.61 arrangement: guide fits every phone width */
     .guide-head .sec-title, .section h2, .toc a { text-wrap: balance; }
     .lang-card p, .lang-card li { overflow-wrap: break-word; text-wrap: pretty; }

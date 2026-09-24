@@ -1400,8 +1400,13 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
             if (!ref.snap.canFeature('multi_terminal'))
               Text(s.t('plan_single_device'), style: const TextStyle(color: OfColors.warn, fontSize: 12)),
           ] else
-            Text('${s.t('plan')}: ${s.t('plan_full')}',
-                style: const TextStyle(fontWeight: FontWeight.w800, color: OfColors.mint)),
+            Text(
+              '${s.t('plan')}: ${s.t('plan_full')}',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: OfColors.isDark(context) ? OfColors.mint : OfColors.forest,
+              ),
+            ),
           const SizedBox(height: 8),
           Text(s.t('reset_hint')),
           TextButton(

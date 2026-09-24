@@ -241,10 +241,10 @@
         for (const p of parts) {
           p.y -= p.vy * dt; p.x += p.vx * dt;
           if (p.y < -4) { p.y = h + 4; p.x = Math.random() * w; }
-          const a = 0.16 + 0.5 * (0.5 + 0.5 * Math.sin(t / 1000 * p.sp + p.ph));
+          const a = 0.12 + 0.35 * (0.5 + 0.5 * Math.sin(t / 1000 * p.sp + p.ph));
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.r, 0, 6.283);
-          ctx.fillStyle = "rgba(158,247,203," + a.toFixed(3) + ")";
+          ctx.fillStyle = "rgba(201,144,38," + (a * 0.35).toFixed(3) + ")";
           ctx.fill();
         }
         raf = requestAnimationFrame(frame);
