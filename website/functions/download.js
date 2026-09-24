@@ -3,7 +3,7 @@
 // jathol Pages project), ./website/functions/download.js and
 // ./cloudflare_dashboard/functions/download.js — keep them in sync.
 const REPO = "juttjathol/Order-Flow-V2";
-const FALLBACK_TAG = "v1.1.74";
+const FALLBACK_TAG = "v1.1.75";
 const FALLBACK_APK = `https://github.com/${REPO}/releases/download/${FALLBACK_TAG}/app-release.apk`;
 
 // ── security: burst throttle + short meta cache (per isolate) ────────────
