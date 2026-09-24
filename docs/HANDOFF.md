@@ -58,7 +58,11 @@ Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do 
 3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
 4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
 
-## v1.1.76 (pending build) — Desktop Main: Windows laptop runs the shop server
+## v1.1.76 (RELEASED ✅ build 36048336556) — Desktop Main: Windows laptop runs the shop server
+> **Ship status**: final release published with `app-release.apk` (117 MB) + `order-flow-windows.zip` (18 MB); site `?meta=1` serves v1.1.76; all rc tags/releases cleaned. Arena == main == `6fc52…` tip line.
+>
+> **Fixes the rc cycle taught us** (searchable): `windows_printer.dart` needs `package:ffi/ffi.dart` + pubspec `ffi: ^2.1.5` (calloc is NOT in dart:ffi); `pickImageBytes` takes `double maxWidth`; `scripts/patch_windows_runner.py` injects `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` (MSVC ≥14.51 STL1011 from permission_handler_windows); upload-artifact rejects `..` in paths; workflow annotates build-failure lines so automation reads errors without Azure log downloads.
+
 - User-facing goal: a Windows 10/11 laptop/PC can be the Main device; stations on phones join it over Wi-Fi — no protocol changes (LAN server is pure dart:io + shelf).
 - Key code: `core/platform_check.dart` (OfPlatform gates), `services/windows_printer.dart` (raw ESC/POS via winspool through plain dart:ffi — NO new dependency), `PrinterConfig.transport 'spooler'` + `spoolerName`, SessionPrefs `localSpoolerName/Enabled`, `AppController.setLocalSpoolerPrinter`, PrintService.send spooler branch first.
 - UI: station printer sheet is platform-driven ('bt' on Android, 'sys' + 'lan' on Windows, 'lan' elsewhere). More → Printers routes to the unified sheet on desktop (plan gate only applies on phones' station sheet path).
