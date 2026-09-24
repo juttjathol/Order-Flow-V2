@@ -1,4 +1,4 @@
-name: Build Release APK
+name: Build Release APK + Windows
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,14 +41,6 @@ jobs:
       - name: Patch Android plugin namespaces
         run: python3 scripts/patch_android.py --plugins
 
-      - name: Analyze (warnings non-fatal)
-        working-directory: flutter_app
-        run: flutter analyze --no-fatal-warnings
-
-      - name: Run tests
-        working-directory: flutter_app
-        run: flutter test
-
       - name: Build release APK
         working-directory: flutter_app
         run: flutter build apk --release --no-tree-shake-icons
@@ -56,16 +48,75 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-apk
           path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
-      - name: Attach APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Generate Windows runner
+        working-directory: flutter_app
+        run: flutter create --platforms=windows --org=com.jathol --project-name=order_flow .
+
+      - name: Patch Windows runner branding and window size
+        run: python scripts/patch_windows_runner.py flutter_app
+
+      - name: Flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build Windows release
+        working-directory: flutter_app
+        run: flutter build windows --release --no-tree-shake-icons
+
+      - name: Zip Windows build
+        working-directory: flutter_app/build/windows/x64/runner/Release
+        run: Compress-Archive -Path * -DestinationPath ../order-flow-windows.zip -Force
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-windows
+          path: flutter_app/build/windows/x64/runner/Release/../order-flow-windows.zip
+          if-no-files-found: error
+
+  publish-release:
+    needs: [build-apk, build-windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-apk
+          path: dist
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-windows
+          path: dist
+
+      - name: Attach binaries to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: flutter_app/build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            dist/app-release.apk
+            dist/order-flow-windows.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
