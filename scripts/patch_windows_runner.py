@@ -87,6 +87,31 @@ def main():
         ],
     )
 
+    # permission_handler_windows compiles with the deprecated /await
+    # coroutine headers, which MSVC 14.51 turns into a hard error
+    # (STL1011). Silence it at the top-level windows/CMakeLists.txt BEFORE
+    # add_subdirectory()/include() so all plugin targets inherit the define.
+    top_cmake = ROOT / "windows" / "CMakeLists.txt"
+    DEFINE = "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+    if top_cmake.exists():
+        text = top_cmake.read_text(encoding="utf-8")
+        if DEFINE in text:
+            print(f"patch_windows_runner: {DEFINE} already present")
+        elif "LANGUAGES CXX)\n" in text:
+            text = text.replace(
+                "LANGUAGES CXX)\n",
+                "LANGUAGES CXX)\n\n"
+                "# permission_handler_windows uses deprecated /await coroutines —\n"
+                "# MSVC (STL1011) hard-errors unless silenced.\n"
+                f"add_compile_definitions({DEFINE})\n",
+                1,
+            )
+            top_cmake.write_text(text, encoding="utf-8")
+            print(f"patch_windows_runner: injected {DEFINE}")
+        else:
+            print("patch_windows_runner: project() anchor not found — "
+                  "coroutine define NOT injected (build may fail with STL1011)")
+
 
 if __name__ == "__main__":
     main()
