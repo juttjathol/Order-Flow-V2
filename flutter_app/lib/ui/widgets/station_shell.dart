@@ -46,13 +46,21 @@ class StationShell extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(subtitle, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70)),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: OfColors.mute(context),
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ),
       actions: [
+        if (ref.snap.isMain) const BroadcastBell(),
         const DutyChip(),
         ...?actions,
       ],

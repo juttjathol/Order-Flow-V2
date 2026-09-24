@@ -48,6 +48,8 @@ class AppSnapshot {
     required this.pendingSync,
     this.pendingClients = const [],
     this.cloudDegraded = false,
+    this.broadcasts = const [],
+    this.unreadBroadcastCount = 0,
   });
 
   final bool ready;
@@ -67,6 +69,8 @@ class AppSnapshot {
   /// True while a cloud room is open but the relay cannot be reached —
   /// the relay keeps retrying on its own; nothing is lost meanwhile.
   final bool cloudDegraded;
+  final List<BroadcastItem> broadcasts;
+  final int unreadBroadcastCount;
 
   L10nView get l10n => L10nView(session.locale);
   String get currency => store.profile.currencySymbol;
@@ -100,6 +104,8 @@ class AppSnapshot {
     List<ClientInfo>? pendingClients,
     int? pendingSync,
     bool? cloudDegraded,
+    List<BroadcastItem>? broadcasts,
+    int? unreadBroadcastCount,
     bool clearError = false,
     bool clearIp = false,
   }) {
@@ -119,6 +125,8 @@ class AppSnapshot {
       pendingClients: pendingClients ?? this.pendingClients,
       pendingSync: pendingSync ?? this.pendingSync,
       cloudDegraded: cloudDegraded ?? this.cloudDegraded,
+      broadcasts: broadcasts ?? this.broadcasts,
+      unreadBroadcastCount: unreadBroadcastCount ?? this.unreadBroadcastCount,
     );
   }
 }
@@ -509,6 +517,45 @@ class AppController extends Notifier<AppSnapshot> {
     }
     _emit(state.copyWith(session: session, gate: _computeGate(session)));
     unawaited(_syncEntitlements());
+    unawaited(checkBroadcasts());
+  }
+
+  Future<void> checkBroadcasts() async {
+    final session = state.session;
+    if (session.role != AppRole.main) return;
+    try {
+      final list = await _license.fetchBroadcasts(apiBase: session.apiBase);
+      if (list.isEmpty) return;
+      final prefs = await SharedPreferences.getInstance();
+      final lastSeen = prefs.getString('last_broadcast_id') ?? '';
+      final newest = list.first;
+      int unread = 0;
+      if (lastSeen.isNotEmpty) {
+        final idx = list.indexWhere((b) => b.id == lastSeen);
+        unread = idx == -1 ? list.length : idx;
+      } else {
+        unread = list.isNotEmpty ? 1 : 0;
+      }
+
+      if (lastSeen != newest.id) {
+        await ShopKeepAlive.alert(
+          title: newest.title,
+          text: newest.message,
+        );
+        await prefs.setString('last_broadcast_id', newest.id);
+      }
+      _emit(state.copyWith(broadcasts: list, unreadBroadcastCount: unread));
+    } catch (_) {}
+  }
+
+  Future<void> markBroadcastsRead() async {
+    if (state.broadcasts.isNotEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_broadcast_id', state.broadcasts.first.id);
+      } catch (_) {}
+    }
+    _emit(state.copyWith(unreadBroadcastCount: 0));
   }
 
   Future<void> pickModel(BusinessModel model) async {

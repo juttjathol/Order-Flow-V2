@@ -24,7 +24,41 @@ const state = {
   token: readToken(),
   customers: [],
   licenses: [],
+  broadcasts: [],
   theme: localStorage.getItem("of_theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+};
+
+const BROADCAST_TEMPLATES = {
+  feature_kds: {
+    title: "✨ New Feature: Kitchen Display Timers & Live Search",
+    tag: "feature",
+    url: "guide",
+    message: "Track tickets with busy clocks on the Table Map, route orders to station printers, and use the instant search bar across kitchen & cashier screens to speed up service during peak hours.",
+  },
+  plan_growth: {
+    title: "💎 Upgrade to Growth Plan: Multi-Terminal LAN & Sync",
+    tag: "plan",
+    url: "https://jathol.org#plans",
+    message: "Unlock unlimited station tablets, dedicated kitchen printers, guest QR ordering, and real-time cloud sync. Contact us to upgrade your Order Flow license key today!",
+  },
+  tip_qr: {
+    title: "💡 Restaurant Flow Tip: Cut Wait Times with Guest QR",
+    tag: "tip",
+    url: "floor",
+    message: "Did you know? You can generate QR codes for each table from Floor > Table > QR. Guests scan with their camera to place orders directly into the kitchen, reducing server trips by 40%.",
+  },
+  tip_shift: {
+    title: "📊 Audit & Control: End-of-Day Shift Close",
+    tag: "tip",
+    url: "more",
+    message: "Close and reconcile daily register shifts with manager PIN security. Audit cash drawer discrepancies, staff sales, and payment breakdowns easily from the More menu.",
+  },
+  feature_display: {
+    title: "⚡ Speed & Trust: Customer-Facing Display",
+    tag: "feature",
+    url: "guide",
+    message: "Mount a second phone or tablet facing your customers to show live line items, taxes, and order totals in real-time. Turn it on in Station Shell > Role > Customer Display.",
+  },
 };
 
 document.documentElement.dataset.theme = state.theme;
@@ -60,8 +94,9 @@ function showApp(on) {
 }
 
 function setView(name) {
-  ["home", "customers", "licenses"].forEach((v) => {
-    $(`view-${v}`).classList.toggle("hidden", v !== name);
+  ["home", "customers", "licenses", "broadcasts"].forEach((v) => {
+    const el = $(`view-${v}`);
+    if (el) el.classList.toggle("hidden", v !== name);
   });
   // Sidebar links (desktop/tablet)
   document.querySelectorAll(".side a").forEach((a) => {
@@ -72,7 +107,16 @@ function setView(name) {
     btn.classList.toggle("active", btn.dataset.view === name);
   });
   $("view-title").textContent =
-    name === "home" ? "Overview" : name === "customers" ? "Customers" : "License keys";
+    name === "home"
+      ? "Overview"
+      : name === "customers"
+        ? "Customers"
+        : name === "licenses"
+          ? "License keys"
+          : "Push Notifications";
+  if (name === "broadcasts") {
+    loadBroadcasts();
+  }
 }
 
 function badge(kind, label) {
@@ -245,6 +289,85 @@ async function refresh() {
   state.licenses = licenses.licenses || [];
   renderCustomers();
   renderLicenses();
+  if (!$("view-broadcasts").classList.contains("hidden")) {
+    await loadBroadcasts();
+  }
+}
+
+async function loadBroadcasts() {
+  try {
+    const res = await api("admin/broadcasts");
+    state.broadcasts = res.broadcasts || [];
+    renderBroadcasts();
+  } catch (err) {
+    toast(err.message || "Failed to load broadcasts");
+  }
+}
+
+function renderBroadcasts() {
+  const tbody = $("b-body");
+  if (tbody) {
+    if (state.broadcasts.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">No broadcast notifications sent yet.</td></tr>`;
+    } else {
+      tbody.innerHTML = state.broadcasts
+        .map((b) => {
+          const tagBadge = badge(
+            b.tag === "plan" ? "bound" : b.tag === "feature" ? "bound" : "unbound",
+            esc(b.tag || "feature"),
+          );
+          const date = esc((b.created_at || "").slice(0, 16).replace("T", " "));
+          return `<tr>
+          <td><span class="mono" style="font-size:12px">${date}</span></td>
+          <td>${tagBadge}</td>
+          <td><strong>${esc(b.title)}</strong></td>
+          <td style="max-width:320px;white-space:normal;font-size:13px">${esc(b.message)}</td>
+          <td class="actions">
+            <button class="danger" data-delb="${esc(b.id)}">Delete</button>
+          </td>
+        </tr>`;
+        })
+        .join("");
+    }
+  }
+
+  const cards = $("b-cards");
+  if (cards) {
+    if (state.broadcasts.length === 0) {
+      cards.innerHTML = `<p class="muted" style="text-align:center;padding:24px 0">No broadcast notifications sent yet.</p>`;
+    } else {
+      cards.innerHTML = state.broadcasts
+        .map((b) => {
+          const tagBadge = badge(
+            b.tag === "plan" ? "bound" : b.tag === "feature" ? "bound" : "unbound",
+            esc(b.tag || "feature"),
+          );
+          const date = esc((b.created_at || "").slice(0, 16).replace("T", " "));
+          return `<div class="m-card">
+          <div class="m-card-row">
+            <span class="m-card-label">Type</span>
+            <span class="m-card-val">${tagBadge}</span>
+          </div>
+          <div class="m-card-row">
+            <span class="m-card-label">Title</span>
+            <span class="m-card-val"><strong>${esc(b.title)}</strong></span>
+          </div>
+          <div class="m-card-row">
+            <span class="m-card-label">Message</span>
+            <span class="m-card-val" style="font-size:13px">${esc(b.message)}</span>
+          </div>
+          <div class="m-card-row">
+            <span class="m-card-label">Date</span>
+            <span class="mono" style="font-size:11px">${date}</span>
+          </div>
+          <div class="m-card-actions">
+            <button class="danger" data-delb="${esc(b.id)}">Delete</button>
+          </div>
+        </div>`;
+        })
+        .join("");
+    }
+  }
 }
 
 const APK_STABLE = `${location.origin}/download`;
@@ -510,6 +633,49 @@ $("a-save").addEventListener("click", async () => {
 
 $("a-cancel").addEventListener("click", () => setAccessCreating());
 
+const bPreset = $("b-preset");
+if (bPreset) {
+  bPreset.addEventListener("change", () => {
+    const key = bPreset.value;
+    if (!key || !BROADCAST_TEMPLATES[key]) return;
+    const tpl = BROADCAST_TEMPLATES[key];
+    $("b-title").value = tpl.title;
+    $("b-message").value = tpl.message;
+    $("b-tag").value = tpl.tag;
+    $("b-url").value = tpl.url || "";
+  });
+}
+
+const bSend = $("b-send");
+if (bSend) {
+  bSend.addEventListener("click", async () => {
+    const title = ($("b-title").value || "").trim();
+    const message = ($("b-message").value || "").trim();
+    const tag = ($("b-tag").value || "feature").trim();
+    const url = ($("b-url").value || "").trim();
+    if (!title || !message) return toast("Enter both title and message");
+    try {
+      bSend.disabled = true;
+      bSend.textContent = "Pushing…";
+      await api("admin/broadcasts", {
+        method: "POST",
+        body: JSON.stringify({ title, message, tag, url }),
+      });
+      toast("🚀 Broadcast pushed to all Main devices!");
+      $("b-title").value = "";
+      $("b-message").value = "";
+      $("b-preset").value = "";
+      $("b-url").value = "";
+      await loadBroadcasts();
+    } catch (err) {
+      toast(err.message || "Failed to push broadcast");
+    } finally {
+      bSend.disabled = false;
+      bSend.textContent = "🚀 Push to All Main Devices";
+    }
+  });
+}
+
 buildAccessBoxes();
 setAccessCreating();
 
@@ -517,7 +683,13 @@ document.body.addEventListener("click", async (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
   try {
-    if (t.dataset.delc) {
+    if (t.dataset.delb) {
+      if (!confirm("Delete this broadcast notification?")) return;
+      await api(`admin/broadcasts/${t.dataset.delb}`, { method: "DELETE" });
+      toast("Broadcast deleted");
+      await loadBroadcasts();
+      return;
+    } else if (t.dataset.delc) {
       if (!confirm("Delete this customer and all related keys?")) return;
       await api(`admin/customers/${t.dataset.delc}`, { method: "DELETE" });
       toast("Customer deleted");

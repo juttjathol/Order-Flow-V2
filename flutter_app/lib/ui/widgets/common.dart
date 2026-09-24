@@ -63,13 +63,13 @@ class OfScaffold extends ConsumerWidget {
             ? Text(title)
             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(title),
-                Text(subtitle!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70)),
+                Text(subtitle!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: OfColors.mute(context))),
               ]),
         leading: leading,
         actions: actions,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(2),
-          child: Container(height: 2, color: OfColors.mint.withValues(alpha: 0.55)),
+          child: Container(height: 2, color: OfColors.line),
         ),
       ),
       floatingActionButton: fab,
@@ -77,6 +77,176 @@ class OfScaffold extends ConsumerWidget {
       body: body,
     );
   }
+}
+
+class BroadcastBell extends ConsumerWidget {
+  const BroadcastBell({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.s;
+    final unread = ref.snap.unreadBroadcastCount;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        IconButton(
+          tooltip: s.t('broadcasts_title'),
+          icon: Icon(
+            unread > 0 ? Icons.notifications_active : Icons.notifications_outlined,
+            color: unread > 0
+                ? OfColors.gold
+                : (OfColors.isDark(context) ? Colors.white : OfColors.forest),
+          ),
+          onPressed: () {
+            ref.ctrl.markBroadcastsRead();
+            showBroadcastsSheet(context, ref);
+          },
+        ),
+        if (unread > 0)
+          Positioned(
+            right: 8,
+            top: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: OfColors.danger,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              child: Text(
+                '$unread',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+Future<void> showBroadcastsSheet(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final broadcasts = ref.snap.broadcasts;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) {
+      final isDark = OfColors.isDark(ctx);
+      return SafeArea(
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.8,
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: OfColors.forest.withValues(alpha: isDark ? 0.25 : 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.campaign, color: OfColors.forest, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          s.t('broadcasts_title'),
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                        ),
+                        Text(
+                          s.t('broadcasts_subtitle'),
+                          style: TextStyle(color: OfColors.mute(ctx), fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (broadcasts.isNotEmpty)
+                    TextButton(
+                      onPressed: () {
+                        ref.ctrl.markBroadcastsRead();
+                        Navigator.pop(ctx);
+                      },
+                      child: Text(s.t('broadcasts_mark_read')),
+                    ),
+                ],
+              ),
+              const Divider(height: 24),
+              Expanded(
+                child: broadcasts.isEmpty
+                    ? EmptyState(
+                        icon: Icons.notifications_none,
+                        message: s.t('broadcasts_empty'),
+                      )
+                    : ListView.separated(
+                        itemCount: broadcasts.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (_, i) {
+                          final b = broadcasts[i];
+                          final tagColor = switch (b.tag) {
+                            'plan' => OfColors.gold,
+                            'tip' => OfColors.info,
+                            'announcement' => OfColors.warn,
+                            _ => OfColors.forest,
+                          };
+                          final tagLabel = switch (b.tag) {
+                            'plan' => s.t('broadcast_tag_plan'),
+                            'tip' => s.t('broadcast_tag_tip'),
+                            'announcement' => s.t('broadcast_tag_announcement'),
+                            _ => s.t('broadcast_tag_feature'),
+                          };
+                          final dateStr =
+                              '${b.createdAt.day}/${b.createdAt.month} ${b.createdAt.hour.toString().padLeft(2, '0')}:${b.createdAt.minute.toString().padLeft(2, '0')}';
+                          return OfCard(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    StatusChip(tagLabel, color: tagColor),
+                                    const Spacer(),
+                                    Text(dateStr,
+                                        style: TextStyle(color: OfColors.mute(ctx), fontSize: 11)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  b.title,
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  b.message,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    height: 1.45,
+                                    color: isDark ? const Color(0xFFD6E3DC) : const Color(0xFF2E3E35),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class StationActions extends ConsumerWidget {

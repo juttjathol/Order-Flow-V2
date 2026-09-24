@@ -100,6 +100,7 @@ class HomeScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              if (snap.isMain) const BroadcastBell(),
             ],
           ),
           const SizedBox(height: 20),

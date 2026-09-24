@@ -97,14 +97,49 @@ class _TicketRailState extends ConsumerState<_TicketRail> {
   }
 }
 
-class _TablesMap extends ConsumerWidget {
+class _TablesMap extends ConsumerStatefulWidget {
   const _TablesMap({this.manage = true});
   final bool manage;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TablesMap> createState() => _TablesMapState();
+}
+
+class _TablesMapState extends ConsumerState<_TablesMap> {
+  String _filter = 'all';
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.s;
     final store = ref.snap.store;
+    final manage = widget.manage;
+    final allTables = store.tables;
+
+    final freeTables = <FloorTable>[];
+    final busyTables = <FloorTable>[];
+    final readyTables = <FloorTable>[];
+
+    for (final t in allTables) {
+      final ticket = store.openOrderForTable(t);
+      final occupied = ticket != null || t.status != TableStatus.free;
+      if (t.status == TableStatus.ready) {
+        readyTables.add(t);
+      } else if (occupied) {
+        busyTables.add(t);
+      } else {
+        freeTables.add(t);
+      }
+    }
+
+    final visibleTables = switch (_filter) {
+      'free' => freeTables,
+      'busy' => busyTables,
+      'ready' => readyTables,
+      _ => allTables,
+    };
+
+    final isDark = OfColors.isDark(context);
+
     return Scaffold(
       floatingActionButton: manage
           ? FloatingActionButton.extended(
@@ -131,28 +166,62 @@ class _TablesMap extends ConsumerWidget {
               children: [
                 const OffsiteOrderBar(),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                  child: Text(s.t('tap_table'), style: TextStyle(color: OfColors.mute(context), fontSize: 16)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Wrap(
-                          spacing: 10,
-                          runSpacing: 8,
-                          children: [
-                            StatusChip(s.t('free'), color: OfColors.emerald),
-                            StatusChip(s.t('busy'), color: OfColors.warn),
-                            StatusChip(s.t('ready'), color: OfColors.mint),
-                          ],
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _FloorFilterChip(
+                                label: '${s.t('filter_all')} (${allTables.length})',
+                                selected: _filter == 'all',
+                                color: isDark ? Colors.white70 : OfColors.forest,
+                                onTap: () => setState(() => _filter = 'all'),
+                              ),
+                              const SizedBox(width: 8),
+                              _FloorFilterChip(
+                                label: '${s.t('free')} (${freeTables.length})',
+                                selected: _filter == 'free',
+                                color: OfColors.emerald,
+                                onTap: () => setState(() => _filter = 'free'),
+                              ),
+                              const SizedBox(width: 8),
+                              _FloorFilterChip(
+                                label: '${s.t('busy')} (${busyTables.length})',
+                                selected: _filter == 'busy',
+                                color: OfColors.warn,
+                                onTap: () => setState(() => _filter = 'busy'),
+                              ),
+                              if (readyTables.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                _FloorFilterChip(
+                                  label: '${s.t('ready')} (${readyTables.length})',
+                                  selected: _filter == 'ready',
+                                  color: OfColors.mint,
+                                  onTap: () => setState(() => _filter = 'ready'),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
                       if (manage && ref.snap.canFeature('qr_ordering'))
                         PopupMenuButton<String>(
                           tooltip: s.t('qr_table_title'),
-                          icon: const Icon(Icons.qr_code_2, size: 20, color: OfColors.mint),
+                          icon: Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: OfColors.forest.withValues(alpha: isDark ? 0.3 : 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.qr_code_2,
+                              size: 20,
+                              color: isDark ? Colors.white : OfColors.forest,
+                            ),
+                          ),
                           itemBuilder: (_) => [
                             for (final t in store.tables)
                               PopupMenuItem(
@@ -169,79 +238,167 @@ class _TablesMap extends ConsumerWidget {
                   ),
                 ),
                 Expanded(
-                  child: _FloorClock(
-                    builder: (now) => GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(22, 8, 22, 100),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: gridCount(context, phone: 2, tablet: 4),
-                      mainAxisSpacing: 18,
-                      crossAxisSpacing: 18,
-                      childAspectRatio: 0.92,
-                    ),
-                    itemCount: store.tables.length,
-                    itemBuilder: (_, i) {
-                      final t = store.tables[i];
-                      final ticket = store.openOrderForTable(t);
-                      final occupied = ticket != null || t.status != TableStatus.free;
-                      final color = t.status == TableStatus.ready
-                          ? tableColor(TableStatus.ready)
-                          : occupied
-                              ? tableColor(TableStatus.ordered)
-                              : tableColor(TableStatus.free);
-                      final start = ticket?.createdAt ?? t.occupiedAt;
-                      final chip = t.status == TableStatus.ready
-                          ? s.t('ready')
-                          : occupied
-                              ? s.t('busy')
-                              : s.t('free');
-                      return Material(
-                        color: OfColors.card(context),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                          side: BorderSide(color: color, width: 3),
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(28),
-                          onTap: () => _openTable(context, ref, t),
-                          onLongPress: manage ? () => _editTable(context, ref, existing: t) : null,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 18,
-                                  height: 18,
-                                  decoration: BoxDecoration(
-                                    color: color,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 10)],
+                  child: visibleTables.isEmpty
+                      ? Center(
+                          child: Text(
+                            s.t('no_orders'),
+                            style: TextStyle(color: OfColors.mute(context), fontSize: 15),
+                          ),
+                        )
+                      : _FloorClock(
+                          builder: (now) => GridView.builder(
+                            padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: gridCount(context, phone: 2, tablet: 4),
+                              mainAxisSpacing: 14,
+                              crossAxisSpacing: 14,
+                              childAspectRatio: isTablet(context) ? 0.98 : 0.88,
+                            ),
+                            itemCount: visibleTables.length,
+                            itemBuilder: (_, i) {
+                              final t = visibleTables[i];
+                              final ticket = store.openOrderForTable(t);
+                              final occupied = ticket != null || t.status != TableStatus.free;
+                              final color = t.status == TableStatus.ready
+                                  ? tableColor(TableStatus.ready)
+                                  : occupied
+                                      ? tableColor(TableStatus.ordered)
+                                      : tableColor(TableStatus.free);
+                              final start = ticket?.createdAt ?? t.occupiedAt;
+                              final chip = t.status == TableStatus.ready
+                                  ? s.t('ready')
+                                  : occupied
+                                      ? s.t('busy')
+                                      : s.t('free');
+
+                              return Material(
+                                color: OfColors.card(context),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(22),
+                                  side: BorderSide(
+                                    color: color.withValues(alpha: occupied ? 0.9 : 0.35),
+                                    width: occupied ? 2.5 : 1.5,
                                   ),
                                 ),
-                                const Spacer(),
-                                Text(t.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 32, letterSpacing: -0.8)),
-                                const SizedBox(height: 4),
-                                Text('${t.seats} ${s.t('seats_n')}', style: TextStyle(color: OfColors.mute(context), fontSize: 14)),
-                                const Spacer(),
-                                StatusChip(chip, color: color),
-                                if (occupied && start != null) ...[
-                                  const SizedBox(height: 8),
-                                  Text(formatBusyClock(start, now),
-                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: 0.4)),
-                                ],
-                                if (ticket != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(ticket.ticketNo, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                                  MoneyText(ticket.total, style: const TextStyle(fontSize: 16)),
-                                ],
-                              ],
-                            ),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(22),
+                                  onTap: () => _openTable(context, ref, t),
+                                  onLongPress: manage ? () => _editTable(context, ref, existing: t) : null,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: color.withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                t.name,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 18,
+                                                  letterSpacing: -0.3,
+                                                ),
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            StatusChip(chip, color: color),
+                                          ],
+                                        ),
+                                        const Spacer(),
+                                        Center(
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.chair_outlined, size: 14, color: OfColors.mute(context)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${t.seats} ${s.t('seats_n')}',
+                                                style: TextStyle(
+                                                  color: OfColors.mute(context),
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (occupied && start != null) ...[
+                                          const SizedBox(height: 6),
+                                          Center(
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: color.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.schedule, size: 12, color: color),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    formatBusyClock(start, now),
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.w800,
+                                                      fontSize: 13,
+                                                      color: color,
+                                                      letterSpacing: 0.3,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        const Spacer(),
+                                        if (ticket != null) ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(
+                                                  ticket.ticketNo,
+                                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                                                ),
+                                                MoneyText(
+                                                  ticket.total,
+                                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ] else ...[
+                                          Center(
+                                            child: Text(
+                                              s.t('tap_to_open'),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: OfColors.mute(context).withValues(alpha: 0.8),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
-                      );
-                    },
-                  ),
-                  ),
                 ),
               ],
             ),
@@ -974,6 +1131,48 @@ class _OpenOrderList extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _FloorFilterChip extends StatelessWidget {
+  const _FloorFilterChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.18) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? color : color.withValues(alpha: 0.3),
+            width: selected ? 1.8 : 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
+      ),
     );
   }
 }

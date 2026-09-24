@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS license_events (
 );
 CREATE INDEX IF NOT EXISTS idx_license_events_key ON license_events(license_key, created_at);
 
+-- Broadcast push notifications sent from SaaS dashboard to all Main POS devices.
+CREATE TABLE IF NOT EXISTS broadcast_notifications (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  tag TEXT NOT NULL DEFAULT 'feature',
+  url TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_broadcast_created ON broadcast_notifications(created_at DESC);
+
 -- Shared D1 rate-limit windows (login / license / relay). Runtime also
 -- CREATE TABLE IF NOT EXISTS so existing DBs pick this up without a migration.
 CREATE TABLE IF NOT EXISTS rate_limits (

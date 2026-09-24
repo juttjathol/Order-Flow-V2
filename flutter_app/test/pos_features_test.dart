@@ -514,4 +514,21 @@ void main() {
     expect(copy.shiftClosed, isTrue);
     expect(copy.shiftNo, 4);
   });
+
+  test('v1.1.75 BroadcastItem round-trips through json', () {
+    final item = BroadcastItem(
+      id: 'b1',
+      title: 'Kitchen Timers',
+      message: 'New live clock on table map',
+      tag: 'feature',
+      url: 'floor',
+      createdAt: DateTime.utc(2026, 9, 24, 10, 0),
+    );
+    final copy = BroadcastItem.fromJson(item.toJson());
+    expect(copy.id, 'b1');
+    expect(copy.title, 'Kitchen Timers');
+    expect(copy.message, 'New live clock on table map');
+    expect(copy.tag, 'feature');
+    expect(copy.url, 'floor');
+  });
 }

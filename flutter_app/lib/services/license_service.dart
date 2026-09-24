@@ -205,4 +205,24 @@ class LicenseService {
     if (n is Map) return (n[b] ?? '').toString();
     return (body[b] ?? '').toString();
   }
+
+  Future<List<BroadcastItem>> fetchBroadcasts({String apiBase = ''}) async {
+    final base = apiBase.trim().isNotEmpty ? apiBase.trim() : kDefaultApiBase;
+    final uri = Uri.parse(_join(base, '/api/v1/broadcasts'));
+    try {
+      final res = await http.get(uri, headers: const {
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return const [];
+      final body = _decode(res.body);
+      final list = body['broadcasts'];
+      if (list is List) {
+        return list
+            .whereType<Map>()
+            .map((m) => BroadcastItem.fromJson(Map<String, dynamic>.from(m)))
+            .toList();
+      }
+    } catch (_) {}
+    return const [];
+  }
 }

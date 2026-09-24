@@ -574,3 +574,41 @@ class AppNotice {
         at: parseTime(j['at']),
       );
 }
+
+class BroadcastItem {
+  BroadcastItem({
+    required this.id,
+    required this.title,
+    required this.message,
+    this.tag = 'feature',
+    this.url = '',
+    required this.createdAt,
+  });
+
+  final String id;
+  final String title;
+  final String message;
+  final String tag;
+  final String url;
+  final DateTime createdAt;
+
+  factory BroadcastItem.fromJson(Map<String, dynamic> j) {
+    return BroadcastItem(
+      id: parseStr(j['id']) ?? '',
+      title: parseStr(j['title']) ?? '',
+      message: parseStr(j['message']) ?? '',
+      tag: parseStr(j['tag']) ?? 'feature',
+      url: parseStr(j['url']) ?? '',
+      createdAt: parseTime(j['created_at'] ?? j['createdAt']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'message': message,
+        'tag': tag,
+        'url': url,
+        'created_at': createdAt.toIso8601String(),
+      };
+}

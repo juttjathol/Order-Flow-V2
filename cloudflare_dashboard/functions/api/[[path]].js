@@ -212,6 +212,32 @@ async function logLicenseEvent(db, { licenseId, licenseKey, event, deviceId, det
   } catch {}
 }
 
+let broadcastSchemaChecked = false;
+async function ensureBroadcastTable(db) {
+  if (broadcastSchemaChecked) return;
+  try {
+    await db.prepare("SELECT 1 FROM broadcast_notifications LIMIT 1").first();
+    broadcastSchemaChecked = true;
+  } catch {
+    try {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS broadcast_notifications (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          tag TEXT NOT NULL DEFAULT 'feature',
+          url TEXT,
+          created_at TEXT NOT NULL
+        )`,
+      ).run();
+      try {
+        await db.prepare("CREATE INDEX IF NOT EXISTS idx_broadcast_created ON broadcast_notifications(created_at DESC)").run();
+      } catch {}
+      broadcastSchemaChecked = true;
+    } catch {}
+  }
+}
+
 // PBKDF2 password hash: pbkdf2-sha256$<iterations>$<saltHex>$<hashHex>
 // (generate with: node scripts/hash-pass.mjs 'your password')
 async function verifyAdminPassword(env, given) {
@@ -283,6 +309,7 @@ export async function onRequest(context) {
   }
   await ensurePlanColumns(env.DB);
   await ensureLicenseEvents(env.DB);
+  await ensureBroadcastTable(env.DB);
 
   const path = pathOf(context);
   const method = request.method.toUpperCase();
@@ -290,6 +317,17 @@ export async function onRequest(context) {
   try {
     if (path === "v1/health" && method === "GET") {
       return json({ ok: true, app: "order-flow-saas", version: "1.0.0" });
+    }
+
+    if (path === "v1/broadcasts" && method === "GET") {
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT id, title, message, tag, url, created_at FROM broadcast_notifications ORDER BY created_at DESC LIMIT 25",
+        ).all();
+        return json({ ok: true, broadcasts: results || [] });
+      } catch (e) {
+        return json({ ok: true, broadcasts: [] });
+      }
     }
 
     if (path === "v1/license/validate" && method === "POST") {
@@ -491,6 +529,46 @@ export async function onRequest(context) {
         const cust = await customerById(env.DB, next.customer_id);
         return json({ ok: true, license: publicLicense(next, cust) });
       }
+    }
+
+    if (path === "admin/broadcasts" && method === "GET") {
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM broadcast_notifications ORDER BY created_at DESC LIMIT 100",
+      ).all();
+      return json({ ok: true, broadcasts: results || [] });
+    }
+
+    if (path === "admin/broadcasts" && method === "POST") {
+      const body = await readJson(request);
+      const title = String(body.title || "").trim();
+      const message = String(body.message || "").trim();
+      const tag = String(body.tag || "feature").trim();
+      const url = String(body.url || "").trim();
+      if (!title || !message) {
+        return json({ ok: false, error: "missing_fields", message: "Title and message are required." }, 400);
+      }
+      const id = crypto.randomUUID();
+      const now = nowIso();
+      await env.DB.prepare(
+        `INSERT INTO broadcast_notifications (id, title, message, tag, url, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(id, title, message, tag, url, now)
+        .run();
+      return json(
+        {
+          ok: true,
+          broadcast: { id, title, message, tag, url, created_at: now },
+        },
+        201,
+      );
+    }
+
+    const broadcastMatch = path.match(/^admin\/broadcasts\/([^/]+)$/);
+    if (broadcastMatch && method === "DELETE") {
+      const id = broadcastMatch[1];
+      await env.DB.prepare("DELETE FROM broadcast_notifications WHERE id = ?").bind(id).run();
+      return json({ ok: true });
     }
 
     return json({ ok: false, error: "not_found", path }, 404);

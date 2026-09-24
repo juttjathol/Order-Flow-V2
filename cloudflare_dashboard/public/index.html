@@ -37,6 +37,7 @@
         <a href="#home" class="active" data-view="home">Overview</a>
         <a href="#customers" data-view="customers">Customers</a>
         <a href="#licenses" data-view="licenses">License keys</a>
+        <a href="#broadcasts" data-view="broadcasts">Push Notifications</a>
       </nav>
     </aside>
 
@@ -165,6 +166,72 @@
         <!-- Mobile card list -->
         <div class="card-list" id="l-cards"></div>
       </section>
+
+      <!-- ── Push Notifications ────────────────────────────────────── -->
+      <section id="view-broadcasts" class="hidden">
+        <div class="panel" style="padding:18px;margin-bottom:16px">
+          <h3>Push Broadcast to Main Terminals</h3>
+          <p class="muted">Send feature announcements, restaurant flow improvement tips, and plan upgrade promos straight to all installed Main POS devices.</p>
+          
+          <div style="margin:12px 0">
+            <label for="b-preset">Pre-written templates</label>
+            <select id="b-preset">
+              <option value="">-- Choose a pre-written template or write below --</option>
+              <option value="feature_kds">✨ Feature: Kitchen Display Timers &amp; Live Search</option>
+              <option value="plan_growth">💎 Plan Promo: Upgrade to Growth for Multi-Terminal LAN</option>
+              <option value="tip_qr">💡 Restaurant Flow: Cut Table Wait Times 40% with Guest QR</option>
+              <option value="tip_shift">📊 Audit &amp; Control: End-of-Day Shift Close Reconciliation</option>
+              <option value="feature_display">⚡ Speed &amp; Trust: Turn Any Phone into a Customer Display</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="b-title">Notification Title</label>
+              <input id="b-title" placeholder="e.g. ✨ New: Live Busy Clock on Floor Map"/>
+            </div>
+            <div>
+              <label for="b-tag">Category / Tag</label>
+              <select id="b-tag">
+                <option value="feature">✨ Feature Promo</option>
+                <option value="plan">💎 Premium Plan Promo</option>
+                <option value="tip">💡 Restaurant Flow Tip</option>
+                <option value="announcement">📢 Announcement</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin:12px 0">
+            <label for="b-message">Notification Message</label>
+            <textarea id="b-message" rows="3" style="width:100%;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:inherit;font-size:14px;resize:vertical" placeholder="Enter message to display on Main shop devices..."></textarea>
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="b-url">Target / Action (optional)</label>
+              <input id="b-url" placeholder="e.g. guide, plans, floor, or https://jathol.org/guide"/>
+            </div>
+          </div>
+
+          <div class="toolbar" style="margin-top:14px">
+            <span class="muted">Main devices receive this as an instant alert &amp; in-app notification.</span>
+            <button id="b-send" type="button" style="background:var(--forest);color:#fff">🚀 Push to All Main Devices</button>
+          </div>
+        </div>
+
+        <h3 style="margin:20px 0 10px">Sent Broadcasts History</h3>
+        <!-- Desktop table -->
+        <table class="mobile-hide">
+          <thead>
+            <tr>
+              <th>Date</th><th>Type</th><th>Title</th><th>Message</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="b-body"></tbody>
+        </table>
+        <!-- Mobile card list -->
+        <div class="card-list" id="b-cards"></div>
+      </section>
     </main>
   </div>
 
@@ -189,6 +256,13 @@
         <path d="M7 15h.01M11 15h2"/>
       </svg>
       Keys
+    </button>
+    <button class="tab-btn" data-view="broadcasts" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      Push
     </button>
   </nav>
 
