@@ -305,10 +305,20 @@ class AppController extends Notifier<AppSnapshot> {
     _emit(state.copyWith(session: state.session));
   }
 
-  /// The printer attached to THIS device (station or Main): LAN first,
-  /// then Bluetooth. Falls back to null so shop-level targets apply.
+  /// The printer attached to THIS device (station or Main): Windows system
+  /// printer first (desktop Main), then LAN, then Bluetooth (phones only).
+  /// Falls back to null so shop-level targets apply.
   PrinterConfig? deviceLocalPrinter() {
     final s = state.session;
+    if (s.hasLocalSpoolerPrinter) {
+      return PrinterConfig(
+        name: s.localSpoolerName.trim(),
+        enabled: true,
+        transport: 'spooler',
+        spoolerName: s.localSpoolerName.trim(),
+        paperMm: s.localPaperMm,
+      );
+    }
     if (s.hasLocalNetPrinter) {
       return PrinterConfig(
         name: 'LAN printer',
@@ -355,6 +365,7 @@ class AppController extends Notifier<AppSnapshot> {
     state.session.localBtEnabled = enabled && address.trim().isNotEmpty;
     if (state.session.localBtEnabled) {
       state.session.localNetEnabled = false;
+      state.session.localSpoolerEnabled = false;
     }
     _emit(state.copyWith(session: state.session));
     await persist();
@@ -369,11 +380,32 @@ class AppController extends Notifier<AppSnapshot> {
     state.session.localNetPort = port <= 0 ? kEscPosPort : port;
     state.session.localNetEnabled = enabled && host.trim().isNotEmpty;
     if (state.session.localNetEnabled) {
+      state.session.localSpoolerEnabled = false;
+    }
+    if (state.session.localNetEnabled) {
       state.session.localBtEnabled = false;
+      state.session.localSpoolerEnabled = false;
       // Switching to LAN: release the held BT link so the printer is
       // instantly free for the next device/app.
       final heldBt = state.session.localBtAddress.trim();
       if (heldBt.isNotEmpty) await printer.bluetooth.forget(heldBt);
+    }
+    _emit(state.copyWith(session: state.session));
+    await persist();
+  }
+
+  /// Windows system printer (raw ESC/POS through the Windows spooler) —
+  /// this is how a desktop Main prints to USB thermal printers.
+  Future<void> setLocalSpoolerPrinter({
+    required String name,
+    bool enabled = true,
+  }) async {
+    if (!Platform.isWindows || !state.isMain) return;
+    state.session.localSpoolerName = name;
+    state.session.localSpoolerEnabled = enabled && name.trim().isNotEmpty;
+    if (state.session.localSpoolerEnabled) {
+      state.session.localBtEnabled = false;
+      state.session.localNetEnabled = false;
     }
     _emit(state.copyWith(session: state.session));
     await persist();
@@ -396,6 +428,8 @@ class AppController extends Notifier<AppSnapshot> {
     state.session.localNetHost = '';
     state.session.localNetPort = kEscPosPort;
     state.session.localNetEnabled = false;
+    state.session.localSpoolerName = '';
+    state.session.localSpoolerEnabled = false;
     _emit(state.copyWith(session: state.session));
     await persist();
   }
@@ -1311,7 +1345,44 @@ class AppController extends Notifier<AppSnapshot> {
 
   Future<void> refreshIp() async {
     try {
-      final ip = await NetworkInfo().getWifiIP();
+      // Desktop Main: discover the LAN address from the network interfaces
+      // directly — network_info_plus only covers Wi-Fi on phones.
+      final String? ip;
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        String? found;
+        final interfaces = await NetworkInterface.list(
+          type: InternetAddressType.IPv4,
+          includeLinkLocal: false,
+        );
+        for (final iface in interfaces) {
+          for (final addr in iface.addresses) {
+            final a = addr.address;
+            if (a.startsWith('192.168.') ||
+                a.startsWith('10.') ||
+                RegExp(r'^172\.(1[6-9]|2\d|3[01])\.').hasMatch(a)) {
+              found ??= a;
+              break;
+            }
+          }
+          if (found != null) break;
+        }
+        // No private range found → take the first non-loopback IPv4 at all.
+        if (found == null) {
+          final all = await NetworkInterface.list(type: InternetAddressType.IPv4);
+          for (final iface in all) {
+            for (final a in iface.addresses) {
+              if (!a.address.startsWith('127.')) {
+                found = a.address;
+                break;
+              }
+            }
+            if (found != null) break;
+          }
+        }
+        ip = found;
+      } else {
+        ip = await NetworkInfo().getWifiIP();
+      }
       state = state.copyWith(lanIp: ip, clients: _server?.clients.values.toList());
     } catch (_) {}
   }

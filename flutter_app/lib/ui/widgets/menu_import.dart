@@ -21,6 +21,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 
 import '../../core/l10n.dart';
+import '../../core/platform_check.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../services/menu_parser.dart';
@@ -45,16 +46,18 @@ Future<void> openMenuImport(BuildContext context, WidgetRef ref) async {
               child: Text(s.t('menu_scan_title'),
                   style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: Text(s.t('menu_scan_photo')),
-              onTap: () => Navigator.pop(ctx, 'camera'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: Text(s.t('menu_scan_gallery')),
-              onTap: () => Navigator.pop(ctx, 'gallery'),
-            ),
+            if (OfPlatform.supportsCameraScan)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: Text(s.t('menu_scan_photo')),
+                onTap: () => Navigator.pop(ctx, 'camera'),
+              ),
+            if (OfPlatform.supportsCameraScan)
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: Text(s.t('menu_scan_gallery')),
+                onTap: () => Navigator.pop(ctx, 'gallery'),
+              ),
             ListTile(
               leading: const Icon(Icons.picture_as_pdf_outlined),
               title: Text(s.t('menu_scan_pdf')),

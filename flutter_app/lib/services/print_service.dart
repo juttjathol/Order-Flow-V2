@@ -10,6 +10,7 @@ import '../core/money.dart';
 import '../core/sanitize.dart';
 import '../models/models.dart';
 import 'bluetooth_printer.dart';
+import 'windows_printer.dart';
 
 class PrintService {
   final bluetooth = BluetoothPrinter();
@@ -45,6 +46,13 @@ class PrintService {
 
   Future<void> send(PrinterConfig cfg, List<int> bytes) async {
     if (!cfg.enabled) throw Exception('Printer is not configured');
+    if (cfg.isSpooler) {
+      if (cfg.spoolerName.trim().isEmpty) {
+        throw Exception('Printer is not configured');
+      }
+      await WindowsRawPrinter.printRaw(cfg.spoolerName.trim(), bytes);
+      return;
+    }
     if (cfg.isBluetooth) {
       if (cfg.btAddress.trim().isEmpty) {
         throw Exception('Printer is not configured');

@@ -57,3 +57,12 @@ Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do 
 2. Owner creates GitHub tag `v1.1.73` when ready.
 3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
 4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
+
+## v1.1.76 (pending build) — Desktop Main: Windows laptop runs the shop server
+- User-facing goal: a Windows 10/11 laptop/PC can be the Main device; stations on phones join it over Wi-Fi — no protocol changes (LAN server is pure dart:io + shelf).
+- Key code: `core/platform_check.dart` (OfPlatform gates), `services/windows_printer.dart` (raw ESC/POS via winspool through plain dart:ffi — NO new dependency), `PrinterConfig.transport 'spooler'` + `spoolerName`, SessionPrefs `localSpoolerName/Enabled`, `AppController.setLocalSpoolerPrinter`, PrintService.send spooler branch first.
+- UI: station printer sheet is platform-driven ('bt' on Android, 'sys' + 'lan' on Windows, 'lan' elsewhere). More → Printers routes to the unified sheet on desktop (plan gate only applies on phones' station sheet path).
+- Gated off desktop: camera barcode scan + ML Kit (manual/USB-scanner field with autofocus stays), menu photo OCR (PDF import stays), Bluetooth channel methods (Platform.isAndroid no-ops), notification permission request, network_info getWifiIP (desktop uses NetworkInterface.list private-IPv4 preference).
+- Image picking: `ui/widgets/image_pick.dart` (file_picker on desktop, image_picker on phones).
+- CI: `.github/workflows/build-release.yml` now has build-apk (ubuntu), build-windows (windows-latest: flutter create --platforms=windows at CI + `scripts/patch_windows_runner.py` branding/size 1600x900, zips Release → order-flow-windows.zip), publish-release attaches BOTH app-release.apk and order-flow-windows.zip. Windows ZIP name stays constant so `releases/latest/download/order-flow-windows.zip` is a permanent website link.
+- NOT tagged yet — wait for user go-ahead (same ritual as v1.1.75: rc tag → green → final tag → cleanup rc; FALLBACK_TAG bump at final tag time only).

@@ -160,6 +160,17 @@ section { padding: 92px 0; }
   animation: drift 8s ease-in-out infinite;
 }
 .dl-row { display: flex; justify-content: space-between; gap: 24px; align-items: end; position: relative; }
+/* Windows laptop row (v1.1.76+) — separated by a hairline so the two
+   download choices never blur into one wall of text */
+.dl-row-win {
+  margin-top: 26px; padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+.dl-win-title {
+  font-family: var(--display); color: var(--ink-heading);
+  font-size: clamp(20px, 2.4vw, 26px); font-weight: 600;
+  margin: 0 0 8px;
+}
 #apk-tag, #apk-size { color: var(--ink-heading); font-weight: 700; }
 .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
 

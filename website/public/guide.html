@@ -100,6 +100,7 @@
         <a href="#plans">24 · Plans &amp; license access</a>
         <a href="#cloud">25 · Cloud networking</a>
         <a href="#brand">26 · Branded QR page</a>
+        <a href="#windows">27 · Main on a Windows laptop</a>
       </div>
     </div>
 
@@ -257,6 +258,7 @@
             <h4 class="en">English</h4>
             <ul>
               <li>Tables / Queue tab: tap a table to open its ticket; live colors = free / ordered / ready.</li>
+              <li><b>v1.1.76 — Main on a Windows laptop:</b> the shop server now runs on Windows 10/11 — unzip and open <i>order_flow.exe</i>, and stations on phones join it over Wi-Fi exactly like a phone Main (§27). Prints through any Windows printer (USB thermal "Generic / Text Only") or a LAN printer.</li>
               <li><b>v1.1.75 — Architectural Table Map &amp; Filters:</b> visual restaurant table layouts with seat capacity indicators, live busy clocks, and interactive filters (All, Free, Busy, Ready) to isolate open tables in seconds during busy dinner rushes.</li>
               <li><b>v1.1.75 — Main POS Push Broadcasts:</b> Main shop device receives instant alerts from the SaaS admin dashboard (new feature releases, restaurant flow tips, and plan promos) and saves them in the Notification Bell inbox.</li>
               <li><b>v1.1.74 — busy clock:</b> every occupied table shows how long it has been busy (mm:ss, then hours). A QR order on that table marks it busy the same way as a waiter ticket.</li>
@@ -272,6 +274,7 @@
             <h4>اردو</h4>
             <ul>
               <li>ٹیبلز / قطار ٹیب: ٹیبل دبا کر ٹکٹ کھولیں؛ زندہ رنگ = خالی / آرڈر / تیار۔</li>
+              <li><b>v1.1.76 — ونڈوز لیپ ٹاپ پر Main:</b> اب دکان کا سرور Windows 10/11 پر بھی چلتا ہے — ZIP extract کر کے <i>order_flow.exe</i> کھولیں اور موبائل اسٹیشن اسی وائی فائی سے جوڑیں (§27)۔ پرنٹنگ ونڈوز پرنٹر (USB “Generic / Text Only”) یا LAN پرنٹر سے۔</li>
               <li><b>v1.1.75 — فلور ٹیبل میپ اور فلٹرز:</b> نشستوں کی تعداد، لائیو مصروف گھڑی، اور تیز ترین فلٹرز (سب، خالی، مصروف، تیار) تاکہ مصروف رش میں ویٹر فوری خالی ٹیبل دیکھ سکیں۔</li>
               <li><b>v1.1.75 — Main POS پش پیغامات:</b> SaaS ایڈمن ڈیش بورڈ سے Main فون پر فوری الرٹ (نئی اپڈیٹس، ریستوران کی رفتار بڑھانے کے مشورے، اور پلان پروموز) اور گھنٹی کے نشان میں محفوظ ان باکس۔</li>
               <li><b>v1.1.74 — مصروف گھڑی:</b> ہر مصروف ٹیبل دکھاتا ہے کتنی دیر سے مصروف ہے (منٹ:سیکنڈ، پھر گھنٹے)۔ اس ٹیبل پر QR آرڈر بھی ویٹر ٹکٹ کی طرح اسے مصروف کرتا ہے۔</li>
@@ -783,6 +786,34 @@
               <li>مہمانوں کو پورا تجربہ ملتا ہے: متحرک مینیو کارڈ، تصاویر، موڈیفائر، ہدایت، کل رقم کے ساتھ ٹوکری، اور کامیابی کی ٹکٹ جس میں ٹیبل اور ٹکٹ نمبر ہو — <b>انگریزی/اردو</b> کے ساتھ، ہر فون پر چلتا ہے، کوئی ایپ نہیں چاہیے۔</li>
               <li>تبدیلیاں ایک بٹن سے محفوظ ہوتی ہیں اور اگلے ہی سکین پر نظر آتی ہیں۔ ٹیبل QR اسٹینڈ پرنٹ کرنے کا طریقہ وہی ہے (§20)۔</li>
             </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="windows">
+        <h2>27 · Main on a Windows laptop <span style="color:var(--muted);font-size:.6em">ونڈوز لیپ ٹاپ پر Main (v1.1.76)</span></h2>
+        <div class="lang-block">
+          <div class="lang-card">
+            <h4 class="en">English</h4>
+            <ol>
+              <li><b>Download the ZIP</b> from the <a href="./index.html#download">homepage</a> (<i>Download Windows ZIP</i>) on any Windows 10/11 (64-bit) laptop or PC that will be <b>Main</b>.</li>
+              <li>Extract the ZIP anywhere (Desktop is fine), then open <b>order_flow.exe</b>. The first time Windows asks “Allow through firewall?” — tick private/public networks and allow. The shop server listens on Wi-Fi port 8787, exactly like a phone Main.</li>
+              <li>Enter the same 16-character license key. A key binds to one Main; to move Main from a phone to the laptop, ask Jathol for a binding reset first (§1).</li>
+              <li>Stations pair the usual way: kitchen, cashier, takers and drivers on their phones tap <i>Connect to Main</i>, same Wi-Fi — nothing changes for them. The laptop just has to stay awake while the shop runs (lid open, plugged in).</li>
+              <li><b>Printing from a laptop Main:</b> More → Printers offers <i>Windows printers</i> (any printer installed in Windows — USB thermal printers work with the built-in “Generic / Text Only” driver) and <i>LAN / Wi-Fi</i> (network ESC/POS on port 9100). Test print from the same sheet.</li>
+              <li><b>QR guest ordering, backup/restore, reports, broadcasts</b> all work identically — the guest ordering page is still served by Main, now from `http://LAPTOP-IP:8787/order`.</li>
+            </ol>
+          </div>
+          <div class="lang-card ur">
+            <h4>اردو</h4>
+            <ol>
+              <li>ہوم پیج سے <b>Windows ZIP</b> ڈاؤن لوڈ کریں — کسی بھی Windows 10/11 (64-bit) لیپ ٹاپ یا PC پر جو <b>Main</b> بنے گی۔</li>
+              <li>ZIP extract کریں (ڈیسک ٹاپ ٹھیک رہے گا) پھر <b>order_flow.exe</b> کھولیں۔ پہلی بار ونڈوز فائر وال کی اجازت مانگے تو ٹک کر کے اجازت دیں۔ دکان کا سرور ویسے ہی وائی فائی پورٹ 8787 پر چلتا ہے جیسے فون Main پر۔</li>
+              <li>وہی 16 حرفی لائسنس کی درج کریں۔ ایک کی صرف ایک Main پر بندھی رہتی ہے؛ فون سے لیپ ٹاپ منتقل کرنے سے پہلے بائنڈنگ ری سیٹ کرائیں (§1)۔</li>
+              <li>اسٹیشن پہلے کی طرح جوڑتے ہیں: کچن، کیشیئر، ویٹر اور ڈرائیور اپنے فون سے <i>Connect to Main</i> دبائیں، وہی وائی فائی۔ بس لیپ ٹاپ بجلی پر لگی اور جاگتی رہے (ڈھکن کھلا رکھیں)۔</li>
+              <li><b>لیپ ٹاپ Main سے پرنٹنگ:</b> مزید → پرنٹرز میں <i>ونڈوز پرنٹرز</i> (ونڈوز میں انسٹال ہر پرنٹر — USB تھرمل پرنٹر “Generic / Text Only” ڈرائیور کے ساتھ فوراً چلتا ہے) اور <i>LAN وائی فائی</i> (نیٹ ورک ESC/POS پورٹ 9100) — پرنٹ ٹیسٹ اسی اسکرین سے۔</li>
+              <li><b>QR آرڈرنگ， بیک اپ/ریسٹور، رپورٹس، اعلانات</b> — سب فون والی Main جیسے ہی۔ مہمانوں کا صفحہ بھی Main ہی دیتا ہے: `http://LAPTOP-IP:8787/order`۔</li>
+            </ol>
           </div>
         </div>
       </section>

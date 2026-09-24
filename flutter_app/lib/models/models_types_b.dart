@@ -458,6 +458,7 @@ class PrinterConfig {
     this.btAddress = '',
     this.btName = '',
     this.btTransport = 'auto',
+    this.spoolerName = '',
     this.paperMm = 0,
     this.drawer = false,
   }) : id = id ?? newId();
@@ -467,21 +468,26 @@ class PrinterConfig {
   String host;
   int port;
   bool enabled;
-  /// lan | bluetooth
+  /// lan | bluetooth | spooler (Windows system printer, raw ESC/POS)
   String transport;
   String btAddress;
   String btName;
   /// v1.1.68: 'auto' | 'spp' (Bluetooth Classic) | 'ble' (GATT).
   String btTransport;
+  /// v1.1.76: Windows printer name when [transport] is 'spooler'
+  /// (USB thermal via "Generic / Text Only", or any installed driver).
+  String spoolerName;
   /// Paper width in mm (0 = auto → 58). v1.1.69: 58/76/80/100 supported.
   int paperMm;
   /// Cash drawer attached to this printer's kick port (RJ11).
   bool drawer;
 
   bool get isBluetooth => transport == 'bluetooth';
+  bool get isSpooler => transport == 'spooler';
 
   String get label {
     if (name.trim().isNotEmpty) return name.trim();
+    if (isSpooler && spoolerName.trim().isNotEmpty) return spoolerName.trim();
     if (isBluetooth && btName.trim().isNotEmpty) return btName.trim();
     if (isBluetooth && btAddress.trim().isNotEmpty) return btAddress.trim();
     if (host.trim().isNotEmpty) return host.trim();
@@ -498,6 +504,7 @@ class PrinterConfig {
         btAddress: btAddress,
         btName: btName,
         btTransport: btTransport,
+        spoolerName: spoolerName,
         paperMm: paperMm,
         drawer: drawer,
       );
@@ -512,6 +519,7 @@ class PrinterConfig {
         'btAddress': btAddress,
         'btName': btName,
         'btTransport': btTransport,
+        'spoolerName': spoolerName,
         'paperMm': paperMm,
         'drawer': drawer,
       };
@@ -528,6 +536,7 @@ class PrinterConfig {
       btAddress: parseStr(m['btAddress']) ?? '',
       btName: parseStr(m['btName']) ?? '',
       btTransport: parseStr(m['btTransport']) ?? 'auto',
+      spoolerName: parseStr(m['spoolerName']) ?? '',
       paperMm: parseInt(m['paperMm'], 0),
       drawer: parseBool(m['drawer']),
     );

@@ -171,6 +171,8 @@ class SessionPrefs {
     this.localNetHost = '',
     this.localNetPort = kEscPosPort,
     this.localNetEnabled = false,
+    this.localSpoolerName = '',
+    this.localSpoolerEnabled = false,
     List<String>? approvedDeviceIds,
     this.lanTrustUntilMs,
     this.pinFails = 0,
@@ -208,6 +210,9 @@ class SessionPrefs {
   String localNetHost;
   int localNetPort;
   bool localNetEnabled;
+  /// Windows system printer name + toggle (v1.1.76 desktop Main support).
+  String localSpoolerName;
+  bool localSpoolerEnabled;
   List<String> approvedDeviceIds;
   int? lanTrustUntilMs;
   int pinFails;
@@ -219,6 +224,9 @@ class SessionPrefs {
 
   bool get hasLocalNetPrinter =>
       localNetEnabled && localNetHost.trim().isNotEmpty;
+
+  bool get hasLocalSpoolerPrinter =>
+      localSpoolerEnabled && localSpoolerName.trim().isNotEmpty;
 
   Map<String, dynamic> toJson() => {
         'deviceId': deviceId,
@@ -245,6 +253,8 @@ class SessionPrefs {
         'localNetHost': localNetHost,
         'localNetPort': localNetPort,
         'localNetEnabled': localNetEnabled,
+        'localSpoolerName': localSpoolerName,
+        'localSpoolerEnabled': localSpoolerEnabled,
         'approvedDeviceIds': approvedDeviceIds,
         'lanTrustUntilMs': lanTrustUntilMs,
         'pinFails': pinFails,
@@ -279,6 +289,8 @@ class SessionPrefs {
       localNetHost: parseStr(m['localNetHost']) ?? '',
       localNetPort: parseInt(m['localNetPort'], kEscPosPort),
       localNetEnabled: parseBool(m['localNetEnabled']),
+      localSpoolerName: parseStr(m['localSpoolerName']) ?? '',
+      localSpoolerEnabled: parseBool(m['localSpoolerEnabled']),
       approvedDeviceIds: (m['approvedDeviceIds'] as List?)?.map((e) => e.toString()).toList() ?? <String>[],
       lanTrustUntilMs: m['lanTrustUntilMs'] == null ? null : parseInt(m['lanTrustUntilMs'], 0),
       pinFails: parseInt(m['pinFails'], 0),

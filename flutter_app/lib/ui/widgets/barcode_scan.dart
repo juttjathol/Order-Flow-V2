@@ -7,6 +7,7 @@ import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../core/platform_check.dart';
 import '../../models/models.dart';
 
 Future<String?> scanBarcode(BuildContext context, {required String title, required String hint}) {
@@ -20,13 +21,33 @@ Future<String?> scanBarcode(BuildContext context, {required String title, requir
         body: Stack(
           fit: StackFit.expand,
           children: [
-            ShopCameraScan(
-              onCode: (value) {
-                if (handled) return;
-                handled = true;
-                Navigator.pop(ctx, value);
-              },
-            ),
+            // Phones: live camera + ML Kit stream decode. Desktop: USB
+            // scanners are keyboard-wedge (zero drivers) and land in the
+            // field below — the camera isn't wired up on laptops.
+            if (OfPlatform.supportsCameraScan)
+              ShopCameraScan(
+                onCode: (value) {
+                  if (handled) return;
+                  handled = true;
+                  Navigator.pop(ctx, value);
+                },
+              )
+            else
+              const Positioned.fill(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.document_scanner, color: Colors.white54, size: 56),
+                      SizedBox(height: 14),
+                      Text(
+                        'Scan with your USB scanner — or type the code below',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             SafeArea(
               child: Align(
                 alignment: Alignment.topLeft,
@@ -205,8 +226,9 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Align(alignment: Alignment.centerLeft, child: Text(status)),
             ),
-          Expanded(
-            child: ShopCameraScan(
+          if (OfPlatform.supportsCameraScan)
+            Expanded(
+              child: ShopCameraScan(
               continuous: true,
               onCode: (value) {
                 final now = DateTime.now();
@@ -214,8 +236,8 @@ class _ScanLoopSheetState extends State<_ScanLoopSheet> {
                 lastCam = now;
                 _take(value);
               },
+              ),
             ),
-          ),
         ],
       ),
     );

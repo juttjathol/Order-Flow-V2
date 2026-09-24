@@ -515,6 +515,46 @@ void main() {
     expect(copy.shiftNo, 4);
   });
 
+  test('v1.1.76 PrinterConfig spooler transport round-trips through json', () {
+    final cfg = PrinterConfig(
+      name: '',
+      enabled: true,
+      transport: 'spooler',
+      spoolerName: 'Xprinter XP-58',
+      paperMm: 58,
+    );
+    expect(cfg.isSpooler, isTrue);
+    expect(cfg.label, 'Xprinter XP-58'); // falls back to the spooler name
+    final copy = PrinterConfig.fromJson(cfg.toJson());
+    expect(copy.transport, 'spooler');
+    expect(copy.spoolerName, 'Xprinter XP-58');
+    expect(copy.isSpooler, isTrue);
+    expect(copy.paperMm, 58);
+    // Older sessions (no spooler keys) parse with the desktop printer off.
+    final old = PrinterConfig.fromJson({
+      'id': 'p1',
+      'host': '192.168.1.50',
+      'port': 9100,
+      'enabled': true,
+      'transport': 'lan',
+    });
+    expect(old.isSpooler, isFalse);
+    expect(old.spoolerName, '');
+  });
+
+  test('v1.1.76 SessionPrefs keeps Windows printer optional and off by default', () {
+    final s = SessionPrefs.fromJson({'role': 'main', 'deviceId': 'd1'});
+    expect(s.localSpoolerName, '');
+    expect(s.localSpoolerEnabled, isFalse);
+    expect(s.hasLocalSpoolerPrinter, isFalse);
+    s.localSpoolerName = 'XP-58';
+    s.localSpoolerEnabled = true;
+    expect(s.hasLocalSpoolerPrinter, isTrue);
+    final copy = SessionPrefs.fromJson(s.toJson());
+    expect(copy.localSpoolerName, 'XP-58');
+    expect(copy.hasLocalSpoolerPrinter, isTrue);
+  });
+
   test('v1.1.75 BroadcastItem round-trips through json', () {
     final item = BroadcastItem(
       id: 'b1',

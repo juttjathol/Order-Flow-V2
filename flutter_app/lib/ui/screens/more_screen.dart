@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
+import '../widgets/image_pick.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
 import '../../core/pin_crypto.dart';
+import '../../core/platform_check.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../services/bluetooth_printer.dart';
@@ -19,6 +20,7 @@ import '../widgets/pin_gate.dart';
 import '../widgets/plan_extras.dart';
 import '../widgets/plan_lock.dart';
 import '../widgets/pos_ops.dart';
+import '../widgets/station_printer.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -231,7 +233,10 @@ class MoreScreen extends ConsumerWidget {
         const SizedBox(height: 16),
         if (shop.isNotEmpty) _folder(context, Icons.storefront, s.t('shop_section'), shop),
         _folder(context, Icons.print, s.t('hardware_section'), [
-          _row(Icons.print, s.t('printers'), () => _printers(context, ref)),
+          // Desktop (v1.1.76): the unified sheet offers Windows printers +
+          // LAN; phones keep the Bluetooth picker.
+          _row(Icons.print, s.t('printers'),
+              () => OfPlatform.isDesktop ? showLocalPrinterSheet(context, ref) : _printers(context, ref)),
           _row(Icons.savings, s.t('cash_drawer'), () => _drawer(context, ref)),
         ]),
         _folder(context, Icons.groups, s.t('people_section'), people),
@@ -328,9 +333,9 @@ Future<void> _changeModel(BuildContext context, WidgetRef ref) async {
 }
 
 Future<String?> _pickB64() async {
-  final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 600, imageQuality: 70);
-  if (picked == null) return null;
-  return base64Encode(await picked.readAsBytes());
+  final bytes = await pickImageBytes(maxWidth: 600, imageQuality: 70);
+  if (bytes == null) return null;
+  return base64Encode(bytes);
 }
 
 Widget _slipEditor(String title, String hint, SlipTemplate t, void Function(void Function()) setSt, dynamic s) {

@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
+import '../widgets/image_pick.dart';
 
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -253,9 +253,8 @@ Future<void> editProduct(
               ProductImage(image, size: 72),
               TextButton(
                 onPressed: () async {
-                  final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 600);
-                  if (picked == null) return;
-                  final bytes = await picked.readAsBytes();
+                  final bytes = await pickImageBytes(maxWidth: 600);
+                  if (bytes == null) return;
                   final encoded = await _shrink(bytes);
                   setSt(() => image = encoded);
                 },

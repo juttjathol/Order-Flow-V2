@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
@@ -19,6 +20,9 @@ class BluetoothPrinter {
   /// Paired Classic/LE Bluetooth devices. Throws [PlatformException] with
   /// code `bt_permission` when Android 12+ needs Nearby devices permission.
   Future<List<BtDevice>> bonded() async {
+    // Desktop (Main on a shop laptop): no Bluetooth printing — printers go
+    // over LAN or through the Windows spooler instead.
+    if (!Platform.isAndroid) return const [];
     try {
       final raw = await _ch.invokeMethod<List<dynamic>>('bonded');
       return (raw ?? const [])
@@ -39,6 +43,7 @@ class BluetoothPrinter {
   /// Nearby BLE peripherals (whether paired or not) — for LE-only printers
   /// that never show up in Android's classic pairing list.
   Future<List<BtDevice>> bleScan() async {
+    if (!Platform.isAndroid) return const [];
     final raw = await _ch.invokeMethod<List<dynamic>>('ble_scan');
     return (raw ?? const [])
         .whereType<Map>()
@@ -54,6 +59,7 @@ class BluetoothPrinter {
   /// Release the native held RFCOMM link (printer switch / un-set) so the
   /// printer is instantly free for the next app or device.
   Future<void> forget(String address) async {
+    if (!Platform.isAndroid) return;
     try {
       await _ch.invokeMethod('forget', {'address': address});
     } catch (_) {}
@@ -63,6 +69,9 @@ class BluetoothPrinter {
   /// GATT; 'spp'/'ble' pin one. Errors carry the real reason.
   Future<void> printBytes(String address, List<int> bytes,
       {String transport = 'auto'}) async {
+    if (!Platform.isAndroid) {
+      throw UnsupportedError('Bluetooth printing is only available on Android devices.');
+    }
     await _ch.invokeMethod('print', {
       'address': address,
       'bytes': Uint8List.fromList(bytes),

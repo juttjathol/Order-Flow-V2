@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 
 /// Keeps the Main Android process alive while the LAN shop server is on.
+/// Desktop Main needs none of this: a running window already holds the
+/// process; the broadcast bell in-app covers announcements.
 class ShopKeepAlive {
   static const _ch = MethodChannel('jathol/shop_keepalive');
 

@@ -1,11 +1,15 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/constants.dart';
+import '../../core/platform_check.dart';
 import '../../core/theme.dart';
 import '../../services/bluetooth_printer.dart';
+import '../../services/windows_printer.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/plan_lock.dart';
@@ -19,12 +23,38 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
     await showPlanLock(context, ref, featureKey: 'station_printers');
     return;
   }
+  await showLocalPrinterSheet(context, ref);
+}
+
+/// Ungated entry (v1.1.76): a desktop Main configuring its own printer is
+/// core printing, not a per-station extra — same as the Main BT sheet on
+/// Android. On phones this is identical to [showStationPrinterSheet].
+Future<void> showLocalPrinterSheet(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
   List<BtDevice> bonded = const [];
   var btErr = '';
   var loading = true;
   var started = false;
-  var mode = 0; // 0 = Bluetooth, 1 = LAN
+  String mode; // 'bt' | 'sys' (Windows system printers) | 'lan'
+  if (OfPlatform.supportsBluetoothPrinting) {
+    mode = 'bt';
+  } else if (OfPlatform.supportsWindowsSpooler) {
+    mode = 'sys';
+  } else {
+    mode = 'lan';
+  }
+  // What this device supports — phones get Bluetooth, desktop gets the
+  // Windows spooler, and everyone gets plain LAN (port 9100).
+  final modes = <MapEntry<String, IconData>>[
+    if (OfPlatform.supportsBluetoothPrinting)
+      MapEntry('bt', Icons.bluetooth),
+    if (OfPlatform.supportsWindowsSpooler)
+      MapEntry('sys', Icons.print),
+    MapEntry('lan', Icons.lan),
+  ];
+  List<String> sysPrinters = const [];
+  var sysLoading = false;
+  var sysStarted = false;
   final host = TextEditingController(text: ref.snap.session.localNetHost);
   final port = TextEditingController(
     text: ref.snap.session.localNetPort.toString(),
@@ -79,9 +109,23 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
           if (ctx.mounted) setSt(() => scanning = false);
         }
 
+        Future<void> loadSystemPrinters() async {
+          try {
+            sysPrinters = WindowsRawPrinter.listNames();
+          } catch (_) {
+            sysPrinters = const [];
+          }
+          sysLoading = false;
+          if (ctx.mounted) setSt(() {});
+        }
+
         if (!started) {
           started = true;
-          Future.microtask(loadBt);
+          if (mode == 'bt') {
+            Future.microtask(loadBt);
+          } else if (mode == 'sys') {
+            Future.microtask(loadSystemPrinters);
+          }
         }
 
         Future<void> saveLan() async {
@@ -141,7 +185,8 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
         }
 
         final hasLocal = ref.snap.session.hasLocalBtPrinter ||
-            ref.snap.session.hasLocalNetPrinter;
+            ref.snap.session.hasLocalNetPrinter ||
+            ref.snap.session.hasLocalSpoolerPrinter;
 
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
@@ -154,28 +199,165 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                 const SizedBox(height: 4),
                 Text(s.t('station_printer_hint'), style: const TextStyle(color: OfColors.muted, height: 1.35)),
                 const SizedBox(height: 10),
-                SegmentedButton<int>(
+                SegmentedButton<String>(
                   segments: [
-                    ButtonSegment(value: 0, icon: const Icon(Icons.bluetooth), label: Text(s.t('bluetooth'))),
-                    ButtonSegment(value: 1, icon: const Icon(Icons.lan), label: Text(s.t('lan_network'))),
+                    for (final m in modes)
+                      ButtonSegment(
+                        value: m.key,
+                        icon: Icon(m.value),
+                        label: Text(s.t(m.key == 'bt'
+                            ? 'bluetooth'
+                            : m.key == 'sys'
+                                ? 'win_printers'
+                                : 'lan_network')),
+                      ),
                   ],
                   selected: {mode},
-                  onSelectionChanged: (v) => setSt(() => mode = v.first),
+                  onSelectionChanged: (v) => setSt(() {
+                    mode = v.first;
+                    if (mode == 'bt') {
+                      Future.microtask(loadBt);
+                    } else if (mode == 'sys' && !sysStarted) {
+                      sysStarted = true;
+                      sysLoading = true;
+                      Future.microtask(loadSystemPrinters);
+                    }
+                  }),
                 ),
                 const SizedBox(height: 10),
-                if (hasLocal)
+                if (ref.snap.session.hasLocalSpoolerPrinter)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: StatusChip(
-                      ref.snap.session.hasLocalNetPrinter
-                          ? '${s.t('lan_network')}: ${ref.snap.session.localNetHost}:${ref.snap.session.localNetPort}'
-                          : '${s.t('bluetooth')}: ${ref.snap.session.localBtName.isNotEmpty ? ref.snap.session.localBtName : ref.snap.session.localBtAddress}',
+                      '${s.t('win_printers')}: ${ref.snap.session.localSpoolerName.trim()}',
+                      color: OfColors.mint,
+                    ),
+                  ),
+                if (ref.snap.session.hasLocalNetPrinter)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: StatusChip(
+                      '${s.t('lan_network')}: ${ref.snap.session.localNetHost}:${ref.snap.session.localNetPort}',
+                      color: OfColors.mint,
+                    ),
+                  ),
+                if (ref.snap.session.hasLocalBtPrinter)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: StatusChip(
+                      '${s.t('bluetooth')}: ${ref.snap.session.localBtName.isNotEmpty ? ref.snap.session.localBtName : ref.snap.session.localBtAddress}',
                       color: OfColors.mint,
                     ),
                   ),
                 Expanded(
-                  child: mode == 0
-                      ? loading
+                  child: switch (mode) {
+                    'sys' => () {
+                        if (sysLoading) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final sp = sysPrinters;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              s.t('win_printers_hint'),
+                              style: const TextStyle(color: OfColors.muted, fontSize: 12.5, height: 1.35),
+                            ),
+                            const SizedBox(height: 8),
+                            if (sp.isEmpty)
+                              Expanded(
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Text(
+                                      sp.isEmpty
+                                          ? s.t('no_win_printers')
+                                          : '',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: OfColors.muted, height: 1.5),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              Expanded(
+                                child: ListView.separated(
+                                  itemCount: sp.length,
+                                  separatorBuilder: (_, __) => const Divider(height: 12),
+                                  itemBuilder: (_, i) {
+                                    final name = sp[i];
+                                    final selected = ref.snap.session.localSpoolerEnabled && ref.snap.session.localSpoolerName.trim() == name;
+                                    return ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Icon(
+                                        Icons.print,
+                                        color: selected ? OfColors.emerald : OfColors.muted,
+                                        size: 20,
+                                      ),
+                                      title: Text(
+                                        name,
+                                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                      ),
+                                      subtitle: Text(
+                                        s.t(selected ? 'win_printers_selected' : 'tap_to_choose_win_printer'),
+                                        style: TextStyle(
+                                          color: selected ? OfColors.emerald : OfColors.muted,
+                                          fontSize: 11.5,
+                                        ),
+                                      ),
+                                      onTap: () async {
+                                        await ref.ctrl.setLocalSpoolerPrinter(name: name, enabled: true);
+                                        setSt(() {});
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text(s.t('printer_saved'))),
+                                          );
+                                        }
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                            const SizedBox(height: 6),
+                            TextButton.icon(
+                              onPressed: () {
+                                sysLoading = true;
+                                setSt(() {});
+                                loadSystemPrinters();
+                              },
+                              icon: sysLoading
+                                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.refresh, size: 16),
+                              label: Text(s.t('refresh')),
+                            ),
+                          ],
+                        );
+                      }(),
+                    'lan' => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
+                            controller: host,
+                            keyboardType: TextInputType.url,
+                            decoration: InputDecoration(
+                              labelText: s.t('printer_ip'),
+                              hintText: '192.168.1.100',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: port,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(labelText: s.t('printer_port')),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(s.t('lan_printer_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.35)),
+                          const SizedBox(height: 8),
+                          FilledButton.tonal(onPressed: saveLan, child: Text(s.t('use_this_lan_printer'))),
+                        ],
+                      ),
+                    _ => loading
                           ? const Center(child: CircularProgressIndicator())
                           : Column(
                               children: [
@@ -298,29 +480,7 @@ Future<void> showStationPrinterSheet(BuildContext context, WidgetRef ref) async 
                                   ),
                               ],
                             )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                TextField(
-                                  controller: host,
-                                  keyboardType: TextInputType.url,
-                                  decoration: InputDecoration(
-                                    labelText: s.t('printer_ip'),
-                                    hintText: '192.168.1.100',
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextField(
-                                  controller: port,
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(labelText: s.t('printer_port')),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(s.t('lan_printer_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12, height: 1.35)),
-                                const SizedBox(height: 8),
-                                FilledButton.tonal(onPressed: saveLan, child: Text(s.t('use_this_lan_printer'))),
-                              ],
-                            ),
+                  },
                 ),
                 const SizedBox(height: 8),
                 Align(

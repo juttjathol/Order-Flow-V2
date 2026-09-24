@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n.dart';
 import '../../core/money.dart';
+import '../../core/platform_check.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../services/shop_keepalive.dart';
@@ -470,7 +471,9 @@ class _ReadyBannerHostState extends ConsumerState<ReadyBannerHost> {
   @override
   void initState() {
     super.initState();
-    unawaited(Permission.notification.request());
+    // Bell + shouting banner are the alert on desktop; the notification
+    // permission only exists on Android/iOS.
+    if (OfPlatform.isMobile) unawaited(Permission.notification.request());
   }
 
   @override
