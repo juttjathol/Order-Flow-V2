@@ -188,12 +188,21 @@ details p { color: var(--muted); margin-top: 8px; }
 .trial-form input:focus, .trial-form select:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(22,62,46,.12); }
 .trial-form .btn { width: 100%; margin-top: 6px; }
 .wa {
-  display: flex; flex-direction: column; gap: 12px; padding: 28px; border-radius: 28px;
-  background: url("./media/hero-tablet.jpg") center/cover;
-  min-height: 280px; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: 12px; padding: 24px; border-radius: 28px;
+  background: var(--card); border: 1px solid var(--line);
+  box-shadow: var(--shadow); position: relative; overflow: hidden;
 }
-.wa::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, rgba(22,62,46,0.85)); }
-.wa > * { position: relative; z-index: 1; }
+/* Framed photo band — cream card treatment, same language as .rider-band */
+.wa::before {
+  content: ""; display: block; height: 185px; flex: 0 0 auto;
+  margin: 0 0 6px; border-radius: 20px;
+  background: url("./media/hero-tablet.jpg") center 38%/cover;
+  border: 1px solid var(--line);
+}
+.wa .kicker { color: var(--muted); }
+.wa h3 { color: var(--ink-heading); font-family: var(--display); font-weight: 600; font-size: clamp(20px, 2.4vw, 26px); line-height: 1.2; }
+.wa .biz-card { background: var(--cream-surface); }
+.wa .biz-card a { color: var(--forest); font-weight: 700; }
 
 footer { background: var(--cream-surface); border-top: 1px solid var(--line); padding: 46px 0 44px; color: var(--muted); font-size: 13.5px; }
 .foot {
