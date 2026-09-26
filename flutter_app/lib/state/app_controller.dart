@@ -232,9 +232,10 @@ class AppController extends Notifier<AppSnapshot> {
       }
     });
     if (session.role == AppRole.main &&
-        session.license.valid &&
+        (session.license.valid || session.license.inGrace) &&
         !session.license.locked) {
       await startServer();
+      unawaited(_ensureServerStaysUp());
       unawaited(revalidate());
       unawaited(_syncEntitlements());
       if (session.cloudOn) _startRelay();
@@ -694,10 +695,35 @@ class AppController extends Notifier<AppSnapshot> {
         title: state.store.profile.businessName.isEmpty ? kBrandName : state.store.profile.businessName,
         text: 'Shop server · port $kLanPort',
       );
-      await refreshIp();
+      // Cosmetic only: a VPN/adapter hiccup while discovering the LAN IP
+      // must never flip a RUNNING shop server to "stopped".
+      try {
+        await refreshIp();
+      } catch (_) {}
     } catch (e) {
       await ShopKeepAlive.stop();
+      // Never keep a half-bound server around: the next start must rebuild
+      // it from scratch (e.g. port still held by the previous instance).
+      final sock = _server;
+      _server = null;
+      await sock?.stop();
       state = state.copyWith(error: e.toString(), serverOn: false);
+    }
+  }
+
+  /// After a fresh launch the first auto-start can miss (the just-closed
+  /// instance may still hold the port, or a Windows Firewall prompt is
+  /// pending). Retry quietly a few times so re-opening the Windows app
+  /// always brings the shop's LAN server back up without manual taps.
+  Future<void> _ensureServerStaysUp() async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (state.serverOn) return;
+      await Future<void>.delayed(const Duration(seconds: 5));
+      if (state.serverOn) return;
+      if (state.session.role != AppRole.main) return;
+      if (state.session.license.locked) return;
+      if (!state.session.license.valid && !state.session.license.inGrace) return;
+      await startServer();
     }
   }
 

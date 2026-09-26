@@ -18,6 +18,7 @@ import sys
 
 ROOT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "flutter_app")
 RUNNER = ROOT / "windows" / "runner"
+SCRIPTS_DIR = pathlib.Path(__file__).resolve().parent  # → scripts/
 
 
 def patch(path: pathlib.Path, pairs, must_find=False):
@@ -86,6 +87,17 @@ def main():
             ('set(BINARY_NAME "order_flow")', 'set(BINARY_NAME "order_flow")'),
         ],
     )
+
+    # Brand icon: replace the flutter default app_icon.ico with the shop's
+    # launcher icon (same artwork as the APK) committed at
+    # scripts/windows/app_icon.ico (multi-size PNG frames packed into ICO).
+    ico_src = SCRIPTS_DIR / "windows" / "app_icon.ico"
+    ico_dst = RUNNER / "resources" / "app_icon.ico"
+    if not ico_src.exists():
+        sys.exit(f"patch_windows_runner: missing brand icon {ico_src}")
+    ico_dst.parent.mkdir(parents=True, exist_ok=True)
+    ico_dst.write_bytes(ico_src.read_bytes())
+    print(f"patch_windows_runner: brand icon installed ({ico_src.stat().st_size} bytes)")
 
     # permission_handler_windows compiles with the deprecated /await
     # coroutine headers, which MSVC 14.51 turns into a hard error
