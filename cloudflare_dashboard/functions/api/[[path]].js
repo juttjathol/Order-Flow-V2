@@ -50,17 +50,28 @@ function parseJsonArray(raw) {
 
 // null result → legacy row created before plans existed: the app keeps ALL
 // features on. Once a plan is saved the arrays are explicit (possibly empty).
+function healFeatures(plan, features) {
+  // v1.1.82: an empty feature list on a non-Starter plan is the dashboard
+  // editor bug's signature, never a shop's intent. Heal it to the plan.
+  if (plan === "full") return [...FEATURE_KEYS]; // Full means everything
+  if (Array.isArray(features) && features.length === 0 && plan !== "starter") {
+    return [...(PLAN_PRESETS[plan] ?? FEATURE_KEYS)];
+  }
+  return features;
+}
+
 function accessOf(row) {
   if (row == null) return null;
   const models = parseJsonArray(row.allowed_models);
-  const features = parseJsonArray(row.allowed_features);
-  if (models === null && features === null && (!row.plan || row.plan === "full")) {
+  const rawFeatures = parseJsonArray(row.allowed_features);
+  if (models === null && rawFeatures === null && (!row.plan || row.plan === "full")) {
     return null;
   }
+  const plan = row.plan || "full";
   return {
-    plan: row.plan || "full",
+    plan,
     allowedModels: models ?? [...MODEL_KEYS],
-    allowedFeatures: features ?? [...FEATURE_KEYS],
+    allowedFeatures: healFeatures(plan, rawFeatures ?? [...FEATURE_KEYS]),
   };
 }
 
@@ -69,9 +80,12 @@ function normalizeAccess(body) {
   const models = Array.isArray(body.allowedModels)
     ? body.allowedModels.filter((m) => MODEL_KEYS.has(m))
     : [...MODEL_KEYS];
-  const features = Array.isArray(body.allowedFeatures)
+  const rawFeatures = Array.isArray(body.allowedFeatures)
     ? body.allowedFeatures.filter((f) => FEATURE_KEYS.has(f))
     : [...PLAN_PRESETS[plan]];
+  const features = plan === "full"
+    ? [...FEATURE_KEYS] // Full can never be an empty set
+    : healFeatures(plan, rawFeatures);
   return {
     plan,
     models: models.length ? models : [...MODEL_KEYS],

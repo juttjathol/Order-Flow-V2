@@ -526,7 +526,7 @@ const PLAN_PRESETS = {
 };
 const PLAN_SUMMARY = {
   starter: "Starter — core billing only. Gated extras stay off.",
-  growth: "Growth — all features on.",
+  growth: "Growth — the original 13 extras are on (cloud networking + branded QR remain Custom/Full only).",
   custom: "Custom — pick exactly what this key unlocks.",
   full: "Full — everything on (same as before plans existed).",
 };
@@ -560,23 +560,49 @@ function applyPlanPreset() {
 }
 
 function checkedValues(sel, attr) {
-  return [...document.querySelectorAll(`${sel} [${attr}]:checked`)].map((el) => el.dataset[attr === "model" ? "model" : "feature"]);
+  // v1.1.82 fix: the checkboxes carry data-feature / data-model attributes,
+  // so the selector must name them explicitly — the old form matched
+  // nothing and every save exported an empty feature list.
+  return [...document.querySelectorAll(`${sel} [data-${attr}]:checked`)]
+      .map((el) => el.dataset[attr]);
 }
 
 function updateAccessSummary() {
   const plan = $("l-plan").value;
   const feats = checkedValues("#a-features", "feature").length;
   const models = checkedValues("#a-models", "model").length || MODELS.length;
-  $("access-summary").textContent =
+  const el = $("access-summary");
+  el.textContent =
     `${PLAN_SUMMARY[plan] || ""} Models: ${models}/${MODELS.length} · Features: ${feats}/${FEATURES.length}`;
+  if (plan !== "starter" && feats === 0) {
+    // The editor bug exported exactly this shape — never ship it silently:
+    // a save with zero features on a paid plan now falls back to the
+    // plan preset (see accessBody) instead of locking a shop out of extras.
+    el.textContent += " — ⚠ zero features ticked: save will use the plan preset (tick boxes for a Custom set)";
+    el.style.color = "#c62828";
+  } else {
+    el.style.color = "";
+  }
 }
 
 function accessBody() {
+  const plan = $("l-plan").value;
   const models = checkedValues("#a-models", "model");
+  let feats = checkedValues("#a-features", "feature");
+  if (feats.length === 0 && plan !== "starter") {
+    // Zero ticked on a paid plan is the bug's signature, never a shop's
+    // intent — heal to the plan preset (Starter legitimately saves []).
+    feats = [...(PLAN_PRESETS[plan] ?? PLAN_PRESETS.custom)];
+    // Reflect the heal in the UI so the owner sees what will be saved.
+    document.querySelectorAll("#a-features [data-feature]").forEach((cb) => {
+      cb.checked = feats.includes(cb.dataset.feature);
+    });
+  }
+  if (plan === "full") feats = FEATURES.map((f) => f[0]); // Full ships all 15
   return {
-    plan: $("l-plan").value,
+    plan,
     allowedModels: models.length ? models : MODELS.map((m) => m[0]),
-    allowedFeatures: checkedValues("#a-features", "feature"),
+    allowedFeatures: feats,
   };
 }
 

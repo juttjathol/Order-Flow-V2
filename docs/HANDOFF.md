@@ -58,6 +58,27 @@ Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do 
 3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
 4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
 
+## v1.1.82 (PR STAGE — not merged/tagged yet) — dashboard "tick all" bug locked shops out of extras
+
+**Production bug:** owner grants all 15 features on the SaaS dashboard → Windows Main still shows locked extras after Refresh.
+**Root cause (verified at source):** `cloudflare_dashboard/public/app.js` `checkedValues()` selected `[${attr}]:checked`, but the checkboxes only carry `data-feature` / `data-model` attributes → the NodeList was always empty → every access save POSTed `allowedFeatures: []` → D1 rows healed to empty → app treated the key as restricted-everything (`allOn: false`, `features: []`). The editor's own summary showed `Features: 0/15` while promising "all on".
+
+Fixes, six layers (nothing removed, all additive):
+
+1. **Dashboard editor (`app.js`):** selector is now `[data-${attr}]:checked` (reads the real boxes). `accessBody()` heals a 0-feature submit on non-Starter plans to the plan preset (Starter legitimately saves `[]`); Full always exports all 15 keys. `updateAccessSummary()` appends a red ⚠ warning whenever plan ≠ starter shows 0 features, instead of letting it sail through silently. Growth blurb corrected to "the original 13 extras are on (cloud + branded QR stay Custom/Full)".
+2. **License Worker (`api/[[path]].js`):** new `healFeatures(plan, features)` — `full → all 15`; empty array on growth/custom → the plan preset. Applied inside both `accessOf(row)` (reads, so pre-existing D1 rows written by the bug are healed on the next validate — no D1 surgery needed) and `normalizeAccess(body)` (writes, so no future save can persist the poisoned `[]`).
+3. **Flutter entitlements (`models_plans.dart`):** `Entitlements.fromLicense` — `plan == 'full'` now short-circuits to `allOn: true` regardless of payload (Full means everything, by contract); the `allowedFeatures!` bang is gone — a null list with `hasPlan` true yields an empty filtered list safely (model-only payloads no longer crash).
+4. **LicenseService (`license_service.dart`):** `applyOnlineResult` valid-branch writes the payload arrays as-is (including an explicit `[]` — Starter really is empty) and derives `hasPlanData` from the CURRENT payload only — a null payload clears a previously-sticky flag so the key falls back to all-on instead of being pinned to the last plan forever. Transient errors (`network`, `slow_down`, `bad_sig`) ALL share the offline-grace branch now — grace rules apply, and none of them can ever set `locked`. Only `not_found` / `revoked` / `expired` may lock (HTML-404 was already mapped to `network`).
+5. **AppController (`app_controller.dart`):** `revalidate()` now **awaits** `_syncEntitlements()` — the refreshed plan is propagated to the store (and every station over LAN) before the license sheet re-opens, so the snackbar and counts never reflect a stale state.
+6. **License sheet (`more_screen.dart`):** `isScrollControlled: true` + `SingleChildScrollView` capped at 70% of screen height (the close action could fall off-screen once plan details + refresh button grew the sheet). Refresh snackbar succeeds when `lastValidatedAt < 30s` **or** the license is simply valid (offline-grace misreads fixed) and always reports against `kFeatureCatalog.length` (never a hardcoded total): `Plan synced · n/15`.
+
+Tests (`pos_features_test.dart`): full-plan + all-4-models + empty-features payload → `allowsFeature` true for everything (the exact production D1 payload); starter `[]` still locks loyalty/QR; growth 13-core locks only `cloud_sync` + `qr_branding`; StoreGuard keeps blocking on a restricted store; `setEntitlements` test now seeds `allOn: false` so the assertions measure the role gate.
+
+Guide (EN+UR): §24 Plans — dashboard change → More → License → Refresh, `Plan synced · n/15`; §27 Windows — lock icons are key-side, fixed from the dashboard + Refresh (plus changelog bullets in §6).
+
+**Files:** `cloudflare_dashboard/public/app.js`, `cloudflare_dashboard/functions/api/[[path]].js`, `flutter_app/lib/models/models_plans.dart`, `flutter_app/lib/services/license_service.dart`, `flutter_app/lib/state/app_controller.dart`, `flutter_app/lib/ui/screens/more_screen.dart`, `flutter_app/test/pos_features_test.dart`, `website/public/guide.html`, `docs/HANDOFF.md` + version triple (pubspec 1.1.82+82, `kAppVersion`, 3× `FALLBACK_TAG` → v1.1.82).
+**Owner steps after deploy:** dashboard fixes live via Pages deploy on merge; the D1 rows heal themselves on the next validate (≤15 min) or instantly when a shop taps Refresh. Merge + tag only on owner's word.
+
 ## v1.1.81 (RELEASED 2026-09-26) — footer/version drift fixed + build guard
 
 - In-app footer/metadata/LAN handshake read `kAppVersion` (constants.dart); bumping pubspec alone left it at 1.1.76 while the window title (v1.1.80) proved the build. **RELEASE RITUAL from now: touch THREE places — pubspec `version`, `kAppVersion`, `FALLBACK_TAG` in the 3 download.js files.**

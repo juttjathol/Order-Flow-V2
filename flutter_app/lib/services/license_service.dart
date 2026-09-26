@@ -104,6 +104,12 @@ class LicenseService {
 
   LicenseRecord applyOnlineResult(LicenseRecord current, LicenseResult result) {
     if (result.valid) {
+      // v1.1.82: the payload is the source of truth. Write it even when it
+      // carries explicitly-empty lists (a Starter plan really is []), and
+      // derive hasPlanData from THIS payload only — a null payload clears a
+      // sticky flag so the key falls back to all-on instead of keeping the
+      // last plan's restrictions forever.
+      final hasPlan = result.allowedModels != null || result.allowedFeatures != null;
       return LicenseRecord(
         key: current.key,
         valid: true,
@@ -115,15 +121,18 @@ class LicenseService {
         lastValidatedAt: DateTime.now(),
         message: result.message,
         plan: result.plan,
-        allowedModels: result.allowedModels ?? current.allowedModels,
-        allowedFeatures: result.allowedFeatures ?? current.allowedFeatures,
-        hasPlanData:
-            result.allowedModels != null || result.allowedFeatures != null
-                ? true
-                : current.hasPlanData,
+        allowedModels: hasPlan ? result.allowedModels : current.allowedModels,
+        allowedFeatures: hasPlan ? result.allowedFeatures : current.allowedFeatures,
+        hasPlanData: hasPlan,
       );
     }
-    if (result.error == 'network') {
+    // v1.1.82: network failures, server rate-limits (slow_down) and
+    // signature hiccups (bad_sig) are transient — they share the offline
+    // grace path and must NEVER hard-lock the device. Only
+    // not_found/revoked/expired (below) may lock.
+    if (result.error == 'network' ||
+        result.error == 'slow_down' ||
+        result.error == 'bad_sig') {
       if (current.valid && current.lastValidatedAt != null) {
         final limit = current.lastValidatedAt!
             .add(const Duration(hours: kOfflineGraceHours));

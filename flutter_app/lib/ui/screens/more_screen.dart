@@ -1379,9 +1379,17 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
   final lic = ref.snap.session.license;
   await showModalBottomSheet<void>(
     context: context,
+    // v1.1.82: the sheet grows with plan detail + refresh button; on small
+    // screens the close button dropped off-screen. Scroll + cap at 70%.
+    isScrollControlled: true,
     builder: (ctx) => Padding(
       padding: const EdgeInsets.all(20),
-      child: Column(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1439,8 +1447,11 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
                   final enabled =
                       kFeatureCatalog.where((f) => snapAfter.canFeature(f.key)).length;
                   final fresh = snapAfter.session.license.lastValidatedAt;
-                  final ok = fresh != null &&
-                      DateTime.now().difference(fresh).inSeconds < 30;
+                  // Success = we just validated (≤30s) OR the key is simply
+                  // valid (offline grace paths keep the entitlements live).
+                  final ok = snapAfter.session.license.valid ||
+                      (fresh != null &&
+                          DateTime.now().difference(fresh).inSeconds < 30);
                   ScaffoldMessenger.of(innerCtx).showSnackBar(SnackBar(
                     content: Text(ok
                         ? '${s2.t('plan_refreshed')} · $enabled/${kFeatureCatalog.length}'
@@ -1479,6 +1490,8 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
             ),
           ),
         ],
+          ),
+        ),
       ),
     ),
   );

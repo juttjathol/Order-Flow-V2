@@ -154,8 +154,63 @@ void main() {
     expect(res.store.waste.first.cost, 2);
   });
 
+  // ── v1.1.82: full-plan heal + empty-list production bug ──────────────
+
+  test('v1.1.82 full plan with explicit empty lists still allows every feature', () {
+    // The exact production D1 payload that shipped with the editor bug:
+    // plan 'full', all four models ticked, and features: [].
+    final full = Entitlements.fromLicense(
+      plan: 'full',
+      allowedModels: ['restaurant', 'retail', 'fastfood', 'services'],
+      allowedFeatures: <String>[],
+    );
+    expect(full.allOn, isTrue);
+    expect(full.allowsFeature('qr_ordering'), isTrue);
+    expect(full.allowsFeature('cloud_sync'), isTrue);
+    expect(full.allowsFeature('qr_branding'), isTrue);
+    expect(full.allowsModel('restaurant'), isTrue);
+  });
+
+  test('v1.1.82 starter with empty features really locks extras', () {
+    final starter = Entitlements.fromLicense(
+      plan: 'starter',
+      allowedModels: ['restaurant'],
+      allowedFeatures: <String>[],
+    );
+    expect(starter.allOn, isFalse);
+    expect(starter.allowsFeature('loyalty'), isFalse);
+    expect(starter.allowsFeature('qr_ordering'), isFalse);
+    expect(starter.allowsFeature('some-always-on-thing'), isTrue);
+  });
+
+  test('v1.1.82 growth core set locks only cloud extras', () {
+    const core13 = [
+      'multi_terminal', 'station_printers', 'qr_ordering', 'loyalty',
+      'split_payment', 'refunds', 'customer_display', 'reservations',
+      'recipe_costing', 'wastage', 'purchases', 'advanced_reports', 'eighty_six',
+    ];
+    final growth = Entitlements.fromLicense(
+      plan: 'growth',
+      allowedModels: ['restaurant'],
+      allowedFeatures: core13,
+    );
+    for (final key in core13) {
+      expect(growth.allowsFeature(key), isTrue, reason: key);
+    }
+    expect(growth.allowsFeature('qr_branding'), isFalse);
+    expect(growth.allowsFeature('cloud_sync'), isFalse);
+  });
+
   test('setEntitlements only applies from Main role', () {
     final store = AppStore();
+    // v1.1.82: start from a restricted store so the allow/deny assertions
+    // measure the role gate, not the legacy all-on default.
+    store.entitlements = Entitlements(
+      allOn: false,
+      plan: 'starter',
+      features: const [],
+    );
+    expect(store.entitlements.allOn, isFalse);
     final fromClient = NetCommand(
       name: 'setEntitlements',
       role: 'cashier',

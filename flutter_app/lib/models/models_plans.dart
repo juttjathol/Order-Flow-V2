@@ -106,18 +106,23 @@ class Entitlements {
 
   /// Build entitlements from a license validation response.
   /// Null/absent lists mean "no plan set" → everything stays on.
+  /// v1.1.82: `plan == 'full'` is the everything-plan by contract — never
+  /// take an explicit empty list literally (the dashboard bug shipped
+  /// `[]` for Full rows), and never bang a possibly-null list: mixed
+  /// model-only / feature-only payloads stay safe.
   factory Entitlements.fromLicense({
     String plan = '',
     List<String>? allowedModels,
     List<String>? allowedFeatures,
   }) {
+    if (plan == 'full') return Entitlements(allOn: true, plan: 'full');
     final hasPlan = allowedModels != null || allowedFeatures != null;
     return Entitlements(
       allOn: !hasPlan,
       plan: hasPlan ? plan : (plan.isEmpty ? 'full' : plan),
       models: allowedModels ?? <String>[],
       features: hasPlan
-          ? allowedFeatures!.where(isGatedFeature).toList()
+          ? (allowedFeatures ?? const <String>[]).where(isGatedFeature).toList()
           : <String>[],
     );
   }

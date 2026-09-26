@@ -552,7 +552,9 @@ class AppController extends Notifier<AppSnapshot> {
       return;
     }
     _emit(state.copyWith(session: session, gate: _computeGate(session)));
-    unawaited(_syncEntitlements());
+    // v1.1.82: await so a manual Refresh cannot race back to the sheet with
+    // stale entitlements — the synced plan must be live before we report.
+    await _syncEntitlements();
     unawaited(checkBroadcasts());
   }
 
