@@ -40,3 +40,4 @@ dist/
 *.apk
 *.aab
 .arena/
+__pycache__/
