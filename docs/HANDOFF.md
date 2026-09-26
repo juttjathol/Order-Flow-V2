@@ -58,7 +58,12 @@ Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do 
 3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
 4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
 
-## v1.1.79 (RELEASED 2026-09-26) — close-to-exit, manual server start, refresh verdict
+## v1.1.80 (RELEASED 2026-09-26) — version in the Windows title bar
+
+- Support case: user repeatedly launched the OLD unziped exe after "updating" (window still showed 1.1.76); `patch_windows_runner.py` now bakes the pubspec version into the window title (`Order Flow X.Y.Z`).
+- Guide §27 (EN+UR): "Am I really on the new version?" — title + File version check, old-folder trap.
+
+
 
 - `main.dart` `_DesktopCloseGuard` (desktop-only): on AppLifecycleState.detached → `exit(0)`, killing any ghost order_flow.exe that would otherwise hold :8787 or block ZIP re-extraction ("folder in use"). Phones do not register the observer. NOTE: WidgetsBindingObserver super-ctor is non-const — v1.1.79-rc1 taught this; keep the observer const-free.
 - `main_shell` actions: when Main is stopped the chip becomes `_ServerRestartChip` (tap to start, tooltip `server_start_hint`, failure snackbar `server_start_failed`).
