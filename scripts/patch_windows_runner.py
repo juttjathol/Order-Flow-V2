@@ -60,7 +60,7 @@ def main():
         [
             ('Win32Window::Size size(1280, 720)', 'Win32Window::Size size(1600, 900)'),
             ('Win32Window::Point origin(10, 10)', 'Win32Window::Point origin(40, 40)'),
-            ('window.Create(L"order_flow"', 'window.Create(L"Order Flow"'),
+            ('window.Create(L"order_flow"', f'window.Create(L"Order Flow {version}"'),
         ],
         must_find=True,
     )
