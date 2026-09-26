@@ -58,7 +58,13 @@ Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do 
 3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
 4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
 
-## v1.1.77 (RELEASED 2026-09-26) — Windows polish round 1
+## v1.1.78 (RELEASED 2026-09-26) — plan-sync speed + visibility
+
+- `kRevalidateMinutes` 15 → 5: SaaS plan/feature edits reach Main within ~5 min; stations follow via the store entitlements sync over LAN instantly. Confirmed the SaaS data plane: the dashboard and the app share the same D1 cloud `order-flow-v2.pages.dev/api` (broadcast post appeared on the app-origin API).
+- More → License sheet: new "Refresh plan & features now" (EN+UR `refresh_plan_now`) — on-tap `revalidate()` then re-renders fresh plan/feature counts.
+- Guide §27 (EN+UR): extractor "folder in use" fix (close order_flow.exe / Task Manager-End task).
+
+
 
 - Server resilience (fix: "server stops after close/reopen" — the address-shown-as-stopped bug): bootstrap also starts LAN server in license grace; `_ensureServerStaysUp()` watchdog retries 3× after launch; `refreshIp()` failure can no longer flip a RUNNING server to stopped; failed starts dispose the half-bound `LanServer` so the retry rebuilds cleanly. Mobile behavior unchanged.
 - Brand: `scripts/windows/app_icon.ico` (multi-size PNG frames of the launcher icon) is installed into the generated runner by `scripts/patch_windows_runner.py` — Windows exe/taskbar now show the shop icon.
