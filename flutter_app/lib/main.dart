@@ -15,7 +15,7 @@ Future<void> main() async {
   // a ghost order_flow.exe in Task Manager holds the LAN port and makes
   // ZIP re-extraction fail with "folder in use". Phones are untouched.
   if (OfPlatform.isDesktop) {
-    WidgetsBinding.instance.addObserver(const _DesktopCloseGuard());
+    WidgetsBinding.instance.addObserver(_DesktopCloseGuard());
   }
   runApp(
     ProviderScope(
@@ -28,7 +28,7 @@ Future<void> main() async {
 }
 
 class _DesktopCloseGuard extends WidgetsBindingObserver {
-  const _DesktopCloseGuard();
+  _DesktopCloseGuard();
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
