@@ -1433,12 +1433,23 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
                 label: Text(innerRef.s.t('refresh_plan_now')),
                 onPressed: () async {
                   await innerRef.ctrl.revalidate();
-                  if (innerCtx.mounted) {
-                    Navigator.pop(innerCtx);
-                    // Re-open so plan/features counts reflect the fresh pull.
-                    // ignore: use_build_context_synchronously
-                    _license(context, innerRef);
-                  }
+                  if (!innerCtx.mounted) return;
+                  final s2 = innerRef.s;
+                  final snapAfter = innerRef.snap;
+                  final enabled =
+                      kFeatureCatalog.where((f) => snapAfter.canFeature(f.key)).length;
+                  final fresh = snapAfter.session.license.lastValidatedAt;
+                  final ok = fresh != null &&
+                      DateTime.now().difference(fresh).inSeconds < 30;
+                  ScaffoldMessenger.of(innerCtx).showSnackBar(SnackBar(
+                    content: Text(ok
+                        ? '${s2.t('plan_refreshed')} · $enabled/${kFeatureCatalog.length}'
+                        : s2.t('plan_refresh_failed')),
+                  ));
+                  Navigator.pop(innerCtx);
+                  // Re-open so plan/features counts reflect the fresh pull.
+                  // ignore: use_build_context_synchronously
+                  _license(context, innerRef);
                 },
               ),
             ),

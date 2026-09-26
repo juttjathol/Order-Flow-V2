@@ -57,14 +57,18 @@ class _MainShellState extends ConsumerState<MainShell> {
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: Center(
-            child: StatusChip(
-              ref.snap.isMain
-                  ? (ref.snap.serverOn ? s.t('server_on') : s.t('server_off'))
-                  : (ref.snap.connected ? s.t('connected') : s.t('disconnected')),
-              color: (ref.snap.isMain ? ref.snap.serverOn : ref.snap.connected)
-                  ? OfColors.mint
-                  : OfColors.warn,
-            ),
+            // Main + stopped → tappable: one tap starts the LAN server
+            // (covers any edge the auto-start watchdog could not).
+            child: ref.snap.isMain && !ref.snap.serverOn
+                ? _ServerRestartChip(ref: ref)
+                : StatusChip(
+                    ref.snap.isMain
+                        ? s.t('server_on')
+                        : (ref.snap.connected ? s.t('connected') : s.t('disconnected')),
+                    color: (ref.snap.isMain ? ref.snap.serverOn : ref.snap.connected)
+                        ? OfColors.mint
+                        : OfColors.warn,
+                  ),
           ),
         ),
       ],
@@ -82,6 +86,47 @@ class _MainShellState extends ConsumerState<MainShell> {
         StockScreen(),
         MoreScreen(),
       ],
+    );
+  }
+}
+
+/// One-tap LAN server starter shown only when Main's server is stopped.
+class _ServerRestartChip extends StatefulWidget {
+  const _ServerRestartChip({required this.ref});
+  final WidgetRef ref;
+
+  @override
+  State<_ServerRestartChip> createState() => _ServerRestartChipState();
+}
+
+class _ServerRestartChipState extends State<_ServerRestartChip> {
+  bool _busy = false;
+
+  Future<void> _start() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    await widget.ref.ctrl.startServer();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    final snap = widget.ref.snap;
+    if (!snap.serverOn && snap.error != null) {
+      final s = widget.ref.s;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${s.t('server_start_failed')}: ${snap.error}')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.ref.s;
+    return Tooltip(
+      message: s.t('server_start_hint'),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: _start,
+        child: StatusChip(_busy ? '⋯' : s.t('server_off'), color: OfColors.warn),
+      ),
     );
   }
 }
