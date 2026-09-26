@@ -58,7 +58,7 @@ Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do 
 3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
 4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
 
-## v1.1.82 (PR STAGE — not merged/tagged yet) — dashboard "tick all" bug locked shops out of extras
+## v1.1.82 (RELEASED 2026-09-26 ✅ rc 36258747250 → final build 36259202334) — dashboard "tick all" bug locked shops out of extras
 
 **Production bug:** owner grants all 15 features on the SaaS dashboard → Windows Main still shows locked extras after Refresh.
 **Root cause (verified at source):** `cloudflare_dashboard/public/app.js` `checkedValues()` selected `[${attr}]:checked`, but the checkboxes only carry `data-feature` / `data-model` attributes → the NodeList was always empty → every access save POSTed `allowedFeatures: []` → D1 rows healed to empty → app treated the key as restricted-everything (`allOn: false`, `features: []`). The editor's own summary showed `Features: 0/15` while promising "all on".
@@ -77,7 +77,7 @@ Tests (`pos_features_test.dart`): full-plan + all-4-models + empty-features payl
 Guide (EN+UR): §24 Plans — dashboard change → More → License → Refresh, `Plan synced · n/15`; §27 Windows — lock icons are key-side, fixed from the dashboard + Refresh (plus changelog bullets in §6).
 
 **Files:** `cloudflare_dashboard/public/app.js`, `cloudflare_dashboard/functions/api/[[path]].js`, `flutter_app/lib/models/models_plans.dart`, `flutter_app/lib/services/license_service.dart`, `flutter_app/lib/state/app_controller.dart`, `flutter_app/lib/ui/screens/more_screen.dart`, `flutter_app/test/pos_features_test.dart`, `website/public/guide.html`, `docs/HANDOFF.md` + version triple (pubspec 1.1.82+82, `kAppVersion`, 3× `FALLBACK_TAG` → v1.1.82).
-**Owner steps after deploy:** dashboard fixes live via Pages deploy on merge; the D1 rows heal themselves on the next validate (≤15 min) or instantly when a shop taps Refresh. Merge + tag only on owner's word.
+**Shipped:** owner chose fast-forward over PR merge — main moved 12ae4bf→ce8933b (PR #8 auto-closed as merged-equivalent), tag v1.1.82 → build 36259202334 green (APK 117.2 MB + Windows ZIP 18.1 MB), rc tag/release deleted per rule 5. jathol.org/download?meta=1 serves v1.1.82; order-flow-v2.pages.dev/app.js confirmed serving the fixed checkedValues selector live. Poisoned D1 rows heal on each shop's next validate (≤15 min) or instantly on More → License → Refresh.
 
 ## v1.1.81 (RELEASED 2026-09-26) — footer/version drift fixed + build guard
 
