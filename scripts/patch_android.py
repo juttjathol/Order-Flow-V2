@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess as sp
+import sys
 from pathlib import Path
 
 COMPILE_SDK = 36
@@ -137,7 +139,6 @@ def main() -> None:
     # footer constant must stay in lockstep (see v1.1.76 footnote).
     checker = Path(__file__).resolve().parent / "version_sync_check.py"
     if checker.exists():
-        import subprocess as sp
         rc = sp.call([sys.executable, str(checker), "flutter_app"])
         if rc != 0:
             sys.exit("version-sync: pubspec != kAppVersion (see scripts/version_sync_check.py)")
