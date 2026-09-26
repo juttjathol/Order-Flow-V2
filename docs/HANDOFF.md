@@ -58,7 +58,13 @@ Version: `1.1.73+73`. Do not tag from this session — owner tags `v1.1.73`. Do 
 3. If hashes were made with 250000 PBKDF2 iterations, regenerate with `node cloudflare_dashboard/scripts/hash-pass.mjs`.
 4. Workflow `--obfuscate` remains a hand edit of `.github/workflows/*` (do not do it in this session).
 
-## v1.1.80 (RELEASED 2026-09-26) — version in the Windows title bar
+## v1.1.81 (RELEASED 2026-09-26) — footer/version drift fixed + build guard
+
+- In-app footer/metadata/LAN handshake read `kAppVersion` (constants.dart); bumping pubspec alone left it at 1.1.76 while the window title (v1.1.80) proved the build. **RELEASE RITUAL from now: touch THREE places — pubspec `version`, `kAppVersion`, `FALLBACK_TAG` in the 3 download.js files.**
+- `scripts/version_sync_check.py` enforced in BOTH CI patch steps; a drifted bump fails the build loudly.
+- Also shipped: rc cycle bumped patch_android.py had a missing `import sys` (only caught at CI — the sandbox has no Python... it ran on CI python. Local simulation of the patched main() now part of my pre-flight.)
+
+
 
 - Support case: user repeatedly launched the OLD unziped exe after "updating" (window still showed 1.1.76); `patch_windows_runner.py` now bakes the pubspec version into the window title (`Order Flow X.Y.Z`).
 - Guide §27 (EN+UR): "Am I really on the new version?" — title + File version check, old-folder trap.
