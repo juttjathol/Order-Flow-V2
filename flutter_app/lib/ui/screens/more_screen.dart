@@ -1418,6 +1418,32 @@ Future<void> _license(BuildContext context, WidgetRef ref) async {
             onPressed: () => Clipboard.setData(ClipboardData(text: ref.snap.session.deviceId)),
             child: Text(s.t('device_id')),
           ),
+          // Owner flow: plan/feature edits in the Jathol dashboard land on the
+          // license API; tap to pull them now instead of waiting for the
+          // periodic ~5-minute re-check, then re-open this sheet refreshed.
+          SizedBox(
+            width: double.infinity,
+            child: Consumer(
+              builder: (innerCtx, innerRef, _) => FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: OfColors.emerald.withValues(alpha: .12),
+                  foregroundColor: OfColors.emerald,
+                ),
+                icon: const Icon(Icons.sync, size: 18),
+                label: Text(innerRef.s.t('refresh_plan_now')),
+                onPressed: () async {
+                  await innerRef.ctrl.revalidate();
+                  if (innerCtx.mounted) {
+                    Navigator.pop(innerCtx);
+                    // Re-open so plan/features counts reflect the fresh pull.
+                    // ignore: use_build_context_synchronously
+                    _license(context, innerRef);
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
           const SizedBox(height: 12),
           FilledButton.icon(
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),

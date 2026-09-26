@@ -1,7 +1,7 @@
 const int kLanPort = 8787;
 const int kEscPosPort = 9100;
 const int kOfflineGraceHours = 48;
-const int kRevalidateMinutes = 15;
+const int kRevalidateMinutes = 5;
 const String kWhatsAppHandle = '@Jathol_Jutt';
 const String kWhatsAppUrl = 'https://wa.me/Jathol_Jutt';
 
