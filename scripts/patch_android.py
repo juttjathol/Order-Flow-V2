@@ -133,6 +133,14 @@ def main() -> None:
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     os.chdir(root)
+    # Same guard the Windows job runs: pubspec version and the in-app
+    # footer constant must stay in lockstep (see v1.1.76 footnote).
+    checker = Path(__file__).resolve().parent / "version_sync_check.py"
+    if checker.exists():
+        import subprocess as sp
+        rc = sp.call([sys.executable, str(checker), "flutter_app"])
+        if rc != 0:
+            sys.exit("version-sync: pubspec != kAppVersion (see scripts/version_sync_check.py)")
     patch_app_gradle(root)
     if args.plugins:
         count = 0

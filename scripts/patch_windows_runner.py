@@ -21,6 +21,17 @@ RUNNER = ROOT / "windows" / "runner"
 SCRIPTS_DIR = pathlib.Path(__file__).resolve().parent  # → scripts/
 
 
+def _run_version_sync() -> int:
+    """Delegate to scripts/version_sync_check.py against this flutter_app."""
+    import subprocess as sp
+
+    checker = SCRIPTS_DIR / "version_sync_check.py"
+    if not checker.exists():
+        print("version-sync: checker script missing — skipping")
+        return 0
+    return sp.call([sys.executable, str(checker), str(ROOT)])
+
+
 def patch(path: pathlib.Path, pairs, must_find=False):
     if not path.exists():
         if must_find:
@@ -40,6 +51,10 @@ def patch(path: pathlib.Path, pairs, must_find=False):
 
 
 def main():
+    # Version drift makes the in-app footer lie about the build — fail
+    # the CI job instead of shipping a mislabelled exe.
+    if _run_version_sync() != 0:
+        sys.exit("version-sync: pubspec != kAppVersion (see scripts/version_sync_check.py)")
     main_cpp = RUNNER / "main.cpp"
     rc = RUNNER / "Runner.rc"
     cmake = RUNNER / "CMakeLists.txt"
