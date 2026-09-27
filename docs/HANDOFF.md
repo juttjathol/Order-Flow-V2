@@ -4,6 +4,20 @@ Paste this at the start of a new Arena chat to continue work:
 
 ---
 
+## ⏩ START HERE — owner directives (read before anything else)
+
+- The "Current state / Open PR #7 / Next version 1.1.60" block below is STALE (kept for history) — v1.1.82 shipped 2026-09-26 (tag green, release Latest, jathol.org/download serving it). Next version: 1.1.83+83 when the owner asks.
+- Owner briefs: verbatim specs are law — implement their exact code; per-mission overrides beat standing rules ("fast forward to main" = `git push HEAD:refs/heads/main`, never the merge button).
+- NEVER merge a PR until the owner says so — and never leave a PR open whose head main is about to pass (v1.1.82: FF onto PR #8's head auto-merged it and instantly killed that session's GitHub access).
+- Release ritual: bump 3 lockstep places (pubspec, kAppVersion, 3× FALLBACK_TAG — guarded by scripts/version_sync_check.py) → guide EN+UR → commit → push arena then main-FF → rc tag → green → final tag → green → verify APK + order-flow-windows.zip assets → delete rc tag+release without asking → verify jathol.org/download?meta=1 → HANDOFF commit → report.
+- 15 feature keys are frozen (multi_terminal, station_printers, qr_ordering, loyalty, split_payment, refunds, customer_display, reservations, recipe_costing, wastage, purchases, advanced_reports, eighty_six, cloud_sync, qr_branding) — never add/rename.
+- Additive only; never delete branches/tags/files without asking; cream+dark-green palette; website contact = contact@jathol.org only; don't touch .github/workflows; don't flip kLicenseRequireSig; Windows Main is portable-ZIP, desktop features Windows-only.
+- Sandbox: no Flutter SDK (Dart compiles on CI via rc tag); node --check any touched JS; curl to jathol.org may be blocked — use fetch_page/web_search instead.
+- Refs-rewind hazard: at task start and after any pause run `git fetch origin && git log --oneline -1 && git status`. If local refs are stale, `git reset --mixed origin/main` (never --hard) BEFORE editing — the disk is the truth.
+- Sandbox: sandboxed git object store may drop unpushed commits between sessions — anything that must survive MUST be pushed in the same turn it is committed.
+
+---
+
 Continue my existing project: repo `juttjathol/Order-Flow-V2`, workspace `/home/user/Order-Flow-V2`.
 
 **Current state (as of v1.1.61):**
@@ -23,9 +37,9 @@ Continue my existing project: repo `juttjathol/Order-Flow-V2`, workspace `/home/
 4. This platform closes GitHub access the moment a PR is merged. Do ALL GitHub work before the merge. Never merge early.
 5. Verification scratch tags (`vX.Y.Z-rcN`) and any releases they auto-create are the agent's to clean up WITHOUT asking: delete them (`gh release delete <rc> --yes --cleanup-tag`, `git push origin --delete <rc tags>`, `git tag -d`) as soon as the final tag build is green — do not carry them into the next release. (Standing permission from the v1.1.59 session, 2026-09-05.)
 
-**Open PR:** #7 — `arena/01a06fe3-order-flow-v2` → `main` — carries v1.1.59 (app + dashboard + website), the website currency engine, the hero CSS fix, the replaceState entitlements clamp, **and all v1.1.60 work (release tag v1.1.60 will point at the final branch commit; merge only after explicit owner approval)**. The *last merged* release PR was v1.1.57-era.
+**PR status:** all 8 PRs merged; v1.1.82 shipped by direct fast-forward (no open PR).
 
-**Next version will be 1.1.60.**
+**Shipped: v1.1.82 (Latest release). Opening version when the owner asks: 1.1.83.**
 
 ---
 
