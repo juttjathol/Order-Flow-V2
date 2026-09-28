@@ -1,0 +1,95 @@
+name: Bug report
+description: Something in Order Flow is broken, wrong, or unsafe. (Security problems → contact@jathol.org, not here.)
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please **never post a license key, manager PIN, backup file,
+        or customer data** in a public issue — email contact@jathol.org instead if a report
+        needs them.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Say what you did, what you expected, and what the screen or receipt actually showed.
+      placeholder: |
+        1. Opened More → Printers on the cashier station
+        2. Chose the LAN printer at 192.168.1.60
+        3. Expected: test receipt prints
+        4. Actual: spinner never stops, no error message
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: "Android: More → About. Windows: the window title (`Order Flow X.Y.Z`) or the exe's File version."
+      placeholder: "1.1.82"
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Which device saw it?
+      options:
+        - Main (Android phone)
+        - Main (Windows laptop/PC)
+        - Station — Manager
+        - Station — Order taker
+        - Station — Kitchen
+        - Station — Cashier
+        - Station — Stock clerk
+        - Station — Front desk / Specialist
+        - Station — Driver
+        - Browser console on the LAN
+        - Guest QR ordering page
+        - SaaS admin dashboard
+        - Public website
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Business model in use
+      options: [Restaurant, Retail, Fast food, Services, "Not sure"]
+    validations:
+      required: true
+  - type: dropdown
+    id: plan
+    attributes:
+      label: License plan
+      description: Shown under More → License.
+      options: [Starter, Growth, Custom, Full, "Legacy key (no plan)", "Not sure"]
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Devices, printers and network
+      description: Phone/PC models, Android or Windows version, printer make + connection (Bluetooth / LAN / Windows spooler), and whether stations are on the shop Wi-Fi or the cloud relay.
+      placeholder: |
+        Main: Xiaomi Redmi Note 12 (Android 14)
+        Printer: Xprinter XP-58 over Bluetooth
+        Stations: 2 phones on shop Wi-Fi, cloud networking off
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error text, screenshots or receipt photo
+      description: Drag images in, or paste the exact error wording. Blur any customer names.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I am on the latest release (jathol.org/download always serves it)
+          required: true
+        - label: I searched existing issues for this symptom
+          required: true
+        - label: This is not a security vulnerability (those go to contact@jathol.org)
+          required: true

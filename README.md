@@ -1,5 +1,11 @@
 # Order Flow
 
+[![Latest release](https://img.shields.io/github/v/release/juttjathol/Order-Flow-V2?label=release&color=14532d)](https://github.com/juttjathol/Order-Flow-V2/releases/latest)
+[![Build Release APK + Windows](https://github.com/juttjathol/Order-Flow-V2/actions/workflows/build-release.yml/badge.svg)](https://github.com/juttjathol/Order-Flow-V2/actions/workflows/build-release.yml)
+[![Runs on](https://img.shields.io/badge/Main_on-Android_%7C_Windows_10--11-14532d)](#how-the-shop-works)
+[![Shop UI](https://img.shields.io/badge/UI-English_%7C_%D8%A7%D8%B1%D8%AF%D9%88-b45309)](https://jathol.org/guide)
+[![Download](https://img.shields.io/badge/download-jathol.org%2Fdownload-0ea5e9)](https://jathol.org/download)
+
 Offline-first multi-device POS for restaurants, retail, fast food, and services, plus a Cloudflare license dashboard.
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver

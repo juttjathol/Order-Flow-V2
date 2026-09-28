@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: mailto:contact@jathol.org?subject=Order%20Flow%20security%20report
+    about: Please report security problems privately — see SECURITY.md. We acknowledge within 24 hours.
+  - name: Shop support & how-to questions
+    url: https://jathol.org/contact
+    about: Setup, printers, licences, plans — the contact page has pre-filled email drafts for each topic.
+  - name: User guide (English + اردو)
+    url: https://jathol.org/guide
+    about: Every feature, station and printer, step by step. Check here first — most questions are already answered.
+  - name: Download the latest build
+    url: https://jathol.org/download
+    about: Always the newest release — APK for Android, plus the portable Windows ZIP.

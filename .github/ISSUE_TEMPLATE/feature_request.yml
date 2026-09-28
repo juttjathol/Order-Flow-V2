@@ -1,0 +1,60 @@
+name: Feature request
+description: An idea for the POS app, the guest QR page, the SaaS dashboard or the website.
+title: "[idea] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Order Flow changes are **additive**: a new feature must not change how an existing
+        one behaves for shops already trading on it. Please say who the feature is for and
+        what they do today instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is the shop trying to do?
+      description: Describe the moment in service where this hurts, not the solution.
+      placeholder: During Friday rush the kitchen cannot tell which ticket came from which table because QR orders arrive without a table number.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should happen instead?
+      description: The smallest version that would already help.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where would it live?
+      multiple: true
+      options:
+        - Android app (Main or station)
+        - Windows Main
+        - Guest QR ordering page
+        - Browser console on the LAN
+        - SaaS admin dashboard
+        - Public website / user guide
+        - Receipt or printer output
+    validations:
+      required: true
+  - type: dropdown
+    id: plan
+    attributes:
+      label: Should it be plan-gated?
+      description: The 15 feature keys are frozen, so a new gate needs the owner's approval.
+      options:
+        - "No gate — every plan gets it"
+        - "Fits an existing feature key (say which)"
+        - "Needs a new feature key (owner decision)"
+        - "Not sure"
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds in use today
+      description: Paper, a second app, a manual step — anything that shows how much this costs.
+    validations:
+      required: false
