@@ -6,7 +6,7 @@ Paste this at the start of a new Arena chat to continue work:
 
 ## ⏩ START HERE — owner directives (read before anything else)
 
-- The "Current state / Open PR #7 / Next version 1.1.60" block below is STALE (kept for history) — v1.1.82 shipped 2026-09-26 (tag green, release Latest, jathol.org/download serving it). Next version: 1.1.83+83 when the owner asks.
+- The "Current state / Open PR #7 / Next version 1.1.60" block below is STALE (kept for history) — v1.1.83 shipped 2026-09-28 (tag green, release Latest, jathol.org/download serving it). Next version: 1.1.84+84 when the owner asks.
 - Owner briefs: verbatim specs are law — implement their exact code; per-mission overrides beat standing rules ("fast forward to main" = `git push HEAD:refs/heads/main`, never the merge button).
 - NEVER merge a PR until the owner says so — and never leave a PR open whose head main is about to pass (v1.1.82: FF onto PR #8's head auto-merged it and instantly killed that session's GitHub access).
 - Release ritual: bump 3 lockstep places (pubspec, kAppVersion, 3× FALLBACK_TAG — guarded by scripts/version_sync_check.py) → guide EN+UR → commit → push arena then main-FF → rc tag → green → final tag → green → verify APK + order-flow-windows.zip assets → delete rc tag+release without asking → verify jathol.org/download?meta=1 → HANDOFF commit → report.
@@ -39,7 +39,7 @@ Continue my existing project: repo `juttjathol/Order-Flow-V2`, workspace `/home/
 
 **PR status:** all 8 PRs merged; v1.1.82 shipped by direct fast-forward (no open PR).
 
-**Shipped: v1.1.82 (Latest release). Opening version when the owner asks: 1.1.83.**
+**Shipped: v1.1.83 (Latest release). Opening version when the owner asks: 1.1.84.**
 
 ---
 
@@ -91,6 +91,35 @@ Tests (`pos_features_test.dart`): full-plan + all-4-models + empty-features payl
 Guide (EN+UR): §24 Plans — dashboard change → More → License → Refresh, `Plan synced · n/15`; §27 Windows — lock icons are key-side, fixed from the dashboard + Refresh (plus changelog bullets in §6).
 
 **Files:** `cloudflare_dashboard/public/app.js`, `cloudflare_dashboard/functions/api/[[path]].js`, `flutter_app/lib/models/models_plans.dart`, `flutter_app/lib/services/license_service.dart`, `flutter_app/lib/state/app_controller.dart`, `flutter_app/lib/ui/screens/more_screen.dart`, `flutter_app/test/pos_features_test.dart`, `website/public/guide.html`, `docs/HANDOFF.md` + version triple (pubspec 1.1.82+82, `kAppVersion`, 3× `FALLBACK_TAG` → v1.1.82).
+## v1.1.83 (RELEASED 2026-09-28 ✅ rc 15→ final) — security hardening + l10n parity
+
+**Audit:** `docs/SECURITY_AUDIT_2026-09-28.md` (17 findings, 4 High). No shop data exfiltration was found; all High findings required LAN or Wi-Fi presence.
+
+**Fixes (additive only, no protocol/schema break, old APK ↔ new Main compatible):**
+
+1. **Browser console `assets/web/index.html` (S-01 High):** every `innerHTML` interpolation now via `esc()` — product/category/staff/driver/table names, ticket numbers, currency symbol, base64 images, ids in `onclick` — stored XSS via a poisoned dish name that ran with `OF_TOKEN` is blocked. Verified `node --check` on extracted `<script>`.
+2. **LAN server `lan_server.dart` (S-02, S-05..S-07, S-10):**
+   - `_storeJsonFor(deviceId)` — browser console (`web-console`) now receives `profile.managerPin=''`; stations still receive it (their PIN gate needs it; server-side PIN verification is the follow-up roadmap). `broadcastState()` sends two payloads.
+   - `safeEq` constant-time token compare.
+   - QR flood fix: `x-real-ip` header no longer trusted (spoofable) and no longer falls back to `req.requestedUri.host` (which put every guest in one 60/h bucket and locked QR out mid-service). Now per-table 24/h for seated service + shop-wide 900/h flood cap; takeaway shops have no per-table cap. Memory guard on `_qrByTable`.
+   - Driver ACL: `pairDriver` requires `main`/`manager`; `setDriverStatus` forces caller's own `deviceId` (body value ignored).
+   - Caps: 64 sockets, 24 waiting, 64KB WS frame; `_deviceAllowed` refuses past ceiling instead of spamming Main notifications.
+3. **LAN policy `lan_policy.dart` (S-04 High):** new `authorityIsIpLiteral()` — browsers must address Main by IP literal or `localhost` (`192.168.x.x:8787`, `10.x.x.x:8787`, `[::1]:8787`). Closes DNS-rebinding where `origin == 'http://$host'` passed for `http://shop.evil:8787` when the evil domain resolved to Main's LAN IP. Native apps (no `Origin`) unaffected. 2 new tests in `security_hardening_test.dart` (10 tests total, 5 old `corsOriginOk` still green).
+4. **Cloud relay `api/cloud/[[path]].js` (S-08, S-11):** `MSG_CAP 400→200`, idle-room sweep at most once per isolate per 10 min (was every request, 3 subqueries), D1 limits on `open`/`join`, bounded `joinDevice`/`joinRole`, **member-only `send`** (`cloud_devices` row required — leaked room id can no longer inject/flood and evict real orders), per-device `send` (240/m) and `pull` (120/m) throttles.
+5. **License API `api/[[path]].js` (S-09, S-12):** `safeBroadcastUrl()` (`https://` only, 500 ch, C0 strip) + `clip()` + tag allowlist + `bad_url` 400; public `v1/broadcasts` throttled 60/m and re-filters legacy rows; `pruneLicenseEvents` once per isolate per 6 h (was every `validate` — a full-table DELETE scan per device every ~5 min); `publicLicense` single `accessOf()` call.
+6. **L10n `core/l10n.dart` (S-14):** 12 Urdu keys added — `role_manager`, `role_manager_hint`, `inventory_cards`, `order_cards`, `kot_age`, `save_customer`, `test_kitchen`, `test_receipt`, `last_print`, `complimentary`, `extend_ok`, `lock_now` — EN 714 / UR 714, zero diff. `role_manager` is reached via `t('role_${r.name}')` so the old literal scan missed it.
+7. **Docs & repo polish (this session, pre-bump `db77ca0`):** `SECURITY.md` (contact@jathol.org), `CONTRIBUTING.md` (additive rule + 3-place ritual), `CHANGELOG.md` (1.1.73→1.1.83), `.github/ISSUE_TEMPLATE` + PR template, README badges (release/build/platform/UI/download).
+
+**Housekeeping this session:** deleted 4 remote verification tags `v1.1.76-rc1..rc4` (no releases, `download.js` skips `-rcN` by design). Left `refs/tags/main` → `6c11968` and `refs/tags/arena/01a01f91-order-flow-v2` per additive rule (purpose undocumented). Tracked `ci_logs.txt` (0 B) and `scripts/github/build-release.yml` kept.
+
+**Version triple:** `flutter_app/pubspec.yaml 1.1.83+83`, `flutter_app/lib/core/constants.dart kAppVersion 1.1.83`, `functions/download.js` + `website/functions/download.js` + `cloudflare_dashboard/functions/download.js` `FALLBACK_TAG v1.1.83`; `website/public/guide.html` banner 1.1.83 EN+UR (security hardening + Urdu parity + QR fix); `README.md 1.1.83+83`; `version_sync_check.py OK`; `node --check` all JS + `check-imports.mjs` OK.
+
+**Shipped:** main `db77ca0..76dc251`, arena `db77ca0..76dc251`, tag `v1.1.83-rc1` → build success (APK + Windows), tag `v1.1.83` → build success (APK 122.9 MB `122886784` + Windows ZIP 18.96 MB `18960823`, both attached, release *Latest*), rc tag/release deleted per rule 5. `jathol.org/download?meta=1` serves `v1.1.83` (verified via API; sandbox curl to jathol.org is TLS-blocked — use `fetch_page`). Cloudflare Pages redeploys from `main` (website + dashboard).
+
+**Needs device test (checklist in audit §6):** browser console `store.profile.managerPin==''` + XSS probe, stations PIN gate still prompts, QR dine-in/takeaway limits, driver ACL, Urdu role picker, cloud relay `not_member` after leave, `authorityIsIpLiteral` hostname rejection.
+
+**Next owner decisions (audit §5):** opt-in web console lock + server-side PIN → PBKDF2, CI workflow for `flutter test`/`analyze` (blocked by `.github/workflows` freeze), private-repo `GITHUB_TOKEN` + Windows ZIP proxy.
+
 **Shipped:** owner chose fast-forward over PR merge — main moved 12ae4bf→ce8933b (PR #8 auto-closed as merged-equivalent), tag v1.1.82 → build 36259202334 green (APK 117.2 MB + Windows ZIP 18.1 MB), rc tag/release deleted per rule 5. jathol.org/download?meta=1 serves v1.1.82; order-flow-v2.pages.dev/app.js confirmed serving the fixed checkedValues selector live. Poisoned D1 rows heal on each shop's next validate (≤15 min) or instantly on More → License → Refresh.
 
 ## v1.1.81 (RELEASED 2026-09-26) — footer/version drift fixed + build guard
