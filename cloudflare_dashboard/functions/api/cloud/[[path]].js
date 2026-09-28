@@ -15,7 +15,8 @@ import { sec, throttle, ipOf, corsFor, d1Limit } from "../../_security.js";
 
 const PLAN_FEATURE_KEY = "cloud_sync";
 const MSG_TTL_MS = 30 * 60 * 1000; // rows never live longer than ~30 min
-const MSG_CAP = 400; // newest-rows cap per room
+const MSG_CAP = 200; // newest-rows cap per room (was 400; 200 x 1.3MB worst case
+// is still far above any real shop snapshot, and it caps D1 storage abuse)
 const MAX_DEVICES = 16;
 const MAX_MSG_LEN = 1_300_000; // encrypted payload size cap
 
@@ -59,6 +60,8 @@ function randomCode() {
 }
 
 let cloudSchemaChecked = false;
+let lastIdleSweep = 0;
+const IDLE_SWEEP_EVERY_MS = 10 * 60 * 1000;
 async function ensureCloudSchema(db) {
   if (cloudSchemaChecked) return;
   await db.batch([
@@ -200,7 +203,13 @@ export async function onRequest(context) {
   if (!db) return reply(500, { ok: false, error: "no_db" });
   try {
     await ensureCloudSchema(db);
-    await pruneIdleRooms(db);
+    // Quota/latency: the stale-room sweep used to run on EVERY relay request
+    // (3 correlated subqueries each). Rooms only go stale after 24h, so an
+    // isolate-level interval is plenty.
+    if (Date.now() - lastIdleSweep > IDLE_SWEEP_EVERY_MS) {
+      lastIdleSweep = Date.now();
+      await pruneIdleRooms(db);
+    }
   } catch (e) {
     return reply(500, { ok: false, error: "db" });
   }
@@ -283,7 +292,9 @@ export async function onRequest(context) {
 
   try {
     if (path === "open") {
-      if (throttle(`cloud-open|${ipOf(request)}`, 20, 300000)) return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "300" });
+      if (throttle(`cloud-open|${ipOf(request)}`, 20, 300000) || await d1Limit(db, `cloud-open|${ipOf(request)}`, 20, 300000)) {
+        return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "300" });
+      }
       const allowed = await licenseAllowsCloud(db, String(body.licenseKey || ""), String(body.deviceId || ""));
       if (!allowed) return j(403, { ok: false, error: "plan" });
       const licenseKey = String(body.licenseKey || "").slice(0, 80);
@@ -322,7 +333,12 @@ export async function onRequest(context) {
     }
 
     if (path === "join") {
-      if (throttle(`cloud-join|${ipOf(request)}`, 30, 300000)) return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "120" });
+      // Pairing codes are 6 chars from a 32-symbol alphabet (~1e9). The
+      // in-memory throttle resets when an isolate dies, so the D1 limiter is
+      // what actually stops distributed code guessing.
+      if (throttle(`cloud-join|${ipOf(request)}`, 30, 300000) || await d1Limit(db, `cloud-join|${ipOf(request)}`, 30, 300000)) {
+        return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "120" });
+      }
       const room = String(body.room || "");
       const code = String(body.code || "").toUpperCase().trim();
       if (!room || !code) return j(400, { ok: false, error: "args" });
@@ -331,11 +347,14 @@ export async function onRequest(context) {
       if ((await sha256Hex("of-cloud|" + code)) !== row.code_hash) return j(403, { ok: false, error: "code" });
       const count = await db.prepare("SELECT COUNT(*) AS n FROM cloud_devices WHERE room = ?1").bind(room).first();
       if (count && Number(count.n) >= MAX_DEVICES) return j(403, { ok: false, error: "full" });
+      // Bounded identity strings — a joiner controls these and they are stored.
+      const joinDevice = String(body.deviceId || "?").slice(0, 160);
+      const joinRole = String(body.role || "station").slice(0, 32);
       await db
         .prepare(
           "INSERT OR REPLACE INTO cloud_devices (room, device_id, role, name, cursor, joined_at) VALUES (?1,?2,?3,?4,0,?5)"
         )
-        .bind(room, String(body.deviceId || "?"), String(body.role || "station"), String(body.role || "station"), Date.now()).run();
+        .bind(room, joinDevice, joinRole, joinRole, Date.now()).run();
       return j(200, { ok: true, room });
     }
 
@@ -369,9 +388,22 @@ export async function onRequest(context) {
       }
       const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (!open) return j(404, { ok: false, error: "no_room" });
+      // v1.1.83 hardening: writing to a room now requires MEMBERSHIP, not just
+      // knowledge of the room id. Every shipped client already joins first
+      // (Main is inserted by /open, stations by /join), so this is backward
+      // compatible — it only stops a leaked/ex-device room id from injecting or
+      // flooding ciphertext (which could evict real orders via the row cap).
+      const sender = String(body.device || "").slice(0, 160);
+      const member = await db
+        .prepare("SELECT 1 AS x FROM cloud_devices WHERE room = ?1 AND device_id = ?2")
+        .bind(room, sender).first();
+      if (!member) return j(403, { ok: false, error: "not_member" });
+      if (throttle(`cloud-send-dev|${room}|${sender}`, 240, 60000)) {
+        return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "5" });
+      }
       await db
         .prepare("INSERT INTO cloud_msgs (room, sender, msg, created_at) VALUES (?1,?2,?3,?4)")
-        .bind(room, String(body.device || ""), msg, Date.now()).run();
+        .bind(room, sender, msg, Date.now()).run();
       await prune(db, room);
       return j(200, { ok: true });
     }
@@ -380,6 +412,12 @@ export async function onRequest(context) {
       const room = String(body.room || "");
       const dev = String(body.device || "");
       const after = Number(body.after || 0);
+      // Keyed per room+device (NOT per IP): a whole shop sits behind one NAT
+      // address, so an IP-level limit would lock out real stations. 120/min is
+      // 2.4x the fastest legitimate poll rate.
+      if (throttle(`cloud-pull|${room}|${dev}`, 120, 60000)) {
+        return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "5" });
+      }
       const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (!open) return j(404, { ok: false, error: "no_room" });
       const rs = await db

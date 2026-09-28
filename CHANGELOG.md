@@ -6,7 +6,7 @@ carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering 
 log — including root causes and the mistakes each release was built to avoid repeating —
 is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
-## Unreleased
+## 1.1.83 — 2026-09-28
 
 ### Security
 

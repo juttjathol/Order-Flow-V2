@@ -192,6 +192,8 @@ async function verifyToken(env, header) {
 }
 
 let eventsSchemaChecked = false;
+let lastEventPrune = 0;
+const EVENT_PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
 async function ensureLicenseEvents(db) {
   if (eventsSchemaChecked) return;
   try {
@@ -268,6 +270,21 @@ async function verifyAdminPassword(env, given) {
   return await safeEqual(given, legacy); // constant-time fallback for plaintext secret
 }
 
+// Broadcasts are rendered inside every shop's Main app and can carry a link
+// the app opens. Only http(s) is ever acceptable — a javascript:/file:/content:/
+// intent: URL here would be an injection primitive into installed clients.
+function safeBroadcastUrl(raw) {
+  const u = String(raw || "").trim().slice(0, 500);
+  if (!u) return "";
+  if (!/^https:\/\/[^\s]+$/i.test(u)) return "";
+  return u;
+}
+
+function clip(raw, max) {
+  // Strip C0/C1 control characters, then cap the length.
+  return String(raw || "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "").trim().slice(0, max);
+}
+
 async function customerById(db, id) {
   return db.prepare("SELECT * FROM customers WHERE id = ?").bind(id).first();
 }
@@ -277,6 +294,7 @@ async function licenseById(db, id) {
 }
 
 function publicLicense(row, customer) {
+  const access = accessOf(row);
   return {
     id: row.id,
     customerId: row.customer_id,
@@ -289,8 +307,8 @@ function publicLicense(row, customer) {
     createdAt: row.created_at,
     binding: row.bound_device_id ? "bound" : "unbound",
     plan: row.plan || "full",
-    allowedModels: accessOf(row)?.allowedModels ?? null,
-    allowedFeatures: accessOf(row)?.allowedFeatures ?? null,
+    allowedModels: access?.allowedModels ?? null,
+    allowedFeatures: access?.allowedFeatures ?? null,
     customer: customer
       ? {
           id: customer.id,
@@ -334,11 +352,18 @@ export async function onRequest(context) {
     }
 
     if (path === "v1/broadcasts" && method === "GET") {
+      // Unauthenticated by design (Mains poll it before they hold a session),
+      // so it is throttled and defensively filtered: a link stored before the
+      // https-only rule is never handed to a client.
+      if (throttle(`broadcasts|${ipOf(request)}`, 60, 60000)) {
+        return json({ ok: false, error: "slow_down" }, 429, { "Retry-After": "60" });
+      }
       try {
         const { results } = await env.DB.prepare(
           "SELECT id, title, message, tag, url, created_at FROM broadcast_notifications ORDER BY created_at DESC LIMIT 25",
         ).all();
-        return json({ ok: true, broadcasts: results || [] });
+        const broadcasts = (results || []).map((b) => ({ ...b, url: safeBroadcastUrl(b.url) }));
+        return json({ ok: true, broadcasts });
       } catch (e) {
         return json({ ok: true, broadcasts: [] });
       }
@@ -554,12 +579,18 @@ export async function onRequest(context) {
 
     if (path === "admin/broadcasts" && method === "POST") {
       const body = await readJson(request);
-      const title = String(body.title || "").trim();
-      const message = String(body.message || "").trim();
-      const tag = String(body.tag || "feature").trim();
-      const url = String(body.url || "").trim();
+      const title = clip(body.title, 160);
+      const message = clip(body.message, 2000);
+      const tag = ["feature", "plan", "alert", "maintenance"].includes(String(body.tag || "").trim())
+        ? String(body.tag).trim()
+        : "feature";
+      const rawUrl = String(body.url || "").trim();
+      const url = safeBroadcastUrl(rawUrl);
       if (!title || !message) {
         return json({ ok: false, error: "missing_fields", message: "Title and message are required." }, 400);
+      }
+      if (rawUrl && !url) {
+        return json({ ok: false, error: "bad_url", message: "Links must start with https:// (or be left empty)." }, 400);
       }
       const id = crypto.randomUUID();
       const now = nowIso();
@@ -606,7 +637,12 @@ async function signLicensePayload(env, canonical) {
   }
 }
 
+// Retention prune. It used to run inside every validate call — a full-table
+// DELETE scan per device check (every ~5 min per shop). Once per isolate per
+// 6h gives identical retention for a tiny fraction of the D1 quota.
 async function pruneLicenseEvents(db) {
+  if (Date.now() - lastEventPrune < EVENT_PRUNE_EVERY_MS) return;
+  lastEventPrune = Date.now();
   try {
     await db.prepare("DELETE FROM license_events WHERE created_at < datetime('now', '-90 days')").run();
   } catch {}

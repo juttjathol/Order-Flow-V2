@@ -216,6 +216,18 @@
       return true;
     }
     const $ = (id) => document.getElementById(id);
+    // v1.1.83 security: EVERY store value that reaches innerHTML goes through
+    // esc(). Product/category/staff/driver/table names, ticket numbers and the
+    // currency symbol are all editable text — one unescaped `<img onerror=…>`
+    // in a dish name used to run script inside the owner's console, which
+    // holds OF_TOKEN and can therefore create orders, mark them paid, rewrite
+    // prices and change the shop profile. (The guest page already escaped;
+    // this console did not.)
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
     const money = (n) => {
       const p = store?.profile || {};
       const s = p.currencySymbol || 'Rs';
@@ -256,7 +268,7 @@
     function bars(el) {
       const days = weekSales();
       const max = Math.max(1, ...days.map(x=>x.sum));
-      el.innerHTML = days.map(x => `<span title="${x.sum}" style="height:${8+92*x.sum/max}%"></span>`).join('');
+      el.innerHTML = days.map(x => `<span title="${esc(x.sum)}" style="height:${8+92*x.sum/max}%"></span>`).join('');
     }
     function renderPos() {
       const orders = store.orders||[];
@@ -273,13 +285,13 @@
       const items = paid.reduce((n,o)=>n+(o.lines||[]).reduce((a,l)=>a+(l.qty||1),0),0);
       $('kpis').innerHTML = `
         <div class="kpi"><i>🍽</i><div class="muted">Total order</div><b>${paid.length}</b></div>
-        <div class="kpi"><i>🔥</i><div class="muted">Revenue</div><b>${money(today)}</b></div>
+        <div class="kpi"><i>🔥</i><div class="muted">Revenue</div><b>${esc(money(today))}</b></div>
         <div class="kpi"><i>🍴</i><div class="muted">Items sold</div><b>${items}</b></div>
         <div class="kpi"><i>📦</i><div class="muted">Open</div><b>${open.length}</b></div>`;
       const counts = {};
       paid.forEach(o => (o.lines||[]).forEach(l => { counts[l.name]=(counts[l.name]||0)+(l.qty||1); }));
       const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
-      $('topItems').innerHTML = top.map(([n,c])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a3832"><span>${n}</span><span class="muted">${c}</span></div>`).join('') || '<p class="muted">No paid orders yet</p>';
+      $('topItems').innerHTML = top.map(([n,c])=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a3832"><span>${esc(n)}</span><span class="muted">${esc(c)}</span></div>`).join('') || '<p class="muted">No paid orders yet</p>';
       const dine = orders.filter(o=>o.type==='dineIn').length;
       const take = orders.filter(o=>o.type==='takeaway').length;
       const del = orders.filter(o=>o.type==='delivery').length;
@@ -287,7 +299,7 @@
       $('fromBars').innerHTML = `Tables ${dine}<div style="height:8px;background:#14532d;width:${100*dine/tot}%;border-radius:8px;margin:6px 0"></div>Takeaway ${take}<div style="height:8px;background:#166534;width:${100*take/tot}%;border-radius:8px;margin:6px 0"></div>Delivery ${del}<div style="height:8px;background:#0ea5e9;width:${100*del/tot}%;border-radius:8px;margin:6px 0"></div>`;
       const pay = {cash:0,card:0,wallet:0,other:0};
       paid.forEach(o => { const k=o.payment||'cash'; pay[k]=(pay[k]||0)+1; });
-      $('payBars').innerHTML = Object.entries(pay).map(([k,v])=>`${k} ${v}`).join(' · ');
+      $('payBars').innerHTML = Object.entries(pay).map(([k,v])=>`${esc(k)} ${esc(v)}`).join(' · ');
     }
     function renderTables() {
       const orders = store.orders||[];
@@ -296,30 +308,30 @@
         const cls = t.status==='ready' ? 'ready' : t.status==='ordered' ? 'ordered' : 'free';
         const n = o ? (o.lines||[]).length : 0;
         const tot = o ? money((o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0)) : '';
-        return `<div class="tcard ${cls}" onclick="openTable('${t.id}')"><b>${t.name}</b><div>${o?((o.ticketNo||'')+' · '+n+' items'):'Free'}</div>${tot?`<div style="font-weight:800;margin-top:6px">${tot}</div>`:''}</div>`;
+        return `<div class="tcard ${cls}" onclick="openTable('${esc(t.id)}')"><b>${esc(t.name)}</b><div>${o?(esc(o.ticketNo||'')+' · '+n+' items'):'Free'}</div>${tot?`<div style="font-weight:800;margin-top:6px">${esc(tot)}</div>`:''}</div>`;
       }).join('');
     }
     function renderItems() {
       const q = ($('search').value||'').toLowerCase();
       const cats = store.categories||[];
       if (!catId && cats[0]) catId = cats[0].id;
-      $('cats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${c.id}';renderItems()">${c.name}</button>`).join('');
+      $('cats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${esc(c.id)}';renderItems()">${esc(c.name)}</button>`).join('');
       const list = (store.products||[]).filter(p => (!catId || p.categoryId===catId) && (!q || p.name.toLowerCase().includes(q)));
       $('products').innerHTML = list.map(p => {
-        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${p.imageBase64})` : '';
-        return `<div class="card" onclick="addLine('${p.id}')"><div class="pimg" style="${img}"></div><b>${p.name}</b><div class="muted">${money(p.price)}</div></div>`;
+        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${esc(p.imageBase64)})` : '';
+        return `<div class="card" onclick="addLine('${esc(p.id)}')"><div class="pimg" style="${img}"></div><b>${esc(p.name)}</b><div class="muted">${esc(money(p.price))}</div></div>`;
       }).join('');
     }
     function renderPeople() {
-      $('staff').innerHTML = (store.staff||[]).map(s=>`<div>${s.name} · ${s.roleLabel||''}</div>`).join('') || '<p class="muted">No staff</p>';
-      $('drivers').innerHTML = (store.drivers||[]).map(d=>`<div>${d.name} · ${d.status}</div>`).join('') || '<p class="muted">No drivers</p>';
+      $('staff').innerHTML = (store.staff||[]).map(s=>`<div>${esc(s.name)} · ${esc(s.roleLabel||'')}</div>`).join('') || '<p class="muted">No staff</p>';
+      $('drivers').innerHTML = (store.drivers||[]).map(d=>`<div>${esc(d.name)} · ${esc(d.status)}</div>`).join('') || '<p class="muted">No drivers</p>';
     }
     function renderSales() {
       bars($('weekBar2'));
       const counts = {};
       (store.orders||[]).filter(o=>o.status==='paid').forEach(o => (o.lines||[]).forEach(l => { counts[l.name]=(counts[l.name]||0)+(l.qty||1); }));
       const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,4);
-      $('hiSell').innerHTML = top.map(([n,c])=>`<div class="kpi"><b>${n}</b><div class="muted">${c} times</div></div>`).join('') || '<p class="muted">No sales yet</p>';
+      $('hiSell').innerHTML = top.map(([n,c])=>`<div class="kpi"><b>${esc(n)}</b><div class="muted">${esc(c)} times</div></div>`).join('') || '<p class="muted">No sales yet</p>';
     }
     function fillSettings() {
       const p = store.profile||{};
@@ -335,9 +347,9 @@
     }
     function renderOrders() {
       $('orderRows').innerHTML = (store.orders||[]).slice(0,40).map(o => `<tr>
-        <td>${o.ticketNo}</td><td>${o.tableName||o.type}</td><td>${o.status}</td>
-        <td>${money((o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0))}</td>
-        <td>${['paid','cancelled'].includes(o.status)?'':`<button class="btn green" onclick="pay('${o.id}')">Pay</button>`}</td>
+        <td>${esc(o.ticketNo)}</td><td>${esc(o.tableName||o.type)}</td><td>${esc(o.status)}</td>
+        <td>${esc(money((o.lines||[]).reduce((s,l)=>s+(l.unitPrice||0)*(l.qty||1),0)))}</td>
+        <td>${['paid','cancelled'].includes(o.status)?'':`<button class="btn green" onclick="pay('${esc(o.id)}')">Pay</button>`}</td>
       </tr>`).join('');
     }
     function orderTotal(o) {
@@ -350,11 +362,11 @@
     function renderTicket() {
       const cats = store.categories||[];
       if (!catId && cats[0]) catId = cats[0].id;
-      $('tCats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${c.id}';renderTicket()">${c.name}</button>`).join('');
+      $('tCats').innerHTML = cats.map(c => `<button class="${c.id===catId?'green':''}" onclick="catId='${esc(c.id)}';renderTicket()">${esc(c.name)}</button>`).join('');
       const list = (store.products||[]).filter(p => (!catId || p.categoryId===catId) && p.available!==false);
       $('tProducts').innerHTML = list.map(p => {
-        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${p.imageBase64})` : '';
-        return `<div class="card" onclick="addLine('${p.id}')"><div class="pimg" style="${img}"></div><b>${p.name}</b><div class="muted">${money(p.price)}</div></div>`;
+        const img = p.imageBase64 ? `background-image:url(data:image/jpeg;base64,${esc(p.imageBase64)})` : '';
+        return `<div class="card" onclick="addLine('${esc(p.id)}')"><div class="pimg" style="${img}"></div><b>${esc(p.name)}</b><div class="muted">${esc(money(p.price))}</div></div>`;
       }).join('');
       const o = activeOrder();
       if (!o) {
@@ -362,13 +374,13 @@
         return;
       }
       activeOrderId = o.id;
-      const lines = (o.lines||[]).map(l => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div><b>${l.qty||1}× ${l.name}</b></div><div>${money((l.unitPrice||0)*(l.qty||1))}</div></div>`).join('');
-      $('tRail').innerHTML = `<div class="muted">${o.ticketNo||''} · ${o.tableName||o.type} · ${o.status}</div>
-        <b style="font-size:28px">${money(dueOf(o))}</b>
+      const lines = (o.lines||[]).map(l => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><div><b>${esc(l.qty||1)}× ${esc(l.name)}</b></div><div>${esc(money((l.unitPrice||0)*(l.qty||1)))}</div></div>`).join('');
+      $('tRail').innerHTML = `<div class="muted">${esc(o.ticketNo||'')} · ${esc(o.tableName||o.type)} · ${esc(o.status)}</div>
+        <b style="font-size:28px">${esc(money(dueOf(o)))}</b>
         <div class="muted">incl. service ${o.serviceRate||store.profile?.serviceRate||0}%</div>
         <div style="max-height:46vh;overflow:auto;margin:10px 0">${lines||'<p class="muted">Add items</p>'}</div>
-        <button class="btn green" style="width:100%" onclick="cmd('setOrderStatus',{id:'${o.id}',status:'preparing'})">Send kitchen</button>
-        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="pay('${o.id}')">Pay</button>`;
+        <button class="btn green" style="width:100%" onclick="cmd('setOrderStatus',{id:'${esc(o.id)}',status:'preparing'})">Send kitchen</button>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="pay('${esc(o.id)}')">Pay</button>`;
     }
     function render() {
       if (!store) return;
@@ -391,7 +403,7 @@
       if ($('sModel').value !== store.model) await cmd('setModel', { model: $('sModel').value });
     }
     function showAddItem() {
-      $('iCat').innerHTML = (store.categories||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+      $('iCat').innerHTML = (store.categories||[]).map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
       show('add');
     }
     async function saveItem() {

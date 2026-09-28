@@ -1444,6 +1444,23 @@ class L10n {
     'prebill_print': 'پری بل',
     'import_fail': 'یہ بیک اپ لگ نہیں سکا۔',
     'shift_none': 'شفٹ بند ہے — کھولنے کے لیے دبائیں',
+
+    // ── v1.1.83 l10n parity fix ───────────────────────────────────────────
+    // These 12 keys existed only in _en, so the Urdu UI silently fell back to
+    // English for them (role_manager is reached through t('role_${r.name}'),
+    // which is why l10n_parity_test.dart's literal scan never caught it).
+    'role_manager': 'مینیجر',
+    'role_manager_hint': 'مین سے جڑیں۔ فلور، ٹکٹ، اسٹاک اور رپورٹس چلائیں۔ لائسنس، PIN یا بیک اپ بحال نہیں کر سکتے۔',
+    'inventory_cards': 'اسٹاک کارڈز',
+    'order_cards': 'آرڈرز',
+    'kot_age': 'کچن میں',
+    'save_customer': 'کھاتے میں محفوظ کریں',
+    'test_kitchen': 'کچن ٹیسٹ',
+    'test_receipt': 'رسید ٹیسٹ',
+    'last_print': 'آخری ٹیسٹ',
+    'complimentary': 'مفت (کمپلیمنٹری)',
+    'extend_ok': 'توسیع ہو گئی',
+    'lock_now': 'اگر کلاؤڈ لائسنس کی موجود نہ ہو تو یہ اقدام دکان لاک کر دیتا ہے۔',
 };
 
   static const _table = {'en': _en, 'ur': _ur};
