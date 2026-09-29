@@ -128,6 +128,104 @@ When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud r
 
 ---
 
+## Architecture — how it all connects
+
+```mermaid
+flowchart TD
+    %% Visitors
+    Visitor(["Visitor"]) --> Website["Product website<br/>website/public/index.html<br/>+ guide.html"]
+    Website -->|"requests APK / ZIP"| DownloadProxy["Download proxy<br/>functions/download.js<br/>3 copies: root / website / dashboard"]
+    DownloadProxy -->|"fetches latest release<br/>skips draft / prerelease / -rc"| GitHub["GitHub releases<br/>app-release.apk + order-flow-windows.zip"]
+
+    GitHub -->|"installs on"| Main["Main device<br/>Android phone or Windows laptop<br/>port 8787 · offline 48h"]
+
+    %% SaaS
+    subgraph SaaS["SaaS / Cloudflare Pages — order-flow-v2.pages.dev"]
+        Dashboard["Admin dashboard<br/>cloudflare_dashboard/public/app.js"]
+        LicenseAPI["License API<br/>api/[[path]].js<br/>PBKDF2 + HMAC + D1 limits"]
+        Relay["Cloud relay<br/>api/cloud/[[path]].js<br/>AES-GCM transit, 30m TTL, 200 rows"]
+        D1[("D1 database<br/>licenses / customers<br/>broadcasts / rate_limits<br/>cloud_rooms / cloud_msgs")]
+        Dashboard --> LicenseAPI
+        Dashboard --> Relay
+        LicenseAPI --> D1
+        Relay --> D1
+    end
+
+    Main -- "POST /api/v1/license/validate<br/>{licenseKey, deviceId}" --> LicenseAPI
+    Main <-->|"room + code<br/>AES-GCM"| Relay
+    DownloadProxy -. "Bearer GITHUB_TOKEN<br/>if repo private" .-> GitHub
+
+    %% POS app
+    subgraph POS["POS app — flutter_app/lib"]
+        Staff(("Shop staff"))
+        Staff --> RoleScreens["Role screens<br/>gate_screens.dart / more_screen"]
+        Staff --> Stations(("Stations<br/>no key, same Wi-Fi<br/>or mobile via Relay"))
+
+        MenuOrders["Menu & orders<br/>menu_screen.dart / order_screen.dart"] --> AppCtrl
+        RoleScreens --> AppCtrl
+        Tables["Tables & reservations<br/>floor_screen.dart<br/>reservations"] --> AppCtrl
+        Sales["Sales & payments<br/>split_payment / refunds<br/>loyalty"] --> AppCtrl
+        Stock["Stock & purchasing<br/>stock_screen.dart<br/>wastage / purchases<br/>recipe_costing"] --> AppCtrl
+        Kitchen["Kitchen workflow<br/>kitchen_screen.dart<br/>eighty_six"] --> AppCtrl
+        Printing["Printing<br/>print_service.dart<br/>station_printers<br/>customer_display"] --> AppCtrl
+        QR["QR ordering<br/>qr_ordering / qr_branding<br/>guest page /order.html"] --> AppCtrl
+        CloudSync["Cloud networking<br/>cloud_sync / lan_server.dart<br/>cloud_relay.dart"] --> AppCtrl
+
+        AppCtrl["App controller<br/>state/app_controller.dart<br/>models/reducer.dart<br/>StoreGuard + RoleAccess"]
+
+        AppCtrl --> ShopState["Shop state<br/>models_store.dart"]
+        AppCtrl --> LocalPersist[("Local persistence<br/>shared_preferences<br/>JSON + 48h grace")]
+        AppCtrl --> Backup["Backup import/export<br/>JSON"]
+        AppCtrl --> Receipt["Receipt printing<br/>ESC/POS 9100 / Bluetooth<br/>Windows spooler"]
+        AppCtrl --> LAN["LAN server :8787<br/>lan_server.dart<br/>HMAC token + role bind"]
+        LAN <--> Stations
+        Relay <--> Stations
+        Stations -->|"NetCommand<br/>createOrder / pay / 86"| AppCtrl
+    end
+
+    ShopState -.-> LocalPersist
+    ShopState -.-> Relay
+
+    classDef saas fill:#e0f2ff,stroke:#0ea5e9,stroke-width:1.5;
+    classDef pos fill:#fff7e6,stroke:#b45309,stroke-width:1.5;
+    classDef infra fill:#f0fdf4,stroke:#14532d,stroke-width:1.5;
+    classDef storage fill:#fefce8,stroke:#a16207,stroke-width:1.5;
+    class SaaS saas
+    class POS pos
+    class DownloadProxy,GitHub,Main infra
+    class D1,LocalPersist,ShopState storage
+```
+
+> **Shop data lives on Main only.** Cloud relay is transit (ciphertext, deleted on read, 30m expiry). SaaS never stores orders.
+
+### Every feature — what it does
+
+| # | Key | Gated | What it does |
+|---|-----|-------|--------------|
+| 1 | `multi_terminal` | Growth+ | Main is the server on `:8787`; stations join free via IP/QR on same Wi-Fi or via cloud relay on mobile data. Role-based (`manager / orderTaker / kitchen / cashier / driver / stockClerk / frontDesk / specialist`), offline queue, live sync. |
+| 2 | `station_printers` | Growth+ | Every station can pick its own printer (ESC/POS `9100` / Bluetooth / Windows spooler), independent of Main. Tested per-station top-bar icon. |
+| 3 | `qr_ordering` | Growth+ | Guests on shop Wi-Fi open `http://<main-ip>:8787/order` → pick table, build cart, submit. Orders arrive as `channel: qr` tickets, kitchen auto-fires, price is computed on Main (guest cannot set price). Per-table `24/h` + shop `900/h` flood caps. |
+| 4 | `loyalty` | Growth+ | Customers in `customer_display_screen.dart` earn points on paid orders automatically; points show on shared receipts. |
+| 5 | `split_payment` | Growth+ | One sale → two tenders (cash / card / wallet / other + `complimentary`). Each leg printed separately. |
+| 6 | `refunds` | Growth+ | Paid orders can be refunded → stock returns, ledger entry, receipt reprint. |
+| 7 | `customer_display` | Growth+ | Any screen becomes a giant animated total (secondary display) — `customer_display_screen.dart`. |
+| 8 | `reservations` | Growth+ | Table reservations with time slots, front-desk view, conflict checks — `reservations`. |
+| 9 | `recipe_costing` | Growth+ | Link products to stock ingredients (`recipe` on `upsertProduct`), auto margin & food-cost — `StoreGuard.sanitize` drops recipe when not entitled. |
+| 10 | `wastage` | Growth+ | Log waste (`logWastage` / `deleteWastage`) with reason, affects stock and reports. |
+| 11 | `purchases` | Growth+ | Suppliers + purchase orders (`upsertSupplier / Purchase / receivePurchase / cancelPurchase`), stock-in on receive. |
+| 12 | `advanced_reports` | Growth+ | Sales, best/slow movers, profit, staff performance, 86 board, charts — gated reports. |
+| 13 | `eighty_six` | Growth+ | Long-press dish on order screen → 86 (mark unavailable) grey-out everywhere instantly. |
+| 14 | `cloud_sync` | **Custom/Full only** | Encrypted relay at `order-flow-v2.pages.dev/api/cloud` — Main `open` room (256-bit id, 6-char code), stations `join` via mobile data, `send`/`pull` AES-GCM, `200` row cap, `1.2s` hot / `30s` idle, member-only write. Shop data never backed up. |
+| 15 | `qr_branding` | **Custom/Full only** | Brand the guest page (`qr_brand` editor): shop name, tagline, address, phone, WhatsApp, hours, welcome, accent — `QrBrand` in `order.html`. |
+| — | *Starter* | — | Core billing only, all 15 gated off. |
+| — | *Growth* | — | Original 13 extras (all except `cloud_sync` + `qr_branding`). |
+| — | *Custom* | — | Hand-pick any of the 15 per key from dashboard **Access…** dialog. |
+| — | *Full* | — | Everything on, always (`[]` can never lock it — `healFeatures` + `allOn` contract). |
+
+*Plan lands on Main at next online check (`5 min` `kRevalidateMinutes`) or instantly via **More → License → Refresh plan & features** (`Plan synced · n/15`), then fans out to all stations over LAN.*
+
+---
+
 ## Main app tabs
 
 1. **Home** — server, IP + QR, sales, open orders, charts, broadcasts from the dashboard
