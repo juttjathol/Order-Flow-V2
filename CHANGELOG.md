@@ -6,6 +6,12 @@ carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering 
 log — including root causes and the mistakes each release was built to avoid repeating —
 is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
+## 1.1.84 — 2026-09-29
+
+### Splash
+
+* New splash screen — radial glow (`#0d2420 → #050a08 → #020404`), pulsing rings, `logo.png` entrance (`cubic(0.34,1.56,0.64,1)`), `Jathol` typed (`1100ms` delay, `120ms`/letter, cursor `3×36 #2fffa0` blink `0.7s`), `ORDER FLOW` tagline fade, `fadeOut 0.6s at 4.8s` — matches `src/App.tsx` + `src/index.css` exactly, using your uploaded logo as-is (`flutter_app/assets/brand/logo.png`). Only `SplashScreen` touched.
+
 ## 1.1.83 — 2026-09-28
 
 ### Security
