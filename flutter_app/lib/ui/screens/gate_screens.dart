@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,77 +19,263 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  late final AnimationController _mark;
-  late final AnimationController _type;
-  late final AnimationController _blink;
-  late final Animation<double> _scale;
+  static const _word = kBrandName; // 'Jathol'
+  static const _typeDelay = Duration(milliseconds: 1100);
+  static const _typeSpeed = Duration(milliseconds: 120);
+
   String _typed = '';
-  static const _word = kBrandName;
+  bool _cursorOn = false;
+  bool _showTagline = false;
+
+  late final AnimationController _entrance;
+  late final AnimationController _pulse;
+  late final AnimationController _blink;
+  late final AnimationController _tagline;
+  late final AnimationController _fadeOut;
+
+  late final Animation<double> _scale;
+  late final Animation<double> _rotate;
+  late final Animation<double> _opacity;
+
+  Timer? _typeTimer;
 
   @override
   void initState() {
     super.initState();
-    _mark = AnimationController(vsync: this, duration: const Duration(milliseconds: 280))..forward();
-    _type = AnimationController(vsync: this, duration: const Duration(milliseconds: 780));
-    _blink = AnimationController(vsync: this, duration: const Duration(milliseconds: 480))..repeat(reverse: true);
-    _scale = CurvedAnimation(parent: _mark, curve: Curves.easeOutCubic);
-    _type.addListener(() {
-      final n = (_type.value * _word.length).ceil().clamp(0, _word.length);
-      final next = _word.substring(0, n);
-      if (next != _typed) setState(() => _typed = next);
+    _entrance = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000));
+    _blink = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _tagline = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _fadeOut = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+
+    // cubic(0.34, 1.56, 0.64, 1) — overshoot entrance matching CSS logoEntrance
+    final entranceCurve = CurvedAnimation(
+      parent: _entrance,
+      curve: const Cubic(0.34, 1.56, 0.64, 1.0),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.4, end: 1.08), weight: 60),
+      TweenSequenceItem(tween: Tween(begin: 1.08, end: 0.96), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 0.96, end: 1.0), weight: 20),
+    ]).animate(entranceCurve);
+    _rotate = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: -0.14, end: 0.035), weight: 60), // -8deg -> 2deg
+      TweenSequenceItem(tween: Tween(begin: 0.035, end: 0.0), weight: 40),
+    ]).animate(entranceCurve);
+    _opacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _entrance, curve: const Interval(0.0, 0.3, curve: Curves.easeOut)),
+    );
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) _entrance.forward();
     });
-    Future<void>.delayed(const Duration(milliseconds: 80), () {
-      if (mounted) _type.forward();
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted) _pulse.repeat();
+    });
+
+    Future.delayed(_typeDelay, () {
+      if (!mounted) return;
+      setState(() => _cursorOn = true);
+      _blink.repeat(reverse: true);
+      int idx = 0;
+      _typeTimer = Timer.periodic(_typeSpeed, (t) {
+        if (!mounted) { t.cancel(); return; }
+        idx++;
+        setState(() => _typed = _word.substring(0, idx.clamp(0, _word.length)));
+        if (idx >= _word.length) {
+          t.cancel();
+          Future.delayed(const Duration(milliseconds: 700), () {
+            if (!mounted) return;
+            setState(() {
+              _cursorOn = false;
+              _showTagline = true;
+            });
+            _blink.stop();
+            _tagline.forward();
+          });
+        }
+      });
+    });
+
+    Future.delayed(const Duration(milliseconds: 4800), () {
+      if (mounted) _fadeOut.forward();
     });
   }
 
   @override
   void dispose() {
-    _mark.dispose();
-    _type.dispose();
+    _typeTimer?.cancel();
+    _entrance.dispose();
+    _pulse.dispose();
     _blink.dispose();
+    _tagline.dispose();
+    _fadeOut.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.92, end: 1).animate(_scale),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+    // Responsive logo size: clamp(100, 22vw, 150) — use 22% of screen width
+    final w = MediaQuery.of(context).size.width;
+    final logoSize = (w * 0.22).clamp(100.0, 150.0);
+    return FadeTransition(
+      opacity: Tween<double>(begin: 1, end: 0).animate(
+        CurvedAnimation(parent: _fadeOut, curve: Curves.easeIn),
+      ),
+      child: Scaffold(
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -0.1), // 50% 45%
+              radius: 1.2,
+              colors: [Color(0xFF0D2420), Color(0xFF050A08), Color(0xFF020404)],
+              stops: [0.0, 0.55, 1.0],
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Image.asset(
-                'assets/brand/bolt.png',
-                width: 56,
-                height: 72,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-                color: null,
-                isAntiAlias: true,
-                errorBuilder: (_, __, ___) => const SizedBox(width: 56, height: 72),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                _typed,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 42,
-                  letterSpacing: -0.6,
-                  height: 1,
+              // Rings — 480 & 660, pulsing
+              IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (_, __) {
+                    final p = _pulse.value; // 0..1
+                    // subtle pulse scale 1 -> 1.03
+                    final s1 = 1.0 + 0.03 * (0.5 - (p - 0.5).abs()) * 2;
+                    final s2 = 1.0 + 0.025 * (0.5 - ((p + 0.15) % 1.0 - 0.5).abs()) * 2;
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Transform.scale(
+                          scale: s1,
+                          child: Container(
+                            width: 480,
+                            height: 480,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0x172FFFA0), width: 1),
+                            ),
+                          ),
+                        ),
+                        Transform.scale(
+                          scale: s2,
+                          child: Container(
+                            width: 660,
+                            height: 660,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0x0A2FFFA0), width: 1),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
-              FadeTransition(
-                opacity: _blink,
-                child: Container(
-                  margin: const EdgeInsets.only(left: 3),
-                  width: 3,
-                  height: 36,
-                  color: Colors.white,
-                ),
+              // Content
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedBuilder(
+                    animation: Listenable.merge([_entrance, _pulse]),
+                    builder: (_, child) {
+                      final pulseGlow = _pulse.value;
+                      final glow = 24 + 28 * (0.5 - (pulseGlow - 0.5).abs()) * 2; // 24 -> 52
+                      final glow2 = 40 * (0.5 - (pulseGlow - 0.5).abs()) * 2; // second shadow for pulse
+                      return Opacity(
+                        opacity: _opacity.value,
+                        child: Transform.rotate(
+                          angle: _rotate.value,
+                          child: Transform.scale(
+                            scale: _scale.value,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(color: const Color(0x882FFFA0), blurRadius: glow, spreadRadius: 0),
+                                  if (glow2 > 2)
+                                    BoxShadow(color: const Color(0x4400E5FF), blurRadius: glow2 + 28, spreadRadius: 0),
+                                ],
+                              ),
+                              child: child,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Image.asset(
+                      'assets/brand/logo.png',
+                      width: logoSize,
+                      height: logoSize,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      isAntiAlias: true,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Jathol typed + cursor
+                  SizedBox(
+                    height: 72,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          _typed,
+                          style: const TextStyle(
+                            color: Color(0xFF2FFFA0),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 56,
+                            letterSpacing: -1.2,
+                            height: 1,
+                          ),
+                        ),
+                        if (_cursorOn)
+                          FadeTransition(
+                            opacity: Tween<double>(begin: 1, end: 0).animate(
+                              CurvedAnimation(parent: _blink, curve: Curves.easeInOut),
+                            ),
+                            child: Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              width: 3,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2FFFA0),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Tagline
+                  if (_showTagline)
+                    FadeTransition(
+                      opacity: _tagline,
+                      child: SlideTransition(
+                        position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+                          CurvedAnimation(parent: _tagline, curve: const Cubic(0.22, 1.0, 0.36, 1.0)),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'ORDER FLOW',
+                            style: TextStyle(
+                              color: Color(0x802FFFA0),
+                              fontWeight: FontWeight.w300,
+                              fontSize: 13,
+                              letterSpacing: 5.5,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
