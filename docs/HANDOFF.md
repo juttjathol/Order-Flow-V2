@@ -6,7 +6,7 @@ Paste this at the start of a new Arena chat to continue work:
 
 ## ⏩ START HERE — owner directives (read before anything else)
 
-- The "Current state / Open PR #7 / Next version 1.1.60" block below is STALE (kept for history) — v1.1.83 shipped 2026-09-28 (tag green, release Latest, jathol.org/download serving it). Next version: 1.1.84+84 when the owner asks.
+- The "Current state / Open PR #7 / Next version 1.1.60" block below is STALE (kept for history) — v1.1.84 shipped 2026-09-29 (tag green, release Latest, jathol.org/download serving it). Next version: 1.1.85+85 when the owner asks.
 - Owner briefs: verbatim specs are law — implement their exact code; per-mission overrides beat standing rules ("fast forward to main" = `git push HEAD:refs/heads/main`, never the merge button).
 - NEVER merge a PR until the owner says so — and never leave a PR open whose head main is about to pass (v1.1.82: FF onto PR #8's head auto-merged it and instantly killed that session's GitHub access).
 - Release ritual: bump 3 lockstep places (pubspec, kAppVersion, 3× FALLBACK_TAG — guarded by scripts/version_sync_check.py) → guide EN+UR → commit → push arena then main-FF → rc tag → green → final tag → green → verify APK + order-flow-windows.zip assets → delete rc tag+release without asking → verify jathol.org/download?meta=1 → HANDOFF commit → report.
@@ -39,7 +39,7 @@ Continue my existing project: repo `juttjathol/Order-Flow-V2`, workspace `/home/
 
 **PR status:** all 8 PRs merged; v1.1.82 shipped by direct fast-forward (no open PR).
 
-**Shipped: v1.1.83 (Latest release). Opening version when the owner asks: 1.1.84.**
+**Shipped: v1.1.84 (Latest release). Opening version when the owner asks: 1.1.85.**
 
 ---
 
@@ -91,6 +91,16 @@ Tests (`pos_features_test.dart`): full-plan + all-4-models + empty-features payl
 Guide (EN+UR): §24 Plans — dashboard change → More → License → Refresh, `Plan synced · n/15`; §27 Windows — lock icons are key-side, fixed from the dashboard + Refresh (plus changelog bullets in §6).
 
 **Files:** `cloudflare_dashboard/public/app.js`, `cloudflare_dashboard/functions/api/[[path]].js`, `flutter_app/lib/models/models_plans.dart`, `flutter_app/lib/services/license_service.dart`, `flutter_app/lib/state/app_controller.dart`, `flutter_app/lib/ui/screens/more_screen.dart`, `flutter_app/test/pos_features_test.dart`, `website/public/guide.html`, `docs/HANDOFF.md` + version triple (pubspec 1.1.82+82, `kAppVersion`, 3× `FALLBACK_TAG` → v1.1.82).
+## v1.1.84 (RELEASED 2026-09-29 ✅ rc → final) — new Jathol splash
+
+**One-file change, additive only:** `flutter_app/lib/ui/screens/gate_screens.dart` — `SplashScreen` now matches `src/App.tsx` + `src/index.css` exactly (your uploaded `logo.png` already 195K, left as-is). Radial gradient `#0d2420 0% → #050a08 55% → #020404 100%` at `50% 45%` (ellipse 70% 60%), rings 480px `0.09` + 660px `0.04` teal borders pulsing `3s` (`1.4s`/`1.9s` delay), logo `clamp(100,22vw,150)` entrance `0.9s cubic(0.34,1.56,0.64,1) 0.2s` (scale `0.4` rotate `-8deg` → `1.08` `2deg` → `0.96` → `1`, opacity `0→1`) + `logoPulse 3s 1.4s` glow `24→52px #2fffa0` + `80px #00e5ff44`, text `Jathol` typed `1100ms` delay `120ms`/letter `700` weight `900` `#2fffa0` `-0.02em`, cursor `3×0.8em #2fffa0` blink `0.7s step-end`, tagline `ORDER FLOW` `300` `0.42em` `0.5` alpha fade `0.7s cubic(0.22,1,0.36,1)` after `700ms`, whole `fadeOut 0.6s at 4.8s`. Only `SplashScreen` + `dart:async` import; no other widget, route, or asset changed.
+
+**Version triple:** `flutter_app/pubspec.yaml 1.1.84+84`, `flutter_app/lib/core/constants.dart kAppVersion 1.1.84`, `functions/download.js` + `website/functions/download.js` + `cloudflare_dashboard/functions/download.js` `FALLBACK_TAG v1.1.84`; `website/public/guide.html` banner `1.1.84` EN+UR; `README.md 1.1.84+84`; `version_sync_check.py OK`; `node --check` all JS + `check-imports.mjs` OK.
+
+**Shipped:** main `7ba72b8..52a62f4` (via `7e8606f` splash + `52a62f4` bump), arena `7ba72b8..52a62f4`, tag `v1.1.84-rc1` → build success (APK `122985088` + Windows ZIP `18972829`), tag `v1.1.84` → build success (APK `122985088` + Windows ZIP `18972825`, both attached, release *Latest*), rc tag/release deleted per rule 5. `jathol.org/download?meta=1` → `{"tag":"v1.1.84","publishedAt":"2026-09-29T14:07:19Z","size":122985088}` (fetch_page live, not fallback), `jathol.org/guide.html` banner `1.1.84` live.
+
+**No PR merged** per your "dont merge pr" — both pushes were `git push HEAD:refs/heads/main` FF only; PRs untouched.
+
 ## v1.1.83 (RELEASED 2026-09-28 ✅ rc 15→ final) — security hardening + l10n parity
 
 **Audit:** `docs/SECURITY_AUDIT_2026-09-28.md` (17 findings, 4 High). No shop data exfiltration was found; all High findings required LAN or Wi-Fi presence.
