@@ -14,6 +14,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/constants.dart';
 import '../core/lan_policy.dart';
 import '../core/role_access.dart';
+import '../core/pin_crypto.dart';
 import '../core/sanitize.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
@@ -57,6 +58,9 @@ class LanServer {
   final _lanSecret = const Uuid().v4();
   final _qrByTable = <String, List<int>>{};
   final _qrShop = <String, List<int>>{};
+  // Phase-2 PIN verify rate limit per device (server-side, Main only)
+  final _pinFails = <String, int>{};
+  final _pinLockUntil = <String, int>{};
   // Phase-1 QR double-tap guard: same table + same payload hash within 5s returns same ticket
   final _qrLastSubmit = <String, _QrDedup>{};
 
@@ -129,15 +133,15 @@ class LanServer {
   /// receive it: their local PIN gate verifies against that hash, and removing
   /// it there would silently disable void/refund/close-day prompts on stations
   /// until server-side PIN verification ships.
+  // Phase-2 10k: hash never leaves Main. All LAN clients (stations + web-console)
+  // receive store without managerPin — verification is server-side via /verify-pin.
   Map<String, dynamic> _storeJsonFor(String deviceId) {
     final json = readStore().toJson();
-    if (deviceId == 'web-console') {
-      final profile = json['profile'];
-      if (profile is Map) {
-        final copy = Map<String, dynamic>.from(profile);
-        copy['managerPin'] = '';
-        json['profile'] = copy;
-      }
+    final profile = json['profile'];
+    if (profile is Map) {
+      final copy = Map<String, dynamic>.from(profile);
+      copy['managerPin'] = '';
+      json['profile'] = copy;
     }
     return json;
   }
@@ -154,6 +158,7 @@ class LanServer {
       ..get('/join', _join)
       ..get('/state', _state)
       ..post('/command', _command)
+      ..post('/verify-pin', _verifyPin)
       ..post('/driver/status', _driverStatus)
       ..get('/order', _qrPage)
       ..get('/order.html', _qrPage)
@@ -351,6 +356,40 @@ class LanServer {
         'payload': cmd.payload,
       });
     } catch (e) {
+      return _json({'ok': false, 'error': 'server_error'}, status: 500);
+    }
+  }
+
+  // Phase-2: server-side PIN verification — hash never leaves Main
+  Future<Response> _verifyPin(Request req) async {
+    final who = _clientFromReq(req);
+    if (who == null) return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
+    final deviceId = who.deviceId;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final lockedUntil = _pinLockUntil[deviceId] ?? 0;
+    if (nowMs < lockedUntil) {
+      return _json({'ok': false, 'error': 'locked', 'until': lockedUntil}, status: 403);
+    }
+    try {
+      final body = jsonDecode(await req.readAsString());
+      final pin = (body is Map ? (body['pin'] ?? '').toString() : '').trim();
+      final stored = readStore().profile.managerPin;
+      if (stored.isEmpty) return _json({'ok': true, 'valid': true});
+      final valid = PinCrypto.verify(stored, pin);
+      if (!valid) {
+        final fails = (_pinFails[deviceId] ?? 0) + 1;
+        _pinFails[deviceId] = fails;
+        if (fails >= 5) {
+          _pinFails[deviceId] = 0;
+          _pinLockUntil[deviceId] = nowMs + 5 * 60 * 1000;
+          return _json({'ok': false, 'error': 'locked', 'until': _pinLockUntil[deviceId]}, status: 403);
+        }
+        return _json({'ok': false, 'error': 'invalid', 'fails': fails}, status: 403);
+      }
+      _pinFails.remove(deviceId);
+      _pinLockUntil.remove(deviceId);
+      return _json({'ok': true, 'valid': true});
+    } catch (_) {
       return _json({'ok': false, 'error': 'server_error'}, status: 500);
     }
   }

@@ -38,7 +38,10 @@ Future<bool> confirmManagerPin(BuildContext context, WidgetRef ref, {bool requir
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
         FilledButton(
-          onPressed: () => Navigator.pop(ctx, ctrlApp.checkManagerPin(field.text.trim())),
+          onPressed: () async {
+            final ok = await ctrlApp.verifyManagerPin(field.text.trim());
+            if (ctx.mounted) Navigator.pop(ctx, ok);
+          },
           child: Text(s.t('continue')),
         ),
       ],

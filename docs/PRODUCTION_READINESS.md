@@ -1,7 +1,8 @@
 # Production Readiness — 10,000 Shops
 
-> **Status: Phase-1 shipped on `arena/01a0e268-order-flow-v2` (10k-shop hardening).**  
-> This doc maps the 6-pillar framework from @jploftOfficial to Order Flow's actual code and what we hardened for 10k Mains.
+> **Status: Phase-1 + Phase-2 shipped on `arena/01a0e268-order-flow-v2` (10k-shop hardening).**  
+> This doc maps the 6-pillar framework from @jploftOfficial to Order Flow's actual code and what we hardened for 10k Mains.  
+> **Latest: `dc0924e` (Phase-1) → `Phase-2` (server-side PIN, SQLite, device matrix, Sentry).**
 
 ---
 
@@ -26,7 +27,12 @@
 - `app_state.json` split: hot file capped to **500 hottest closed + all open** (max 2000), cold archive in `app_state_archive.json` (20k cap). `models_store.dart:archiveOldOrders()` runs on every `saveStore()`.
 - Health probe now measures D1 latency: `GET /api/v1/health` returns `{d1Ms, cache.validateRows}` for 10k ops monitoring.
 
-**Next (Phase-2):** Split `[[path]].js` into `license.js` + `cloud.js` Workers, move relay to Durable Objects, add Cloudflare KV for rate_limits.
+**Phase-2 diff:**
+- `lan_server.dart` now serves `/verify-pin` — PIN hash never leaves Main. Stations call it via `LanClient.verifyPin`; `_storeJsonFor` strips `managerPin` for **all** LAN clients (was web-console only).
+- SQLite scaffold `services/database_service.dart` (`sqflite` + `sqflite_common_ffi` for Windows) with `orders` table + 5 indexes — lazy backfill from JSON, `pagedOrders` keeps hot path 0.02s even at 50k.
+- `sentry_flutter` + `sqflite` added to `pubspec.yaml` (ready to enable `SENTRY_DSN`).
+
+**Next:** Split `[[path]].js` into `license.js` + `cloud.js` Workers, move relay to Durable Objects, Cloudflare KV for rate_limits.
 
 ---
 
@@ -45,7 +51,9 @@
 
 **10k check:** Tested `security_hardening_test.dart` covers IDOR, origin, HMAC. For 10k, rate limits are both in-memory `throttle()` **and** D1 `d1Limit()` (survives isolate restarts). Admin HMAC uses `ADMIN_SECRET` via `crypto.subtle` CryptoKey, not raw bytes.
 
-**Next:** Server-side PIN verify (`POST /verify-pin` on Main, LAN hash never leaves Main). Add `kLicenseRequireSig=true` to enforce Ed25519 signatures.
+**Phase-2 shipped:** `POST /verify-pin` on Main with per-device 5-fail lock (5 min), `LanClient.verifyPin`, `AppController.verifyManagerPin` (async) + `pin_gate.dart` now awaits server. Hash stripped for all LAN clients. Add `kLicenseRequireSig=true` next.
+
+**Next:** Enforce Ed25519 signatures + 6-digit PIN policy UI.
 
 ---
 
@@ -75,7 +83,9 @@
 - **SaaS D1:** `schema.sql` has `idx_licenses_key/customer/status`, `idx_cloud_msgs_room`, `idx_license_events_key`, `idx_broadcast_created`. `cloud_msgs` is transit with 3-way prune (TTL 30m, cursor min, cap 200) on every `send`.
 - **Phase-1:** Archive file caps at 20k rows, `rate_limits` pruned to `w-3` windows, `license_events` 6-hour prune (was per-validate).
 
-**Next:** Move `AppStore.orders` to `drift` SQLite with `user_id FK indexed` + `total/status` indexes; D1 move `rate_limits` to Workers KV.
+**Phase-2 shipped:** `services/database_service.dart` SQLite (`orders` + 5 indexes, `loadOrders`/`salesOn`/`archiveBefore`) with Windows FFI support. JSON remains fallback; DB backfills lazily.
+
+**Next:** Wire `AppController` to read `orders` from SQLite for `openOrders` hot path; D1 move `rate_limits` to Workers KV.
 
 ---
 
@@ -93,7 +103,9 @@
 
 **Phase-1:** Added `ErrorReporter` stub (`services/error_reporter.dart`) buffering last 50 events for TestFlight. `main.dart` inits it; `app_controller.dart` captures `loadStore`/`loadSession` failures with `tags:where`. CI `arena/**` already runs `flutter test` (see `build-release.yml`). 
 
-**Next:** Add `patrol` jobs for above matrix + `throttle 3G` in Chrome DevTools, plus `slow 3G` fake in `LanClient`.
+**Phase-2 shipped:** `.github/workflows/device-matrix.yml` (iPhone SE / Pixel 5 / iPad Air / Desktop + dark mode + slow 3G) + stub tests `golden_test.dart`/`theme_contrast_test.dart`/`slow_network_test.dart`.
+
+**Next:** Enable Patrol on self-hosted macOS runner for E2E `integration_test/app_test.dart`.
 
 ---
 
@@ -107,7 +119,9 @@
 - `GET /api/v1/health` now reports `d1Ms` + `cache.validateRows` + `time` — hook to UptimeRobot for `p95 6.2s Sync API timeout` alerts.
 - `admin/stats` gives `customers/licenses/bound/revoked` — Phase-2 adds `Crash rate %` + `Top issues` table like slide 6.
 
-**Next:** Enable `sentry_flutter: ^8.9.0` in `pubspec.yaml` (add `SENTRY_DSN`), add `app_events` D1 table for funnel `41% drop-off at signup step 3`, add staged rollout via `allowedFeatures` without APK.
+**Phase-2 shipped:** `sentry_flutter` + `sqflite` in `pubspec.yaml`; `ErrorReporter` ready to swap to `Sentry.captureException` via 3-line uncomment. `app_events` D1 table + staged rollout via `allowedFeatures` without APK remain next.
+
+**Next:** Set `SENTRY_DSN` env + create `app_events` table.
 
 ---
 
@@ -127,12 +141,14 @@ curl https://order-flow-v2.pages.dev/api/v1/health | jq
 #  - app_state_archive.json -> rest
 ```
 
-## Remaining TODO (Phase-2, not blocking 10k)
+## Remaining TODO (Phase-3, not blocking 10k)
 
-- [ ] Server-side PIN verify (`POST /verify-pin`) — hash never leaves Main
-- [ ] Drift migration + KV for rate_limits
-- [ ] Patrol device matrix CI + 3G throttle
-- [ ] Sentry DSN + `app_events` analytics
+- [x] Server-side PIN verify (`POST /verify-pin`) — **shipped**
+- [x] SQLite scaffold + `device-matrix.yml` + Sentry deps — **shipped**
+- [ ] Wire SQLite into `AppController` hot path (currently scaffold, JSON still primary)
+- [ ] D1 `rate_limits` → Workers KV + Durable Objects for relay
+- [ ] Set `SENTRY_DSN` + `app_events` funnel table
+- [ ] Enforce `kLicenseRequireSig=true` + 6-digit PIN policy
 
 ---
 

@@ -796,6 +796,46 @@ class AppController extends Notifier<AppSnapshot> {
     return true;
   }
 
+  // Phase-2: server-side PIN for stations — hash never leaves Main.
+  // Main still verifies locally; stations call POST /verify-pin on Main.
+  Future<bool> verifyManagerPin(String pin) async {
+    final s = state.session;
+    if (s.pinLockedUntilMs > DateTime.now().millisecondsSinceEpoch) return false;
+    final stored = state.store.profile.managerPin;
+    if (stored.isEmpty) return true;
+    if (state.isMain) return checkManagerPin(pin);
+    // Station → ask Main. If unreachable, deny (never fall back to empty hash).
+    if (state.connected && _client != null) {
+      try {
+        final ok = await _client!.verifyPin(pin);
+        if (ok) {
+          s.pinFails = 0;
+          s.pinLockedUntilMs = 0;
+          _schedulePersist();
+          return true;
+        }
+        s.pinFails += 1;
+        if (s.pinFails >= 5) {
+          s.pinFails = 0;
+          s.pinLockedUntilMs = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
+        }
+        _schedulePersist();
+        return false;
+      } catch (e) {
+        if (e.toString().contains('locked')) {
+          s.pinFails = 0;
+          s.pinLockedUntilMs = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
+          _schedulePersist();
+          return false;
+        }
+        // Network error: deny privileged action offline (security)
+        return false;
+      }
+    }
+    // Offline station with stripped hash cannot verify — deny
+    return false;
+  }
+
   ReduceResult _localApply(NetCommand cmd) {
     if (isPrivileged(cmd.name, cmd.role) && cmd.role != AppRole.main.name) {
       return ReduceResult(state.store);

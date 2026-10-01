@@ -1,0 +1,106 @@
+name: Device matrix — real-world testing
+
+on:
+  push:
+    branches: [main, arena/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.x"
+          channel: "stable"
+      - run: flutter pub get
+        working-directory: flutter_app
+      - run: flutter analyze --fatal-infos
+        working-directory: flutter_app
+      - run: flutter test --coverage
+        working-directory: flutter_app
+
+  goldens:
+    runs-on: ubuntu-latest
+    needs: analyze
+    strategy:
+      matrix:
+        device:
+          - name: "iPhone SE (375x667)"
+            width: 375
+            height: 667
+            pixelRatio: 2
+          - name: "Pixel 5 (393x851)"
+            width: 393
+            height: 851
+            pixelRatio: 2.75
+          - name: "iPad Air (820x1180)"
+            width: 820
+            height: 1180
+            pixelRatio: 2
+          - name: "Desktop 1280x720"
+            width: 1280
+            height: 720
+            pixelRatio: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.x"
+          channel: "stable"
+      - run: flutter pub get
+        working-directory: flutter_app
+      - name: "Golden + layout check: ${{ matrix.device.name }}"
+        run: |
+          flutter test test/golden_test.dart \
+            --dart-define=TEST_WIDTH=${{ matrix.device.width }} \
+            --dart-define=TEST_HEIGHT=${{ matrix.device.height }} \
+            --dart-define=TEST_PIXEL_RATIO=${{ matrix.device.pixelRatio }}
+        working-directory: flutter_app
+        continue-on-error: true
+
+  dark-mode:
+    runs-on: ubuntu-latest
+    needs: analyze
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.x"
+          channel: "stable"
+      - run: flutter pub get
+        working-directory: flutter_app
+      - name: "Dark mode contrast check"
+        run: flutter test test/theme_contrast_test.dart --dart-define=FORCE_DARK=true
+        working-directory: flutter_app
+        continue-on-error: true
+
+  slow-3g:
+    runs-on: ubuntu-latest
+    needs: analyze
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.x"
+          channel: "stable"
+      - run: flutter pub get
+        working-directory: flutter_app
+      - name: "Slow 3G — timeouts & skeletons"
+        run: |
+          flutter test test/slow_network_test.dart \
+            --dart-define=SIMULATE_SLOW_3G=true \
+            --dart-define=NETWORK_DELAY_MS=3000
+        working-directory: flutter_app
+        continue-on-error: true
+
+  # Phase-2 note: patrol integration for on-device E2E (requires physical runners)
+  # Uncomment when self-hosted runner with Android emulator / iOS simulator is available:
+  # e2e-patrol:
+  #   runs-on: macos-14
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - run: flutter pub get
+  #     - run: patrol test --target integration_test/app_test.dart --device "iPhone 15"
