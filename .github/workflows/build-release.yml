@@ -52,10 +52,18 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-apk.log 2>/dev/null | head -40; } | while IFS= read -r line; do
+          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-apk.log 2>/dev/null | head -80; } | while IFS= read -r line; do
             esc=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
             echo "::error ::$esc"
           done
+
+      - name: Upload APK build log (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-apk-log
+          path: flutter_app/build-apk.log
+          if-no-files-found: warn
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -101,10 +109,18 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-windows.log 2>/dev/null | head -40; } | while IFS= read -r line; do
+          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-windows.log 2>/dev/null | head -80; } | while IFS= read -r line; do
             esc=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
             echo "::error ::$esc"
           done
+
+      - name: Upload Windows build log (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-windows-log
+          path: flutter_app/build-windows.log
+          if-no-files-found: warn
 
       - name: Zip Windows build
         working-directory: flutter_app/build/windows/x64/runner/Release

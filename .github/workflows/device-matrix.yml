@@ -13,8 +13,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x"
-          channel: "stable"
+          channel: stable
+          cache: true
       - run: flutter pub get
         working-directory: flutter_app
       - run: flutter analyze --fatal-infos
@@ -48,8 +48,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x"
-          channel: "stable"
+          channel: stable
+          cache: true
       - run: flutter pub get
         working-directory: flutter_app
       - name: "Golden + layout check: ${{ matrix.device.name }}"
@@ -68,8 +68,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x"
-          channel: "stable"
+          channel: stable
+          cache: true
       - run: flutter pub get
         working-directory: flutter_app
       - name: "Dark mode contrast check"
@@ -84,8 +84,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x"
-          channel: "stable"
+          channel: stable
+          cache: true
       - run: flutter pub get
         working-directory: flutter_app
       - name: "Slow 3G — timeouts & skeletons"
