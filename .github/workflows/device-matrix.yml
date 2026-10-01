@@ -42,8 +42,18 @@ jobs:
           \`\`\`
           $LOG
           \`\`\`" || echo "comment failed"
-      - run: flutter test --coverage
+      - name: Run tests with coverage
         working-directory: flutter_app
+        run: |
+          flutter test --coverage 2>&1 | tee test.log || true
+          echo "test exit: ${PIPESTATUS[0]}" >> test.log
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: flutter_app/test.log
+          if-no-files-found: warn
 
   goldens:
     runs-on: ubuntu-latest
