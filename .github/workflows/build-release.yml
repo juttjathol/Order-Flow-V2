@@ -56,6 +56,19 @@ jobs:
             esc=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
             echo "::error ::$esc"
           done
+          echo "--- tail 200 ---"
+          tail -n 200 flutter_app/build-apk.log || true
+
+      - name: Post APK log as commit comment on failure
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LOG=$(tail -n 500 flutter_app/build-apk.log 2>/dev/null | head -c 50000 || echo "no log")
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="APK build failure on ${{ github.sha }}:
+          \`\`\`
+          $LOG
+          \`\`\`" || echo "comment failed"
 
       - name: Upload APK build log (diagnostics)
         if: always()
