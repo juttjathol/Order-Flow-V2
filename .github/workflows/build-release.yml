@@ -85,6 +85,28 @@ jobs:
           path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
+      - name: Build release AAB (Play Store)
+        working-directory: flutter_app
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build appbundle --release --no-tree-shake-icons 2>&1 | tee build-aab.log
+
+      - name: Upload AAB build log (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-aab-log
+          path: flutter_app/build-aab.log
+          if-no-files-found: warn
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-aab
+          path: flutter_app/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: warn
+
   build-windows:
     runs-on: windows-latest
     steps:
@@ -157,6 +179,13 @@ jobs:
           name: app-apk
           path: dist
 
+      - name: Download AAB artifact (Play Store)
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: app-aab
+          path: dist
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
@@ -169,6 +198,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             dist/app-release.apk
+            dist/app-release.aab
             dist/order-flow-windows.zip
           generate_release_notes: true
         env:

@@ -215,7 +215,10 @@ class AppController extends Notifier<AppSnapshot> {
       ErrorReporter.capture(e, s, tags: {'where': 'bootstrap.loadStore'});
       store = AppStore();
     }
-    final remain = const Duration(milliseconds: 1000) -
+    // Splash animation is ~5400 ms (entrance 900+200, type 1100+720, gap 700,
+    // tagline 700, fadeOut 600@4800). Hold here so router.dart:34 keeps
+    // /splash mounted until the typed + tagline sequence finishes.
+    final remain = const Duration(milliseconds: 5400) -
         DateTime.now().difference(started);
     if (remain > Duration.zero) await Future.delayed(remain);
     state = state.copyWith(

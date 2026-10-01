@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Order Flow</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>order_flow</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>UISupportsDocumentBrowser</key>
+	<false/>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<!-- 2026 App Store: usage descriptions for every requested capability -->
+	<key>NSCameraUsageDescription</key>
+	<string>Order Flow uses the camera to scan barcodes, capture menu photos, and scan QR codes to join the shop network.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Order Flow accesses photos to attach images to menu items and import menus.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Order Flow uses location only to discover the shop Wi-Fi network so stations can find the Main device. Your location is not tracked or stored.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Order Flow uses Bluetooth to discover and print to receipt and kitchen printers.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Order Flow uses Bluetooth to connect to thermal printers.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Order Flow discovers and connects to the Main device on your shop Wi-Fi. This requires local network access.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>This identifier is not used for tracking. Order Flow does not track you across apps or websites.</string>
+	<!-- Encryption: app uses standard HTTPS only, no custom encryption -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- iOS 26 SDK: allow local cleartext for LAN (Main on 192.168.x.x / 10.x) -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+</dict>
+</plist>
