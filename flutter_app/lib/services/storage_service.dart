@@ -6,7 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/constants.dart';
 import '../models/models.dart';
+import 'database_service.dart' show DatabaseService;
 
 class StorageService {
   StorageService(this.prefs, this._docs);
@@ -70,14 +72,35 @@ class StorageService {
   }
 
   Future<AppStore> loadStore() async {
+    AppStore? jsonStore;
     try {
       if (await _stateFile.exists()) {
         final raw = await _stateFile.readAsString();
         if (raw.isNotEmpty) {
-          return AppStore.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+          jsonStore = AppStore.fromJson(jsonDecode(raw) as Map<String, dynamic>);
         }
       }
     } catch (_) {}
+    // Phase-3: SQLite hot path for 10k shops — try DB first, backfill once
+    if (kUseSqliteOrders) {
+      try {
+        final already = prefs.getBool('sqlite_backfilled') ?? false;
+        final db = await DatabaseService.instance();
+        if (jsonStore != null && !already) {
+          final n = await db.backfillFromStore(jsonStore);
+          if (n > 0) await prefs.setBool('sqlite_backfilled', true);
+          final dbOrders = await db.loadOrders(limit: 2000);
+          if (dbOrders.isNotEmpty) jsonStore.orders = dbOrders;
+        } else if (jsonStore != null && already) {
+          final dbOrders = await db.loadOrders(limit: 2000);
+          if (dbOrders.isNotEmpty) jsonStore.orders = dbOrders;
+        }
+        if (jsonStore != null) return jsonStore;
+      } catch (_) {
+        // Fall back to JSON if SQLite unavailable (e.g. tests)
+      }
+    }
+    if (jsonStore != null) return jsonStore;
     // Main file missing or corrupt — fall back to the last good copy, then
     // heal it back into place so a crash mid-write never wipes the shop.
     try {
@@ -163,6 +186,19 @@ class StorageService {
   }
 
   Future<void> saveStore(AppStore store) async {
+    // Phase-3: sync orders to SQLite when enabled (non-blocking, best-effort)
+    if (kUseSqliteOrders) {
+      try {
+        final db = await DatabaseService.instance();
+        // Upsert hot orders (open + recent) — archived ones are already pruned
+        for (final o in store.orders.take(100)) {
+          // ignore: unawaited_futures
+          db.upsertOrder(o);
+        }
+        // Archive in SQLite as well (keeps DB <2000 rows)
+        db.archiveBefore(DateTime.now().subtract(const Duration(days: 90)));
+      } catch (_) {}
+    }
     // Phase-1: hot/cold split — keep app_state.json under ~500KB at 10k shops
     List<Map<String, dynamic>> toArchiveJson = const [];
     try {

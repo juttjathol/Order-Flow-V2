@@ -1,5 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as dev;
+
+import 'package:http/http.dart' as http;
+
+import '../core/constants.dart';
 
 /// Phase-1 production error reporter — stub that works without Sentry.
 /// Swap `Sentry.captureException` in `_send` when `sentry_flutter` is added.
@@ -15,15 +20,26 @@ class ErrorReporter {
   static const int _maxBuffer = 50;
   static String? _lastBreadcrumb;
 
+  static String _sentryDsn = '';
+  static int _lastSentMs = 0;
+  static int _sentInMinute = 0;
+
   static Future<void> init() async {
     _initialized = true;
-    // TODO(phase-1): uncomment when sentry_flutter is added to pubspec
-    // await SentryFlutter.init((o) {
-    //   o.dsn = const String.fromEnvironment('SENTRY_DSN');
-    //   o.tracesSampleRate = 0.1;
-    //   o.attachStacktrace = true;
-    // });
-    dev.log('[ErrorReporter] initialized (stub, buffer=$_maxBuffer)');
+    _sentryDsn = kSentryDsn;
+    // Phase-3: if SENTRY_DSN is provided at build, init Sentry
+    if (_sentryDsn.isNotEmpty) {
+      try {
+        // ignore: avoid_dynamic_calls
+        // await SentryFlutter.init((o) {
+        //   o.dsn = _sentryDsn;
+        //   o.tracesSampleRate = 0.1;
+        //   o.attachStacktrace = true;
+        // });
+        dev.log('[ErrorReporter] Sentry DSN present, would init (uncomment when sentry imported)');
+      } catch (_) {}
+    }
+    dev.log('[ErrorReporter] initialized (stub, buffer=$_maxBuffer, sentry=${_sentryDsn.isNotEmpty})');
   }
 
   static void breadcrumb(String message, {Map<String, dynamic>? data}) {
@@ -62,13 +78,46 @@ class ErrorReporter {
       stackTrace: stack,
     );
 
-    // TODO: Sentry
-    // unawaited(Sentry.captureException(error, stackTrace: stack,
-    //   withScope: (s) {
-    //     tags?.forEach((k, v) => s.setTag(k, v));
-    //     extra?.forEach((k, v) => s.setExtra(k, v));
-    //   },
-    // ));
+    // Phase-3: also POST to D1 app_events (throttled 10/min) for 10k ops dashboard
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (nowMs - _lastSentMs > 60000) {
+      _sentInMinute = 0;
+      _lastSentMs = nowMs;
+    }
+    if (_sentInMinute < 10) {
+      _sentInMinute++;
+      unawaited(_postToSaaS(error.toString(), level, tags, extra));
+    }
+
+    // TODO: Sentry when DSN set
+    // if (_sentryDsn.isNotEmpty) {
+    //   unawaited(Sentry.captureException(error, stackTrace: stack,
+    //     withScope: (s) {
+    //       tags?.forEach((k, v) => s.setTag(k, v));
+    //       extra?.forEach((k, v) => s.setExtra(k, v));
+    //     },
+    //   ));
+    // }
+  }
+
+  static Future<void> _postToSaaS(
+    String error, String level, Map<String, String>? tags, Map<String, dynamic>? extra) async {
+    try {
+      final uri = Uri.parse('$kDefaultApiBase/api/v1/events');
+      await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'kind': level == 'crash' ? 'crash' : 'error',
+              'route': tags?['where'] ?? _lastBreadcrumb ?? 'unknown',
+              'detail': error.length > 2000 ? error.substring(0, 2000) : error,
+              'deviceId': extra?['deviceId']?.toString() ?? '',
+              'licenseKey': extra?['licenseKey']?.toString() ?? '',
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
   }
 
   /// For health endpoint / debug sheet — not PII
@@ -80,6 +129,7 @@ class ErrorReporter {
         'buffered': _buffer.length,
         'lastBreadcrumb': _lastBreadcrumb,
         'lastError': _buffer.isEmpty ? null : _buffer.last.error,
+        'sentry': _sentryDsn.isNotEmpty,
       };
 }
 

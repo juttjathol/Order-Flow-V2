@@ -257,6 +257,32 @@ async function logLicenseEvent(db, { licenseId, licenseKey, event, deviceId, det
   } catch {}
 }
 
+let appEventsSchemaChecked = false;
+async function ensureAppEventsTable(db) {
+  if (appEventsSchemaChecked) return;
+  try {
+    await db.prepare("SELECT 1 FROM app_events LIMIT 1").first();
+    appEventsSchemaChecked = true;
+  } catch {
+    try {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS app_events (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          device_id TEXT,
+          license_key TEXT,
+          route TEXT,
+          detail TEXT,
+          created_at TEXT NOT NULL
+        )`,
+      ).run();
+      try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_app_events_kind ON app_events(kind, created_at DESC)").run(); } catch {}
+      try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_app_events_license ON app_events(license_key, created_at DESC)").run(); } catch {}
+      appEventsSchemaChecked = true;
+    } catch {}
+  }
+}
+
 let broadcastSchemaChecked = false;
 async function ensureBroadcastTable(db) {
   if (broadcastSchemaChecked) return;
@@ -371,6 +397,7 @@ export async function onRequest(context) {
   await ensurePlanColumns(env.DB);
   await ensureLicenseEvents(env.DB);
   await ensureBroadcastTable(env.DB);
+  await ensureAppEventsTable(env.DB);
 
   const path = pathOf(context);
   const method = request.method.toUpperCase();
@@ -412,6 +439,36 @@ export async function onRequest(context) {
       } catch (e) {
         return json({ ok: true, broadcasts: [] });
       }
+    }
+
+    if (path === "v1/events" && method === "POST") {
+      if (throttle(`events|${ipOf(request)}`, 120, 60000) || await d1Limit(env.DB, `events|${ipOf(request)}`, 120, 60000)) {
+        return json({ ok: false, error: "slow_down" }, 429, { "Retry-After": "60" });
+      }
+      const body = await readJson(request);
+      const kind = ["crash","perf","funnel","error"].includes(String(body.kind || "").trim()) ? String(body.kind).trim() : "error";
+      const route = clip(String(body.route || ""), 200);
+      const detail = clip(String(body.detail || body.message || ""), 2000);
+      const deviceId = clip(String(body.deviceId || ""), 80);
+      const licenseKey = clip(String(body.licenseKey || ""), 40).toUpperCase();
+      try {
+        await env.DB.prepare(
+          `INSERT INTO app_events (id, kind, device_id, license_key, route, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(crypto.randomUUID(), kind, deviceId, licenseKey, route, detail, nowIso()).run();
+      } catch {}
+      return json({ ok: true });
+    }
+
+    if (path === "admin/events" && method === "GET") {
+      const authed2 = await verifyToken(env, request.headers.get("Authorization") || "");
+      if (!authed2) return json({ ok: false, error: "unauthorized" }, 401);
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT kind, route, detail, device_id, license_key, created_at FROM app_events ORDER BY created_at DESC LIMIT 100",
+        ).all();
+        const crashes = await env.DB.prepare("SELECT COUNT(*) as n FROM app_events WHERE kind='crash' AND created_at > datetime('now','-7 days')").first();
+        return json({ ok: true, events: results || [], crashes7d: crashes?.n || 0 });
+      } catch { return json({ ok: true, events: [] }); }
     }
 
     if (path === "v1/license/validate" && method === "POST") {

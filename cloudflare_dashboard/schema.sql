@@ -89,3 +89,17 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   n INTEGER NOT NULL,
   PRIMARY KEY (k, w)
 );
+
+-- Phase-3: app funnel & crash analytics (10k-shop ops). One row per event
+-- sampled from clients (Sentry also buffers). Not shop data.
+CREATE TABLE IF NOT EXISTS app_events (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL, -- crash|perf|funnel|error
+  device_id TEXT,
+  license_key TEXT,
+  route TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_app_events_kind ON app_events(kind, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_events_license ON app_events(license_key, created_at DESC);
