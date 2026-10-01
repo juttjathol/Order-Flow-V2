@@ -181,27 +181,31 @@ async function apkMeta() {
 apkMeta();
 
 const statusEl = document.getElementById("dl-status");
-async function startDownload(ev) {
+function startDownload(ev) {
   if (ev) ev.preventDefault();
-  if (statusEl) statusEl.textContent = "Preparing your download…";
+  if (statusEl) statusEl.textContent = "Starting download…";
+  // Instant start: navigate straight to /download which 302-redirects to
+  // GitHub's CDN. The old flow fetched the entire APK into a blob before
+  // clicking, so the browser showed no progress for 3-15 seconds.
   try {
-    const res = await fetch("/download");
-    if (!res.ok) throw new Error("busy");
-    const blob = await res.blob();
-    if (blob.size < 10000) throw new Error("empty");
-    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "Order-Flow.apk";
+    a.href = "/download";
+    a.setAttribute("download", "Order-Flow.apk");
+    a.style.display = "none";
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
-    if (statusEl) statusEl.textContent = "Download started on this device.";
+    setTimeout(() => {
+      if (document.visibilityState === "visible") {
+        try { window.location.assign("/download"); } catch (_) {}
+      }
+    }, 400);
   } catch (_) {
-    if (statusEl) statusEl.textContent = "Starting download…";
     window.location.assign("/download");
   }
+  setTimeout(() => {
+    if (statusEl) statusEl.textContent = "Download started — check your browser's downloads bar. If blocked, allow downloads from this site.";
+  }, 900);
 }
 
 document.getElementById("trial-form")?.addEventListener("submit", (e) => {

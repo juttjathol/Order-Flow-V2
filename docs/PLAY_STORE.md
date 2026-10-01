@@ -1,6 +1,6 @@
 # Google Play — publish checklist (2026)
 
-> **Sideload APKs (`v1.1.85` tag) do NOT need this.** This doc is the gate before you upload `app-release.aab` to Play Console.
+> **Sideload APKs (`v1.1.86` tag) do NOT need this.** This doc is the gate before you upload `app-release.aab` to Play Console.
 
 ## 2026 gates you must clear (what changed)
 

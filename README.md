@@ -11,10 +11,10 @@ Offline-first multi-device POS for restaurants, retail, fast food, and services,
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
 - **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.76+)
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke, plans & per-key feature access, push broadcasts
-- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.85` (or any `v*`) and the Action attaches `app-release.apk` and `order-flow-windows.zip`
+- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.86` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.85+84**.
+Version **1.1.86+86**.
 
 You only need two things after this repo is on GitHub:
 

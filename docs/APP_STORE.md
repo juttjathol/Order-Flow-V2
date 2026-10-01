@@ -34,7 +34,7 @@ cd flutter_app
 flutter pub get
 cd ios && pod install && cd ..
 flutter build ipa --release --no-tree-shake-icons \
-  --build-name=1.1.85 --build-number=85
+  --build-name=1.1.86 --build-number=86
 # Or: flutter build ios --release
 open build/ios/archive/Runner.xcarchive   # Organizer → Distribute → App Store Connect
 ```
@@ -66,7 +66,7 @@ If you don’t have a Mac, the `build-release.yml` iOS lane (to be added) does i
 ## Before you click “Submit for Review”
 
 - [ ] Apple Developer Program paid + verified
-- [ ] App record in App Store Connect: `com.jathol.orderflow`, `Order Flow`, `1.1.85 (85)`, `jathol.org`, `privacy`, `contact@jathol.org`
+- [ ] App record in App Store Connect: `com.jathol.orderflow`, `Order Flow`, `1.1.86 (86)`, `jathol.org`, `privacy`, `contact@jathol.org`
 - [ ] App Privacy answers match `PrivacyInfo.xcprivacy` + `privacy.html` (Device ID → App Functionality, not linked, not tracking)
 - [ ] Screenshots: iPhone 6.7" (1290×2796) + iPad 12.9" (2048×2732), at least 1 per size, no Android nav bar
 - [ ] Test device + test key in **Review Notes** + demo account if you gate anything

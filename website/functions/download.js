@@ -3,12 +3,10 @@
 // jathol Pages project), ./website/functions/download.js and
 // ./cloudflare_dashboard/functions/download.js — keep them in sync.
 const REPO = "juttjathol/Order-Flow-V2";
-const FALLBACK_TAG = "v1.1.85";
+const FALLBACK_TAG = "v1.1.86";
 const FALLBACK_APK = `https://github.com/${REPO}/releases/download/${FALLBACK_TAG}/app-release.apk`;
 
-// ── security: burst throttle + short meta cache (per isolate) ────────────
-// GitHub allows ~5000 authenticated API calls/hour. Without this, a scanner
-// hitting ?meta=1 could burn the quota and starve real visitors mid-release.
+// ── security: burst throttle + short meta/apk cache (per isolate) ───────
 const hits = new Map();
 function overLimit(key, max, windowMs) {
   const now = Date.now();
@@ -25,6 +23,7 @@ function ipOf(request) {
   return (request.headers.get("cf-connecting-ip") || "na").split(",")[0].trim();
 }
 let metaCache = { t: 0, body: null, status: 200 };
+let apkCache = { t: 0, data: null }; // { release, asset }
 const SEC = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -36,7 +35,6 @@ function ghHeaders(env, extra = {}) {
     "User-Agent": "jathol-order-flow-apk",
     ...extra,
   };
-  // Token comes from Pages env secrets only — never committed, never echoed.
   if (env.GITHUB_TOKEN) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
   return headers;
 }
@@ -51,6 +49,8 @@ function skipRelease(release) {
 }
 
 async function latestApk(env) {
+  if (apkCache.data && Date.now() - apkCache.t < 45000) return apkCache.data;
+
   const listRes = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
     headers: ghHeaders(env),
   });
@@ -60,7 +60,11 @@ async function latestApk(env) {
       for (const release of list) {
         if (skipRelease(release)) continue;
         const asset = apkAsset(release);
-        if (asset) return { release, asset };
+        if (asset) {
+          const data = { release, asset };
+          apkCache = { t: Date.now(), data };
+          return data;
+        }
       }
     }
   }
@@ -72,13 +76,15 @@ async function latestApk(env) {
     const release = await latestRes.json();
     if (!skipRelease(release)) {
       const asset = apkAsset(release);
-      if (asset) return { release, asset };
+      if (asset) {
+        const data = { release, asset };
+        apkCache = { t: Date.now(), data };
+        return data;
+      }
     }
   }
 
-  // Rate-limited or API blip: fall back to the pinned release tag so shoppers
-  // can still download the current build.
-  return {
+  const fallback = {
     release: { tag_name: FALLBACK_TAG, published_at: null },
     asset: {
       name: "app-release.apk",
@@ -87,22 +93,8 @@ async function latestApk(env) {
       browser_download_url: FALLBACK_APK,
     },
   };
-}
-
-async function fetchApk(env, asset) {
-  const urls = [asset.browser_download_url, FALLBACK_APK].filter(Boolean);
-  for (const url of urls) {
-    const res = await fetch(url, { redirect: "follow" });
-    if (res.ok) return res;
-  }
-  if (asset.url) {
-    const viaApi = await fetch(asset.url, {
-      headers: ghHeaders(env, { Accept: "application/octet-stream" }),
-      redirect: "follow",
-    });
-    if (viaApi.ok) return viaApi;
-  }
-  throw new Error("apk_fetch");
+  apkCache = { t: Date.now(), data: fallback };
+  return fallback;
 }
 
 export async function onRequest(context) {
@@ -151,7 +143,7 @@ export async function onRequestGet(context) {
         },
       });
     } catch (e) {
-      console.error("meta failed:", e && e.message); // cause stays server-side
+      console.error("meta failed:", e && e.message);
       const body = JSON.stringify({ ok: false, error: "release_lookup_failed" });
       metaCache = { t: Date.now(), body, status: 502 };
       return new Response(body, {
@@ -169,18 +161,21 @@ export async function onRequestGet(context) {
   }
   try {
     const { asset } = await latestApk(env);
-    const file = await fetchApk(env, asset);
-    return new Response(file.body, {
+    const target = asset.browser_download_url || FALLBACK_APK;
+    return new Response(null, {
+      status: 302,
       headers: {
-        "Content-Type": "application/vnd.android.package-archive",
-        "Content-Disposition": 'attachment; filename="Order-Flow.apk"',
+        Location: target,
         "Cache-Control": "private, max-age=60",
         "Access-Control-Allow-Origin": "*",
-        "X-Content-Type-Options": "nosniff",
+        ...SEC,
       },
     });
   } catch (e) {
-    console.error("apk stream failed:", e && e.message);
-    return new Response("The Android app is being prepared. Please try again shortly.", { status: 502, headers: { ...SEC } });
+    console.error("apk redirect failed:", e && e.message);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: FALLBACK_APK, "Cache-Control": "private, max-age=60", ...SEC },
+    });
   }
 }

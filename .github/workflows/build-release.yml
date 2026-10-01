@@ -34,6 +34,26 @@ jobs:
       - name: Force compileSdk 36 and minSdk 23
         run: python3 scripts/patch_android.py
 
+      - name: Verify version lockstep (pubspec + kAppVersion + FALLBACK_TAG)
+        shell: bash
+        run: |
+          set -e
+          echo "Checking pubspec vs kAppVersion..."
+          python3 scripts/version_sync_check.py flutter_app
+          TAG="${GITHUB_REF_NAME:-}"
+          PUB=$(grep -oP '^version:\s*\K[0-9.]+' flutter_app/pubspec.yaml | head -1)
+          APP=$(grep -oP "kAppVersion\s*=\s*'\K[0-9.]+" flutter_app/lib/core/constants.dart | head -1)
+          FB=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' functions/download.js | head -1)
+          FB2=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' website/functions/download.js | head -1)
+          FB3=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' cloudflare_dashboard/functions/download.js | head -1)
+          echo "pubspec=$PUB kAppVersion=$APP FALLBACK=$FB / $FB2 / $FB3 TAG=$TAG"
+          if [ "$PUB" != "$APP" ]; then echo "::error ::pubspec $PUB != kAppVersion $APP"; exit 1; fi
+          if [ "$FB" != "v$PUB" ] || [ "$FB2" != "v$PUB" ] || [ "$FB3" != "v$PUB" ]; then echo "::error ::FALLBACK_TAG must be v$PUB (got $FB $FB2 $FB3) — bump all 3 download.js"; exit 1; fi
+          if [ -n "$TAG" ] && [ "$TAG" != "v$PUB" ]; then echo "::error ::tag $TAG != v$PUB — tag must match pubspec version"; exit 1; fi
+          grep -q "$PUB" README.md || echo "::warning ::README.md doesn't mention $PUB"
+          grep -q "$PUB" website/public/guide.html || echo "::warning ::guide.html doesn't mention $PUB"
+          echo "Version lockstep OK ($PUB)"
+
       - name: Flutter pub get
         working-directory: flutter_app
         run: flutter pub get
