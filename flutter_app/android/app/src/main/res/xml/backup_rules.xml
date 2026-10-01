@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<full-backup-content>
-    <!-- Shop data is local POS — never auto-backup to Google Drive (privacy + stock integrity). -->
-    <exclude domain="sharedpref" path="." />
-    <exclude domain="database" path="." />
-    <exclude domain="file" path="." />
-</full-backup-content>
 <data-extraction-rules>
     <cloud-backup>
+        <!-- Shop data is local POS — never auto-backup to Google Drive. -->
         <exclude domain="sharedpref" path="." />
         <exclude domain="database" path="." />
         <exclude domain="file" path="." />
