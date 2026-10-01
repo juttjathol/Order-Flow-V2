@@ -20,6 +20,35 @@ const PLAN_PRESETS = {
   full: [...FEATURE_KEYS],
 };
 
+// Phase-1 10k-shop: in-memory row cache for license validate (isolate-level).
+// kRevalidateMinutes=5 → 10k shops = 33 rps. 2 min TTL cuts D1 selects ~40%
+// without risking stale revoke (writes clear the entry immediately).
+const validateRowCache = new Map();
+const VALIDATE_ROW_TTL_MS = 120_000;
+function cacheGetValidateRow(licenseKey) {
+  const hit = validateRowCache.get(licenseKey);
+  if (!hit) return null;
+  if (Date.now() - hit.at > VALIDATE_ROW_TTL_MS) {
+    validateRowCache.delete(licenseKey);
+    return null;
+  }
+  return hit.row;
+}
+function cacheSetValidateRow(licenseKey, row) {
+  validateRowCache.set(licenseKey, { at: Date.now(), row });
+  if (validateRowCache.size > 4000) {
+    const now = Date.now();
+    for (const [k, v] of validateRowCache) {
+      if (now - v.at > VALIDATE_ROW_TTL_MS * 2) validateRowCache.delete(k);
+    }
+  }
+}
+function cacheDelValidateRow(licenseKey) {
+  if (!licenseKey) return;
+  validateRowCache.delete(licenseKey.toUpperCase().trim());
+  validateRowCache.delete(licenseKey);
+}
+
 // Add plan columns to databases created before v1.1.59 (idempotent, once per isolate).
 let planSchemaChecked = false;
 async function ensurePlanColumns(db) {
@@ -348,7 +377,23 @@ export async function onRequest(context) {
 
   try {
     if (path === "v1/health" && method === "GET") {
-      return json({ ok: true, app: "order-flow-saas", version: "1.0.0" });
+      const t0 = Date.now();
+      let d1ok = true, d1ms = 0;
+      try {
+        const q0 = Date.now();
+        await env.DB.prepare("SELECT 1 AS x").first();
+        d1ms = Date.now() - q0;
+      } catch { d1ok = false; }
+      return json({
+        ok: true,
+        app: "order-flow-saas",
+        version: "1.0.0",
+        d1: d1ok ? "ok" : "down",
+        d1Ms: d1ms,
+        uptimeMs: Date.now() - t0,
+        cache: { validateRows: validateRowCache.size },
+        time: nowIso(),
+      });
     }
 
     if (path === "v1/broadcasts" && method === "GET") {
@@ -527,6 +572,7 @@ export async function onRequest(context) {
         )
           .bind(id)
           .run();
+        cacheDelValidateRow(row.license_key);
         await logLicenseEvent(env.DB, {
           licenseId: id,
           licenseKey: row.license_key,
@@ -541,6 +587,7 @@ export async function onRequest(context) {
         await env.DB.prepare("UPDATE licenses SET expires_at = ? WHERE id = ?")
           .bind(nextExp, id)
           .run();
+        cacheDelValidateRow(row.license_key);
         await logLicenseEvent(env.DB, {
           licenseId: id,
           licenseKey: row.license_key,
@@ -552,6 +599,7 @@ export async function onRequest(context) {
       }
       if (method === "POST" && action === "revoke") {
         await env.DB.prepare("UPDATE licenses SET status = 'revoked' WHERE id = ?").bind(id).run();
+        cacheDelValidateRow(row.license_key);
         await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "revoke" });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
@@ -564,6 +612,7 @@ export async function onRequest(context) {
         )
           .bind(access.plan, JSON.stringify(access.models), JSON.stringify(access.features), id)
           .run();
+        cacheDelValidateRow(row.license_key);
         const next = await licenseById(env.DB, id);
         const cust = await customerById(env.DB, next.customer_id);
         return json({ ok: true, license: publicLicense(next, cust) });
@@ -658,9 +707,23 @@ async function handleValidate(env, body, json) {
   if (licenseKey.length > 40 || deviceId.length > 80 || appVersion.length > 32) {
     return json({ ok: false, valid: false, error: "invalid_input" }, 400);
   }
-  const row = await env.DB.prepare("SELECT * FROM licenses WHERE license_key = ?")
-    .bind(licenseKey)
-    .first();
+  // Phase-1 cache: hot path for 10k shops polling every 5 min.
+  let row = cacheGetValidateRow(licenseKey);
+  if (!row) {
+    row = await env.DB.prepare("SELECT * FROM licenses WHERE license_key = ?")
+      .bind(licenseKey)
+      .first();
+    if (row && row.status === "active") {
+      cacheSetValidateRow(licenseKey, row);
+    }
+  } else {
+    if (row.expires_at && new Date(row.expires_at) < new Date()) {
+      cacheDelValidateRow(licenseKey);
+      row = await env.DB.prepare("SELECT * FROM licenses WHERE license_key = ?")
+        .bind(licenseKey)
+        .first();
+    }
+  }
   if (!row) {
     if (!throttle(`nf|${licenseKey.slice(0, 8)}`, 20, 60 * 60 * 1000)) {
       await logLicenseEvent(env.DB, { licenseKey, event: "not_found", deviceId });
@@ -710,6 +773,11 @@ async function handleValidate(env, body, json) {
   )
     .bind(deviceId, bindNow ? nowIso() : row.bound_at, nowIso(), row.id)
     .run();
+  // Keep cache warm for next poll — 10k shops poll every 5 min
+  try {
+    const fresh = await env.DB.prepare("SELECT * FROM licenses WHERE id = ?").bind(row.id).first();
+    if (fresh) cacheSetValidateRow(licenseKey, fresh);
+  } catch {}
   await logLicenseEvent(env.DB, {
     licenseId: row.id,
     licenseKey,

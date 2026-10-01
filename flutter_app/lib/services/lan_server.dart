@@ -57,6 +57,8 @@ class LanServer {
   final _lanSecret = const Uuid().v4();
   final _qrByTable = <String, List<int>>{};
   final _qrShop = <String, List<int>>{};
+  // Phase-1 QR double-tap guard: same table + same payload hash within 5s returns same ticket
+  final _qrLastSubmit = <String, _QrDedup>{};
 
   // v1.1.83 hardening: hard ceilings so a single LAN client cannot exhaust
   // Main's memory or spam the owner with device-approval prompts. A real shop
@@ -571,6 +573,21 @@ class LanServer {
       if (_qrLimited(table?.id ?? tableId)) {
         return _json({'ok': false, 'error': 'rate_limited'}, status: 429);
       }
+      // Idempotency: same QR payload within 5s (double-tap) returns previous ticket
+      final dedupKey = '${table?.id ?? tableId}|${rawBody.hashCode}';
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final last = _qrLastSubmit[dedupKey];
+      if (last != null && nowMs - last.at < 5000 && last.hash == rawBody.hashCode.toString()) {
+        return _json({
+          'ok': true,
+          'ticket': last.ticket,
+          'total': 0,
+          'fireOn': readStore().qrFireOn,
+          'status': 'received',
+          'table': table?.name ?? '',
+          'dedup': true,
+        });
+      }
       final lines = <Map<String, dynamic>>[];
       for (final raw in rawItems.take(40)) {
         if (raw is! Map) continue;
@@ -664,6 +681,11 @@ class LanServer {
       }
       broadcastState();
       if (notice != null) broadcastNotice(notice);
+      _qrLastSubmit[dedupKey] = _QrDedup(rawBody.hashCode.toString(), placed.ticketNo, nowMs);
+      // prune map
+      if (_qrLastSubmit.length > 200) {
+        _qrLastSubmit.removeWhere((_, v) => nowMs - v.at > 30000);
+      }
       return _json({
         'ok': true,
         'ticket': placed.ticketNo,
@@ -880,4 +902,12 @@ class LanServer {
       cancelOnError: true,
     );
   }
+
+}
+
+class _QrDedup {
+  _QrDedup(this.hash, this.ticket, this.at);
+  final String hash;
+  final String ticket;
+  final int at;
 }

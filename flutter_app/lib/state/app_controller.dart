@@ -17,6 +17,7 @@ import '../models/models.dart';
 import '../models/reducer.dart';
 import '../models/seed.dart';
 import '../services/backup_service.dart';
+import '../services/error_reporter.dart';
 import '../services/cloud_relay.dart';
 import '../services/lan_client.dart';
 import '../services/lan_server.dart';
@@ -203,13 +204,15 @@ class AppController extends Notifier<AppSnapshot> {
     SessionPrefs session;
     try {
       session = _storage.loadSession();
-    } catch (_) {
+    } catch (e, s) {
+      ErrorReporter.capture(e, s, tags: {'where': 'bootstrap.loadSession'});
       session = SessionPrefs(deviceId: _storage.hardwareDeviceId());
     }
     AppStore store;
     try {
       store = await _storage.loadStore();
-    } catch (_) {
+    } catch (e, s) {
+      ErrorReporter.capture(e, s, tags: {'where': 'bootstrap.loadStore'});
       store = AppStore();
     }
     final remain = const Duration(milliseconds: 1000) -
