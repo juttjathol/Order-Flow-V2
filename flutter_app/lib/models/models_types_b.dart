@@ -58,6 +58,34 @@ class OrderLine {
       );
 }
 
+class OrderTax {
+  OrderTax({
+    String? id,
+    this.name = '',
+    this.rate = 0,
+    this.amount = 0,
+  }) : id = id ?? newId();
+
+  String id;
+  String name;
+  double rate;
+  double amount;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'rate': rate,
+        'amount': amount,
+      };
+
+  factory OrderTax.fromJson(Map<String, dynamic> j) => OrderTax(
+        id: parseStr(j['id']),
+        name: parseStr(j['name']) ?? '',
+        rate: parseNum(j['rate']),
+        amount: parseNum(j['amount']),
+      );
+}
+
 class PosOrder {
   PosOrder({
     required this.id,
@@ -73,6 +101,7 @@ class PosOrder {
     List<OrderLine>? lines,
     this.discount = 0,
     this.taxRate = 0,
+    List<OrderTax>? taxes,
     this.serviceRate = 0,
     this.tip = 0,
     this.payment,
@@ -91,6 +120,7 @@ class PosOrder {
     this.staffId,
     this.shiftNo = 0,
   })  : lines = lines ?? <OrderLine>[],
+        taxes = taxes ?? <OrderTax>[],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -107,6 +137,8 @@ class PosOrder {
   List<OrderLine> lines;
   double discount;
   double taxRate;
+  /// Flexible tax breakdown (Oct 2026) — when non-empty, [tax] sums these.
+  List<OrderTax> taxes;
   double serviceRate;
   double tip;
   PaymentMethod? payment;
@@ -169,7 +201,9 @@ class PosOrder {
   double get subtotal =>
       lines.fold<double>(0, (s, l) => s + l.lineTotal) - discount;
   double get service => (subtotal * (serviceRate / 100.0)).clamp(0, double.infinity);
-  double get tax => subtotal * (taxRate / 100.0);
+  double get tax => taxes.isEmpty
+      ? subtotal * (taxRate / 100.0)
+      : taxes.where((e) => e.rate > 0).fold<double>(0, (s, e) => s + subtotal * e.rate / 100.0);
   double get total => (subtotal + service + tax + tip).clamp(0, double.infinity);
 
   /// Amount paid with the primary method; the rest is [splitPayment].
@@ -199,6 +233,7 @@ class PosOrder {
         'lines': lines.map((e) => e.toJson()).toList(),
         'discount': discount,
         'taxRate': taxRate,
+        'taxes': taxes.map((e) => e.toJson()).toList(),
         'serviceRate': serviceRate,
         'tip': tip,
         'payment': payment?.name,
@@ -235,6 +270,10 @@ class PosOrder {
             .toList(),
         discount: parseNum(j['discount']),
         taxRate: parseNum(j['taxRate']),
+        taxes: ((j['taxes'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => OrderTax.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
         serviceRate: parseNum(j['serviceRate']),
         tip: parseNum(j['tip']),
         payment: j['payment'] == null

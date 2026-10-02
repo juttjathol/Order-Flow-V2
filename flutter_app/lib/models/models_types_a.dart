@@ -93,6 +93,44 @@ class SlipTemplate {
   static SlipTemplate delivery() => SlipTemplate(heading: 'DELIVERY RECEIPT');
 }
 
+/// Flexible multi-tax rule for Pakistan GST and others.
+/// Each shop can define any number of taxes with custom name and rate.
+/// Legacy single-tax fields (taxId/taxRate/taxRegNo) remain for migration.
+class TaxConfig {
+  TaxConfig({
+    String? id,
+    this.name = '',
+    this.rate = 0,
+    this.enabled = true,
+    this.regNo = '',
+  }) : id = id ?? newId();
+
+  String id;
+  /// Display name eg 'GST', 'SST', 'VAT', 'Service Tax'
+  String name;
+  /// Percent 0-100
+  double rate;
+  bool enabled;
+  /// Optional registration no for this tax (prints under header)
+  String regNo;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'rate': rate,
+        'enabled': enabled,
+        'regNo': regNo,
+      };
+
+  factory TaxConfig.fromJson(Map<String, dynamic> j) => TaxConfig(
+        id: parseStr(j['id']),
+        name: parseStr(j['name']) ?? parseStr(j['label']) ?? '',
+        rate: parseNum(j['rate'], parseNum(j['taxRate'])),
+        enabled: parseBool(j['enabled'], true),
+        regNo: parseStr(j['regNo']) ?? parseStr(j['taxRegNo']) ?? '',
+      );
+}
+
 class BillProfile {
   BillProfile({
     this.businessName = 'My Shop',
@@ -110,11 +148,13 @@ class BillProfile {
     this.managerPin = '',
     this.invoiceLabel = '',
     this.taxRegNo = '',
+    List<TaxConfig>? taxes,
     SlipTemplate? kitchenSlip,
     SlipTemplate? counterSlip,
     SlipTemplate? takeawaySlip,
     SlipTemplate? deliverySlip,
-  })  : kitchenSlip = kitchenSlip ?? SlipTemplate.kitchen(),
+  })  : taxes = taxes ?? <TaxConfig>[],
+        kitchenSlip = kitchenSlip ?? SlipTemplate.kitchen(),
         counterSlip = counterSlip ?? SlipTemplate.counter(),
         takeawaySlip = takeawaySlip ?? SlipTemplate.takeaway(),
         deliverySlip = deliverySlip ?? SlipTemplate.delivery();
@@ -137,6 +177,11 @@ class BillProfile {
   String invoiceLabel;
   /// Tax registration number printed under the header when set (v1.1.59).
   String taxRegNo;
+  /// Flexible taxes — replaces single taxRate/taxId when non-empty (Oct 2026).
+  List<TaxConfig> taxes;
+
+  /// Effective tax rate sum of enabled taxes, or legacy taxRate when taxes empty.
+  double get effectiveTaxRate => taxes.isEmpty ? taxRate : taxes.where((t) => t.enabled && t.rate > 0).fold<double>(0, (s, t) => s + t.rate);
   SlipTemplate kitchenSlip;
   SlipTemplate counterSlip;
   SlipTemplate takeawaySlip;
@@ -166,6 +211,7 @@ class BillProfile {
         managerPin: managerPin,
         invoiceLabel: invoiceLabel,
         taxRegNo: taxRegNo,
+        taxes: taxes.map((e) => TaxConfig(id: e.id, name: e.name, rate: e.rate, enabled: e.enabled, regNo: e.regNo)).toList(),
         kitchenSlip: kitchenSlip.copy(),
         counterSlip: counterSlip.copy(),
         takeawaySlip: takeawaySlip.copy(),
@@ -188,6 +234,7 @@ class BillProfile {
         'managerPin': managerPin,
         'invoiceLabel': invoiceLabel,
         'taxRegNo': taxRegNo,
+        'taxes': taxes.map((e) => e.toJson()).toList(),
         'kitchenSlip': kitchenSlip.toJson(),
         'counterSlip': counterSlip.toJson(),
         'takeawaySlip': takeawaySlip.toJson(),
@@ -196,6 +243,23 @@ class BillProfile {
 
   factory BillProfile.fromJson(Map<String, dynamic>? j) {
     final m = j ?? const {};
+    // Parse flexible taxes; migrate legacy single tax when taxes empty.
+    final taxesRaw = m['taxes'];
+    List<TaxConfig> parsedTaxes = <TaxConfig>[];
+    if (taxesRaw is List) {
+      parsedTaxes = taxesRaw
+          .whereType<Map>()
+          .map((e) => TaxConfig.fromJson(Map<String, dynamic>.from(e)))
+          .where((tc) => tc.name.trim().isNotEmpty || tc.rate != 0 || tc.regNo.trim().isNotEmpty)
+          .toList();
+    }
+    final legacyRate = parseNum(m['taxRate']);
+    final legacyId = parseStr(m['taxId']) ?? '';
+    final legacyReg = parseStr(m['taxRegNo']) ?? '';
+    if (parsedTaxes.isEmpty && (legacyRate != 0 || legacyId.isNotEmpty || legacyReg.isNotEmpty)) {
+      final name = legacyId.isNotEmpty ? legacyId : 'GST';
+      parsedTaxes = [TaxConfig(name: name, rate: legacyRate, enabled: legacyRate != 0, regNo: legacyReg)];
+    }
     return BillProfile(
       businessName: parseStr(m['businessName']) ?? 'My Shop',
       address: parseStr(m['address']) ?? '',
@@ -212,6 +276,7 @@ class BillProfile {
       managerPin: parseStr(m['managerPin']) ?? '',
       invoiceLabel: parseStr(m['invoiceLabel']) ?? '',
       taxRegNo: parseStr(m['taxRegNo']) ?? '',
+      taxes: parsedTaxes,
       kitchenSlip: SlipTemplate.fromJson(
         m['kitchenSlip'] is Map ? Map<String, dynamic>.from(m['kitchenSlip'] as Map) : null,
         SlipTemplate.kitchen(),

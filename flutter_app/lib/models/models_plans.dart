@@ -36,6 +36,9 @@ const kFeatureCatalog = <FeatureInfo>[
   FeatureInfo('qr_branding',
       'Your own branded guest QR ordering page',
       'مہمانوں کے لیے اپنی برانڈڈ QR آرڈرنگ صفحہ'),
+  FeatureInfo('third_party',
+      'Third-party channels — Foodpanda, Grab & more (manual)',
+      'تھرڈ پارٹی چینلز — فوڈ پانڈا، گریب اور مزید (دستی)'),
 ];
 
 final Set<String> _kFeatureKeys = kFeatureCatalog.map((f) => f.key).toSet();

@@ -305,52 +305,40 @@
           <select id="cur-select" aria-label="Plan price currency"></select>
           <span id="cur-note" class="cur-note"></span>
         </div>
-        <div class="plans-grid">
-          <article class="plan" data-reveal data-tilt>
-            <h3 class="plan-name starter">Starter</h3>
-            <p class="plan-for">Perfect for small businesses</p>
-            <div class="plan-price" data-myr="79"><span>RM </span><b data-count="79">79</b><small>/month</small></div>
-            <ul class="plan-list">
-              <li>POS billing</li>
-              <li>Basic inventory</li>
-              <li>Sales reports</li>
-              <li>Receipt printing</li>
-            </ul>
-            <a class="btn btn-ghost plan-cta" href="#" data-plan="Starter (RM 79 / month)" aria-label="Ask about Starter — opens a pre-filled email draft">Ask about Starter</a>
-            <p class="plan-best">Best for Small Shop / Cafe</p>
-          </article>
+        <div class="plans-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); max-width: 760px; margin-inline: auto;">
           <article class="plan popular" data-reveal data-tilt>
             <div class="plan-ribbon">MOST POPULAR</div>
-            <h3 class="plan-name growth">Growth</h3>
-            <p class="plan-for">For growing businesses</p>
-            <div class="plan-price" data-myr="149"><span>RM </span><b data-count="149">149</b><small>/month</small></div>
+            <h3 class="plan-name starter">Starter</h3>
+            <p class="plan-for">For shops that want it all — now just RM 79</p>
+            <div class="plan-price" data-myr="79"><span>RM </span><b data-count="79">79</b><small>/month</small></div>
             <ul class="plan-list">
-              <li>Everything in Starter</li>
-              <li>Multi-terminal (stations)</li>
-              <li>Inventory sync</li>
-              <li>Staff management</li>
-              <li>E-Invoice ready header</li>
-              <li><b>+ QR ordering, recipes, wastage, purchasing &amp; insights</b></li>
+              <li>POS billing + inventory &amp; sales reports</li>
+              <li>Multi-terminal stations &amp; per-station printers</li>
+              <li>Staff, loyalty, split payment &amp; 86 board</li>
+              <li>Recipe costing, wastage &amp; purchasing</li>
+              <li>Advanced insights &amp; customer display</li>
+              <li class="muted">QR table ordering &amp; cloud networking — optional paid add-ons</li>
             </ul>
-            <a class="btn btn-mint plan-cta" href="#" data-plan="Growth (RM 149 / month)" aria-label="Choose Growth — opens a pre-filled email draft">Choose Growth</a>
-            <p class="plan-best">Best for Restaurant / Minimarket</p>
+            <a class="btn btn-mint plan-cta" href="#" data-plan="Starter (RM 79 / month — 12 features)" aria-label="Choose Starter — opens a pre-filled email draft">Choose Starter</a>
+            <p class="plan-best">12 features · add QR &amp; cloud when you need them</p>
           </article>
           <article class="plan" data-reveal data-tilt>
-            <h3 class="plan-name custom">Custom Pricing</h3>
-            <p class="plan-for">For large scale business</p>
+            <h3 class="plan-name custom">Customize</h3>
+            <p class="plan-for">Everything — plus QR, cloud &amp; your brand</p>
             <div class="plan-price"><b class="plan-price-custom">Let's talk</b></div>
             <ul class="plan-list">
-              <li>Full customization</li>
-              <li>ERP integration</li>
-              <li>Warehouse management</li>
-              <li>Dedicated support</li>
-              <li>Priority support queue</li>
+              <li><b>Everything in Starter</b></li>
+              <li>QR table ordering &amp; self-order</li>
+              <li>Cloud station networking (works when Wi-Fi dies)</li>
+              <li>Branded guest QR ordering page</li>
+              <li>Third-party channels (Foodpanda &amp; more — manual)</li>
+              <li>Priority support &amp; bespoke features</li>
             </ul>
-            <a class="btn btn-gold plan-cta" href="#" data-plan="Custom pricing (enterprise / franchise)" aria-label="Request a custom quote — opens a pre-filled email draft">Request a quote</a>
-            <p class="plan-best">Best for Enterprise / Franchise</p>
+            <a class="btn btn-gold plan-cta" href="#" data-plan="Customize — full 15 features + third-party" aria-label="Request Customize — opens a pre-filled email draft">Request Customize</a>
+            <p class="plan-best">All 15 features · tailored to your shop</p>
           </article>
         </div>
-        <p class="note" id="plans-note">Prices are monthly in Malaysian Ringgit — your currency is detected automatically where possible, converted at market rates for guidance only. A 3-day trial key is available for every plan — use the form below.</p>
+        <p class="note" id="plans-note">Prices shown in Malaysian Ringgit (RM) — auto-converted to your local currency where possible for guidance only. A 3-day trial key is available for every plan — use the form below.</p>
       </div>
     </section>
 
@@ -409,7 +397,7 @@
           <details><summary>How do I install the app?</summary><p>Download from this page on your Android phone, then allow install from this site when Android asks. Jathol will advise you when a store listing is available.</p></details>
           <details><summary>Can I try before I buy?</summary><p>Yes. Fill the 3-day trial form — a draft opens on this page. Send it from Gmail or your mail app and Jathol replies within 24 hours with your trial key.</p></details>
           <details><summary>How do I buy a key?</summary><p>Email <a href="mailto:contact@jathol.org">contact@jathol.org</a> with your name, business and phone — Jathol issues the 16-character key, normally within 24 hours.</p></details>
-          <details><summary>What does it cost?</summary><p>Starter is <b>RM 79/month</b> and Growth is <b>RM 149/month</b>; large shops get custom pricing. See the <a href="#plans">Plans</a> section — the license decides which features your key unlocks.</p></details>
+          <details><summary>What does it cost?</summary><p><b>Starter is RM 79/month</b> with 12 features and optional QR &amp; cloud add-ons; <b>Customize is bespoke</b> with all 15 features. See the <a href="#plans">Plans</a> section — the license decides which features your key unlocks.</p></details>
           <details><summary>What hardware does it work with?</summary><p>Any Android phone or tablet, LAN or Bluetooth ESC/POS thermal printers, barcode guns (USB/Bluetooth or the built-in camera scanner), and a cash drawer plugged into the receipt printer's RJ11 port.</p></details>
           <details><summary>Where do I learn every feature?</summary><p>The full step-by-step guide is on the <a href="./guide.html">User guide</a> page — updated with every app version.</p></details>
         </div>
@@ -455,11 +443,11 @@
         <div class="wa" data-par="-0.04">
           <p class="kicker">Direct</p>
           <h3>Start a license request — the email writes itself.</h3>
-          <a class="btn btn-gold js-mail-draft" id="mail-main" href="mailto:contact@jathol.org?subject=Order%20Flow%20license%20request" data-mail-subject="Order Flow — licence enquiry" data-mail-body="Hello Jathol,&#10;&#10;I would like an Order Flow licence.&#10;&#10;Name:&#10;Shop / business:&#10;Phone:&#10;Plan of interest (Starter / Growth / Custom):&#10;How many terminals:&#10;&#10;Thank you.">Email contact@jathol.org</a>
+          <a class="btn btn-gold js-mail-draft" id="mail-main" href="mailto:contact@jathol.org?subject=Order%20Flow%20license%20request" data-mail-subject="Order Flow — licence enquiry" data-mail-body="Hello Jathol,&#10;&#10;I would like an Order Flow licence.&#10;&#10;Name:&#10;Shop / business:&#10;Phone:&#10;Plan of interest (Starter / Customize):&#10;How many terminals:&#10;&#10;Thank you.">Email contact@jathol.org</a>
           <a class="btn btn-ghost" href="./contact.html" style="margin-top:10px">Contact page &amp; email drafts</a>
           <address class="biz-card">
             <b>Jathol</b> — developer &amp; vendor of Order Flow<br/>
-            Trading from Malaysia · business hours (GMT+8)<br/>
+            Serving shops worldwide · business hours (GMT+8)<br/>
             Email: <a href="mailto:contact@jathol.org">contact@jathol.org</a> — replies within 24 hours<br/>
             Support hours: Monday to Saturday, 9am–9pm (GMT+8)<br/>
             Company registration &amp; registered address: shown on every
@@ -511,7 +499,7 @@
       </nav>
     </div>
     <div class="wrap foot-base">
-      <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow &#8212; built and supported in Malaysia. Business registration and registered address appear on every licence receipt, and are provided on request before you buy.</p>
+      <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow &#8212; built and supported for shops worldwide. Business registration and registered address appear on every licence receipt, and are provided on request before you buy.</p>
     </div>
   </footer>
   <div class="cookiebar" id="cookiebar" role="region" aria-label="Storage consent" hidden>

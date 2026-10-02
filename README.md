@@ -9,12 +9,12 @@
 Offline-first multi-device POS for restaurants, retail, fast food, and services, plus a Cloudflare license dashboard.
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
-- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.76+)
+- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.87+)
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke, plans & per-key feature access, push broadcasts
-- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.86` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
+- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.87` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.86+86**.
+Version **1.1.87+87**.
 
 You only need two things after this repo is on GitHub:
 
@@ -59,16 +59,16 @@ In the Android app license screen, set **License API URL** to that Pages origin.
 
 First success **binds** the device. A second device is rejected until you click **Reset device**. Delete or revoke the key and the Main app locks to WhatsApp **@Jathol_Jutt**.
 
-### Plans & per-key access (v1.1.59+, hardened v1.1.82)
+### Plans & per-key access (v1.1.87+, hardened v1.1.87)
 
-Every key carries a **plan** — Starter / Growth / Custom / Full — plus the **business models** it may run and a **15-extra feature checklist** (QR ordering, station printers, loyalty, refunds, purchases, cloud sync, branded QR page, …) editable from the dashboard's **Access…** dialog:
+Every key carries a **plan** — Starter / Customize / Full — plus the **business models** it may run and a **16-extra feature checklist** (QR ordering, station printers, loyalty, refunds, purchases, cloud sync, branded QR page, third-party channels …) editable from the dashboard's **Access…** dialog:
 
-- **Starter** — core billing only, no gated extras.
-- **Growth** — the original 13 extras (cloud networking + branded QR page stay Custom/Full-only).
-- **Custom** — hand-pick exactly what the key unlocks.
+- **Starter — RM 79** — 12 pro features (everything except QR ordering, cloud sync, branded QR page & third-party channels). Add QR & cloud when you need them.
+- **Customize — Let's talk** — all 16 features (QR, cloud, branded QR & third-party included) + bespoke support.
+- **Legacy Growth** — same as Starter (12) for existing keys.
 - **Full** — everything on, always (the contract; `[]` can never lock a full key out).
 
-A Key's plan lands on the shop's Main at the next online check (every ~15 min), or instantly when someone taps **More → License → Refresh plan & features** in the app, then propagates to every station over LAN. The worker heals any empty-feature row written for a paid plan (v1.1.82 dashboard bug signature) — saving zero extras on Growth/Custom/Full falls back to the plan preset instead of locking a shop out.
+A Key's plan lands on the shop's Main at the next online check (every ~15 min), or instantly when someone taps **More → License → Refresh plan & features** in the app, then propagates to every station over LAN. The worker heals any empty-feature row written for a paid plan (v1.1.87 dashboard bug signature) — saving zero extras on Growth/Custom/Full falls back to the plan preset instead of locking a shop out.
 
 ---
 
@@ -124,7 +124,7 @@ License screen → **Connect to Main** → same Wi‑Fi → IP or QR from Main �
 
 ### Cloud networking (Custom plan)
 
-When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud relay** instead of the LAN (v1.1.60+): Main opens a room, stations join with a pairing code, and orders reach Main over any connection. Messages are end-to-end encrypted between your devices, deleted on read, and expire in ~30 minutes — **shop data is never backed up to the cloud**.
+When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud relay** instead of the LAN (v1.1.87+): Main opens a room, stations join with a pairing code, and orders reach Main over any connection. Messages are end-to-end encrypted between your devices, deleted on read, and expire in ~30 minutes — **shop data is never backed up to the cloud**.
 
 ---
 
@@ -215,11 +215,11 @@ flowchart TD
 | 11 | `purchases` | Growth+ | Suppliers + purchase orders (`upsertSupplier / Purchase / receivePurchase / cancelPurchase`), stock-in on receive. |
 | 12 | `advanced_reports` | Growth+ | Sales, best/slow movers, profit, staff performance, 86 board, charts — gated reports. |
 | 13 | `eighty_six` | Growth+ | Long-press dish on order screen → 86 (mark unavailable) grey-out everywhere instantly. |
-| 14 | `cloud_sync` | **Custom/Full only** | Encrypted relay at `order-flow-v2.pages.dev/api/cloud` — Main `open` room (256-bit id, 6-char code), stations `join` via mobile data, `send`/`pull` AES-GCM, `200` row cap, `1.2s` hot / `30s` idle, member-only write. Shop data never backed up. |
-| 15 | `qr_branding` | **Custom/Full only** | Brand the guest page (`qr_brand` editor): shop name, tagline, address, phone, WhatsApp, hours, welcome, accent — `QrBrand` in `order.html`. |
-| — | *Starter* | — | Core billing only, all 15 gated off. |
-| — | *Growth* | — | Original 13 extras (all except `cloud_sync` + `qr_branding`). |
-| — | *Custom* | — | Hand-pick any of the 15 per key from dashboard **Access…** dialog. |
+| 14 | `cloud_sync` | **Customize/Full only** | Encrypted relay at `order-flow-v2.pages.dev/api/cloud` — Main `open` room (256-bit id, 6-char code), stations `join` via mobile data, `send`/`pull` AES-GCM, `200` row cap, `1.2s` hot / `30s` idle, member-only write. Shop data never backed up. |
+| 15 | `qr_branding` | **Customize/Full only** | Brand the guest page (`qr_brand` editor): shop name, tagline, address, phone, WhatsApp, hours, welcome, accent — `QrBrand` in `order.html`. |
+| 16 | `third_party` | **Customize/Full only** | Manual third-party channel log — Foodpanda, GrabFood, ShopeeFood & other. Record the total from the tablet; reports split by channel. |
+| — | *Starter* | — | 12 pro features, gated extras off (QR, cloud, branded QR, third-party are Customize add-ons). |
+| — | *Customize* | — | All 16 extras, hand-picked per key from dashboard **Access…** dialog. |
 | — | *Full* | — | Everything on, always (`[]` can never lock it — `healFeatures` + `allOn` contract). |
 
 *Plan lands on Main at next online check (`5 min` `kRevalidateMinutes`) or instantly via **More → License → Refresh plan & features** (`Plan synced · n/15`), then fans out to all stations over LAN.*
@@ -238,7 +238,7 @@ Kitchen **ready** notifies every Order Taker and Main. English + Urdu. Dark / li
 
 Printing is network ESC/POS on **TCP 9100**, Bluetooth (Classic + Low-Energy), or — on Windows Main — any installed **Windows printer** (USB thermal works with the built-in *Generic / Text Only* driver). **Every station can use its own printer** (printer icon in the station top bar), independent of Main. A **cash drawer** (RJ11 kick port on the receipt printer) opens automatically on cash payments only; card / wallet / other never open it. Payments support **split tender** (two methods on one sale), receipts can be **shared on WhatsApp/SMS**, paid orders can be **refunded** (stock returns), saved customers earn **loyalty points** automatically, and any screen can become a **customer display** with a giant animated total. Backup is JSON export / import.
 
-The full walkthrough lives on the website: **https://jathol.pages.dev/guide** (English + Urdu).
+The full walkthrough lives on the website: **https://jathol.org/guide** (English + Urdu).
 
 ---
 

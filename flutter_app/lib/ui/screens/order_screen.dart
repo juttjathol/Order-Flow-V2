@@ -418,9 +418,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                 _kv(s.t('subtotal'), moneyOf(ref.snap, order.subtotal + order.discount)),
                 if (order.discount > 0) _kv(s.t('discount'), '- ${moneyOf(ref.snap, order.discount)}'),
                 if (order.service > 0) _kv('${s.t('service_charge')} ${order.serviceRate}%', moneyOf(ref.snap, order.service)),
-                if (order.tax > 0) _kv('${s.t('tax')} ${order.taxRate}%', moneyOf(ref.snap, order.tax)),
+                if (order.taxes.isNotEmpty)
+                  for (final ot in order.taxes.where((e) => e.rate > 0))
+                    _kv('${ot.name} ${ot.rate.toStringAsFixed(ot.rate % 1 == 0 ? 0 : 2)}%', moneyOf(ref.snap, order.subtotal * ot.rate / 100.0))
+                else if (order.tax > 0) _kv('${s.t('tax')} ${order.taxRate}%', moneyOf(ref.snap, order.tax)),
                 if (order.tip > 0) _kv(s.t('tip'), moneyOf(ref.snap, order.tip)),
-                _kv(s.t('total'), moneyOf(ref.snap, order.total), bold: true),
+                Row(children: [
+                  Text(s.t('total'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: OfColors.forest)),
+                  const Spacer(),
+                  AnimatedMoneyText(order.total, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: OfColors.forest)),
+                ]),
               ],
             ),
           ),

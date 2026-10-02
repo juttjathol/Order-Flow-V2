@@ -105,7 +105,11 @@ class PrintService {
     if (p.address.isNotEmpty) w.writeln(p.address);
     if (p.phone.isNotEmpty) w.writeln('Tel. ${p.phone}');
     if (p.invoiceLabel.trim().isNotEmpty) w.writeln(p.invoiceLabel.trim().toUpperCase());
-    if (p.taxRegNo.isNotEmpty) w.writeln('Reg. No: ${p.taxRegNo}');
+    if (p.taxes.isNotEmpty) {
+      for (final tc in p.taxes.where((e) => e.enabled && e.regNo.trim().isNotEmpty)) {
+        w.writeln('${tc.name.isEmpty ? 'Tax' : tc.name} Reg. No: ${tc.regNo.trim()}');
+      }
+    } else if (p.taxRegNo.isNotEmpty) w.writeln('Reg. No: ${p.taxRegNo}');
     w.writeln('--------------------------------');
     w.writeln('Ticket ${order.ticketNo}  ${'${now.year}-${two(now.month)}-${two(now.day)} ${two(now.hour)}:${two(now.minute)}'}');
     w.writeln(order.kitchenWhere);
@@ -119,7 +123,12 @@ class PrintService {
     w.writeln('--------------------------------');
     if (order.discount > 0) w.writeln('Discount: - ${m(order.discount)}');
     if (order.service > 0) w.writeln('Service: ${m(order.service)}');
-    if (order.tax > 0) w.writeln('Tax: ${m(order.tax)}');
+    if (order.taxes.isNotEmpty) {
+      for (final ot in order.taxes.where((e) => e.rate > 0)) {
+        final amt = order.subtotal * ot.rate / 100.0;
+        if (amt > 0) w.writeln('${ot.name} ${ot.rate.toStringAsFixed(ot.rate % 1 == 0 ? 0 : 2)}%: ${m(amt)}');
+      }
+    } else if (order.tax > 0) w.writeln('Tax: ${m(order.tax)}');
     if (order.tip > 0) w.writeln('Tip: ${m(order.tip)}');
     w.writeln('TOTAL: ${m(order.total)}');
     if (order.payment != null) {
@@ -200,8 +209,17 @@ class PrintService {
     await line(nm, align: 'center', big: nm.length <= (chars - 6) ~/ 2);
     if (slip.showAddress && p.address.isNotEmpty) await line(p.address, align: 'center');
     if (slip.showPhone && p.phone.isNotEmpty) await line('Tel. ${p.phone}', align: 'center');
-    if (p.taxId.isNotEmpty && !kitchen) await line('Tax ID: ${p.taxId}', align: 'center');
-    if (p.taxRegNo.isNotEmpty && !kitchen) await line('Reg. No: ${p.taxRegNo}', align: 'center');
+    if (!kitchen) {
+      if (p.taxes.isNotEmpty) {
+        for (final tc in p.taxes.where((e) => e.enabled)) {
+          if (tc.name.isNotEmpty && tc.rate > 0) await line('${tc.name} ${tc.rate.toStringAsFixed(tc.rate % 1 == 0 ? 0 : 2)}%', align: 'center');
+          if (tc.regNo.trim().isNotEmpty) await line('Reg. No: ${tc.regNo.trim()}', align: 'center');
+        }
+      } else {
+        if (p.taxId.isNotEmpty) await line('Tax ID: ${p.taxId}', align: 'center');
+        if (p.taxRegNo.isNotEmpty) await line('Reg. No: ${p.taxRegNo}', align: 'center');
+      }
+    }
     b.text(''); // blank line under the contact block
     final heading = preBill
         ? 'PRE-BILL'
@@ -287,7 +305,12 @@ class PrintService {
       await _row(b, 'Total', m(order.total), big: true);
       if (order.discount > 0) await _row(b, 'Discount', '- ${m(order.discount)}');
       if (order.service > 0) await _row(b, 'Service', m(order.service));
-      if (order.tax > 0) await _row(b, 'Tax', m(order.tax));
+      if (order.taxes.isNotEmpty) {
+        for (final ot in order.taxes.where((e) => e.rate > 0)) {
+          final amt = order.subtotal * ot.rate / 100.0;
+          if (amt > 0) await _row(b, '${ot.name} ${ot.rate.toStringAsFixed(ot.rate % 1 == 0 ? 0 : 2)}%', m(amt));
+        }
+      } else if (order.tax > 0) await _row(b, 'Tax', m(order.tax));
       if (order.tip > 0) await _row(b, 'Tip', m(order.tip));
     }
     if (!preBill && slip.showPayment && order.payment != null) {

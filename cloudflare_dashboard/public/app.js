@@ -36,10 +36,10 @@ const BROADCAST_TEMPLATES = {
     message: "Track tickets with busy clocks on the Table Map, route orders to station printers, and use the instant search bar across kitchen & cashier screens to speed up service during peak hours.",
   },
   plan_growth: {
-    title: "💎 Upgrade to Growth Plan: Multi-Terminal LAN & Sync",
+    title: "💎 Upgrade to Customize: QR Ordering + Cloud Sync",
     tag: "plan",
     url: "https://jathol.org#plans",
-    message: "Unlock unlimited station tablets, dedicated kitchen printers, guest QR ordering, and real-time cloud sync. Contact us to upgrade your Order Flow license key today!",
+    message: "Starter already has 12 pro features — add QR table ordering, cloud networking and your branded QR page. Contact us to upgrade to Customize today!",
   },
   tip_qr: {
     title: "💡 Restaurant Flow Tip: Cut Wait Times with Guest QR",
@@ -518,16 +518,18 @@ const FEATURES = [
   ["qr_branding", "Branded guest QR page (shop identity editor)"],
 ];
 const PLAN_PRESETS = {
-  starter: [],
-  // Growth keeps the original 13 features; the two v1.1.60 extras are custom-only.
-  growth: FEATURES.slice(0, 13).map((f) => f[0]),
+  // Oct 2026: 2 plans — Starter (12) + Customize (15). Growth is kept as alias for legacy keys.
+  starter: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "qr_branding", "third_party"].includes(f[0])).map((f) => f[0]),
+  growth: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "qr_branding", "third_party"].includes(f[0])).map((f) => f[0]),
   custom: FEATURES.map((f) => f[0]),
+  customize: FEATURES.map((f) => f[0]),
   full: FEATURES.map((f) => f[0]),
 };
 const PLAN_SUMMARY = {
-  starter: "Starter — core billing only. Gated extras stay off.",
-  growth: "Growth — the original 13 extras are on (cloud networking + branded QR remain Custom/Full only).",
-  custom: "Custom — pick exactly what this key unlocks.",
+  starter: "Starter — 12 pro features (QR, cloud, branded QR & third-party are Customize add-ons).",
+  growth: "Growth (legacy) — same as Starter (12). Use Starter for new keys.",
+  custom: "Customize — all 16 features (QR, cloud, branded QR & third-party included).",,
+  customize: "Customize — all 16 features (QR, cloud, branded QR & third-party included).",,
   full: "Full — everything on (same as before plans existed).",
 };
 

@@ -1,6 +1,6 @@
 # Google Play — publish checklist (2026)
 
-> **Sideload APKs (`v1.1.86` tag) do NOT need this.** This doc is the gate before you upload `app-release.aab` to Play Console.
+> **Sideload APKs (`v1.1.87` tag) do NOT need this.** This doc is the gate before you upload `app-release.aab` to Play Console.
 
 ## 2026 gates you must clear (what changed)
 
@@ -8,7 +8,7 @@
 |------|--------------|-------------------|
 | **Target API 35/36** | New apps & updates must target **API 35 (Android 15)** — Aug 2025 for new, Nov 2025 for updates. **API 36 (Android 16)** required by **31 Aug 2026**, extensions to 1 Nov 2026 only on request. | `compileSdk 36` + `targetSdk 36` in `flutter_app/android/app/build.gradle.kts` (`namespace com.jathol.orderflow`, `ndkVersion = flutter.ndkVersion`, `Java 17`). CI `patch_android.py` forces 36 on all plugins. Meets both 35 and 36 floors. |
 | **Data Safety** | Must declare **every** data type you *or any SDK* collects, how it’s used, and who you share with. April 2025 clarifies: **Android ID = Device ID**, and sharing includes SDK vendors that use data for their own purposes (ads, profiling). Google cross-checks the APK and suspends mismatches. | See “Data safety answers” below — `Device ID` (random `of_hardware_device_id` + `licenseKey`) → App functionality, encrypted in transit, user can reset via WhatsApp @Jathol_Jutt. No Advertising ID, no analytics. Must be re-audited on every SDK bump (e.g., `google_mlkit`, `sentry`). |
-| **Privacy policy URL** | Must be live HTTPS, public, non-geofenced, non-PDF, same host as Data Safety, in **Store listing → Privacy policy** + **in-app** (More → Privacy). | `https://jathol.pages.dev/privacy` (primary) + `https://order-flow-v2.pages.dev/privacy` (mirror). Static HTML, last updated **25 Aug 2026** (`cloudflare_dashboard/public/privacy.html` + `website/public/privacy.html`), PDPA 2010, no geofence. In-app `kPrivacyUrl` → `https://jathol.pages.dev/privacy`. |
+| **Privacy policy URL** | Must be live HTTPS, public, non-geofenced, non-PDF, same host as Data Safety, in **Store listing → Privacy policy** + **in-app** (More → Privacy). | `https://jathol.org/privacy` (primary) + `https://order-flow-v2.pages.dev/privacy` (mirror). Static HTML, last updated **25 Aug 2026** (`cloudflare_dashboard/public/privacy.html` + `website/public/privacy.html`), PDPA 2010, no geofence. In-app `kPrivacyUrl` → `https://jathol.org/privacy`. |
 | **Feature graphic / icons** | `1024×500` PNG/JPG mandatory + `512×512` high-res icon (no Play logo) + ≥2 phone screenshots (8 max, at least one per device type). | Icons: `flutter_app/android/app/src/main/res/mipmap-*` (anydpi `ic_launcher.xml` + foreground 108dp). **Store graphics not in repo** — add `store_assets/` (see below) before first upload. |
 | **AAB + Play Signing** | Play **requires AAB**, not APK. Upload via **Play App Signing** (you keep upload key, Play keeps signing key). GitHub Actions currently builds `app-release.apk` only — `app-release.aab` added in this patch (`flutter build appbundle`). | `build-release.yml` now has `Build release AAB (Play Store)` → `build/app/outputs/bundle/release/app-release.aab` → artifact `app-aab` → attached to GitHub Release alongside APK + Windows. Signing uses `sideload/upload.p12` (`JatholOrderFlowSideload`) — for Play, create a separate upload keystore and never commit its password (store in Play Console + GitHub Secrets `PLAY_UPLOAD_*`). |
 | **Permissions** | Request only what’s needed; background location / nearby devices heavily reviewed. Use `neverForLocation` where possible. | `AndroidManifest.xml`: `CAMERA`, `ACCESS_FINE/COARSE_LOCATION`, `NEARBY_WIFI_DEVICES` + `BLUETOOTH_SCAN neverForLocation`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`, `BLUETOOTH_CONNECT`. `camera` + `bluetooth` marked `required=false`. `google_analytics_adid_collection_enabled=false`. `allowBackup=false`. `networkSecurityConfig` base `cleartextTrafficPermitted=false` (only `localhost`/`127.0.0.1`/`10.x`/`192.168.x` LAN). |
@@ -38,7 +38,7 @@
 6. Target audience: `18+` / Business (`Order Flow is a business POS`)
 7. **Data safety form** — fill exactly as “Data safety answers” below, keep in sync with `privacy.html`
 8. Ads: **No ads**
-9. Privacy policy URL: `https://jathol.pages.dev/privacy`
+9. Privacy policy URL: `https://jathol.org/privacy`
 10. Contact email: `contact@jathol.org` (monitored, Mon–Sat GMT+8)
 11. App access: “No login — enter 16-char license key on Main, or ‘Connect to Main’ via IP/QR. Test key: `TEST-1111-1111-1111` (or WhatsApp @Jathol_Jutt).”
 12. Production release → review (1–7 days for new apps, hours for updates)
@@ -82,6 +82,6 @@ These are **not** in the APK — they live only in Play Console. Keep the source
 
 ## After deploy
 
-- `/privacy` only works after Cloudflare Pages `order-flow-v2` + `jathol` deploy. Verify `https://jathol.pages.dev/privacy` returns 200 before submitting.
+- `/privacy` only works after Cloudflare Pages `order-flow-v2` + `jathol` deploy. Verify `https://jathol.org/privacy` returns 200 before submitting.
 - Data Safety + privacy policy must match **exactly** — re-audit on every SDK bump (check `flutter_app/pubspec.yaml` + `pubspec.lock` + `build.gradle.kts` `implementation("com.google.mlkit:barcode-scanning")`).
 
