@@ -63,9 +63,9 @@ class AnimatedMoneyText extends ConsumerWidget {
       duration: duration,
       curve: Curves.easeOutCubic,
       builder: (ctx, value, _) => Text(
-        money(snap.store.profile.currencySymbol == 'Rs' ? snap.store.profile.currencySymbol : snap.store.profile.currencySymbol, value, prefix: snap.store.profile.currencyPrefix) == '' ? moneyOf(snap, value) : moneyOf(snap, value),
+        moneyOf(snap, value),
         style: (style ?? Theme.of(ctx).textTheme.titleMedium)?.copyWith(color: color, fontWeight: FontWeight.w800),
-      ).animate(key: ValueKey(amount)).scale(duration: 160.ms, curve: Curves.easeOut, begin: const Offset(0.96, 0.96), end: const Offset(1, 1)).fadeIn(duration: 160.ms),
+      ).animate().scale(duration: 160.ms, curve: Curves.easeOut, begin: const Offset(0.96, 0.96), end: const Offset(1, 1)).fadeIn(duration: 160.ms),
     );
   }
 }
