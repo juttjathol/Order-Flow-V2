@@ -56,14 +56,15 @@ class MoreScreen extends ConsumerWidget {
     final reports = <Widget>[
       _row(Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
       _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
-      _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false)),
-      _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true)),
+      _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false), subtitle: s.t('x_report_sub')),
+      _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true), subtitle: s.t('z_report_sub')),
       planAwareRow(
         ref: ref,
         context: context,
         feature: 'eighty_six',
         icon: Icons.block,
         title: s.t('eighty_six_board'),
+        subtitle: s.t('eighty_six_board_sub'),
         onTap: () => _eightySixBoard(context, ref),
       ),
       _row(Icons.hourglass_bottom, s.t('unpaid_tabs'), () => _unpaidTabs(context, ref)),
@@ -269,10 +270,11 @@ class MoreScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(IconData icon, String title, VoidCallback onTap) {
+  Widget _row(IconData icon, String title, VoidCallback onTap, {String? subtitle}) {
     return ListTile(
       leading: Icon(icon, color: OfColors.emerald),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: subtitle == null ? null : Text(subtitle, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
@@ -1510,20 +1512,30 @@ Future<void> _eightySixBoard(BuildContext context, WidgetRef ref) async {
           height: MediaQuery.sizeOf(ctx).height * 0.62,
           child: Column(
             children: [
-              ListTile(title: Text(s.t('eighty_six_board'), style: const TextStyle(fontWeight: FontWeight.w800))),
+              ListTile(
+                leading: const Icon(Icons.block, color: OfColors.danger),
+                title: Text(s.t('eighty_six_board'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(s.t('eighty_six_board_sub'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+              ),
+              const Divider(height: 1),
               Expanded(
                 child: off.isEmpty
-                    ? EmptyState(icon: Icons.check_circle, message: s.t('empty'))
-                    : ListView(
-                        children: off
-                            .map((p) => ListTile(
-                                  title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  trailing: TextButton(
-                                    onPressed: () => eightySix(ctx, ref, p),
-                                    child: Text(s.t('available')),
-                                  ),
-                                ))
-                            .toList(),
+                    ? EmptyState(icon: Icons.check_circle, message: 'All items are available — kitchen can cook everything.')
+                    : ListView.separated(
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemCount: off.length,
+                        itemBuilder: (_, i) {
+                          final p = off[i];
+                          return ListTile(
+                            leading: const Icon(Icons.no_meals, color: OfColors.warn),
+                            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: const Text('86 — out of stock / kitchen cannot make', style: TextStyle(color: OfColors.muted, fontSize: 12)),
+                            trailing: FilledButton.tonal(
+                              onPressed: () => eightySix(ctx, ref, p),
+                              child: Text(s.t('available')),
+                            ),
+                          );
+                        },
                       ),
               ),
             ],

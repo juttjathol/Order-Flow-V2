@@ -312,7 +312,7 @@ class BrandMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => unawaited(launchUrl(Uri.parse('https://jathol.pages.dev'), mode: LaunchMode.externalApplication)),
+      onTap: () => unawaited(launchUrl(Uri.parse('https://jathol.org'), mode: LaunchMode.externalApplication)),
       borderRadius: BorderRadius.circular(10),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
