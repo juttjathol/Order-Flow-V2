@@ -396,7 +396,7 @@ class _TablesMapState extends ConsumerState<_TablesMap> {
                                     ),
                                   ),
                                 ),
-                              ).animate().fadeIn(duration: 180.ms, delay: (i * 18).ms).slideY(begin: 0.06, end: 0, duration: 180.ms, curve: Curves.easeOutCubic);
+                              );
                             },
                           ),
                         ),

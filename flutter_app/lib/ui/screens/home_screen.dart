@@ -177,8 +177,7 @@ class HomeScreen extends ConsumerWidget {
           if (snap.isMain)
             _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp())
                 .animate()
-                .fadeIn(duration: 260.ms)
-                .slideY(begin: 0.04, end: 0, duration: 300.ms, curve: Curves.easeOutCubic),
+
           if (snap.isMain || snap.isManager) ...[
             const SizedBox(height: 16),
             Row(
@@ -269,9 +268,7 @@ class HomeScreen extends ConsumerWidget {
                         ),
                     ],
                   ),
-                ).animate(delay: (i * 70).ms)
-                    .fadeIn(duration: 240.ms)
-                    .slideY(begin: 0.06, end: 0, duration: 300.ms, curve: Curves.easeOutCubic),
+                ),
             ],
           ),
           const SizedBox(height: 28),

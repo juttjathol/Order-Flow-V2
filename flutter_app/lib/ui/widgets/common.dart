@@ -65,7 +65,7 @@ class AnimatedMoneyText extends ConsumerWidget {
       builder: (ctx, value, _) => Text(
         moneyOf(snap, value),
         style: (style ?? Theme.of(ctx).textTheme.titleMedium)?.copyWith(color: color, fontWeight: FontWeight.w800),
-      ).animate().scale(duration: 160.ms, curve: Curves.easeOut, begin: const Offset(0.96, 0.96), end: const Offset(1, 1)).fadeIn(duration: 160.ms),
+      ),
     );
   }
 }
@@ -82,7 +82,7 @@ class OfShimmer extends StatelessWidget {
       height: height,
       width: width,
       decoration: BoxDecoration(color: OfColors.muted.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(radius)),
-    ).animate(onPlay: (c) => c.repeat(reverse: true)).shimmer(duration: 900.ms, color: Colors.white.withValues(alpha: 0.22));
+    );
   }
 }
 
@@ -419,7 +419,7 @@ class OfCard extends StatelessWidget {
       child: AnimatedSize(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, child: inner),
     );
     if (!animate) return card;
-    return card.animate().fadeIn(duration: 220.ms, curve: Curves.easeOut).slideY(begin: 0.06, end: 0, duration: 220.ms, curve: Curves.easeOutCubic);
+    return card;
   }
 }
 
