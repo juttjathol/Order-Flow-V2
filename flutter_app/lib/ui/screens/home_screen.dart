@@ -175,9 +175,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           if (snap.isMain)
-            _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp())
-                .animate()
-
+            _ServerCard(snap: snap, s: s, onRefresh: () => ref.ctrl.refreshIp()),
           if (snap.isMain || snap.isManager) ...[
             const SizedBox(height: 16),
             Row(
