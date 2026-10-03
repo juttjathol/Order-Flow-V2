@@ -10,13 +10,14 @@ const CORE_FEATURE_KEYS = new Set([
   "purchases", "advanced_reports", "eighty_six",
 ]);
 // v1.1.60: extras that belong to the custom plan only. Must match
-// kFeatureCatalog in the app (kFeatureCatalog lists ALL fifteen).
-const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding"]);
+// kFeatureCatalog in the app (kFeatureCatalog lists ALL sixteen).
+const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding", "third_party"]);
 const MODEL_KEYS = new Set(["restaurant", "retail", "fastfood", "services"]);
 const PLAN_PRESETS = {
-  starter: [],
-  growth: [...CORE_FEATURE_KEYS],
+  starter: [...CORE_FEATURE_KEYS].filter((k) => k !== "qr_ordering"),
+  growth: [...CORE_FEATURE_KEYS].filter((k) => k !== "qr_ordering"),
   custom: [...FEATURE_KEYS],
+  customize: [...FEATURE_KEYS],
   full: [...FEATURE_KEYS],
 };
 
@@ -105,7 +106,9 @@ function accessOf(row) {
 }
 
 function normalizeAccess(body) {
-  const plan = ["starter", "growth", "custom", "full"].includes(body.plan) ? body.plan : "full";
+  const rawPlan = String(body.plan || "").trim().toLowerCase();
+  const planAlias = rawPlan === "customize" ? "custom" : rawPlan;
+  const plan = ["starter", "growth", "custom", "full"].includes(planAlias) ? planAlias : "full";
   const models = Array.isArray(body.allowedModels)
     ? body.allowedModels.filter((m) => MODEL_KEYS.has(m))
     : [...MODEL_KEYS];

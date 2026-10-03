@@ -516,9 +516,10 @@ const FEATURES = [
   ["eighty_six", "86 board (sellable control)"],
   ["cloud_sync", "Cloud networking — stations keep running when Wi-Fi is down"],
   ["qr_branding", "Branded guest QR page (shop identity editor)"],
+  ["third_party", "Third-party channels — Foodpanda, Grab & more (manual)"],
 ];
 const PLAN_PRESETS = {
-  // Oct 2026: 2 plans — Starter (12) + Customize (15). Growth is kept as alias for legacy keys.
+  // Oct 2026: 2 plans — Starter (12) + Customize (16). Growth is kept as alias for legacy keys.
   starter: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "qr_branding", "third_party"].includes(f[0])).map((f) => f[0]),
   growth: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "qr_branding", "third_party"].includes(f[0])).map((f) => f[0]),
   custom: FEATURES.map((f) => f[0]),
@@ -528,8 +529,8 @@ const PLAN_PRESETS = {
 const PLAN_SUMMARY = {
   starter: "Starter — 12 pro features (QR, cloud, branded QR & third-party are Customize add-ons).",
   growth: "Growth (legacy) — same as Starter (12). Use Starter for new keys.",
-  custom: "Customize — all 16 features (QR, cloud, branded QR & third-party included).",,
-  customize: "Customize — all 16 features (QR, cloud, branded QR & third-party included).",,
+  custom: "Customize — all 16 features (QR, cloud, branded QR & third-party included).",
+  customize: "Customize — all 16 features (QR, cloud, branded QR & third-party included).",
   full: "Full — everything on (same as before plans existed).",
 };
 
