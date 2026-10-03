@@ -458,8 +458,7 @@ class OfCard extends StatelessWidget {
         ? Padding(padding: padding, child: child)
         : _TapScale(onTap: onTap, onLongPress: onLongPress, child: Padding(padding: padding, child: child));
     final card = Container(decoration: deco, clipBehavior: Clip.antiAlias, child: AnimatedSize(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, child: inner));
-    if (!animate) return card;
-    return card.animate().fadeIn(duration: 320.ms, curve: Curves.easeOutCubic).slideY(begin: 0.08, end: 0, duration: 340.ms, curve: Curves.easeOutCubic);
+    return card;
   }
 }
 

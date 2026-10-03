@@ -173,7 +173,7 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ).animate().fadeIn(duration: 320.ms, curve: Curves.easeOutCubic).slideY(begin: 0.08, end: 0, duration: 340.ms, curve: Curves.easeOutCubic),
+          ),
           const SizedBox(height: 14),
           // Quick actions follow the business model: a restaurant's home
           // reaches for the kitchen, a mart's for the register, a salon's

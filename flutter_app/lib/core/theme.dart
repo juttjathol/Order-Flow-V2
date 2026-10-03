@@ -1,3 +1,4 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 
 /// Hybrid POS: bistro modern — warm cream canvas, forest depth, layered shadows.
