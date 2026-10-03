@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
@@ -238,168 +239,85 @@ class _TablesMapState extends ConsumerState<_TablesMap> {
                     ],
                   ),
                 ),
+                // Bistro floor — staggered glass tables with live pulse. Visible, tactile, premium.
                 Expanded(
                   child: visibleTables.isEmpty
                       ? Center(
-                          child: Text(
-                            s.t('no_orders'),
-                            style: TextStyle(color: OfColors.mute(context), fontSize: 15),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: OfColors.forest.withValues(alpha: 0.08),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.table_restaurant_outlined, size: 32, color: OfColors.mute(context)),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _filter == 'all' ? s.t('no_orders') : '${s.t(_filter)} · 0',
+                                style: TextStyle(color: OfColors.mute(context), fontSize: 15, fontWeight: FontWeight.w600),
+                              ),
+                            ],
                           ),
                         )
                       : _FloorClock(
-                          builder: (now) => GridView.builder(
-                            padding: const EdgeInsets.fromLTRB(20, 6, 20, 100),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: gridCount(context, phone: 2, tablet: 4),
-                              mainAxisSpacing: 14,
-                              crossAxisSpacing: 14,
-                              childAspectRatio: isTablet(context) ? 0.98 : 0.88,
-                            ),
-                            itemCount: visibleTables.length,
-                            itemBuilder: (_, i) {
-                              final t = visibleTables[i];
-                              final ticket = store.openOrderForTable(t);
-                              final occupied = ticket != null || t.status != TableStatus.free;
-                              final color = t.status == TableStatus.ready
-                                  ? tableColor(TableStatus.ready)
-                                  : occupied
-                                      ? tableColor(TableStatus.ordered)
-                                      : tableColor(TableStatus.free);
-                              final start = ticket?.createdAt ?? t.occupiedAt;
-                              final chip = t.status == TableStatus.ready
-                                  ? s.t('ready')
-                                  : occupied
-                                      ? s.t('busy')
-                                      : s.t('free');
+                          builder: (now) => AnimationLimiter(
+                            child: GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: gridCount(context, phone: 2, tablet: 4),
+                                mainAxisSpacing: 14,
+                                crossAxisSpacing: 14,
+                                childAspectRatio: isTablet(context) ? 0.96 : 0.86,
+                              ),
+                              itemCount: visibleTables.length,
+                              itemBuilder: (_, i) {
+                                final t = visibleTables[i];
+                                final ticket = store.openOrderForTable(t);
+                                final occupied = ticket != null || t.status != TableStatus.free;
+                                final color = t.status == TableStatus.ready
+                                    ? tableColor(TableStatus.ready)
+                                    : occupied
+                                        ? tableColor(TableStatus.ordered)
+                                        : tableColor(TableStatus.free);
+                                final start = ticket?.createdAt ?? t.occupiedAt;
+                                final chip = t.status == TableStatus.ready
+                                    ? s.t('ready')
+                                    : occupied
+                                        ? s.t('busy')
+                                        : s.t('free');
 
-                              return Material(
-                                color: OfColors.card(context),
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(22),
-                                  side: BorderSide(
-                                    color: color.withValues(alpha: occupied ? 0.9 : 0.35),
-                                    width: occupied ? 2.5 : 1.5,
-                                  ),
-                                ),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(22),
-                                  onTap: () => _openTable(context, ref, t),
-                                  onLongPress: manage ? () => _editTable(context, ref, existing: t) : null,
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: color.withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                t.name,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 18,
-                                                  letterSpacing: -0.3,
-                                                ),
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            StatusChip(chip, color: color),
-                                          ],
-                                        ),
-                                        const Spacer(),
-                                        Center(
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.chair_outlined, size: 14, color: OfColors.mute(context)),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${t.seats} ${s.t('seats_n')}',
-                                                style: TextStyle(
-                                                  color: OfColors.mute(context),
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (occupied && start != null) ...[
-                                          const SizedBox(height: 6),
-                                          Center(
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: color.withValues(alpha: 0.12),
-                                                borderRadius: BorderRadius.circular(10),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.schedule, size: 12, color: color),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    formatBusyClock(start, now),
-                                                    style: TextStyle(
-                                                      fontWeight: FontWeight.w800,
-                                                      fontSize: 13,
-                                                      color: color,
-                                                      letterSpacing: 0.3,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                        const Spacer(),
-                                        if (ticket != null) ...[
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04),
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text(
-                                                  ticket.ticketNo,
-                                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                                                ),
-                                                MoneyText(
-                                                  ticket.total,
-                                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ] else ...[
-                                          Center(
-                                            child: Text(
-                                              s.t('tap_to_open'),
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: OfColors.mute(context).withValues(alpha: 0.8),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
+                              return AnimationConfiguration.staggeredGrid(
+                                position: i,
+                                columnCount: gridCount(context, phone: 2, tablet: 4),
+                                duration: const Duration(milliseconds: 420),
+                                child: SlideAnimation(
+                                  verticalOffset: 24,
+                                  child: FadeInAnimation(
+                                    child: BistroTableTile(
+                                      tableName: t.name,
+                                      seats: t.seats,
+                                      statusColor: color,
+                                      statusLabel: chip,
+                                      busyClock: (occupied && start != null) ? formatBusyClock(start, now) : null,
+                                      ticketNo: ticket?.ticketNo,
+                                      ticketTotal: ticket == null
+                                          ? null
+                                          : MoneyText(ticket.total, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
+                                      occupied: occupied,
+                                      ready: t.status == TableStatus.ready,
+                                      onTap: () => _openTable(context, ref, t),
+                                      onLongPress: manage ? () => _editTable(context, ref, existing: t) : null,
                                     ),
                                   ),
                                 ),
-                              );
+                              ); // BistroTableTile replaces old Material/InkWell
                             },
                           ),
                         ),
+                ),
                 ),
               ],
             ),

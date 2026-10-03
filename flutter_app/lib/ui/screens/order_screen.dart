@@ -1,7 +1,9 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -266,46 +268,92 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             ),
           ),
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(18),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: gridCount(context, phone: 2, tablet: 3),
-              mainAxisSpacing: 14,
-              crossAxisSpacing: 14,
-              childAspectRatio: 0.78,
-            ),
-            itemCount: products.length,
-            itemBuilder: (_, i) {
-              final p = products[i];
-              final picked = order.lines.where((l) => l.productId == p.id).fold<double>(0, (a, l) => a + l.qty);
-              return OfCard(
-                padding: const EdgeInsets.all(8),
-                onTap: locked || !p.available ? null : () => _add(order, p),
-                onLongPress: () => eightySix(context, ref, p),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Center(child: ProductImage(p.imageBase64, size: 72)),
-                          if (!p.available) Align(alignment: Alignment.topLeft, child: StatusChip('86', color: OfColors.danger)),
-                          if (picked > 0)
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: _PickBadge(qty: picked),
-                            ),
-                        ],
-                      ),
+          child: products.isEmpty
+              ? EmptyState(icon: Icons.search_off_rounded, message: s.t('no_orders'))
+              : AnimationLimiter(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(18),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: gridCount(context, phone: 2, tablet: 3),
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 0.78,
                     ),
-                    const SizedBox(height: 4),
-                    Text(p.name, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    MoneyText(p.price, style: const TextStyle(fontSize: 13)),
-                  ],
+                    itemCount: products.length,
+                    itemBuilder: (_, i) {
+                      final p = products[i];
+                      final picked = order.lines.where((l) => l.productId == p.id).fold<double>(0, (a, l) => a + l.qty);
+                      return AnimationConfiguration.staggeredGrid(
+                        position: i,
+                        columnCount: gridCount(context, phone: 2, tablet: 3),
+                        duration: const Duration(milliseconds: 380),
+                        child: SlideAnimation(
+                          verticalOffset: 16,
+                          child: FadeInAnimation(
+                            child: OfCard(
+                              padding: const EdgeInsets.all(10),
+                              onTap: locked || !p.available ? null : () => _add(order, p),
+                              onLongPress: () => eightySix(context, ref, p),
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        Center(child: ProductImage(p.imageBase64, size: 72)),
+                                        if (!p.available)
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.42),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Center(child: StatusChip('86', color: OfColors.danger)),
+                                          ),
+                                        if (picked > 0)
+                                          Align(
+                                            alignment: Alignment.topRight,
+                                            child: _PickBadge(qty: picked),
+                                          ),
+                                        if (p.available && !locked)
+                                          Align(
+                                            alignment: Alignment.bottomRight,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: OfColors.forest,
+                                                shape: BoxShape.circle,
+                                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 6)],
+                                              ),
+                                              child: const Icon(Icons.add_rounded, size: 14, color: Colors.white),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(p.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: -0.1)),
+                                  const SizedBox(height: 3),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: OfColors.mint.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: MoneyText(p.price, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: OfColors.mint)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
-          ),
         ),
       ],
     );

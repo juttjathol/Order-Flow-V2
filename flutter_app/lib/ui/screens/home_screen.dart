@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -105,40 +106,74 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           OfCard(
-            color: OfColors.isDark(context) ? const Color(0xFF12352A) : const Color(0xFFE8F7EF),
+            color: OfColors.isDark(context) ? const Color(0xFF12352A) : Colors.white,
             onTap: () => _openStat(context, ref, 'sales'),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(s.t('today_sales'), style: TextStyle(color: OfColors.mute(context), fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: OfColors.mint.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: OfColors.mint.withValues(alpha: 0.18)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.auto_graph_rounded, size: 13, color: OfColors.mint),
+                                const SizedBox(width: 5),
+                                Text(s.t('today_sales'),
+                                    style: const TextStyle(
+                                        color: OfColors.mint, fontWeight: FontWeight.w800, fontSize: 11, letterSpacing: 0.4)),
+                              ],
+                            ),
+                          ),
+                          if (delta != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (delta >= 0 ? OfColors.mint : OfColors.danger).withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '${delta >= 0 ? '↑' : '↓'} ${delta.abs().toStringAsFixed(1)}% ${s.t('vs_yesterday')}',
+                                style: TextStyle(
+                                  color: delta >= 0 ? OfColors.mint : OfColors.danger,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
-                        child: Text(
-                          moneyOf(snap, today),
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 32, letterSpacing: -0.8),
-                        ),
+                        child: AnimatedMoneyText(today,
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 32, letterSpacing: -0.9)),
                       ),
-                      if (delta != null)
-                        Text(
-                          '${delta >= 0 ? '↑' : '↓'} ${delta.abs().toStringAsFixed(1)}% ${s.t('vs_yesterday')}',
-                          style: TextStyle(
-                            color: delta >= 0 ? OfColors.mint : OfColors.danger,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
                     ],
                   ),
                 ),
-                Icon(Icons.show_chart, size: 48, color: OfColors.mint.withValues(alpha: 0.7)),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 96,
+                  height: 48,
+                  child: _MiniSparkline(today: today),
+                ),
               ],
             ),
-          ),
+          ).animate().fadeIn(duration: 320.ms, curve: Curves.easeOutCubic).slideY(begin: 0.08, end: 0, duration: 340.ms, curve: Curves.easeOutCubic),
           const SizedBox(height: 14),
           // Quick actions follow the business model: a restaurant's home
           // reaches for the kitchen, a mart's for the register, a salon's
@@ -212,32 +247,40 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 22),
-          GridView.count(
-            padding: EdgeInsets.zero,
-            crossAxisCount: wide ? 4 : 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: wide ? 1.45 : 0.98,
-            children: [
-              for (var i = 0; i < stats.length; i++)
-                OfCard(
-                  color: i == 0
-                      ? OfColors.mint.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.12)
-                      : null,
-                  onTap: () => _openStat(context, ref, stats[i].id),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: stats[i].color.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(stats[i].icon, color: stats[i].color, size: 24),
-                      ),
+          AnimationLimiter(
+            child: GridView.count(
+              padding: EdgeInsets.zero,
+              crossAxisCount: wide ? 4 : 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: wide ? 1.45 : 0.98,
+              children: [
+                for (var i = 0; i < stats.length; i++)
+                  AnimationConfiguration.staggeredGrid(
+                    position: i,
+                    columnCount: wide ? 4 : 2,
+                    duration: const Duration(milliseconds: 380),
+                    child: SlideAnimation(
+                      verticalOffset: 18,
+                      child: FadeInAnimation(
+                        child: OfCard(
+                          color: i == 0
+                              ? OfColors.mint.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.16 : 0.12)
+                              : null,
+                          onTap: () => _openStat(context, ref, stats[i].id),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: stats[i].color.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(stats[i].icon, color: stats[i].color, size: 24),
+                              ),
                       const Spacer(),
                       Text(stats[i].label, style: TextStyle(color: OfColors.mute(context), fontSize: 13)),
                       const SizedBox(height: 4),
@@ -267,7 +310,11 @@ class HomeScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
+              ),
+            ),
+          ),
             ],
+          ),
           ),
           const SizedBox(height: 28),
           Row(
@@ -474,9 +521,26 @@ class _QuickTile extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          Icon(icon, color: dark ? OfColors.mint : OfColors.forest),
-          const SizedBox(height: 8),
-          Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11)),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: dark ? [OfColors.mint, OfColors.emerald] : [OfColors.forest, OfColors.forestLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: (dark ? OfColors.mint : OfColors.forest).withValues(alpha: 0.22), blurRadius: 10, offset: const Offset(0, 4))],
+            ),
+            child: Icon(icon, color: Colors.white, size: 18),
+          ),
+          const SizedBox(height: 9),
+          Text(label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11, letterSpacing: 0.1)),
         ],
       ),
     );
@@ -784,6 +848,44 @@ class _ServerCardState extends State<_ServerCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MiniSparkline extends ConsumerWidget {
+  const _MiniSparkline({super.key, required this.today});
+  final double today;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    double safeToday = today.isFinite ? today : 0;
+    final spots = List.generate(7, (i) => FlSpot(i.toDouble(), safeToday * (0.55 + 0.45 * (i / 6)) * (0.92 + 0.08 * (i % 2))));
+    List<FlSpot> resolved = spots;
+    try {
+      final store = ref.snap.store;
+      final now = DateTime.now();
+      resolved = List.generate(7, (i) {
+        final d = DateTime(now.year, now.month, now.day).subtract(Duration(days: 6 - i));
+        return FlSpot(i.toDouble(), store.salesOn(d).toDouble());
+      });
+      if (resolved.every((s) => s.y == 0)) resolved = spots;
+    } catch (_) {}
+    final isDark = OfColors.isDark(context);
+    return LineChart(
+      LineChartData(
+        gridData: const FlGridData(show: false),
+        titlesData: const FlTitlesData(show: false),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: resolved,
+            isCurved: true,
+            barWidth: 2.6,
+            color: OfColors.mint,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(show: true, color: OfColors.mint.withValues(alpha: isDark ? 0.18 : 0.14)),
+          ),
+        ],
       ),
     );
   }

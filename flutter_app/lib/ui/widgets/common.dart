@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n.dart';
@@ -70,7 +72,7 @@ class AnimatedMoneyText extends ConsumerWidget {
   }
 }
 
-/// Light shimmer placeholder for fast perceived loading.
+/// Light shimmer placeholder — now using shimmer package for real shimmer wave.
 class OfShimmer extends StatelessWidget {
   const OfShimmer({super.key, this.height = 16, this.width = double.infinity, this.radius = 10});
   final double height;
@@ -78,10 +80,35 @@ class OfShimmer extends StatelessWidget {
   final double radius;
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      width: width,
-      decoration: BoxDecoration(color: OfColors.muted.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(radius)),
+    final isDark = OfColors.isDark(context);
+    return Shimmer.fromColors(
+      baseColor: isDark ? const Color(0xFF2A3A31) : OfColors.creamMuted,
+      highlightColor: isDark ? const Color(0xFF3A4A41) : const Color(0xFFFFFDF9),
+      child: Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(color: OfColors.muted.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(radius)),
+      ),
+    );
+  }
+}
+
+/// Staggered entrance helper — fade + slide, used for grids/lists.
+class StaggeredFade extends StatelessWidget {
+  const StaggeredFade({super.key, required this.index, required this.child, this.columns = 2});
+  final int index;
+  final Widget child;
+  final int columns;
+  @override
+  Widget build(BuildContext context) {
+    return AnimationConfiguration.staggeredGrid(
+      position: index,
+      columnCount: columns,
+      duration: const Duration(milliseconds: 380),
+      child: SlideAnimation(
+        verticalOffset: 18,
+        child: FadeInAnimation(child: child),
+      ),
     );
   }
 }
@@ -375,12 +402,22 @@ class EmptyState extends StatelessWidget {
   final String? actionLabel;
   @override
   Widget build(BuildContext context) {
-    return Center(child: Padding(padding: const EdgeInsets.all(28), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 48, color: OfColors.mute(context)),
-      const SizedBox(height: 12),
-      Text(message, textAlign: TextAlign.center, style: TextStyle(color: OfColors.mute(context), fontSize: 16)),
-      if (action != null && actionLabel != null) ...[const SizedBox(height: 16), FilledButton(onPressed: action, child: Text(actionLabel!))],
-    ])));
+    final isDark = OfColors.isDark(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(color: OfColors.forest.withValues(alpha: isDark ? 0.18 : 0.08), shape: BoxShape.circle),
+            child: Icon(icon, size: 36, color: OfColors.mute(context)),
+          ),
+          const SizedBox(height: 14),
+          Text(message, textAlign: TextAlign.center, style: TextStyle(color: OfColors.mute(context), fontSize: 15, fontWeight: FontWeight.w600)),
+          if (action != null && actionLabel != null) ...[const SizedBox(height: 16), FilledButton(onPressed: action, child: Text(actionLabel!))],
+        ]),
+      ),
+    );
   }
 }
 
@@ -398,6 +435,7 @@ class StatusChip extends StatelessWidget {
   }
 }
 
+/// Bistro card — layered shadow, soft border, scale tap. Used everywhere.
 class OfCard extends StatelessWidget {
   const OfCard({super.key, required this.child, this.onTap, this.onLongPress, this.padding = const EdgeInsets.all(20), this.color, this.animate = false});
   final Widget child;
@@ -408,18 +446,245 @@ class OfCard extends StatelessWidget {
   final bool animate;
   @override
   Widget build(BuildContext context) {
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(22));
+    final isDark = OfColors.isDark(context);
+    final bg = color ?? OfColors.card(context);
+    final deco = BoxDecoration(
+      color: bg,
+      borderRadius: OfRadii.card,
+      border: Border.all(color: isDark ? const Color(0x1E3DDC97) : OfColors.creamBorder, width: 1.2),
+      boxShadow: OfShadows.card(context),
+    );
     final inner = onTap == null && onLongPress == null
         ? Padding(padding: padding, child: child)
         : _TapScale(onTap: onTap, onLongPress: onLongPress, child: Padding(padding: padding, child: child));
-    final card = Card(
-      color: color,
-      shape: shape,
-      clipBehavior: Clip.antiAlias,
-      child: AnimatedSize(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, child: inner),
-    );
+    final card = Container(decoration: deco, clipBehavior: Clip.antiAlias, child: AnimatedSize(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, child: inner));
     if (!animate) return card;
-    return card;
+    return card.animate().fadeIn(duration: 320.ms, curve: Curves.easeOutCubic).slideY(begin: 0.08, end: 0, duration: 340.ms, curve: Curves.easeOutCubic);
+  }
+}
+
+/// Bistro table tile — the hero of floor. Round/square silhouette, live pulse, occupancy glow, seats ring.
+/// Keeps all logic in floor_screen.dart; this is pure visuals.
+class BistroTableTile extends StatelessWidget {
+  const BistroTableTile({
+    super.key,
+    required this.tableName,
+    required this.seats,
+    required this.statusColor,
+    required this.statusLabel,
+    this.busyClock,
+    this.ticketNo,
+    this.ticketTotal,
+    this.occupied = false,
+    this.ready = false,
+    this.onTap,
+    this.onLongPress,
+  });
+  final String tableName;
+  final int seats;
+  final Color statusColor;
+  final String statusLabel;
+  final String? busyClock;
+  final String? ticketNo;
+  final Widget? ticketTotal;
+  final bool occupied;
+  final bool ready;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = OfColors.isDark(context);
+    final bg = OfColors.elevated(context);
+    final ring = statusColor;
+    final glow = occupied ? ring.withValues(alpha: 0.18) : Colors.transparent;
+    return _TapScale(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: OfRadii.card,
+          border: Border.all(color: ring.withValues(alpha: occupied ? 0.85 : 0.30), width: occupied ? 2.2 : 1.4),
+          boxShadow: occupied ? [BoxShadow(color: glow, blurRadius: 18, spreadRadius: 2), ...OfShadows.card(context)] : OfShadows.card(context),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -14,
+              top: -10,
+              child: Icon(
+                seats <= 2 ? Icons.circle_outlined : seats <= 4 ? Icons.crop_square : Icons.table_restaurant_outlined,
+                size: 88,
+                color: ring.withValues(alpha: isDark ? 0.12 : 0.07),
+              ),
+            ),
+            if (occupied)
+              Positioned(
+                left: 14,
+                top: 14,
+                child: _PulseDot(color: ring),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: OfColors.forest.withValues(alpha: isDark ? 0.18 : 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: OfColors.forest.withValues(alpha: 0.12)),
+                        ),
+                        child: Text(
+                          tableName,
+                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: -0.3),
+                        ),
+                      ),
+                      const Spacer(),
+                      StatusChip(statusLabel, color: ring),
+                    ],
+                  ),
+                  const Spacer(),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.chair_alt_outlined, size: 13, color: OfColors.mute(context)),
+                          const SizedBox(width: 5),
+                          Text('$seats seats', style: TextStyle(color: OfColors.mute(context), fontSize: 12, fontWeight: FontWeight.w700)),
+                          if (occupied) ...[
+                            const SizedBox(width: 6),
+                            Container(width: 4, height: 4, decoration: BoxDecoration(color: ring, shape: BoxShape.circle)),
+                            const SizedBox(width: 6),
+                            Icon(Icons.people_alt_rounded, size: 12, color: OfColors.mute(context)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (occupied && busyClock != null) ...[
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: ring.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: ring.withValues(alpha: 0.22)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.schedule_rounded, size: 13, color: ring),
+                            const SizedBox(width: 5),
+                            Text(
+                              busyClock!,
+                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: ring, letterSpacing: 0.2, fontFeatures: const [FontFeature.tabularFigures()]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (ticketNo != null && ticketTotal != null) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              ticketNo!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ticketTotal!,
+                        ],
+                      ),
+                    ),
+                  ] else
+                    Center(
+                      child: Text(
+                        ready ? 'Ready to serve' : 'Tap to open',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: OfColors.mute(context).withValues(alpha: 0.9)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (ready)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: OfRadii.card,
+                      border: Border.all(color: OfColors.mint.withValues(alpha: 0.28), width: 1.2),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PulseDot extends StatefulWidget {
+  const _PulseDot({required this.color});
+  final Color color;
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _c,
+            builder: (_, __) => Container(
+              width: 18 * (0.6 + 0.4 * _c.value),
+              height: 18 * (0.6 + 0.4 * _c.value),
+              decoration: BoxDecoration(color: widget.color.withValues(alpha: (1 - _c.value) * 0.28), shape: BoxShape.circle),
+            ),
+          ),
+          Container(width: 9, height: 9, decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: widget.color.withValues(alpha: 0.45), blurRadius: 6)])),
+        ],
+      ),
+    );
   }
 }
 

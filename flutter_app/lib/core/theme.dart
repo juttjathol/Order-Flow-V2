@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Hybrid POS: refined warm cream canvas with dark forest green actions.
+/// Hybrid POS: bistro modern — warm cream canvas, forest depth, layered shadows.
+/// Inspired by Food POS Dark [FigJam 9441889], FoodiPOS 512102, and POS System Web UI (Figma) — see research notes.
 class OfColors {
   /// Dark forest green: exclusively for buttons, primary actions, and brand marks.
   static const forest = Color(0xFF163E2E);
@@ -12,6 +13,10 @@ class OfColors {
   static const emerald = Color(0xFF1B8F62);
   static const mint = Color(0xFF2EA771);
   static const gold = Color(0xFFD49E35);
+  /// Bistro brass accent for premium chips & busy pulse.
+  static const brass = Color(0xFFC4932E);
+  static const amber = Color(0xFFF6B33E);
+  static const blush = Color(0xFFFFE8C8);
   /// Main app & website background: warm artisan bistro cream.
   static const cream = Color(0xFFFAF7F2);
   static const creamSurface = Color(0xFFFFFDF9);
@@ -33,6 +38,47 @@ class OfColors {
 
   static Color mute(BuildContext context) =>
       isDark(context) ? const Color(0xFFA9C6B7) : const Color(0xFF5E7166);
+
+  /// Soft bistro surface for elevated cards (light: paper white with warm undertone).
+  static Color elevated(BuildContext context) =>
+      isDark(context) ? const Color(0xFF1F2E27) : Colors.white;
+
+  /// Glass overlay for app bars / floating filters.
+  static Color glass(BuildContext context) =>
+      isDark(context) ? const Color(0xB818221D) : const Color(0xE6FFFDFA);
+}
+
+/// Radii system — 14/16/22/28 for nested cards, sheets, table tiles.
+class OfRadii {
+  static const r12 = Radius.circular(12);
+  static const r14 = Radius.circular(14);
+  static const r16 = Radius.circular(16);
+  static const r18 = Radius.circular(18);
+  static const r22 = Radius.circular(22);
+  static const r28 = Radius.circular(28);
+  static BorderRadius get card => BorderRadius.circular(22);
+  static BorderRadius get sheet => const BorderRadius.vertical(top: Radius.circular(28));
+  static BorderRadius get pill => BorderRadius.circular(999);
+}
+
+/// Shadow presets — layered soft shadows instead of hard elevation.
+class OfShadows {
+  static List<BoxShadow> soft(BuildContext context) => OfColors.isDark(context)
+      ? const [BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, 8))]
+      : const [
+          BoxShadow(color: Color(0x14000000), blurRadius: 24, offset: Offset(0, 10)),
+          BoxShadow(color: Color(0x0A163E2E), blurRadius: 40, offset: Offset(0, 20)),
+        ];
+  static List<BoxShadow> card(BuildContext context) => OfColors.isDark(context)
+      ? const [BoxShadow(color: Color(0x40000000), blurRadius: 18, offset: Offset(0, 6))]
+      : const [
+          BoxShadow(color: Color(0x0F163E2E), blurRadius: 22, offset: Offset(0, 8)),
+          BoxShadow(color: Color(0x07163E2E), blurRadius: 36, offset: Offset(0, 18)),
+        ];
+  static List<BoxShadow> floating(BuildContext context) => const [
+        BoxShadow(color: Color(0x1A000000), blurRadius: 28, offset: Offset(0, 16)),
+        BoxShadow(color: Color(0x0D163E2E), blurRadius: 6, offset: Offset(0, 2)),
+      ];
 }
 
 class OfTheme {
@@ -89,6 +135,10 @@ class OfTheme {
       highlightColor: (isDark ? OfColors.mint : OfColors.forest).withValues(alpha: 0.06),
       scaffoldBackgroundColor: isDark ? OfColors.deep : OfColors.cream,
       dividerColor: isDark ? OfColors.line : OfColors.creamBorder,
+      pageTransitionsTheme: const PageTransitionsTheme(builders: {
+        TargetPlatform.android: FadeThroughPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      }),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -104,14 +154,14 @@ class OfTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        elevation: isDark ? 0 : 1,
-        shadowColor: const Color(0x0C163E2E),
+        elevation: isDark ? 0 : 0,
+        shadowColor: Colors.transparent,
         color: isDark ? OfColors.cardDark : OfColors.creamSurface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: OfRadii.card,
           side: BorderSide(
-            color: isDark ? const Color(0x223DDC97) : OfColors.creamBorder,
+            color: isDark ? const Color(0x1E3DDC97) : OfColors.creamBorder,
             width: 1.2,
           ),
         ),
@@ -164,9 +214,7 @@ class OfTheme {
       bottomSheetTheme: BottomSheetThemeData(
         showDragHandle: true,
         backgroundColor: isDark ? OfColors.cardDark : OfColors.creamSurface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: OfRadii.sheet),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
