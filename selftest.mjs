@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v31'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v32'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -291,6 +291,11 @@ ok('main boot starts the relay when a room is open', appJs.includes('enterMain()
 ok('v31 dialogs close on backdrop tap', appJs.includes('e.target === dlgEl'));
 ok('v31 cloud open boots relay in place, no reload', moreJs.includes('OFStartRelay') && moreJs.includes("toast('Room is live ✓'") && appJs.includes('window.OFStartRelay = startRelayBoot'));
 ok('v31 dead room needs two strikes', appJs.includes('deadCount'));
+ok('v32 splash mirrors the APK exactly (logo.png, ORDER FLOW tag, rings)', idx.includes('src="/media/logo.png"') && idx.includes('>ORDER FLOW<') && css.includes('.splash__ring') && !idx.includes('splash__logo" src="/media/bolt.png"'));
+ok('v32 guest asks for the menu (menu_request) and caches it (ofqrmenu:)', readFileSync(join(PUB, 'order.js'), 'utf8').includes('menu_request') && readFileSync(join(PUB, 'order.js'), 'utf8').includes('ofqrmenu:'));
+ok('v32 guest first pull is immediate + faster while hungry', readFileSync(join(PUB, 'order.js'), 'utf8').includes('setTimeout(poll, document.hidden ? 9000 : (STATE ? 2500 : 1100))'));
+ok('v32 main republishes the menu when a guest says hello', appJs.includes("cmd.role === 'guest'"));
+ok('v32 push failures are surfaced, never swallowed', appJs.includes('Menu push failed') && appJs.includes('okAny'));
 ok('menu thumb + dim styles', css.includes('.lrow__ic img') && css.includes('.lrow.is-off'));
 
 console.log('\n────────────────────────────');

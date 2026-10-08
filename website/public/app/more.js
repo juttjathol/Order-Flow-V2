@@ -426,6 +426,7 @@ async function scrCloud() {
       guest.onclick = async () => { await navigator.clipboard.writeText(url).catch(() => {}); toast('Guest link copied ✓'); };
       card.appendChild(guest);
       body.appendChild(card);
+      if (err) body.appendChild(ce('p', 'muted small', '⚠️ ' + err));
       body.appendChild(ce('div', 'sect__t', L.t('stations')));
       const seen = await kvGet('stationsSeen', {});
       const rows = Object.entries(seen);
@@ -770,7 +771,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v31</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v32</div></div>'));
   });
 }
 

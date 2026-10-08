@@ -12,7 +12,7 @@ const $ = id => document.getElementById(id);
 const ce = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-let CFG = null, KEY = null, CURSOR = 0, STATE = null, CART = new Map(), SESSION_START = Date.now();
+let CFG = null, KEY = null, CURSOR = 0, STATE = null, CART = new Map(), SESSION_START = Date.now(), CACHE_SEEDED = false;
 let CAT = 'all', SENT_GIDS = [];
 const BASES = ['', 'https://order-flow-v2.pages.dev'];
 let BASE = location.protocol.startsWith('http') ? '' : BASES[1];
@@ -55,6 +55,12 @@ async function boot() {
   if (!cfg.r || !cfg.c || !cfg.k) return fail('This QR looks out of date');
   CFG = cfg; KEY = await key(cfg.k);
   CFG.device = 'guest-' + Math.random().toString(36).slice(2, 10);
+  // Instant menu on repeat visits: render the last snapshot we received for
+  // this room from localStorage, then refresh it live below.
+  try {
+    const hit = JSON.parse(localStorage.getItem('ofqrmenu:' + cfg.r) || 'null');
+    if (hit && hit.s) { CACHE_SEEDED = true; applyState(hit.s); $('g-sub').textContent = 'Refreshing…'; }
+  } catch { /* no cache */ }
   // Worker contract (v1.1.83+): join needs room + code + deviceId — the
   // deviceId is what makes us a member allowed to send.
   const j = await api('/api/cloud/join', { room: cfg.r, code: cfg.c, role: 'guest', deviceId: CFG.device });
@@ -65,12 +71,18 @@ async function boot() {
     $('g-hero').querySelector('div').appendChild(chip);
   }
   await api('/api/cloud/send', { room: cfg.r, device: CFG.device, msg: await enc(JSON.stringify({ t: 'cmd', c: { type: 'hello', device: CFG.device, role: 'guest', at: Date.now() } })) });
+  requestMenu(true); // ask main for a fresh push instead of waiting silently
   poll();
 }
-let parts = null;
+let parts = null, LAST_MENU_REQ = 0;
+async function requestMenu(force) {
+  const now = Date.now();
+  if (!force && LAST_MENU_REQ && now - LAST_MENU_REQ < 6000) return;
+  LAST_MENU_REQ = now;
+  try { await api('/api/cloud/send', { room: CFG.r, device: CFG.device, msg: await enc(JSON.stringify({ t: 'cmd', c: { type: 'menu_request', device: CFG.device, role: 'guest', at: now } })) }); } catch {}
+}
 async function poll() {
-  const slow = document.hidden ? 9000 : 2500;
-  setTimeout(async () => {
+  try {
     const j = await api('/api/cloud/pull', { room: CFG.r, device: CFG.device, after: CURSOR });
     if (j && j.ok !== false && Array.isArray(j.msgs)) {
       if (typeof j.cursor === 'number') CURSOR = j.cursor;
@@ -89,12 +101,23 @@ async function poll() {
         } else if (env.t === 'cmd' && env.c && env.c.type === 'menu_request') { /* main will push state */ }
       }
     }
-    poll();
-  }, slow);
+  } catch { /* keep polling — a dropped request is not a reason to die */ }
+  if (!STATE) {
+    // No live menu yet: keep asking, and tell the customer what's happening
+    // instead of an eternal "Loading the menu…".
+    requestMenu(false);
+    if (Date.now() - SESSION_START > 20000 && !CACHE_SEEDED) {
+      const g = $('g-sub');
+      if (g && !g.dataset.wait) { g.dataset.wait = '1'; g.textContent = 'Still waiting for the menu — is Order Flow open on the main device?'; }
+    }
+  }
+  setTimeout(poll, document.hidden ? 9000 : (STATE ? 2500 : 1100));
 }
 function applyState(json) {
   let obj; try { obj = JSON.parse(json); } catch { return; }
   STATE = obj;
+  // remember the last good snapshot so the next scan renders instantly
+  try { if (json && json.length < 600000) localStorage.setItem('ofqrmenu:' + CFG.r, JSON.stringify({ at: Date.now(), s: json })); } catch {}
   const p = (obj.kv && obj.kv.shop && obj.kv.shop.profile) || {};
   if (p.name && !CFG.shop) $('g-shop').textContent = p.name;
   if (p.brandOn) {

@@ -375,15 +375,24 @@ async function pushStateNow() {
     const obj = await backupObject();
     const json = JSON.stringify(obj);
     const parts = Math.max(1, Math.ceil(json.length / 110000));
+    let okAny = false;
     for (let i = 0; i < parts; i++) {
       const chunk = json.slice(i * 110000, (i + 1) * 110000);
       const blob = await encStr(RELAY.key, JSON.stringify(parts > 1 ? { t: 'state_part', part: i, parts, s: chunk } : { t: 'state', s: chunk }));
       const j = await cloudApi('/api/cloud/send', { msg: blob }, RELAY.info);
-      if (j && j.ok === false) {
-        if (j.error === 'no_room' || j.error === 'no_key') { RELAY = null; await kvSet('relayErr', 'Room is gone — open it again from More → Cloud room'); updateChips(); return; }
+      if (!j || j.ok === false) {
+        const err = j ? String(j.error || 'unknown') : 'offline';
+        if (err === 'no_room' || err === 'no_key') { RELAY = null; await kvSet('relayErr', 'Room is gone — open it again from More → Cloud room'); updateChips(); return; }
+        // ANY other rejection must be VISIBLE, not swallowed — a silently
+        // dying push is how "guest menu never loads" went undiagnosed.
+        await kvSet('relayErr', 'Menu push failed: ' + err);
+        if (Date.now() - (pushStateNow._warned || 0) > 60000) { pushStateNow._warned = Date.now(); toast('Menu push failed', 'Cloud said: ' + err + ' — guests may not see the menu.'); }
+      } else {
+        okAny = true;
+        if (await kvGet('relayErr', null)) kvSet('relayErr', null).catch(() => {});
       }
     }
-    RELAY.lastPush = Date.now();
+    if (okAny) RELAY.lastPush = Date.now();
     updateChips();
   } catch {}
 }
@@ -445,6 +454,9 @@ async function onCmd(cmd) {
     const now = Date.now();
     for (const k of Object.keys(seen)) if (now - (seen[k]?.at || 0) > 12 * 60 * 1000) delete seen[k];
     await kvSet('stationsSeen', seen);
+    // A guest just scanned: republish the menu (throttled) so they render in
+    // seconds no matter how long ago the boot push happened.
+    if (cmd.role === 'guest' && Date.now() - (RELAY ? RELAY.lastPush : 0) > 6000) pushStateNow();
     await renderStationsPanel();
     return;
   }
