@@ -396,3 +396,67 @@ button[data-tab="kitchen"]{ position: relative; }
   #print-root, #print-root *{ visibility: visible !important; }
   #print-root{ display: block !important; position: absolute; left: 0; top: 0; width: 72mm; padding: 4mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ============================================================
+   v22 FIXES — explicit-theme wins over OS, header wrap,
+   badge corner, toast cap, fluid layout (all orientations)
+   ============================================================ */
+/* 1) Explicit LIGHT must always beat the OS auto-dark block above */
+html[data-theme="light"]{
+  --cream:#FAF7F2; --creamMuted:#F3ECE0; --creamBorder:#E8E0D2;
+  --creamSurf:rgba(255,253,250,.9); --surf:#FFFDF9; --cardAlt:#FFF6EA;
+  --forest:#163E2E; --muted:#5E7166; --ink:#13231A; --paper:#FFFDF9; --line:#1F163E2E;
+}
+html[data-theme="light"], html[data-theme="light"] body{ background:#FAF7F2 !important; color:#163E2E; }
+html[data-theme="light"] .of-header{ background:rgba(250,247,242,.92); border-bottom-color:#E8E0D2; }
+html[data-theme="light"] .of-card,
+html[data-theme="light"] .print-card,
+html[data-theme="light"] .set-group,
+html[data-theme="light"] .sheet__panel,
+html[data-theme="light"] .menu-pick-row,
+html[data-theme="light"] .table-tile,
+html[data-theme="light"] .tile,
+html[data-theme="light"] .prod,
+html[data-theme="light"] .of-tile{ background:#FFFDF9; border-color:#E8E0D2; }
+html[data-theme="light"] .of-nav{ background:rgba(255,253,249,.96); border-top-color:#E8E0D2; }
+html[data-theme="light"] .of-search, html[data-theme="light"] .of-toolbar{ background:#F3ECE0; border-color:#E8E0D2; }
+html[data-theme="light"] .ord-line, html[data-theme="light"] .menu-pick-row.is-off{ background:#F3ECE0; }
+html[data-theme="light"] .set-row + .set-row{ border-top-color:#EEE5D6; }
+html[data-theme="light"] input[type="text"], html[data-theme="light"] input[type="number"], html[data-theme="light"] input[type="url"], html[data-theme="light"] input[type="password"], html[data-theme="light"] select{ background:#FFFDF9; color:#163E2E; border-color:#E8E0D2; }
+html[data-theme="light"] .btn--ghost{ background:#F3ECE0; color:#163E2E; border-color:#E8E0D2; }
+html[data-theme="light"] .btn--muted{ background:rgba(94,113,102,.1); color:#5E7166; border-color:rgba(94,113,102,.14); }
+html[data-theme="light"] .of-badge{ background:#F3ECE0; color:#5E7166; border-color:#E8E0D2; }
+html[data-theme="light"] .table-tile .st{ color:#7B8D82; }
+/* Explicit DARK also pinned on body itself (some auto rules target body directly) */
+html[data-theme="dark"], html[data-theme="dark"] body{ background:#0F1512 !important; color:#EAF4ED; }
+html[data-theme="dark"] .of-nav{ background:rgba(24,34,29,.96); border-top-color:rgba(169,198,183,.24); }
+html[data-theme="dark"] .of-search, html[data-theme="dark"] .of-toolbar{ background:#1E2E27; border-color:rgba(169,198,183,.24); }
+html[data-theme="dark"] .prod{ background:#18221D; border-color:rgba(169,198,183,.24); }
+/* 2) Header never overlaps the row below — wrap instead of spill */
+.of-header{ flex-wrap:wrap; row-gap:6px; column-gap:12px; height:auto; min-height:0; align-items:center; }
+.of-header__titles{ min-width:0; flex:1 1 auto; }
+.of-header__sub{ display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; min-width:0; }
+.of-header__actions{ margin-left:auto; display:flex; gap:8px; align-items:center; flex:0 0 auto; }
+/* 3) Kitchen badge = corner dot, never splits the label */
+button[data-tab="kitchen"]{ position:relative; overflow:visible; }
+.nav-badge{ position:absolute; top:-7px; right:-9px; z-index:6; min-width:16px; height:16px; padding:0 4px; border-radius:8px; font-size:10px; line-height:16px; pointer-events:none; border:2px solid var(--cream); box-shadow:0 2px 6px rgba(0,0,0,.3); }
+/* 4) Toasts: never more than 2 on screen */
+.of-toast:nth-child(n+3){ display:none; }
+/* 5) Fluid on every device + orientation */
+html,body{ width:100%; overflow-x:hidden; }
+#view-app{ max-width:880px; margin:0 auto; padding-left:max(12px, env(safe-area-inset-left, 0px)); padding-right:max(12px, env(safe-area-inset-right, 0px)); }
+@media (min-width:880px){
+  .sheet__panel{ width:min(560px, 94vw); }
+  .of-nav{ max-width:880px; margin:0 auto; border-radius:20px 20px 0 0; }
+}
+@media (max-width:380px){
+  .of-header__actions{ width:100%; justify-content:flex-end; }
+  .seg button{ padding:7px 10px; font-size:12px; }
+}
+.set-row .grow{ min-width:0; }
+.set-row .sub{ word-break:break-word; }
+.set-row input, .set-row select{ flex:0 1 auto; min-width:0; }
+.of-hero p, .of-hero h1, .of-card h1, .of-card h2, .of-card h3{ overflow-wrap:anywhere; }
+/* 6) seg pills must allow badge overflow */
+.seg{ overflow:visible; }
+.seg button{ position:relative; overflow:visible; }

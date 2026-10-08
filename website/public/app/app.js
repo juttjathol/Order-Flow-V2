@@ -489,11 +489,10 @@ async function startRelay(info){
       await idbPut('orders', o);
       const t=await idbGet('tables', cmd.table); if(t){ t.state='busy'; t.since=Date.now(); await idbPut('tables', t); }
       await kvSet('rev', Date.now());
-      refreshAll();
+      refreshAll(); // toast + sound + vibration fire here via the notify engine
       try{
         const s=await getSettings();
-        if(s.kitchenSound && window.AudioContext){ const ac=new AudioContext(); const osc=ac.createOscillator(); const g=ac.createGain(); osc.connect(g); g.connect(ac.destination); osc.frequency.value=880; g.gain.setValueAtTime(.12, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime+.18); osc.start(); osc.stop(ac.currentTime+.2); }
-        if(s.autoPrint) printViaApple(o, {name:s.shopName});
+        if(s.autoPrint) window.OFKitchenPrint?.(o);
       }catch{}
       return;
     }
@@ -820,32 +819,57 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   const $=(id)=>document.getElementById(id);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-  // ——— toast ———
-  function toast(main, sub){
+  // ——— toast: dedupe + max 2 visible, covers nothing for long ———
+  let _toastSeq = 0;
+  function toast(main, sub, keepMs){
     const root = $('toast-root'); if(!root) return alert(sub? main+'\n'+sub : main);
-    const el = document.createElement('div'); el.className='of-toast';
+    // same-message toast? just show it again — don't pile up
+    const key = main+'·'+(sub||'');
+    const dup = root.querySelector('[data-key="'+CSS.escape(key)+'"]');
+    if(dup) dup.remove();
+    while(root.children.length>=2) root.firstChild.remove();
+    const el = document.createElement('div'); el.className='of-toast'; el.dataset.key=key;
     el.textContent = main;
     if(sub){ const s=document.createElement('small'); s.textContent=sub; el.appendChild(s); }
     root.appendChild(el);
     requestAnimationFrame(()=> el.classList.add('is-in'));
-    setTimeout(()=>{ el.classList.remove('is-in'); setTimeout(()=> el.remove(), 300); }, 4200);
+    const ms = keepMs||3600;
+    const id = ++_toastSeq;
+    setTimeout(()=>{ if(id<=_toastSeq){ el.classList.remove('is-in'); setTimeout(()=> el.remove(), 280); } }, ms);
   }
   window.OFToast = toast;
 
-  // ——— sound ———
+  // ——— sound (unlocked by first touch) + vibration ———
   let _ac=null;
-  function ding(freq){
+  function _unlockAudio(){
     try{
-      _ac = _ac || new (window.AudioContext||window.webkitAudioContext)();
+      if(!_ac) _ac = new (window.AudioContext||window.webkitAudioContext)();
       if(_ac.state==='suspended') _ac.resume().catch(()=>{});
+      // tiny silent tick so iOS marks audio unlocked
+      const b=_ac.createBuffer(1,1,22050), src=_ac.createBufferSource(); src.buffer=b; src.connect(_ac.destination); src.start(0);
+    }catch{}
+  }
+  ['pointerdown','touchstart','keydown','click'].forEach(ev=> document.addEventListener(ev, _unlockAudio, {passive:true}));
+  function beep(freq, at){
+    if(!_ac) return false;
+    try{
       const o=_ac.createOscillator(), g=_ac.createGain();
       o.connect(g); g.connect(_ac.destination);
       o.type='sine'; o.frequency.value=freq||880;
-      g.gain.setValueAtTime(.12,_ac.currentTime);
-      g.gain.exponentialRampToValueAtTime(.001,_ac.currentTime+.25);
-      o.start(); o.stop(_ac.currentTime+.28);
-    }catch{}
+      const t0=(_ac.currentTime)+(at||0);
+      g.gain.setValueAtTime(.14,t0);
+      g.gain.exponentialRampToValueAtTime(.001,t0+.24);
+      o.start(t0); o.stop(t0+.26);
+      return true;
+    }catch{ return false; }
   }
+  function ding(kind){
+    _unlockAudio();
+    // two-note chime like the APK ticket sound
+    if(kind==='ready'){ beep(660); beep(880,.16); }
+    else { beep(880); beep(1320,.16); }
+  }
+  function buzz(pattern){ try{ if('vibrate' in navigator) navigator.vibrate(pattern); }catch{} }
 
   // ——— theme (System/Light/Dark) — mirrors APK theme picker ———
   async function getThemePref(){ try{ return (await kvGet('theme', 'system')) || 'system'; }catch{ return 'system'; } }
@@ -866,6 +890,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   async function initTheme(){
     const t = await getThemePref();
     applyTheme(t);
+    try{ await getSettings(); }catch{} // warm the print/settings cache
     if(window.matchMedia){
       try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=> applyTheme()); }catch{}
     }
@@ -908,12 +933,15 @@ document.addEventListener('DOMContentLoaded', async ()=>{
       + '<style>.rp-line{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px dotted #ccc}</style>';
   }
   function printReceipt(order, opts){
-    getSettings().then(s=>{
-      const root = document.getElementById('print-root');
-      if(!root) return;
+    const root = document.getElementById('print-root');
+    if(!root) return;
+    // sync path (keeps the iOS user-gesture alive → AirPrint dialog opens instantly)
+    const run = (s)=>{
       root.innerHTML = buildReceiptDom(order, s, opts||{});
-      requestAnimationFrame(()=>{ try{ window.print(); }catch(e){ toast('Print failed', 'Try again — or pick another device as printer hub'); } });
-    });
+      window.print();
+    };
+    if(_setCache) run(_setCache);
+    else getSettings().then(run); // rare: first-ever print before cache warms
   }
   window.OFPrintReceipt = printReceipt;
   // Kitchen slip on "Send to kitchen": direct print on Android; on iPhone a toast (iOS needs a tap)
@@ -939,13 +967,15 @@ document.addEventListener('DOMContentLoaded', async ()=>{
       const prev = bag.map.get(o.id);
       if(prev===undefined && (o.status==='open'||o.status==='sent')){
         if(bag.seeded){
-          if(s.kitchenSound) ding(880);
+          if(s.kitchenSound) ding('ticket');
+          buzz([120,60,160]);
           toast('New ticket — Table '+String(o.table||'').replace(/^T/,''),
             (o.source==='qr' ? 'Guest ordered by QR code · ' : '') + (o.items||[]).length + ' item(s) to fire');
         }
       }
       if(prev!==undefined && prev!=='ready' && o.status==='ready'){
-        if(s.kitchenSound) ding(660);
+        if(s.kitchenSound) ding('ready');
+        buzz([80,40,120]);
         toast('Table '+String(o.table||'').replace(/^T/,'')+' — ready ✓', 'Please serve the guest');
       }
       bag.map.set(o.id, o.status);
