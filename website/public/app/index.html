@@ -3,229 +3,372 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Order Flow — Web POS</title>
-  <meta name="description" content="Order Flow Web POS — offline-first. Your data stays on this device. Stations join via QR."/>
-  <meta name="theme-color" content="#FAF7F2"/>
+  <title>Order Flow — POS</title>
+  <meta name="description" content="Order Flow POS — offline-first. Data stays on this device. Stations join via QR (OF1)."/>
+  <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)"/>
+  <meta name="theme-color" content="#0F1512" media="(prefers-color-scheme: dark)"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Order Flow"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="application-name" content="Order Flow"/>
   <link rel="icon" href="/media/logo.png"/>
-  <link rel="apple-touch-icon" href="/media/logo.png"/>
+  <link rel="apple-touch-icon" href="/media/logo.png" sizes="180x180"/>
+  <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
+  <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="/styles.css?v=5"/>
   <link rel="stylesheet" href="./styles.css"/>
-  <style>
-    /* print receipt is hidden */
-    @media print{ body *{ visibility:hidden } #print-root, #print-root *{ visibility:visible } #print-root{ position:absolute; inset:0; } }
-  </style>
+  <!-- preconnect for relay -->
+  <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
+
+  <style>@media print{ body *{ visibility:hidden } #print-root, #print-root *{ visibility:visible } #print-root{ position:absolute; inset:0; } }</style>
 </head>
 <body>
-  <a class="skip" href="#main">Skip to content</a>
-  <header class="nav" style="position:sticky;top:0;z-index:50;background:rgba(250,247,242,.94);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)">
-    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px">
-      <a href="/" style="display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.04em;text-decoration:none;color:inherit"><img src="/media/logo.png" alt="" style="width:38px;height:38px;border-radius:10px;object-fit:cover"/> ORDER FLOW <span style="color:var(--muted)">| WEB</span></a>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span id="role-badge" class="pill">Not set</span>
-        <button class="btn btn-ghost" id="btn-install" hidden style="padding:8px 12px;font-size:13px">Add to Home Screen</button>
-        <a class="btn btn-ghost" href="/" style="padding:8px 14px">jathol.org</a>
+<div class="of-app" id="of-app">
+  <!-- Header — APK shell: BrandMark + role + actions -->
+  <header class="of-header" id="of-header">
+    <div class="of-header__brand">
+      <div class="of-header__logo" aria-hidden="true"><img src="/media/logo.png" alt=""/></div>
+      <div class="of-header__titles">
+        <div class="of-header__title">Order Flow</div>
+        <div class="of-header__sub"><span id="role-badge" class="of-badge of-badge--forest">POS</span><span id="header-sub" class="hide-standalone" style="font-weight:700">Tap tables • offline-first</span><span id="sync-state" class="mono" style="max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
       </div>
+    </div>
+    <div class="of-header__actions">
+      <button class="of-icon-btn" id="btn-search" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg></button>
+      <button class="of-icon-btn" id="btn-bell" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 17H5L7 14V10a5 5 0 0 1 10 0v4l2 3z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+      <button class="btn btn--muted hide-standalone" id="btn-install" hidden style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Add to Home Screen</button>
+      <a class="of-icon-btn hide-standalone" href="/" aria-label="Website" title="jathol.org" style="text-decoration:none">↗</a>
     </div>
   </header>
 
-  <main id="main" class="wrap" style="padding:18px 0 40px">
-    <!-- Onboarding / role picker -->
-    <section id="view-setup" class="card">
-      <p class="kicker">Web app · works offline after first load</p>
-      <h1 style="font-family:Fraunces,Georgia,serif;font-size:clamp(28px,4vw,44px);line-height:1">The shop on this device.</h1>
-      <p style="color:var(--muted);margin-top:8px;max-width:60ch">Your data stays <b>on this device</b> (IndexedDB) — not on our website. An iPhone can be <b>Main</b> or a <b>Station</b> — same as Android. Stations scan the QR from Main, even cross-platform (iPhone Main → Android Station and back).</p>
+  <!-- Search row (collapsible) -->
+  <div id="search-row" hidden style="padding:10px 14px 0;max-width:980px;width:100%;margin:0 auto">
+    <label class="of-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg><input id="global-search" placeholder="Search tables, orders, menu…"/></label>
+  </div>
 
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">
-        <button class="btn btn-mint" data-role="main">Use this iPhone as Main</button>
-        <button class="btn btn-ghost" data-role="station">Join as Station (scan QR)</button>
-        <button class="btn btn-ghost" id="btn-restore">Restore backup</button>
+  <main id="main" class="of-main">
+    <!-- SETUP — native cards -->
+    <section id="view-setup" class="of-setup">
+      <div class="of-hero">
+        <p class="kicker" style="letter-spacing:.08em;font-weight:800;font-size:11px;opacity:.78">Bistro POS · offline after first load</p>
+        <h1>The shop on this device</h1>
+        <p>Data stays on this device (IndexedDB). iPhone can be <b>Main</b> or <b>Station</b> — same as Android. Stations scan Main’s QR (OF1), works cross-platform.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <span class="of-badge" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.18)">Encrypted relay</span>
+          <span class="of-badge" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.18)">AirPrint + Bluetooth</span>
+        </div>
       </div>
 
-      <div id="setup-main" hidden style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
-        <h3>Open a room for your shop</h3>
-        <p style="color:var(--muted)">We open an encrypted room (OF1) via the cloud relay — that’s the corridor your stations will join. Works on iPhone even when Wi-Fi is perfect; it just sleeps until someone needs it.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-          <input id="shop-name" placeholder="Shop name (for the room)" style="flex:1 1 220px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px"/>
-          <input id="license-key" placeholder="License key (16 chars) — leave blank to try offline" style="flex:1 1 220px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px"/>
-          <button class="btn btn-mint" id="btn-open-room">Open room &amp; show QR</button>
+      <div class="of-choices">
+        <button class="of-choice is-main" data-role="main">
+          <span class="of-badge of-badge--forest">Main</span>
+          <h3>Use this iPhone as Main</h3>
+          <p>Opens an encrypted room. Other devices join by scanning your QR. Queue, tables & tickets sync via relay.</p>
+        </button>
+        <button class="of-choice" data-role="station">
+          <span class="of-badge of-badge--gold">Station</span>
+          <h3>Join as Station</h3>
+          <p>Scan or paste the OF1 pairing text from Main. Pick role — taker / kitchen / cashier.</p>
+        </button>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn--ghost" id="btn-restore" style="flex:1 1 160px">Restore backup</button><span id="storage-est" class="mono of-badge" style="align-self:center"></span></div>
+
+      <div id="setup-main" hidden class="of-card pad-lg">
+        <h3 style="margin:0;font-weight:900;letter-spacing:-.3px">Open a room for your shop</h3>
+        <p class="muted" style="margin:6px 0 0;font-size:13px;font-weight:600">Encrypted room (OF1) via relay — corridor your stations join. Sleeps until needed.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <input id="shop-name" placeholder="Shop name" style="flex:1 1 200px;padding:12px 14px;border:1.2px solid var(--creamBorder);border-radius:14px;background:var(--creamSurf)"/>
+          <input id="license-key" placeholder="License key (16 chars) — leave blank to try offline" style="flex:1 1 240px;padding:12px 14px;border:1.2px solid var(--creamBorder);border-radius:14px;background:var(--creamSurf)"/>
+          <button class="btn btn--forest" id="btn-open-room">Open room & show QR</button>
         </div>
-        <div id="room-box" hidden style="margin-top:14px" class="card">
-          <p class="kicker">Share this — stations scan it</p>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
-            <canvas id="qr" width="220" height="220" style="border:1px solid var(--line);border-radius:16px;background:#fff"></canvas>
-            <div style="flex:1 1 260px">
-              <p style="font-weight:700">JOIN CODE <span id="join-code" class="mono" style="font-size:18px;margin-left:8px"></span></p>
-              <p class="mono" id="pairing-text" style="word-break:break-all;background:#FFFDF9;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px"></p>
-              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-                <button class="btn btn-ghost" id="btn-copy-pair">Copy pairing text</button>
-                <button class="btn btn-ghost" id="btn-save-qr">Save QR image</button>
-                <button class="btn btn-mint" id="btn-enter-app">Enter POS</button>
+        <div id="room-box" hidden style="margin-top:14px">
+          <div class="divider"></div>
+          <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">Share — stations scan it</p>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:10px">
+            <div class="of-qr"><canvas id="qr" width="220" height="220" style="border-radius:14px;background:#fff"></canvas></div>
+            <div style="flex:1 1 260px;min-width:0">
+              <p style="font-weight:900">JOIN CODE <span id="join-code" class="mono" style="font-size:20px;margin-left:8px;letter-spacing:.06em"></span></p>
+              <p class="mono" id="pairing-text" style="word-break:break-all;background:var(--cream);border:1.2px solid var(--creamBorder);border-radius:14px;padding:10px;margin-top:8px;font-size:12px"></p>
+              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+                <button class="btn btn--ghost" id="btn-copy-pair">Copy</button>
+                <button class="btn btn--ghost" id="btn-save-qr">Save QR</button>
+                <button class="btn btn--forest" id="btn-enter-app">Enter POS</button>
               </div>
-              <p style="color:var(--muted);font-size:12px;margin-top:8px">Android stations: open <b>jathol.org/app</b> → <b>Join as Station</b> → paste this text or scan QR. The 6-char code alone is not enough — use the full text.</p>
+              <p class="muted" style="font-size:12px;margin-top:8px">Android: jathol.org/app → Join as Station → paste full OF1 text.</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div id="setup-station" hidden style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
-        <h3>Join a Main</h3>
-        <p style="color:var(--muted)">Paste the <b>OF1:…</b> text from Main, or scan its QR.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-          <input id="pairing-input" placeholder="Paste OF1:room:code:secret:base64url" style="flex:1 1 360px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px"/>
-          <button class="btn btn-mint" id="btn-join">Join</button>
-          <label class="btn btn-ghost" style="cursor:pointer">Scan QR <input id="qr-file" type="file" accept="image/*" capture="environment" hidden/></label>
+      <div id="setup-station" hidden class="of-card pad-lg">
+        <h3 style="margin:0;font-weight:900;letter-spacing:-.3px">Join a Main</h3>
+        <p class="muted" style="margin:6px 0 0;font-size:13px;font-weight:600">Paste the <b>OF1:…</b> text from Main, or scan its QR.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <input id="pairing-input" placeholder="Paste OF1:room:code:secret:base64url" style="flex:1 1 360px;padding:12px 14px;border:1.2px solid var(--creamBorder);border-radius:14px;background:var(--creamSurf)"/>
+          <button class="btn btn--forest" id="btn-join">Join</button>
+          <label class="btn btn--ghost" style="cursor:pointer">Scan QR <input id="qr-file" type="file" accept="image/*" capture="environment" hidden/></label>
         </div>
-        <p id="join-status" style="color:var(--muted);margin-top:8px"></p>
+        <p id="join-status" class="mono muted" style="margin-top:8px;font-size:12px"></p>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-          <select id="station-role" style="padding:10px 12px;border:1.5px solid var(--line);border-radius:12px">
-            <option value="taker">Order taker</option>
-            <option value="kitchen">Kitchen</option>
-            <option value="cashier">Cashier</option>
-            <option value="station">Station</option>
-            <option value="driver">Driver</option>
-          </select>
-          <button class="btn btn-mint" id="btn-enter-station">Enter as Station</button>
+          <select id="station-role" style="padding:10px 12px;border:1.2px solid var(--creamBorder);border-radius:14px;background:var(--creamSurf);font-weight:700"><option value="taker">Order taker</option><option value="kitchen">Kitchen</option><option value="cashier">Cashier</option><option value="station">Station</option><option value="driver">Driver</option></select>
+          <button class="btn btn--forest" id="btn-enter-station">Enter as Station</button>
         </div>
       </div>
 
-      <div style="margin-top:18px;border:1px dashed var(--line);border-radius:16px;padding:14px;background:#FFFDF9">
-        <p class="kicker">PWA guide</p>
-        <h4>Add Order Flow to your Home Screen</h4>
-        <ol style="margin:8px 0 0 18px;color:var(--muted)"><li>Open this page in <b>Safari</b> (iPhone) or <b>Chrome</b> (Android).</li><li>iPhone: tap <b>Share</b> <span style="border:1px solid #ccc;border-radius:6px;padding:0 6px">⎙</span> → <b>Add to Home Screen</b> → <b>Add</b>. Android: tap the <b>Add to Home Screen</b> button above or Chrome menu → <b>Install app</b>.</li><li>Launch from the new icon — it runs standalone, offline, with its own splash.</li></ol>
-        <p id="install-hint" style="color:var(--muted);font-size:12px;margin-top:8px"></p>
+      <div class="of-card pad" style="border-style:dashed">
+        <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">Add to Home Screen</p>
+        <h4 style="margin:6px 0 0;font-weight:900">Add Order Flow to your Home Screen</h4>
+        <ol style="margin:8px 0 0 18px;color:var(--muted);font-weight:600;font-size:13px;line-height:1.5"><li>Safari (iPhone) or Chrome (Android).</li><li>iPhone: <b>Share</b> <span style="border:1px solid var(--creamBorder);border-radius:6px;padding:0 6px;background:var(--creamSurf)">⎙</span> → <b>Add to Home Screen</b> → <b>Add</b>. Android: Chrome menu → <b>Install app</b> or use button above.</li><li>Launch from the icon — standalone, offline, splash, no URL bar.</li></ol>
+        <p id="install-hint" class="mono muted" style="font-size:12px;margin-top:8px"></p>
       </div>
     </section>
 
-    <!-- App shell (shown after role chosen) -->
-    <section id="view-app" hidden>
-      <div class="grid">
-        <aside class="side">
-          <div class="card">
-            <p class="kicker">You are</p>
-            <p id="side-role" style="font-weight:800"></p>
-            <p id="side-room" class="mono" style="color:var(--muted);word-break:break-all"></p>
-            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-              <button class="btn btn-ghost" id="btn-leave" style="padding:8px 12px;font-size:13px">Leave room</button>
-              <button class="btn btn-ghost" id="btn-export" style="padding:8px 12px;font-size:13px">Export backup</button>
-              <label class="btn btn-ghost" style="padding:8px 12px;font-size:13px;cursor:pointer">Import <input id="import-file" type="file" accept=".json,application/json" hidden/></label>
-            </div>
-          </div>
-          <nav>
-            <button data-tab="tables" class="active">Tables</button>
-            <button data-tab="menu">Menu</button>
-            <button data-tab="kitchen">Kitchen</button>
-            <button data-tab="stock">Stock</button>
-            <button data-tab="print">Print</button>
-            <button data-tab="settings">Settings</button>
-          </nav>
-          <div class="card">
-            <p class="kicker">Live sync</p>
-            <p id="sync-state" class="mono" style="color:var(--muted)">Idle — relay sleeps (30s)</p>
-            <p id="storage-est" class="mono" style="color:var(--muted);margin-top:6px"></p>
-          </div>
-        </aside>
-
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <!-- Tables -->
-          <section id="tab-tables" class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-              <h2>Tables</h2>
-              <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="btn btn-ghost" data-filter="all" style="padding:6px 10px">All</button>
-                <button class="btn btn-ghost" data-filter="free" style="padding:6px 10px">Free</button>
-                <button class="btn btn-ghost" data-filter="busy" style="padding:6px 10px">Busy</button>
-                <button class="btn btn-ghost" data-filter="ready" style="padding:6px 10px">Ready</button>
-              </div>
-            </div>
-            <div id="table-grid" class="tile-grid" style="margin-top:12px"></div>
-          </section>
-
-          <!-- Menu -->
-          <section id="tab-menu" class="card" hidden>
-            <h2>Menu</h2>
-            <p style="color:var(--muted)">Demo catalog lives in IndexedDB — add, rename, 86, price. All local-first.</p>
-            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-              <input id="new-item-name" placeholder="New dish name" style="flex:1 1 180px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px"/>
-              <input id="new-item-price" placeholder="Price" type="number" style="width:120px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px"/>
-              <button class="btn btn-mint" id="btn-add-item">Add</button>
-            </div>
-            <div id="menu-list" style="display:grid;gap:8px;margin-top:12px"></div>
-          </section>
-
-          <!-- Kitchen -->
-          <section id="tab-kitchen" class="card" hidden>
-            <h2>Kitchen — live tickets</h2>
-            <div id="kitchen-list" style="display:grid;gap:10px;margin-top:12px"></div>
-          </section>
-
-          <!-- Stock -->
-          <section id="tab-stock" class="card" hidden>
-            <h2>Stock &amp; 86 board</h2>
-            <div id="stock-list" style="display:grid;gap:8px;margin-top:12px"></div>
-          </section>
-
-          <!-- Print -->
-          <section id="tab-print" class="card" hidden>
-            <h2>Print — Apple + Android</h2>
-            <p style="color:var(--muted)">iPhone uses Apple’s system print dialog (AirPrint incl. Bluetooth AirPrint printers). Android can also pair raw Bluetooth. If this iPhone has no printer, tick “Relay-print” — the job rides the encrypted room to a station that has a printer.</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-              <button class="btn btn-mint" id="btn-print-apple">🖨️ Print with Apple (AirPrint)</button>
-              <button class="btn btn-ghost" id="btn-print-bt">Print via Bluetooth (Android)</button>
-              <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--line);border-radius:999px"><input type="checkbox" id="chk-relay-print"/> Relay-print if no local printer</label>
-            </div>
-            <div id="print-status" class="mono" style="color:var(--muted);margin-top:8px"></div>
-            <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
-              <p class="kicker">Relay print gateway</p>
-              <label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input type="checkbox" id="chk-gateway"/> This device is a print gateway — listen for relay print jobs and print them here</label>
-              <p style="color:var(--muted);font-size:12px">Turn this on for the shop’s Android that’s paired to the Bluetooth printer. While this tab stays open, iPhone print jobs appear here and print automatically.</p>
-              <div id="gateway-log" class="mono" style="margin-top:8px;background:#FFFDF9;border:1px solid var(--line);border-radius:12px;padding:10px;max-height:160px;overflow:auto"></div>
-            </div>
-            <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
-              <p class="kicker">Test</p>
-              <button class="btn btn-ghost" id="btn-print-test" style="margin-top:6px">Print test slip</button>
-            </div>
-          </section>
-
-          <!-- Settings -->
-          <section id="tab-settings" class="card" hidden>
-            <h2>Settings &amp; backup</h2>
-            <p style="color:var(--muted)">Everything here stays on this device unless you export. Import works from iPhone Files, AirDrop, or any JSON backup from the Android app.</p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-              <button class="btn btn-mint" id="btn-export2">Export backup JSON</button>
-              <label class="btn btn-ghost" style="cursor:pointer">Import JSON <input id="import-file2" type="file" accept=".json,application/json" hidden/></label>
-              <button class="btn btn-ghost" id="btn-wipe">Wipe this device</button>
-            </div>
-            <p id="settings-status" class="mono" style="color:var(--muted);margin-top:8px"></p>
-          </section>
-
-          <!-- Order sheet -->
-          <section id="order-sheet" class="card" hidden>
-            <h3 id="order-title"></h3>
-            <div id="order-items" style="display:grid;gap:6px;margin-top:10px"></div>
-            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-              <button class="btn btn-mint" id="btn-send-kitchen">Send to kitchen</button>
-              <button class="btn btn-ghost" id="btn-print-order-apple">Print with Apple</button>
-              <button class="btn btn-ghost" id="btn-close-order">Close</button>
-            </div>
-          </section>
+    <!-- APP — hidden until role set -->
+    <section id="view-app" hidden style="display:flex;flex-direction:column;gap:14px">
+      <!-- legacy side block kept for app.js selectors (hidden visually but present for JS) -->
+      <div class="side" hidden aria-hidden="true">
+        <div class="card"><p id="side-role"></p><p id="side-room"></p></div>
+        <nav><button data-tab="home" class="active">Home</button><button data-tab="tables">Tables</button><button data-tab="menu">Menu</button><button data-tab="kitchen">Kitchen</button><button data-tab="stock">Stock</button><button data-tab="print">Print</button><button data-tab="settings">Settings</button></nav>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="seg" role="tablist" aria-label="Sections">
+          <button data-tab="home" class="is-active" aria-selected="true">Home</button>
+          <button data-tab="tables">Tables</button>
+          <button data-tab="menu">Menu</button>
+          <button data-tab="kitchen">Kitchen</button>
+          <button data-tab="stock">Stock</button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn--ghost" id="btn-export" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Export</button>
+          <label class="btn btn--muted" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px;cursor:pointer">Import <input id="import-file" type="file" accept=".json,application/json" hidden/></label>
+          <button class="btn btn--muted" id="btn-leave" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Leave</button>
         </div>
       </div>
-    </section>
 
-    <div id="print-root" hidden></div>
+      <!-- HOME — APK replica: sales + tiles + stats + live -->
+      <section id="tab-home" class="col">
+        <div class="of-card of-card--forest of-sales">
+          <div class="of-sales__left">
+            <div class="of-sales__kicker" id="home-kicker">Today · offline</div>
+            <div class="of-sales__amount" id="home-sales">RM 0.00</div>
+            <div class="of-sales__meta"><span id="home-delta" class="of-badge" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.18)">— vs yesterday</span><span id="home-orders">0 orders</span><span id="home-tables">0 tables open</span></div>
+          </div>
+          <svg class="of-sales__spark" viewBox="0 0 108 48" aria-hidden="true"><polyline id="home-spark" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" points="0,30 14,28 24,32 36,20 48,24 60,14 72,18 84,10 96,16 108,12"/></svg>
+        </div>
+
+        <div class="of-tiles" id="home-tiles">
+          <button class="of-tile" data-tab="tables"><span class="of-tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="7" width="18" height="10" rx="3"/><path d="M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg></span><span class="of-tile__label">Tables</span></button>
+          <button class="of-tile" data-tab="menu"><span class="of-tile__icon" style="background:#1B8F62"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="of-tile__label">Menu</span></button>
+          <button class="of-tile" data-tab="kitchen"><span class="of-tile__icon" style="background:#D49E35;color:#2b1d00"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 7h12M8 7v8a4 4 0 0 0 8 0V7"/><path d="M9 19h6"/></svg></span><span class="of-tile__label">Kitchen</span></button>
+          <button class="of-tile" data-tab="stock"><span class="of-tile__icon" style="background:#23543F"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 7l6-3 6 3v10l-6 3-6-3z"/><path d="M6 7l6 3 6-3"/><path d="M12 10v10"/></svg></span><span class="of-tile__label">Stock</span></button>
+        </div>
+
+        <div class="of-stats" id="home-stats">
+          <div class="of-card of-stat"><div class="of-stat__kicker">Open orders</div><div class="of-stat__value" id="stat-orders">0</div><div class="of-stat__delta" id="stat-orders-d">—</div></div>
+          <div class="of-card of-stat"><div class="of-stat__kicker">Busy tables</div><div class="of-stat__value" id="stat-busy">0</div><div class="of-stat__delta" id="stat-busy-d">—</div></div>
+          <div class="of-card of-stat"><div class="of-stat__kicker">Menu items</div><div class="of-stat__value" id="stat-menu">0</div><div class="of-stat__delta" id="stat-menu-d">—</div></div>
+          <div class="of-card of-stat"><div class="of-stat__kicker">Low stock</div><div class="of-stat__value" id="stat-low">0</div><div class="of-stat__delta warn" id="stat-low-d">watch</div></div>
+        </div>
+
+        <div class="of-card pad" id="home-live">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <h3 style="margin:0;font-weight:900;letter-spacing:-.3px">Live tickets</h3>
+            <button class="btn btn--ghost" data-tab="kitchen" style="min-height:36px;padding:0 12px;border-radius:999px;font-size:13px">Open kitchen</button>
+          </div>
+          <div id="kitchen-live" class="kds" style="margin-top:10px"></div>
+          <p id="live-empty" class="muted" style="margin:8px 0 0;font-weight:600;font-size:13px">No open tickets — all caught up ✓</p>
+        </div>
+      </section>
+
+      <!-- TABLES -->
+      <section id="tab-tables" class="of-card pad" hidden>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Tables</h2>
+          <div class="seg" role="tablist" aria-label="Filter">
+            <button data-filter="all" class="is-active">All</button><button data-filter="free">Free</button><button data-filter="busy">Busy</button><button data-filter="ready">Ready</button>
+          </div>
+        </div>
+        <div id="table-grid" class="tile-grid" style="margin-top:12px"></div>
+        <div id="order-sheet" class="of-card pad" hidden style="margin-top:14px;border-style:dashed">
+          <h3 id="order-title" style="margin:0;font-weight:900"></h3>
+          <div id="order-items" style="display:grid;gap:6px;margin-top:10px"></div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn--forest" id="btn-send-kitchen">Send to kitchen</button>
+            <button class="btn btn--ghost" id="btn-print-order-apple">Print with Apple</button>
+            <button class="btn btn--muted" id="btn-close-order">Close</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- MENU -->
+      <section id="tab-menu" class="of-card pad" hidden>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Menu</h2>
+        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Catalog lives in IndexedDB — add, 86, rename. Local-first.</p>
+        <div class="of-toolbar" style="margin-top:10px">
+          <input id="new-item-name" placeholder="New dish name"/>
+          <input id="new-item-price" placeholder="Price" type="number" inputmode="decimal" style="max-width:120px"/>
+          <button class="btn btn--forest" id="btn-add-item" style="min-height:44px">Add</button>
+        </div>
+        <div id="menu-list" class="prod-grid" style="margin-top:12px"></div>
+      </section>
+
+      <!-- KITCHEN -->
+      <section id="tab-kitchen" class="of-card pad" hidden>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Kitchen — live</h2>
+        <div id="kitchen-list" style="display:grid;gap:12px;margin-top:12px"></div>
+      </section>
+
+      <!-- STOCK -->
+      <section id="tab-stock" class="of-card pad" hidden>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Stock & 86</h2>
+        <div id="stock-list" style="display:grid;gap:8px;margin-top:12px"></div>
+      </section>
+
+      <!-- PRINT -->
+      <section id="tab-print" class="of-card pad" hidden>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Print — Apple + Android</h2>
+        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">iPhone: AirPrint via Apple dialog. Android: raw Bluetooth. No printer here? Enable relay-print — job rides encrypted room to station with printer.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn btn--forest" id="btn-print-apple">🖨️ Print with Apple</button>
+          <button class="btn btn--ghost" id="btn-print-bt">Bluetooth (Android)</button>
+          <label class="of-badge" style="gap:8px;cursor:pointer"><input type="checkbox" id="chk-relay-print"/> Relay-print if no printer</label>
+        </div>
+        <div id="print-status" class="mono muted" style="margin-top:8px;font-size:12px"></div>
+        <div class="divider"></div>
+        <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">Gateway</p>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-weight:700"><input type="checkbox" id="chk-gateway"/> This device prints relay jobs</label>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">For Android paired to printer. Keep this tab open.</p>
+        <div id="gateway-log" class="mono" style="margin-top:8px;background:var(--cream);border:1.2px solid var(--creamBorder);border-radius:14px;padding:10px;max-height:180px;overflow:auto;font-size:11px"></div>
+        <div class="divider"></div>
+        <button class="btn btn--ghost" id="btn-print-test">Print test slip</button>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="tab-settings" class="of-card pad" hidden>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Settings & backup</h2>
+        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">On this device only — export/import via Files, AirDrop, or Android JSON.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn btn--forest" id="btn-export2">Export backup</button>
+          <label class="btn btn--ghost" style="cursor:pointer">Import JSON <input id="import-file2" type="file" accept=".json,application/json" hidden/></label>
+          <button class="btn btn--muted" id="btn-wipe">Wipe device</button>
+        </div>
+        <p id="settings-status" class="mono muted" style="margin-top:8px;font-size:12px"></p>
+      </section>
+
+      <div id="print-root" hidden></div>
+    </section>
   </main>
+
+  <!-- Bottom nav — APK MainShell 5 destinations -->
+  <nav class="of-nav" id="of-nav" aria-label="Sections">
+    <button class="of-nav__item is-active" data-tab="home" aria-current="page">
+      <span class="of-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10L12 3l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>
+      <span>Home</span>
+    </button>
+    <button class="of-nav__item" data-tab="tables">
+      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="7" width="18" height="10" rx="3"/><path d="M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg></span>
+      <span>Tables</span>
+    </button>
+    <button class="of-nav__item" data-tab="menu">
+      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span>
+      <span>Menu</span>
+    </button>
+    <button class="of-nav__item" data-tab="stock">
+      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 7l6-3 6 3v10l-6 3-6-3z"/><path d="M12 10v10"/><path d="M6 7l6 3 6-3"/></svg></span>
+      <span>Stock</span>
+    </button>
+    <button class="of-nav__item" data-tab="more">
+      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><circle cx="4.5" cy="12" r="1.8"/></svg></span>
+      <span>More</span>
+      <span class="of-nav__dot" aria-hidden="true"></span>
+    </button>
+  </nav>
+
+  <!-- More sheet -->
+  <div class="sheet" id="sheet-more" aria-hidden="true">
+    <div class="sheet__panel">
+      <div style="display:flex;align-items:center;justify-content:space-between"><h3 style="margin:0;font-weight:900">More</h3><button class="of-icon-btn" id="sheet-close" aria-label="Close">✕</button></div>
+      <div style="display:grid;gap:10px;margin-top:14px">
+        <button class="of-card pad" data-tab="kitchen" style="text-align:left;display:flex;justify-content:space-between;align-items:center">Kitchen <span class="of-badge">Live</span></button>
+        <button class="of-card pad" data-tab="print" style="text-align:left">Print — AirPrint / Bluetooth</button>
+        <button class="of-card pad" data-tab="settings" style="text-align:left">Settings & backup</button>
+        <a href="/" class="of-card pad" style="text-align:left;text-decoration:none;display:block">jathol.org ↗</a>
+        <p class="mono muted" id="more-room" style="font-size:11px;word-break:break-all"></p>
+      </div>
+    </div>
+  </div>
+</div>
 
   <script src="./db.js"></script>
   <script src="./print.js"></script>
   <script src="./app.js"></script>
   <script>
-    if('serviceWorker' in navigator){
-      window.addEventListener('load', ()=> navigator.serviceWorker.register('/sw.js', {scope:'/'}).catch(()=>{}));
-    }
+    // standalone detection for iOS + hide header cruft
+    (function(){ const isStand = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; if(isStand) document.documentElement.classList.add('is-standalone'); window.matchMedia('(display-mode: standalone)').addEventListener?.('change', e=> document.documentElement.classList.toggle('is-standalone', e.matches)); })();
+    // search toggle
+    document.getElementById('btn-search')?.addEventListener('click', ()=>{ const r=document.getElementById('search-row'); r.hidden=!r.hidden; if(!r.hidden) document.getElementById('global-search')?.focus(); });
+    // bell stub
+    document.getElementById('btn-bell')?.addEventListener('click', ()=>{ alert('No new broadcasts'); });
+    // bottom nav + chip nav sync
+    (function(){
+      const targets=['home','tables','menu','kitchen','stock','print','settings'];
+      function showTab(t){
+        if(t==='more'){ document.getElementById('sheet-more')?.classList.add('is-open'); return; }
+        document.getElementById('sheet-more')?.classList.remove('is-open');
+        // app.js owns legacy side nav, but keep in sync
+        document.querySelectorAll('#tab-home, #tab-tables, #tab-menu, #tab-kitchen, #tab-stock, #tab-print, #tab-settings').forEach(el=> el.hidden = !el.id.endsWith(t));
+        // actually #tab-home is not in app.js switch — do it manually + delegate
+        if(t==='home'){ document.getElementById('tab-home').hidden=false; ['tables','menu','kitchen','stock','print','settings'].forEach(x=> document.getElementById('tab-'+x).hidden=true); }
+        document.querySelectorAll('.of-nav__item, .seg button').forEach(b=>{ const v=b.getAttribute('data-tab'); if(!v) return; const on=v===t; b.classList.toggle('is-active', on); if(b.classList.contains('of-nav__item')) b.setAttribute('aria-current', on?'page':'false'); });
+        document.querySelectorAll('.side nav button').forEach(b=> b.classList.toggle('active', b.getAttribute('data-tab')===t));
+        // trigger existing handlers if present
+        const legacy=document.querySelector('.side nav button[data-tab=\"'+t+'\"]'); legacy?.click();
+        // more sheet triggers
+        document.getElementById('more-room').textContent = document.getElementById('side-room')?.textContent || '';
+      }
+      document.querySelectorAll('[data-tab]').forEach(b=>{
+        b.addEventListener('click', ()=>{
+          const t=b.getAttribute('data-tab');
+          if(targets.includes(t) || t==='more') showTab(t);
+        });
+      });
+      document.getElementById('sheet-close')?.addEventListener('click', ()=> document.getElementById('sheet-more').classList.remove('is-open'));
+      document.getElementById('sheet-more')?.addEventListener('click', e=>{ if(e.target.id==='sheet-more') e.currentTarget.classList.remove('is-open'); });
+      // expose
+      window.__ofShowTab = showTab;
+      // default
+      showTab('home');
+      // keep side-room mirrored
+      new MutationObserver(()=>{ document.getElementById('more-room').textContent=document.getElementById('side-room')?.textContent||'' }).observe(document.getElementById('side-room'),{childList:true,characterData:true,subtree:true});
+    })();
+    // global search filter (tables/menu/kitchen/stock)
+    (function(){
+      const inp=document.getElementById('global-search');
+      if(!inp) return;
+      inp.addEventListener('input', ()=>{
+        const q=inp.value.trim().toLowerCase();
+        document.querySelectorAll('#table-grid .tile').forEach(el=>{ el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+        document.querySelectorAll('#menu-list .prod').forEach(el=>{ el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+        document.querySelectorAll('#kitchen-list > div, #kitchen-live > div').forEach(el=>{ el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+      });
+    })();
+    // hide bottom nav while in setup
+    (function(){
+      const nav=document.getElementById('of-nav');
+      const vs=document.getElementById('view-setup');
+      const va=document.getElementById('view-app');
+      if(!nav||!vs||!va) return;
+      const sync=()=>{
+        const inSetup = !vs.hidden;
+        nav.style.display = inSetup ? 'none' : '';
+      };
+      new MutationObserver(sync).observe(vs,{attributes:true, attributeFilter:['hidden']});
+      new MutationObserver(sync).observe(va,{attributes:true, attributeFilter:['hidden']});
+      sync();
+    })();
+    if('serviceWorker' in navigator){ window.addEventListener('load', ()=> navigator.serviceWorker.register('/sw.js', {scope:'/'}).catch(()=>{})); }
   </script>
 </body>
 </html>

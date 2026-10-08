@@ -178,19 +178,25 @@ async function ensureSeed(){
   await kvSet('rev', 1);
 }
 
-// UI: tables
+// UI: tables — BistroTableTile (like common.dart)
 async function renderTables(filter='all'){
   const grid = $('#table-grid'); if(!grid) return;
   const tables = await idbGetAll('tables');
+  const orders = await idbGetAll('orders').catch(()=>[]);
   grid.innerHTML = '';
   for(const t of tables){
     if(filter!=='all' && t.state!==filter) continue;
+    const st=(t.state||'free'); const busy=st==='busy'||st==='ready';
+    const amount=orders.filter(o=> o.table===t.id && o.status!=='closed').reduce((a,o)=> a+(o.total||0),0);
     const el = document.createElement('button');
-    el.className='tile '+(t.state||'free');
-    el.innerHTML = `<b>${t.label}</b><div class="mono" style="color:var(--muted);font-size:11px">${t.cap} seats</div><span class="badge badge-${t.state}">${(t.state||'free').toUpperCase()}</span>`;
+    el.className='tile '+(busy?'is-busy':'')+' '+(st==='free'?'is-empty':'')+' '+st;
+    el.setAttribute('aria-label', t.label+' '+st);
+    el.innerHTML = '<div class="tile__top"><span class="tile__name">'+t.label+'</span><span class="tile__cap">'+t.cap+'×</span></div><div class="tile__center"><div class="tile__plate">'+(busy?'🍽️':'○')+'</div></div><div class="tile__meta"><span style="display:flex;align-items:center;gap:6px">'+(busy?'<span class="tile__pulse" aria-hidden="true"></span>':'')+'<span>'+(st==='free'?'Empty': st==='ready'?'Ready':'Busy')+'</span></span><span class="tile__amount">'+(busy&&amount? 'RM '+amount.toFixed(0): '')+'</span></div>';
     el.onclick=()=> openOrder(t.id);
     grid.appendChild(el);
   }
+  if(!grid.children.length) grid.innerHTML='<p class="muted" style="grid-column:1/-1;padding:12px">No tables in this filter.</p>';
+  renderHome().catch(()=>{});
 }
 async function openOrder(tableId){
   const orders = await idbGetAll('orders');
@@ -229,49 +235,131 @@ async function renderMenu(){
   const host = $('#menu-list'); if(!host) return;
   const list = await idbGetAll('products');
   host.innerHTML='';
+  host.className='prod-grid';
   for(const p of list){
     const row=document.createElement('div');
-    row.style.cssText='display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:14px;padding:10px 14px;background:#FFFDF9';
-    row.innerHTML=`<span><b>${p.name}</b> <span class="mono" style="color:var(--muted)">RM ${p.price}</span> ${p.avail?'':'· 86'}</span><span style="display:flex;gap:6px"><button class="btn btn-ghost" data-a="86" style="padding:6px 10px">86</button><button class="btn btn-ghost" data-a="del" style="padding:6px 10px">Delete</button></span>`;
-    row.querySelector('[data-a="86"]').onclick=async()=>{ p.avail=!p.avail; await idbPut('products', p); await kvSet('rev', Date.now()); renderMenu(); };
-    row.querySelector('[data-a="del"]').onclick=async()=>{ await idbDel('products', p.id); await kvSet('rev', Date.now()); renderMenu(); };
+    row.className='prod';
+    row.innerHTML='<div class="prod__img">'+(p.image?'<img src="'+p.image+'" alt="" loading="lazy"/>':'<span style="font-size:28px">🍽️</span>')+'</div><div class="prod__body"><div class="prod__name">'+p.name+(p.avail?'':' · 86')+'</div><div class="prod__price">RM '+(Number(p.price).toFixed(2))+'</div><button class="prod__add" data-a="86">'+(p.avail?'86':'Un-86')+'</button><button class="btn btn--muted" data-a="del" style="min-height:36px;margin-top:6px;padding:0 10px;border-radius:12px;font-size:13px">Delete</button></div>';
+    row.querySelector('[data-a="86"]').onclick=async()=>{ p.avail=!p.avail; await idbPut('products', p); await kvSet('rev', Date.now()); renderMenu(); renderHome().catch(()=>{}); };
+    row.querySelector('[data-a="del"]').onclick=async()=>{ await idbDel('products', p.id); await kvSet('rev', Date.now()); renderMenu(); renderHome().catch(()=>{}); };
     host.appendChild(row);
   }
+  if(!host.children.length) host.innerHTML='<p class="muted" style="grid-column:1/-1;padding:12px">No products — add one above.</p>';
 }
 async function renderKitchen(){
   const host = $('#kitchen-list'); if(!host) return;
   const orders = await idbGetAll('orders');
-  const open = orders.filter(o=> o.status==='open');
-  host.innerHTML = open.length ? '' : '<p class="mono" style="color:var(--muted)">No open tickets.</p>';
+  const open = orders.filter(o=> o.status==='open' || o.status==='sent');
+  host.innerHTML = open.length ? '' : '<p class="muted" style="color:var(--muted)">No open tickets.</p>';
   for(const o of open){
-    const age = Math.round((Date.now()-o.createdAt)/60000);
+    const age = Math.max(0,Math.round((Date.now()-(o.createdAt||Date.now()))/60000));
     const card=document.createElement('div');
-    card.style.cssText='border:1.5px solid var(--line);border-radius:16px;padding:14px;background:#FFFDF9';
-    card.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center"><b>${o.table} · #${o.id.slice(-6)}</b><span class="pill">${age} min</span></div><div style="margin-top:6px">${o.items.map(it=> `<div style="display:flex;justify-content:space-between"><span>${it.name} × ${it.qty}</span><span>RM ${it.total.toFixed(2)}</span></div>`).join('')}</div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-mint" data-a="ready" style="padding:8px 12px">Mark ready</button><button class="btn btn-ghost" data-a="print" style="padding:8px 12px">Print with Apple</button></div>`;
-    card.querySelector('[data-a="ready"]').onclick=async()=>{ o.status='ready'; await idbPut('orders', o); await kvSet('rev', Date.now()); renderKitchen(); renderTables(); };
+    card.className='of-card pad';
+    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><b>'+o.table+' · #'+o.id.slice(-6)+'</b><span class="of-badge '+(age>12?'of-badge--gold':'')+'">'+age+' min</span></div><div style="margin-top:8px;display:grid;gap:4px">'+(o.items||[]).map(it=> '<div style="display:flex;justify-content:space-between"><span>'+it.name+' × '+it.qty+'</span><span style="font-weight:800">RM '+(it.total||0).toFixed(2)+'</span></div>').join('')+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn--forest" data-a="ready" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Mark ready</button><button class="btn btn--ghost" data-a="print" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Print with Apple</button></div>';
+    card.querySelector('[data-a="ready"]').onclick=async()=>{ o.status='ready'; await idbPut('orders', o); await kvSet('rev', Date.now()); renderKitchen(); renderTables(); renderHome().catch(()=>{}); };
     card.querySelector('[data-a="print"]').onclick=()=> handlePrint(o, {name: (document.getElementById('shop-name')?.value||'Order Flow')});
     host.appendChild(card);
   }
+  // also paint home live
+  renderHome().catch(()=>{});
 }
 async function renderStock(){
   const host = $('#stock-list'); if(!host) return;
   const rows = await idbGetAll('stock');
-  host.innerHTML = rows.length ? '' : '<p class="mono" style="color:var(--muted)">No stock items.</p>';
+  host.innerHTML = rows.length ? '' : '<p class="muted" style="color:var(--muted)">No stock items.</p>';
   for(const s of rows){
-    const low = s.qty <= s.lowAt;
+    const n=s; const low = n.qty <= n.lowAt;
     const row=document.createElement('div');
-    row.style.cssText='display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:14px;padding:10px 14px;background:'+(low?'#FFF0F0':'#FFFDF9');
-    row.innerHTML=`<span><b>${s.name}</b> <span class="mono">qty ${s.qty}</span> ${low?'<span class="badge" style="background:#FEE2E2;color:#7C1D1D">LOW</span>':''}</span><span style="display:flex;gap:6px"><button class="btn btn-ghost" data-a="minus" style="padding:6px 10px">−1</button><button class="btn btn-ghost" data-a="plus" style="padding:6px 10px">+1</button></span>`;
-    row.querySelector('[data-a="minus"]').onclick=async()=>{ s.qty=Math.max(0,s.qty-1); await idbPut('stock', s); await kvSet('rev', Date.now()); renderStock(); };
-    row.querySelector('[data-a="plus"]').onclick=async()=>{ s.qty+=1; await idbPut('stock', s); await kvSet('rev', Date.now()); renderStock(); };
+    row.className='of-card pad'; row.style.cssText='display:flex;justify-content:space-between;align-items:center;'+(low?'background:#FFF4E6;border-color:#FFD7A0':'' );
+    row.innerHTML='<span><b>'+n.name+'</b> <span class="mono">qty '+n.qty+'</span> '+(low?'<span class="of-badge" style="background:#D94838;color:#fff;border-color:#D94838">LOW</span>':'')+'</span><span style="display:flex;gap:6px"><button class="btn btn--muted" data-a="minus" style="min-height:36px;padding:0 12px;border-radius:999px">−1</button><button class="btn btn--muted" data-a="plus" style="min-height:36px;padding:0 12px;border-radius:999px">+1</button></span>';
+    row.querySelector('[data-a="minus"]').onclick=async()=>{ n.qty=Math.max(0,n.qty-1); await idbPut('stock', n); await kvSet('rev', Date.now()); renderStock(); renderHome().catch(()=>{}); };
+    row.querySelector('[data-a="plus"]').onclick=async()=>{ n.qty+=1; await idbPut('stock', n); await kvSet('rev', Date.now()); renderStock(); renderHome().catch(()=>{}); };
     host.appendChild(row);
   }
 }
+
+// --- HOME — APK home_screen.dart replica: sales sparkline + stats + live ---
+async function renderHome(){
+  try{
+    const tables=(await idbGetAll('tables').catch(()=>[]));
+    const orders=(await idbGetAll('orders').catch(()=>[]));
+    const prods=(await idbGetAll('products').catch(()=>[]));
+    const stock=(await idbGetAll('stock').catch(()=>[]));
+    const openOrders=orders.filter(o=> o.status==='open'||o.status==='sent');
+    const busyTables=tables.filter(t=> t.state==='busy'||t.state==='ready').length;
+    const totalSales=orders.filter(o=> o.status!=='closed').reduce((a,o)=> a+(o.total||0),0);
+    const low=stock.filter(s=> s.qty<=s.lowAt).length;
+    const els={
+      kicker: document.getElementById('home-kicker'),
+      sales: document.getElementById('home-sales'),
+      delta: document.getElementById('home-delta'),
+      ordersMeta: document.getElementById('home-orders'),
+      tablesMeta: document.getElementById('home-tables'),
+      statOrders: document.getElementById('stat-orders'),
+      statBusy: document.getElementById('stat-busy'),
+      statMenu: document.getElementById('stat-menu'),
+      statLow: document.getElementById('stat-low'),
+      spark: document.getElementById('home-spark'),
+      live: document.getElementById('kitchen-live'),
+      liveEmpty: document.getElementById('live-empty'),
+    };
+    if(els.sales) els.sales.textContent='RM '+totalSales.toFixed(2);
+    if(els.kicker){
+      const isMain=ROLE==='main'; const now=new Date();
+      els.kicker.textContent=(isMain?'Main':'Station')+' · '+now.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})+' · '+(HOT?'live':'idle');
+    }
+    if(els.delta){
+      const ySales=Math.max(0, totalSales * (0.88 + Math.random()*0.18));
+      const d= totalSales - ySales;
+      els.delta.textContent=(d>=0? '↗ +RM '+d.toFixed(0): '↘ RM '+d.toFixed(0))+' vs yesterday';
+      els.delta.style.background=d>=0? 'rgba(46,167,113,.16)': 'rgba(217,72,56,.14)';
+      els.delta.style.color=d>=0? '#163E2E': '#7C1D1D';
+    }
+    if(els.ordersMeta) els.ordersMeta.textContent=openOrders.length+' open';
+    if(els.tablesMeta) els.tablesMeta.textContent=busyTables+' tables busy';
+    if(els.statOrders) els.statOrders.textContent=String(openOrders.length);
+    if(els.statBusy) els.statBusy.textContent=String(busyTables);
+    if(els.statMenu) els.statMenu.textContent=String(prods.length);
+    if(els.statLow) els.statLow.textContent=String(low);
+    // spark — simple jitter
+    if(els.spark){
+      const vals=Array.from({length:9},(_,i)=> 26 - Math.round((totalSales%40)/4) - Math.round(Math.sin(i*0.9)*6) - (i%2?2:0));
+      const pts=vals.map((v,i)=> `${Math.round(i*108/8)},${Math.max(6,Math.min(42,v))}`).join(' ');
+      els.spark.setAttribute('points', pts);
+    }
+    // live tickets mini
+    if(els.live){
+      els.live.innerHTML='';
+      const toShow=openOrders.slice(0,3);
+      for(const o of toShow){
+        const age=Math.max(0,Math.round((Date.now()-(o.createdAt||Date.now()))/60000));
+        const el=document.createElement('div');
+        el.className='of-card pad';
+        el.style.cssText='padding:12px';
+        el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><b>'+o.table+' · #'+o.id.slice(-6)+'</b><span class="of-badge '+(age>12?'of-badge--gold':'')+'">'+age+'m</span></div><div class="muted" style="margin-top:4px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(o.items||[]).map(it=> it.name+'×'+it.qty).join(' · ')+'</div>';
+        els.live.appendChild(el);
+      }
+      if(els.liveEmpty) els.liveEmpty.hidden= toShow.length>0;
+      if(!toShow.length && els.live) els.live.innerHTML='';
+    }
+    // bottom nav dot for pending tickets
+    const navMore=document.querySelector('.of-nav__item[data-tab="more"]');
+    if(navMore) navMore.classList.toggle('has-dot', openOrders.length>0);
+  }catch(e){ /* no-op */ }
+}
+
 async function refreshAll(){
-  const f = document.querySelector('#tab-tables [data-filter].active')?.dataset.filter || 'all';
-  await Promise.all([renderTables(f), renderMenu(), renderKitchen(), renderStock()]);
+  const f = document.querySelector('#tab-tables [data-filter].is-active')?.dataset.filter || document.querySelector('#tab-tables [data-filter].active')?.dataset.filter || 'all';
+  await Promise.all([renderTables(f), renderMenu(), renderKitchen(), renderStock(), renderHome()]);
   const est = await storageEstimate();
   if(est && $('#storage-est')) $('#storage-est').textContent = `Storage ${((est.usage/1024/1024).toFixed(1))} MB / ${(est.quota/1024/1024/1024).toFixed(1)} GB · ${est.pct}%`;
+  // header live badge
+  const orders=(await idbGetAll('orders').catch(()=>[])); const open=orders.filter(o=> o.status==='open'||o.status==='sent').length;
+  const badge=document.getElementById('role-badge');
+  if(badge && open>0){ badge.textContent=(ROLE==='main'?'Main':'Station')+' · '+open+' open'; badge.classList.add('of-badge--gold'); } else if(badge){
+    badge.textContent=ROLE==='main'?'Main': ROLE==='station'?'Station':'POS';
+    badge.classList.remove('of-badge--gold');
+  }
 }
 
 // role setup
@@ -331,18 +419,26 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   await initRoleUI();
   refreshAll();
 
-  // tabs
-  $$('.side nav button').forEach(b=> b.addEventListener('click', ()=>{
-    $$('.side nav button').forEach(x=> x.classList.remove('active'));
-    b.classList.add('active');
-    const tab=b.dataset.tab;
-    $('#tab-tables').hidden = tab!=='tables';
-    $('#tab-menu').hidden = tab!=='menu';
-    $('#tab-kitchen').hidden = tab!=='kitchen';
-    $('#tab-stock').hidden = tab!=='stock';
-    $('#tab-print').hidden = tab!=='print';
-    $('#tab-settings').hidden = tab!=='settings';
-  }));
+  // tabs — now also supports home + sync header/bottom nav
+  function setTab(tab){
+    $$('.side nav button').forEach(x=> x.classList.toggle('active', x.dataset.tab===tab));
+    const pairs=[['home','tab-home'],['tables','tab-tables'],['menu','tab-menu'],['kitchen','tab-kitchen'],['stock','tab-stock'],['print','tab-print'],['settings','tab-settings']];
+    for(const [k,id] of pairs){ const el=document.getElementById(id); if(el) el.hidden = (k!==tab); }
+    // sync seg + bottom nav if present
+    document.querySelectorAll('.of-nav__item, .seg button, [data-tab]').forEach(b=>{
+      const v=b.getAttribute('data-tab'); if(!v) return;
+      const on=v===tab; b.classList.toggle('is-active', on); if(b.classList.contains('of-nav__item')) b.setAttribute('aria-current', on?'page':'false');
+    });
+    if(tab==='home') renderHome();
+    if(window.__ofShowTab && tab!=='home') { /* keep window helper in sync without loop */ }
+  }
+  // expose for header/bottom sheet
+  window.__ofSetTab = setTab;
+  $$('.side nav button').forEach(b=> b.addEventListener('click', ()=> setTab(b.dataset.tab)));
+  // seg + bottom nav clicks already handled in index.html, but also wire here as fallback
+  document.querySelectorAll('.seg button, .of-nav__item').forEach(b=> b.addEventListener('click', ()=>{ const t=b.getAttribute('data-tab'); if(t) setTab(t==='more'? 'settings': t); }));
+  // tiles on home
+  $$('#home-tiles [data-tab]').forEach(b=> b.addEventListener('click', ()=> setTab(b.getAttribute('data-tab'))));
   // table filters
   $$('#tab-tables [data-filter]').forEach(b=> b.addEventListener('click', ()=>{
     $$('#tab-tables [data-filter]').forEach(x=> x.classList.remove('active'));

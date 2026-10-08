@@ -1,24 +1,29 @@
 {
   "name": "Order Flow — Shop POS",
   "short_name": "Order Flow",
-  "description": "Offline-first POS. Main on your Wi-Fi. Stations, kitchen, stock, prints — now in the browser. Your data stays on your device.",
+  "description": "Offline-first POS. iPhone as Main or Station. Tables & tickets sync in room. Your data stays on your device.",
   "start_url": "/app/?source=pwa",
   "scope": "/app/",
+  "id": "/app/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "any",
   "theme_color": "#FAF7F2",
   "background_color": "#FAF7F2",
   "icons": [
+    { "src": "/media/logo.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
     { "src": "/media/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/media/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "categories": ["business", "productivity"],
   "handle_links": "preferred",
   "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
+  "edge_side_panel": { "preferred_width": 380 },
   "shortcuts": [
+    { "name": "Home", "url": "/app/?action=home", "description": "Sales & live board" },
     { "name": "Tables", "url": "/app/?action=tables", "description": "Open floor map" },
     { "name": "Kitchen", "url": "/app/?action=kitchen", "description": "Pass tickets" },
+    { "name": "Menu", "url": "/app/?action=menu", "description": "Edit catalog" },
     { "name": "Backup", "url": "/app/?action=backup", "description": "Export / import" }
   ],
   "screenshots": []
