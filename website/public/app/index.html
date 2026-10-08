@@ -34,8 +34,8 @@
   </div>
 </div>
 
-<!-- APK License gate — blocks until valid key (like LicenseScreen) -->
-<div id="view-license" class="license-gate" hidden aria-hidden="true">
+<!-- APK License gate — blocks until valid key (like LicenseScreen) — visible by default, JS hides if validated -->
+<div id="view-license" class="license-gate" aria-hidden="false">
   <div class="license-gate__inner">
     <img src="/media/logo.png" alt="Order Flow" class="license-gate__logo" width="72" height="72"/>
     <h1 class="license-gate__title">Order Flow</h1>
@@ -54,7 +54,7 @@
   </div>
 </div>
 
-<div class="of-app" id="of-app">
+<div class="of-app gate-hidden" id="of-app">
   <!-- Header — APK shell: BrandMark + role + actions -->
   <header class="of-header" id="of-header">
     <div class="of-header__brand">
