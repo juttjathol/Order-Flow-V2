@@ -1,4 +1,46 @@
 const EMAIL = "contact@jathol.org";
+const CONSENT_KEY = "of-consent";
+
+// Store badges + PWA install — nav/hero/dl all open the same modals
+(function storeBadges(){
+  const play = document.getElementById('store-play-modal');
+  const app = document.getElementById('store-app-modal');
+  if(!play || !app) return;
+  function open(m){ m.hidden=false; document.body.style.overflow='hidden'; }
+  function close(m){ m.hidden=true; document.body.style.overflow=''; }
+  function bind(ids, m){
+    ids.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.addEventListener('click', (e)=>{ e.preventDefault(); open(m); });
+    });
+  }
+  bind(['nav-play','hero-play','dl-play'], play);
+  bind(['nav-app','hero-app','dl-app'], app);
+  play.addEventListener('click', (e)=>{ if(e.target===play) close(play); });
+  app.addEventListener('click', (e)=>{ if(e.target===app) close(app); });
+  document.querySelector('[data-close-play]')?.addEventListener('click', ()=> close(play));
+  document.querySelector('[data-close-app]')?.addEventListener('click', ()=> close(app));
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ close(play); close(app); }});
+  // App Store → Add to Home Screen button: Android prompts, iOS shows Share hint
+  let deferredPrompt=null;
+  const hint=document.getElementById('app-install-hint');
+  const btn=document.getElementById('app-install-btn');
+  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; if(btn) btn.textContent='Install app'; if(hint) hint.textContent='Tap Install to add to Home Screen.'; });
+  btn?.addEventListener('click', async()=>{
+    if(deferredPrompt){
+      deferredPrompt.prompt(); const ch=await deferredPrompt.userChoice; deferredPrompt=null;
+      if(hint) hint.textContent = ch.outcome==='accepted' ? 'Installed ✓ — open from your Home Screen' : 'You can still add via Share → Add to Home Screen';
+      close(app);
+    } else {
+      // iOS path — pulse the instruction
+      if(hint) hint.textContent = 'iPhone: tap Share at the bottom of Safari → Add to Home Screen → Add. Then open from the new icon.';
+      btn.animate?.([{transform:'scale(1)'},{transform:'scale(1.04)'},{transform:'scale(1)'}], {duration:300});
+      // also navigate to /app/ so user can do it there
+      setTimeout(()=> location.href='/app/', 900);
+    }
+  });
+  window.addEventListener('appinstalled', ()=>{ if(hint) hint.textContent='App installed ✓ — launch from Home Screen.'; });
+})();
 function mailto(subject, lines) {
   return "mailto:" + EMAIL +
     "?subject=" + encodeURIComponent(subject) +

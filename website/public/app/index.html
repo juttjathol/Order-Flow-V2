@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Order Flow — Web POS</title>
+  <meta name="description" content="Order Flow Web POS — offline-first. Your data stays on this device. Stations join via QR."/>
+  <meta name="theme-color" content="#FAF7F2"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Order Flow"/>
+  <link rel="icon" href="/media/logo.png"/>
+  <link rel="apple-touch-icon" href="/media/logo.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="stylesheet" href="/styles.css?v=5"/>
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>
+    /* print receipt is hidden */
+    @media print{ body *{ visibility:hidden } #print-root, #print-root *{ visibility:visible } #print-root{ position:absolute; inset:0; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav" style="position:sticky;top:0;z-index:50;background:rgba(250,247,242,.94);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)">
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px">
+      <a href="/" style="display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.04em;text-decoration:none;color:inherit"><img src="/media/logo.png" alt="" style="width:38px;height:38px;border-radius:10px;object-fit:cover"/> ORDER FLOW <span style="color:var(--muted)">| WEB</span></a>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="role-badge" class="pill">Not set</span>
+        <button class="btn btn-ghost" id="btn-install" hidden style="padding:8px 12px;font-size:13px">Add to Home Screen</button>
+        <a class="btn btn-ghost" href="/" style="padding:8px 14px">jathol.org</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap" style="padding:18px 0 40px">
+    <!-- Onboarding / role picker -->
+    <section id="view-setup" class="card">
+      <p class="kicker">Web app · works offline after first load</p>
+      <h1 style="font-family:Fraunces,Georgia,serif;font-size:clamp(28px,4vw,44px);line-height:1">The shop on this device.</h1>
+      <p style="color:var(--muted);margin-top:8px;max-width:60ch">Your data stays <b>on this device</b> (IndexedDB) — not on our website. An iPhone can be <b>Main</b> or a <b>Station</b> — same as Android. Stations scan the QR from Main, even cross-platform (iPhone Main → Android Station and back).</p>
+
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">
+        <button class="btn btn-mint" data-role="main">Use this iPhone as Main</button>
+        <button class="btn btn-ghost" data-role="station">Join as Station (scan QR)</button>
+        <button class="btn btn-ghost" id="btn-restore">Restore backup</button>
+      </div>
+
+      <div id="setup-main" hidden style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+        <h3>Open a room for your shop</h3>
+        <p style="color:var(--muted)">We open an encrypted room (OF1) via the cloud relay — that’s the corridor your stations will join. Works on iPhone even when Wi-Fi is perfect; it just sleeps until someone needs it.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <input id="shop-name" placeholder="Shop name (for the room)" style="flex:1 1 220px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px"/>
+          <input id="license-key" placeholder="License key (16 chars) — leave blank to try offline" style="flex:1 1 220px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px"/>
+          <button class="btn btn-mint" id="btn-open-room">Open room &amp; show QR</button>
+        </div>
+        <div id="room-box" hidden style="margin-top:14px" class="card">
+          <p class="kicker">Share this — stations scan it</p>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+            <canvas id="qr" width="220" height="220" style="border:1px solid var(--line);border-radius:16px;background:#fff"></canvas>
+            <div style="flex:1 1 260px">
+              <p style="font-weight:700">JOIN CODE <span id="join-code" class="mono" style="font-size:18px;margin-left:8px"></span></p>
+              <p class="mono" id="pairing-text" style="word-break:break-all;background:#FFFDF9;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px"></p>
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <button class="btn btn-ghost" id="btn-copy-pair">Copy pairing text</button>
+                <button class="btn btn-ghost" id="btn-save-qr">Save QR image</button>
+                <button class="btn btn-mint" id="btn-enter-app">Enter POS</button>
+              </div>
+              <p style="color:var(--muted);font-size:12px;margin-top:8px">Android stations: open <b>jathol.org/app</b> → <b>Join as Station</b> → paste this text or scan QR. The 6-char code alone is not enough — use the full text.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="setup-station" hidden style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+        <h3>Join a Main</h3>
+        <p style="color:var(--muted)">Paste the <b>OF1:…</b> text from Main, or scan its QR.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <input id="pairing-input" placeholder="Paste OF1:room:code:secret:base64url" style="flex:1 1 360px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px"/>
+          <button class="btn btn-mint" id="btn-join">Join</button>
+          <label class="btn btn-ghost" style="cursor:pointer">Scan QR <input id="qr-file" type="file" accept="image/*" capture="environment" hidden/></label>
+        </div>
+        <p id="join-status" style="color:var(--muted);margin-top:8px"></p>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <select id="station-role" style="padding:10px 12px;border:1.5px solid var(--line);border-radius:12px">
+            <option value="taker">Order taker</option>
+            <option value="kitchen">Kitchen</option>
+            <option value="cashier">Cashier</option>
+            <option value="station">Station</option>
+            <option value="driver">Driver</option>
+          </select>
+          <button class="btn btn-mint" id="btn-enter-station">Enter as Station</button>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;border:1px dashed var(--line);border-radius:16px;padding:14px;background:#FFFDF9">
+        <p class="kicker">PWA guide</p>
+        <h4>Add Order Flow to your Home Screen</h4>
+        <ol style="margin:8px 0 0 18px;color:var(--muted)"><li>Open this page in <b>Safari</b> (iPhone) or <b>Chrome</b> (Android).</li><li>iPhone: tap <b>Share</b> <span style="border:1px solid #ccc;border-radius:6px;padding:0 6px">⎙</span> → <b>Add to Home Screen</b> → <b>Add</b>. Android: tap the <b>Add to Home Screen</b> button above or Chrome menu → <b>Install app</b>.</li><li>Launch from the new icon — it runs standalone, offline, with its own splash.</li></ol>
+        <p id="install-hint" style="color:var(--muted);font-size:12px;margin-top:8px"></p>
+      </div>
+    </section>
+
+    <!-- App shell (shown after role chosen) -->
+    <section id="view-app" hidden>
+      <div class="grid">
+        <aside class="side">
+          <div class="card">
+            <p class="kicker">You are</p>
+            <p id="side-role" style="font-weight:800"></p>
+            <p id="side-room" class="mono" style="color:var(--muted);word-break:break-all"></p>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+              <button class="btn btn-ghost" id="btn-leave" style="padding:8px 12px;font-size:13px">Leave room</button>
+              <button class="btn btn-ghost" id="btn-export" style="padding:8px 12px;font-size:13px">Export backup</button>
+              <label class="btn btn-ghost" style="padding:8px 12px;font-size:13px;cursor:pointer">Import <input id="import-file" type="file" accept=".json,application/json" hidden/></label>
+            </div>
+          </div>
+          <nav>
+            <button data-tab="tables" class="active">Tables</button>
+            <button data-tab="menu">Menu</button>
+            <button data-tab="kitchen">Kitchen</button>
+            <button data-tab="stock">Stock</button>
+            <button data-tab="print">Print</button>
+            <button data-tab="settings">Settings</button>
+          </nav>
+          <div class="card">
+            <p class="kicker">Live sync</p>
+            <p id="sync-state" class="mono" style="color:var(--muted)">Idle — relay sleeps (30s)</p>
+            <p id="storage-est" class="mono" style="color:var(--muted);margin-top:6px"></p>
+          </div>
+        </aside>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <!-- Tables -->
+          <section id="tab-tables" class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+              <h2>Tables</h2>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-ghost" data-filter="all" style="padding:6px 10px">All</button>
+                <button class="btn btn-ghost" data-filter="free" style="padding:6px 10px">Free</button>
+                <button class="btn btn-ghost" data-filter="busy" style="padding:6px 10px">Busy</button>
+                <button class="btn btn-ghost" data-filter="ready" style="padding:6px 10px">Ready</button>
+              </div>
+            </div>
+            <div id="table-grid" class="tile-grid" style="margin-top:12px"></div>
+          </section>
+
+          <!-- Menu -->
+          <section id="tab-menu" class="card" hidden>
+            <h2>Menu</h2>
+            <p style="color:var(--muted)">Demo catalog lives in IndexedDB — add, rename, 86, price. All local-first.</p>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+              <input id="new-item-name" placeholder="New dish name" style="flex:1 1 180px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px"/>
+              <input id="new-item-price" placeholder="Price" type="number" style="width:120px;padding:10px 12px;border:1.5px solid var(--line);border-radius:12px"/>
+              <button class="btn btn-mint" id="btn-add-item">Add</button>
+            </div>
+            <div id="menu-list" style="display:grid;gap:8px;margin-top:12px"></div>
+          </section>
+
+          <!-- Kitchen -->
+          <section id="tab-kitchen" class="card" hidden>
+            <h2>Kitchen — live tickets</h2>
+            <div id="kitchen-list" style="display:grid;gap:10px;margin-top:12px"></div>
+          </section>
+
+          <!-- Stock -->
+          <section id="tab-stock" class="card" hidden>
+            <h2>Stock &amp; 86 board</h2>
+            <div id="stock-list" style="display:grid;gap:8px;margin-top:12px"></div>
+          </section>
+
+          <!-- Print -->
+          <section id="tab-print" class="card" hidden>
+            <h2>Print — Apple + Android</h2>
+            <p style="color:var(--muted)">iPhone uses Apple’s system print dialog (AirPrint incl. Bluetooth AirPrint printers). Android can also pair raw Bluetooth. If this iPhone has no printer, tick “Relay-print” — the job rides the encrypted room to a station that has a printer.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn btn-mint" id="btn-print-apple">🖨️ Print with Apple (AirPrint)</button>
+              <button class="btn btn-ghost" id="btn-print-bt">Print via Bluetooth (Android)</button>
+              <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid var(--line);border-radius:999px"><input type="checkbox" id="chk-relay-print"/> Relay-print if no local printer</label>
+            </div>
+            <div id="print-status" class="mono" style="color:var(--muted);margin-top:8px"></div>
+            <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+              <p class="kicker">Relay print gateway</p>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input type="checkbox" id="chk-gateway"/> This device is a print gateway — listen for relay print jobs and print them here</label>
+              <p style="color:var(--muted);font-size:12px">Turn this on for the shop’s Android that’s paired to the Bluetooth printer. While this tab stays open, iPhone print jobs appear here and print automatically.</p>
+              <div id="gateway-log" class="mono" style="margin-top:8px;background:#FFFDF9;border:1px solid var(--line);border-radius:12px;padding:10px;max-height:160px;overflow:auto"></div>
+            </div>
+            <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+              <p class="kicker">Test</p>
+              <button class="btn btn-ghost" id="btn-print-test" style="margin-top:6px">Print test slip</button>
+            </div>
+          </section>
+
+          <!-- Settings -->
+          <section id="tab-settings" class="card" hidden>
+            <h2>Settings &amp; backup</h2>
+            <p style="color:var(--muted)">Everything here stays on this device unless you export. Import works from iPhone Files, AirDrop, or any JSON backup from the Android app.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+              <button class="btn btn-mint" id="btn-export2">Export backup JSON</button>
+              <label class="btn btn-ghost" style="cursor:pointer">Import JSON <input id="import-file2" type="file" accept=".json,application/json" hidden/></label>
+              <button class="btn btn-ghost" id="btn-wipe">Wipe this device</button>
+            </div>
+            <p id="settings-status" class="mono" style="color:var(--muted);margin-top:8px"></p>
+          </section>
+
+          <!-- Order sheet -->
+          <section id="order-sheet" class="card" hidden>
+            <h3 id="order-title"></h3>
+            <div id="order-items" style="display:grid;gap:6px;margin-top:10px"></div>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+              <button class="btn btn-mint" id="btn-send-kitchen">Send to kitchen</button>
+              <button class="btn btn-ghost" id="btn-print-order-apple">Print with Apple</button>
+              <button class="btn btn-ghost" id="btn-close-order">Close</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <div id="print-root" hidden></div>
+  </main>
+
+  <script src="./db.js"></script>
+  <script src="./print.js"></script>
+  <script src="./app.js"></script>
+  <script>
+    if('serviceWorker' in navigator){
+      window.addEventListener('load', ()=> navigator.serviceWorker.register('/sw.js', {scope:'/'}).catch(()=>{}));
+    }
+  </script>
+</body>
+</html>

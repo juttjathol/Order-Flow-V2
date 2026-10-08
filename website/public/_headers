@@ -1,6 +1,6 @@
 # Jathol Order Flow — security headers (Cloudflare Pages)
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://open.er-api.com; base-uri 'self'; form-action 'self' mailto:; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://api.qrserver.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://api.qrserver.com; connect-src 'self' https://open.er-api.com https://order-flow-v2.pages.dev https://api.qrserver.com; base-uri 'self'; form-action 'self' mailto:; frame-ancestors 'none'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
@@ -12,4 +12,10 @@
   Cache-Control: public, max-age=604800
   Cross-Origin-Resource-Policy: same-origin
 /site.js
+  Cache-Control: public, max-age=3600
+/app/*
+  Cache-Control: public, max-age=3600
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+/manifest.json
   Cache-Control: public, max-age=3600

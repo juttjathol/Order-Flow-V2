@@ -10,6 +10,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="./styles.css?v=5"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="apple-touch-icon" href="./media/logo.png"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Order Flow"/>
   <meta name="theme-color" content="#FAF7F2"/>
 </head>
 <body>
@@ -30,7 +35,8 @@
       </nav>
       <div class="nav-cta">
         <a class="btn btn-ghost" href="#trial">3-day trial</a>
-        <a class="btn btn-mint" href="#download" data-apk>Get the app</a>
+        <button class="store-badge store-badge--play" type="button" id="nav-play" aria-label="Get it on Google Play"><svg viewBox="0 0 135 40" aria-hidden="true"><rect width="135" height="40" rx="6" fill="#000"/><path d="M22 12.2L38.5 20 22 27.8V12.2z" fill="#fff"/><path d="M22 12.2L26.8 20 22 27.8 13.5 20 22 12.2z" fill="none"/><path d="M22 12.2L38.5 20 22 27.8V12.2z" fill="#00F5A0" opacity=".0"/><text x="46" y="15" fill="#fff" font-size="7" font-family="Outfit, sans-serif" font-weight="600" letter-spacing=".08em">GET IT ON</text><text x="46" y="27" fill="#fff" font-size="14" font-family="Outfit, sans-serif" font-weight="800" letter-spacing="-.02em">Google Play</text></svg></button>
+        <button class="store-badge store-badge--app" type="button" id="nav-app" aria-label="Download on the App Store"><svg viewBox="0 0 135 40" aria-hidden="true"><rect width="135" height="40" rx="6" fill="#000"/><path d="M20 28c1.2-1 1.8-2.3 1.8-3.6 0-.9-.3-1.7-.9-2.3-.7-.7-1.6-1-2.8-1-.6 0-1.2.1-1.7.4l.6-1.8c.4-1.3 1.1-2.3 2-3 .9-.7 1.9-1 3-1 .2 0 .4 0 .6.1l-.7 2.3c-.3-.1-.6-.1-1-.1-.6 0-1.2.2-1.6.5-.5.3-.8.8-1 1.4h3l-.3 1.1h-3c-.1.6 0 1.2.3 1.7.3.5.8.8 1.4.8.4 0 .8-.1 1.2-.3l.5 1.8c-.6.3-1.2.4-1.9.4-1.2 0-2.2-.4-3-1.1-.8-.7-1.2-1.7-1.2-2.9z" fill="#fff"/><text x="46" y="15" fill="#fff" font-size="7" font-family="Outfit, sans-serif" font-weight="600" letter-spacing=".08em">Download on the</text><text x="46" y="27" fill="#fff" font-size="14" font-family="Outfit, sans-serif" font-weight="800" letter-spacing="-.02em">App Store</text></svg></button>
       </div>
     </div>
   </header>
@@ -45,9 +51,11 @@
         <h1 class="reveal d1">The shop runs.<br><em>The floor never waits.</em></h1>
         <p class="lede reveal d2">A fully licensed Android POS for restaurants, cafés, retail and delivery. Main stays on your Wi‑Fi. Kitchen, cashier, takers and drivers join as stations. Your live sales stay on your shop device.</p>
         <div class="hero-actions reveal d3">
-          <a class="btn btn-mint" href="#download" data-apk>Download Android APK</a>
+          <button class="store-badge store-badge--play" type="button" id="hero-play" aria-label="Get it on Google Play"><span class="store-badge__kicker">GET IT ON</span><span class="store-badge__name">Google Play</span></button>
+          <button class="store-badge store-badge--app" type="button" id="hero-app" aria-label="Download on the App Store"><span class="store-badge__kicker">Download on the</span><span class="store-badge__name">App Store</span></button>
           <a class="btn btn-ghost" href="#trial">Request a 3-day trial</a>
         </div>
+        <p class="note reveal d3" style="margin-top:10px">Web app + Android + Windows — your data stays on your device. <a href="/app/" style="color:var(--forest);font-weight:800;text-decoration:underline">Open web app →</a></p>
         <div class="meta-row reveal d3">
           <div><strong>LAN 8787</strong>Shop Main on Wi‑Fi</div>
           <div><strong>1 key</strong>One Main device</div>
@@ -347,10 +355,10 @@
         <p class="kicker">Go live</p>
         <h2 class="sec-title">Four steps. Same afternoon.</h2>
         <div class="steps">
-          <div class="step"><div class="num">01</div><h3>Install Main</h3><p class="sec-sub">Sideload the APK on the shop Android. Activate with your Jathol license key.</p></div>
-          <div class="step"><div class="num">02</div><h3>Stay on Wi‑Fi</h3><p class="sec-sub">Main hosts the shop on port 8787. Keep the app running — that is the till.</p></div>
-          <div class="step"><div class="num">03</div><h3>Join stations</h3><p class="sec-sub">Other phones type the IP from Home, or scan when camera is allowed.</p></div>
-          <div class="step"><div class="num">04</div><h3>Print &amp; sell</h3><p class="sec-sub">Pair printers, plug the drawer, build the menu, send the first ticket to kitchen.</p></div>
+          <div class="step"><div class="num">01</div><h3>Open web app</h3><p class="sec-sub">On any iPhone, Android or laptop: open <a href="/app/" style="color:var(--forest);font-weight:700">jathol.org/app</a> → <b>Add to Home Screen</b>. Or sideload the APK on Android if you prefer.</p></div>
+          <div class="step"><div class="num">02</div><h3>Choose Main</h3><p class="sec-sub">That first device becomes Main — iPhone can be Main. It opens an encrypted room; your data stays on the device, relay is just the corridor.</p></div>
+          <div class="step"><div class="num">03</div><h3>Join stations</h3><p class="sec-sub">Other phones (iPhone or Android) open the web app → <b>Join as Station</b> → scan the QR from Main. No IP typing.</p></div>
+          <div class="step"><div class="num">04</div><h3>Print &amp; sell</h3><p class="sec-sub">iPhone: <b>Print with Apple</b> (AirPrint). Android: pair Bluetooth or use Relay-print to the station that has the printer. Then sell.</p></div>
         </div>
       </div>
     </section>
@@ -358,17 +366,21 @@
     <section id="download">
       <div class="wrap">
         <div class="download-band">
-          <p class="kicker">Android + Windows</p>
+          <p class="kicker">Web app · Android · Windows</p>
           <div class="dl-row">
             <div>
               <h2 class="sec-title">Get Order Flow</h2>
-              <p class="sec-sub">Install the official app for your shop. The latest version is delivered securely from Jathol.</p>
-              <p class="note" id="apk-meta">Current official app for Android.</p>
-              <p class="note">On Android, allow install from this site when prompted. You will receive the current Order Flow app for your business.</p>
+              <p class="sec-sub">Start in the browser in seconds — works offline after first load. Main can be an iPhone, stations can be Android — QR pairing works both ways. Your data stays on your device.</p>
+              <p class="note">Web app: open on your phone, <b>Add to Home Screen</b>, done — no store review wait. Android APK & Windows still available below.</p>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px">
+                <button class="store-badge store-badge--play" type="button" id="dl-play" aria-label="Get it on Google Play"><span class="store-badge__kicker">GET IT ON</span><span class="store-badge__name">Google Play</span></button>
+                <button class="store-badge store-badge--app" type="button" id="dl-app" aria-label="Download on the App Store"><span class="store-badge__kicker">Download on the</span><span class="store-badge__name">App Store</span></button>
+                <a class="btn btn-ghost" href="/app/">Open web app</a>
+              </div>
+              <p class="note" style="margin-top:10px"><a href="./guide.html" style="color:var(--forest);font-weight:700;text-decoration:underline">User guide</a> · Web app runs on iPhone, Android & desktop.</p>
             </div>
             <div class="dl-actions">
-              <a class="btn btn-ghost" href="./guide.html">User Guide</a>
-              <button class="btn btn-mint" type="button" id="dl-btn" aria-label="Download the Order Flow Android APK">Download Android APK</button>
+              <a class="btn btn-ghost" href="/app/">Open web app</a>
               <p class="note" id="dl-status" role="status" aria-live="polite"></p>
             </div>
           </div>
@@ -394,11 +406,11 @@
         <div class="faq">
           <details open><summary>Does my sales data go to the cloud?</summary><p>No. Tickets, menu and stock live on Main. The website only checks the license and serves this app file.</p></details>
           <details><summary>What if the internet drops?</summary><p>Selling continues on shop Wi‑Fi. Stations can queue work and flush when Main is reachable. License has an offline grace window.</p></details>
-          <details><summary>How do I install the app?</summary><p>Download from this page on your Android phone, then allow install from this site when Android asks. Jathol will advise you when a store listing is available.</p></details>
+          <details><summary>How do I install the app?</summary><p><b>Web (iPhone & Android):</b> open <a href="/app/">jathol.org/app</a> in Safari (iPhone) or Chrome (Android) → <b>Add to Home Screen</b> → open from the new icon. Works offline. <b>Android APK:</b> tap <b>Google Play</b> above → “Coming soon” → <b>Download APK directly</b> → allow install once. <b>Windows:</b> Download Windows ZIP below.</p></details>
           <details><summary>Can I try before I buy?</summary><p>Yes. Fill the 3-day trial form — a draft opens on this page. Send it from Gmail or your mail app and Jathol replies within 24 hours with your trial key.</p></details>
           <details><summary>How do I buy a key?</summary><p>Email <a href="mailto:contact@jathol.org">contact@jathol.org</a> with your name, business and phone — Jathol issues the 16-character key, normally within 24 hours.</p></details>
           <details><summary>What does it cost?</summary><p><b>Starter is RM 79/month</b> with 12 features and optional QR &amp; cloud add-ons; <b>Customize is bespoke</b> with all 15 features. See the <a href="#plans">Plans</a> section — the license decides which features your key unlocks.</p></details>
-          <details><summary>What hardware does it work with?</summary><p>Any Android phone or tablet, LAN or Bluetooth ESC/POS thermal printers, barcode guns (USB/Bluetooth or the built-in camera scanner), and a cash drawer plugged into the receipt printer's RJ11 port.</p></details>
+          <details><summary>What hardware does it work with?</summary><p>Web: prints via <b>Apple’s system print dialog (AirPrint)</b> on iPhone — tap <b>Print with Apple</b> and pick your AirPrint/Bluetooth printer (pair it in iOS Settings → Bluetooth first). Android web can also pair raw Bluetooth. If iPhone has no printer, the web app can <b>relay-print</b> to an Android station that has a printer. Any Android phone/tablet, LAN or Bluetooth ESC/POS printers, barcode guns, cash drawer on RJ11.</p></details>
           <details><summary>Where do I learn every feature?</summary><p>The full step-by-step guide is on the <a href="./guide.html">User guide</a> page — updated with every app version.</p></details>
         </div>
       </div>
@@ -449,11 +461,7 @@
             <b>Jathol</b> — developer &amp; vendor of Order Flow<br/>
             Serving shops worldwide · business hours (GMT+8)<br/>
             Email: <a href="mailto:contact@jathol.org">contact@jathol.org</a> — replies within 24 hours<br/>
-            Support hours: Monday to Saturday, 9am–9pm (GMT+8)<br/>
-            Company registration &amp; registered address: shown on every
-            license receipt and invoice, and provided on request before purchase —
-            as required by the Consumer Protection (Electronic Trade Transactions)
-            Regulations 2012.
+            Support hours: Monday to Saturday, 9am–9pm (GMT+8)
           </address>
         </div>
       </div>
@@ -499,9 +507,46 @@
       </nav>
     </div>
     <div class="wrap foot-base">
-      <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow &#8212; built and supported for shops worldwide. Business registration and registered address appear on every licence receipt, and are provided on request before you buy.</p>
+      <p>&#169; <span id="y" class="y"></span> Jathol &#183; Order Flow — built and supported for shops worldwide.</p>
     </div>
   </footer>
+  <!-- Store badges modals -->
+  <div class="store-modal" id="store-play-modal" hidden role="dialog" aria-modal="true" aria-labelledby="play-title">
+    <div class="store-modal__card">
+      <button type="button" class="mail-draft-x" data-close-play aria-label="Close">×</button>
+      <p class="kicker">Google Play</p>
+      <h2 id="play-title" style="font-family:var(--display);font-size:28px">Coming soon on Google Play</h2>
+      <p style="color:var(--muted);margin-top:8px">Order Flow is in <b>Closed testing</b> on Play (v1.1.88) — public listing follows review. You can still run the shop today:</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+        <a class="btn btn-mint" href="/app/">Open web app (recommended)</a>
+        <a class="btn btn-ghost" href="/download" id="play-apk">Download APK directly</a>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:10px">APK installs after you allow “Install from this site” once. Web app works offline after first load and needs no install review.</p>
+    </div>
+  </div>
+  <div class="store-modal" id="store-app-modal" hidden role="dialog" aria-modal="true" aria-labelledby="app-title">
+    <div class="store-modal__card">
+      <button type="button" class="mail-draft-x" data-close-app aria-label="Close">×</button>
+      <p class="kicker">iPhone &amp; iPad</p>
+      <h2 id="app-title" style="font-family:var(--display);font-size:28px">Add Order Flow to your Home Screen</h2>
+      <p style="color:var(--muted);margin-top:8px">No App Store review needed — this <b>is</b> the app. Works offline, sends kitchen tickets, manages stock, prints with Apple’s system dialog or via a station that has a printer.</p>
+      <ol style="margin:12px 0 0 18px;color:var(--ink);line-height:1.7">
+        <li>Open <b>jathol.org/app</b> in <b>Safari</b></li>
+        <li>Tap <b>Share</b> <span style="border:1px solid var(--line);border-radius:6px;padding:1px 6px;background:#FFFDF9">⎙</span> at the bottom</li>
+        <li>Scroll → <b>Add to Home Screen</b> → <b>Add</b></li>
+      </ol>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+        <a class="btn btn-mint" href="/app/">Open web app</a>
+        <button class="btn btn-ghost" type="button" id="app-install-btn">Add to Home Screen</button>
+      </div>
+      <p id="app-install-hint" class="mono" style="color:var(--muted);font-size:12px;margin-top:8px"></p>
+      <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+        <p class="kicker">Printing on iPhone</p>
+        <p style="color:var(--muted);font-size:13px">Inside the web app, tap <b>Print with Apple</b> — iOS shows the system printer picker (AirPrint). Pair your Bluetooth printer in <b>Settings → Bluetooth</b> first; if it supports AirPrint it appears there. No printer? Turn on <b>Relay-print</b> — the job rides the encrypted room to an Android station that has a printer.</p>
+      </div>
+    </div>
+  </div>
+
   <div class="cookiebar" id="cookiebar" role="region" aria-label="Storage consent" hidden>
     <p><b>Your choices on this site.</b> It sets no tracking cookies and runs no analytics. We'd like to remember your currency view (local storage) and read exchange rates once a session to preview plan prices in it. Basic hosting protection by Cloudflare stays on either way.
       <a href="./cookies.html">Details</a> · <a href="./privacy.html">Privacy</a></p>

@@ -1,0 +1,29 @@
+:root{--ink:#14241C;--muted:#5C6E64;--line:#E8E0D2;--card:#fff;--cream:#FAF7F2;--forest:#163E2E;--gold:#C99026}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Outfit,system-ui,sans-serif;background:var(--cream);color:var(--ink);line-height:1.5}
+.wrap{width:min(1180px,calc(100% - 32px));margin-inline:auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;cursor:pointer;font-weight:700;border-radius:999px;padding:12px 20px;transition:.2s;white-space:nowrap;text-decoration:none}
+.btn-mint{background:var(--forest);color:#FAF7F2;box-shadow:0 8px 24px rgba(22,62,46,.2)}
+.btn-ghost{background:transparent;color:var(--forest);border:1.5px solid var(--forest)}
+.btn-gold{background:var(--gold);color:#111}
+.kicker{color:var(--muted);letter-spacing:.22em;text-transform:uppercase;font-size:11px;font-weight:800}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 6px 24px rgba(22,62,46,.05)}
+.grid{display:grid;grid-template-columns:250px 1fr;gap:18px}
+.side{position:sticky;top:14px;align-self:start;display:flex;flex-direction:column;gap:14px}
+.side nav{display:flex;flex-direction:column;gap:6px}
+.side nav button{all:unset;cursor:pointer;padding:10px 12px;border-radius:12px;color:var(--muted);font-weight:600}
+.side nav button.active{background:var(--forest);color:#FAF7F2}
+.tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.tile{border-radius:18px;padding:16px;text-align:center;border:1.5px solid var(--line);background:var(--card);cursor:pointer}
+.tile.free{border-color:#9FE870}
+.tile.busy{background:var(--forest);color:#FAF7F2;border-color:var(--forest)}
+.tile.ready{border-color:var(--gold);background:#FFF8E6}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.08em}
+.badge-free{background:#EAFBE0;color:#234217}
+.badge-busy{background:#103523;color:#C8EFD4}
+@media(max-width:900px){.grid{grid-template-columns:1fr} .side{position:static}}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.pill{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#FFFDF9;font-size:12px}
+.hidden{display:none !important}
+.print-frame{position:fixed;left:-9999px;top:0;width:72mm;height:0;border:0}
