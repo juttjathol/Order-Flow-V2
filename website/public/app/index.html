@@ -17,11 +17,15 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css"/>
+  <link rel="stylesheet" href="./styles.css?v=12"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
   <style>@media print{ body *{ visibility:hidden } #print-root, #print-root *{ visibility:visible } #print-root{ position:absolute; inset:0; } }</style>
+  <style>/* critical gate fallback — ensures dark even if styles.css cached old */
+    .license-gate{background:#051912 !important}
+    .license-gate__inner{max-width:420px;margin:0 auto}
+  </style>
 </head>
 <body>
 <!-- APK Splash — radial + rings + typed Jathol -->
@@ -339,9 +343,9 @@
   </div>
 </div>
 
-  <script src="./db.js"></script>
-  <script src="./print.js"></script>
-  <script src="./app.js"></script>
+  <script src="./db.js?v=12"></script>
+  <script src="./print.js?v=12"></script>
+  <script src="./app.js?v=12"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){
