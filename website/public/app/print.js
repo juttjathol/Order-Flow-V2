@@ -109,12 +109,16 @@ function receiptText(order) {
 }
 
 function printViaApple(order, opts) {
-  // iOS-reliable printing: a hidden off-screen iframe is silently ignored by
-  // iOS Safari (contentWindow.print() no-ops, nothing throws). Instead we
-  // inject the receipt into the CURRENT document, flip a class, let a
-  // @media print stylesheet hide the app and show only the receipt, then
-  // call window.print() synchronously inside the user's tap — that always
-  // opens the real AirPrint sheet on iPhone.
+  // iOS-reliable printing:
+  //  • window.print() is a silent no-op in HOME-SCREEN (standalone) PWAs —
+  //    navigator.standalone === true — so there we open the receipt as a
+  //    real browser page (about:blank, still inside the user's tap so no
+  //    popup block) whose own script auto-prints it in Safari.
+  //  • in a normal Safari tab we inject the receipt into THIS document,
+  //    flip is-printing, and let @media print show only the receipt
+  //    (hidden-iframe printing is also silently ignored by iOS).
+  const inner = printHtml(order, opts);
+  if (navigator.standalone === true && printViaTab(order, opts)) return;
   let host = document.getElementById('of-print-area');
   if (!host) {
     host = document.createElement('div');
@@ -122,12 +126,25 @@ function printViaApple(order, opts) {
     host.setAttribute('aria-hidden', 'true');
     document.body.appendChild(host);
   }
-  host.innerHTML = printHtml(order, opts);
+  host.innerHTML = inner;
   document.body.classList.add('is-printing');
   window.print();
   const done = () => { document.body.classList.remove('is-printing'); host.innerHTML = ''; };
   window.addEventListener('afterprint', done, { once: true });
   setTimeout(done, 8000);
+}
+
+/* The every-environment escape hatch: receipt as a real browser page whose
+   own script auto-prints it (works in standalone PWAs, old iOS, webviews).
+   Called inside a user tap so the popup is not blocked. */
+function printViaTab(order, opts) {
+  const w = window.open('', '_blank');
+  if (!w) return false;
+  w.document.open();
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Order Flow — receipt</title></head><body>' + printHtml(order, opts) +
+    '<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>');
+  w.document.close();
+  return true;
 }
 
 async function printViaBluetooth(order, opts) {
@@ -171,4 +188,5 @@ window.OFPrintReceipt = function (order, opts) {
 };
 window.OFReceiptText = receiptText;
 window.OFPrintViaBluetooth = printViaBluetooth;
+window.OFPrintReceiptInTab = printViaTab;
 })();

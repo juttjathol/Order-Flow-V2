@@ -153,6 +153,10 @@ async function scrPrinters() {
     const test = ce('button', 'btn btn--primary btn--full', '🖨️ ' + L.t('print_test'));
     test.onclick = () => { const demo = C.newOrder(p, {}); demo.lines.push({ id: 't1', name: 'Test print', qty: 1, priceCents: 100, mods: [], notes: '' }); OFPrintReceipt({ ...demo, payment: { method: 'cash', paidTenderCents: 100, changeCents: 0, at: Date.now() } }, {}); };
     row.appendChild(test);
+    const tabPrint = ce('button', 'btn btn--ghost btn--full', 'Sheet never opens? Print in a new tab');
+    tabPrint.style.marginTop = '8px';
+    tabPrint.onclick = () => { const demo = C.newOrder(p, {}); demo.lines.push({ id: 't1', name: 'Test print', qty: 1, priceCents: 100, mods: [], notes: '' }); if (!window.OFPrintReceiptInTab || !OFPrintReceiptInTab({ ...demo, payment: { method: 'cash', paidTenderCents: 100, changeCents: 0, at: Date.now() } }, {})) toast('Popup blocked', 'Allow pop-ups for jathol.org once, then tap again.'); };
+    row.appendChild(tabPrint);
     if ('bluetooth' in navigator) {
       const bt = ce('button', 'btn btn--ghost btn--full', '🔵 ' + L.t('print_bt'));
       bt.onclick = () => { const demo = C.newOrder(p, {}); demo.lines.push({ id: 't1', name: 'Test print', qty: 1, priceCents: 100, mods: [], notes: '' }); OFPrintViaBluetooth(demo, {}).catch(e => toast('Bluetooth print failed', String(e && e.message || e))); };
@@ -776,7 +780,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v35</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v36</div></div>'));
   });
 }
 
