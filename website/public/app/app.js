@@ -107,8 +107,20 @@ class Relay {
     try{ await this.pull(); await this.pushCheck(); this.fails=0; $('#sync-state') && ($('#sync-state').textContent = this.hot ? 'Hot — live (1.2s)' : 'Idle — relay sleeps (30s)'); } catch{ this.fails++; if(this.fails>=40) $('#sync-state') && ($('#sync-state').textContent='Relay unreachable — retrying automatically'); }
   }
   async api(path, body){
-    const r = await fetch(this.base+path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({room:this.room, device:this.deviceId, ...body})});
-    const j = await r.json(); return j;
+    // same-origin proxy first (jathol.org/api/cloud/* → forwarder, no CORS),
+    // then the configured base as fallback. text/plain = CORS-simple request.
+    const payload=JSON.stringify({room:this.room, device:this.deviceId, ...body});
+    const bases=['', this.base].filter((b,i,a)=> b!==undefined && a.indexOf(b)===i);
+    let lastErr=null;
+    for(const base of bases){
+      try{
+        const r = await fetch(base+path, {method:'POST', headers:{'Content-Type':'text/plain'}, body: payload});
+        const j = await r.json().catch(()=>null);
+        if(j) return j;
+        lastErr=new Error('http_'+r.status);
+      }catch(e){ lastErr=e; }
+    }
+    throw lastErr||new Error('api failed');
   }
   async pull(){
     const j = await this.api('/api/cloud/pull', {after:this.cursor, hot: this.hot?1:0});
@@ -401,6 +413,8 @@ async function initRoleUI(){
 function enterApp(roomInfo){
   $('#view-setup').hidden=true;
   $('#view-app').hidden=false;
+  // app chrome (bottom nav, header actions) only exists once a role is entered — like the APK shell
+  try{ document.body.classList.add('is-inapp'); }catch{}
   $('#side-role').textContent = ROLE==='main' ? 'Main — this iPhone is the shop server' : 'Station — '+ ($('#station-role')?.value || 'taker');
   $('#side-room').textContent = roomInfo ? (roomInfo.room.slice(0,8)+'… · '+roomInfo.code) : 'Offline only (no room)';
   $('#role-badge').textContent = ROLE==='main' ? 'Main' : 'Station';
@@ -544,8 +558,17 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     const info=pairingDecode(raw); if(!info){ $('#join-status').textContent='Bad pairing text — copy the full OF1:… line from Main.'; return; }
     const id=await deviceId(); const role=$('#station-role').value||'taker';
     try{
-      const r=await fetch(info.base+'/api/cloud/join', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({room:info.room, code:info.code, deviceId:id, role})});
-      const j=await r.json(); if(!j||!j.ok) throw new Error(j?.error||'no_room');
+      // same-origin proxy first, pairing base as fallback; preflight-free body
+      let j=null, lastErr='no_room';
+      for(const base of ['', info.base]){
+        try{
+          const r=await fetch(base+'/api/cloud/join', {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({room:info.room, code:info.code, deviceId:id, role})});
+          const jr=await r.json().catch(()=>null);
+          if(jr){ j=jr; break; }
+          lastErr='http_'+r.status;
+        }catch(e){ lastErr=String(e.message||e); }
+      }
+      if(!j||!j.ok) throw new Error(j?.error||lastErr);
       await kvSet('roomInfo', info); await kvSet('role','station'); ROLE='station'; $('#join-status').textContent='Joined ✓ — tap Enter as Station';
     }catch(e){ $('#join-status').textContent='Join failed: '+String(e); }
   });

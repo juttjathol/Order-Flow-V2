@@ -277,3 +277,116 @@ nav.pillgrid{ display:none }
 .col{ display:flex; flex-direction:column; gap:10px }
 .divider{ height:1.2px; background:var(--creamBorder); margin:10px 0 }
 .focus-ring:focus-visible{ outline:2px solid var(--forest); outline-offset:2px }
+
+/* ============================================================
+   APT-EXACT DARK SHELL — port of flutter_app (theme.dart + StationShell)
+   The APK is permanently dark; the web port must match 1:1.
+   deep #0F1512 · cardDark #18221D · cardAlt #202C26 · mint #2EA771
+   emerald #1B8F62 · gold #D49E35 · text #FAF7F2 · muted #A9C6B7
+   ============================================================ */
+
+/* hidden must ALWAYS win over inline display styles (view-app had
+   style="display:flex" which stacked it on top of the setup view) */
+[hidden]{ display:none !important }
+
+html, body{ background:#0F1512 !important; color:#FAF7F2; color-scheme:dark }
+.of-app{ background:#0F1512 !important }
+#of-app section, .of-main{ background:transparent }
+
+/* ——— setup gate: solo like APK Connect screen — no app chrome yet ——— */
+body:not(.is-inapp) .of-nav{ display:none !important }
+body:not(.is-inapp) .of-header__actions{ display:none !important }
+body.is-inapp #view-setup{ display:none !important }
+
+/* ——— header (StationShell AppBar): dark blur, cream title ——— */
+.of-header{ background:rgba(15,21,18,.82) !important; border-bottom:1px solid rgba(255,255,255,.06) !important }
+.of-header__title{ color:#FAF7F2 !important }
+.of-header__sub{ color:#A9C6B7 !important }
+.of-header__logo{ background:linear-gradient(145deg,#23543F,#163E2E) !important; box-shadow:0 6px 18px rgba(0,0,0,.35) !important }
+.of-icon-btn{ background:#18221D !important; border:1px solid rgba(255,255,255,.07) !important; box-shadow:0 3px 10px rgba(0,0,0,.25) !important }
+.of-icon-btn svg{ stroke:#A9C6B7 }
+.of-badge{ background:#202C26 !important; border:1px solid rgba(255,255,255,.08) !important; color:#A9C6B7 !important }
+.of-badge--forest{ background:#2EA771 !important; border-color:#2EA771 !important; color:#07130D !important }
+.of-badge--mint{ background:#2EA771 !important; border-color:#2EA771 !important; color:#07130D !important }
+.of-badge--gold{ background:#D49E35 !important; border-color:#D49E35 !important; color:#2b1d00 !important }
+
+/* search row */
+.of-search{ background:#18221D !important; border:1px solid rgba(255,255,255,.07) !important; box-shadow:none !important }
+.of-search input{ color:#FAF7F2 !important }
+.of-search input::placeholder{ color:#7E9589 !important }
+
+/* ——— bottom nav (APK NavigationBar): dark blur 72px ——— */
+.of-nav{ background:rgba(16,22,19,.92) !important; border-top:1px solid rgba(255,255,255,.07) !important; box-shadow:0 -10px 30px rgba(0,0,0,.35) !important; backdrop-filter:blur(20px) !important; -webkit-backdrop-filter:blur(20px) !important }
+.of-nav__item{ color:#8AA79A !important }
+.of-nav__item[aria-current="page"], .of-nav__item.is-active{ color:#2EA771 !important }
+.of-nav__item.is-active .of-nav__icon{ background:rgba(46,167,113,.20) !important; color:#2EA771 }
+.of-nav__item .of-nav__icon svg{ stroke:currentColor }
+.of-nav__dot{ border-color:#18221D !important }
+
+/* ——— cards & surfaces (APK Card: #18221D, radius 22, soft shadow) ——— */
+.of-card, .of-stat, .prod, .of-tile, .of-choice, .sheet__panel, section.of-card.pad{
+  background:#18221D !important; border:1px solid rgba(255,255,255,.055) !important;
+  box-shadow:0 10px 26px rgba(0,0,0,.32), 0 2px 6px rgba(0,0,0,.25) !important;
+  color:#FAF7F2;
+}
+.of-card.of-card--forest, .of-card.of-card--forest{ background:linear-gradient(150deg,#23543F 0%,#163E2E 55%,#0D281E 100%) !important }
+.of-card h2, .of-card h3, .of-card h4, #order-title, .prod__name{ color:#FAF7F2 !important }
+.of-card p, .muted, .of-choice p, .of-tile__label{ color:#A9C6B7 !important }
+.of-stat__kicker{ color:#8AA79A !important }
+.of-stat__value{ color:#FAF7F2 !important }
+.of-stat__delta{ color:#2EA771 !important }
+
+/* ——— buttons: mint primary like APK FilledButton(OfColors.mint) ——— */
+.btn--forest{ background:#2EA771 !important; color:#07130D !important; box-shadow:0 10px 22px rgba(46,167,113,.22) !important; border:0 !important }
+.btn--forest:hover{ background:#1B8F62 !important; color:#FAF7F2 !important }
+.btn--ghost{ background:rgba(46,167,113,.08) !important; color:#2EA771 !important; border:1.4px solid rgba(46,167,113,.45) !important }
+.btn--muted{ background:#202C26 !important; color:#C9D9CF !important; border:1px solid rgba(255,255,255,.07) !important }
+
+/* ——— seg pills (filters / top tabs): deep pill, mint active ——— */
+.seg{ background:#101915 !important; border:1px solid rgba(255,255,255,.05) !important }
+.seg button{ color:#A9C6B7 !important }
+.seg button.is-active{ background:#2EA771 !important; color:#07130D !important; box-shadow:0 4px 14px rgba(46,167,113,.25) !important }
+
+/* ——— setup choices (Main / Station): dark cards, mint border when main ——— */
+.of-choice{ text-align:left }
+.of-choice h3{ color:#FAF7F2 !important }
+.of-choice.is-main{ border-color:rgba(46,167,113,.55) !important; box-shadow:0 12px 28px rgba(46,167,113,.14) !important }
+.of-choice:hover{ transform:translateY(-1px) }
+
+/* ——— home tiles & products ——— */
+.of-tile:active{ transform:translateY(1px) scale(.99) }
+.prod__price, .mono{ color:#7AD9AE !important }
+
+/* ——— hero / sales card stays forest gradient; keep text cream ——— */
+.of-hero, .of-sales{ color:#FAF7F2 !important }
+.of-sales__kicker, #home-kicker{ color:rgba(250,247,242,.75) !important }
+
+/* ——— sheets & order sheet ——— */
+.sheet{ background:rgba(5,12,9,.6) !important; backdrop-filter:blur(6px) !important }
+.sheet__panel{ border-radius:28px 28px 0 0 !important; padding-bottom:calc(18px + var(--safe-b)) !important }
+#order-sheet{ border-style:dashed !important; background:#16231C !important }
+
+/* ——— inputs/selects on dark ——— */
+.of-app input[type="text"], .of-app input[type="number"], .of-app input[type="password"], .of-app select, .of-app textarea{
+  background:#131D17 !important; border:1px solid rgba(255,255,255,.09) !important; color:#FAF7F2 !important; border-radius:14px;
+}
+.of-app input::placeholder, .of-app textarea::placeholder{ color:#7E9589 !important }
+.of-app input:focus, .of-app select:focus{ outline:none; border-color:rgba(46,167,113,.6) !important; box-shadow:0 0 0 3px rgba(46,167,113,.15) !important }
+
+/* ——— kitchen / live tickets & stock rows ——— */
+#kitchen-live .of-card, #kitchen-list .of-card, #home-live .of-card{ background:#18221D !important }
+.of-badge.warn{ background:rgba(217,136,22,.18) !important; color:#F6B33E !important; border-color:rgba(217,136,22,.35) !important }
+
+/* links inside dark cards */
+.of-app a{ color:#7AD9AE }
+
+/* checkbox accents */
+.of-app input[type="checkbox"]{ accent-color:#2EA771 }
+
+/* ——— table tiles (BistroTableTile): dark ——— */
+.tile{ background:#18221D !important; border:1px solid rgba(255,255,255,.05) !important; color:#FAF7F2 !important }
+.tile .tile__name{ color:#FAF7F2 !important }
+.tile .tile__meta, .tile .tile__cap, .tile .tile__plate{ color:#A9C6B7 !important }
+.tile.is-busy{ border-color:rgba(212,158,53,.4) !important }
+.tile.ready{ border-color:rgba(46,167,113,.5) !important }
+.tile .tile__amount{ color:#7AD9AE !important }
