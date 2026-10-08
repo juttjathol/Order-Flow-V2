@@ -8,8 +8,10 @@ function initStoreBadges(){
   const play = document.getElementById('store-play-modal');
   const app = document.getElementById('store-app-modal');
   if(!play || !app) return;
-  function open(m){ m.hidden=false; document.body.style.overflow='hidden'; }
-  function close(m){ m.hidden=true; document.body.style.overflow=''; }
+  function lock(){ document.body.style.overflow='hidden'; document.documentElement.classList.add('modal-open'); }
+  function unlock(){ const mail=document.getElementById('mail-draft'); const stillOpen = (!play.hidden || !app.hidden || (mail && !mail.hidden)); if(!stillOpen){ document.body.style.overflow=''; document.documentElement.classList.remove('modal-open'); } }
+  function open(m){ m.hidden=false; lock(); }
+  function close(m){ m.hidden=true; unlock(); }
   function bind(ids, m){
     ids.forEach(id=>{
       const el=document.getElementById(id);
@@ -171,6 +173,7 @@ function openMailDraft(subject, body) {
   root._setStatus("");
   root.hidden = false;
   document.body.style.overflow = "hidden";
+  document.documentElement.classList.add('modal-open');
   const ta = root.querySelector("[data-md-body]");
   ta.focus();
   try { ta.setSelectionRange(0, 0); } catch (_) {}
@@ -180,7 +183,9 @@ function closeMailDraft() {
   const root = document.getElementById("mail-draft");
   if (!root || root.hidden) return;
   root.hidden = true;
-  document.body.style.overflow = "";
+  const play=document.getElementById('store-play-modal'), app=document.getElementById('store-app-modal');
+  const stillOpen = (play && !play.hidden) || (app && !app.hidden);
+  if(!stillOpen){ document.body.style.overflow = ""; document.documentElement.classList.remove('modal-open'); }
   if (mailDraftLastFocus && typeof mailDraftLastFocus.focus === "function") {
     try { mailDraftLastFocus.focus(); } catch (_) {}
   }

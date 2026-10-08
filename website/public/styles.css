@@ -978,3 +978,17 @@ a:focus-visible, button:focus-visible, summary:focus-visible { outline:3px solid
 .store-modal[hidden]{ display:none !important }
 .store-modal__card{ position:relative; width:min(560px,100%); max-height:min(92vh,860px); overflow:auto; background:#FFFDF9; border:1.5px solid var(--line); border-radius:24px; padding:28px 26px 22px; box-shadow:0 24px 64px rgba(22,62,46,.18) }
 @media(max-width:520px){ .store-modal__card{ padding:22px 16px 18px } }
+
+/* fix: custom cursor (z 1200) sits behind modal (z 1400) and html.cursor-fx sets cursor:none — modal otherwise appears cursorless */
+.modal-open #cur-dot, .modal-open #cur-ring { display:none !important; }
+.modal-open, .modal-open body { cursor:auto !important; }
+.store-modal, .mail-draft { cursor:auto !important; }
+.store-modal button, .mail-draft button, .store-modal a, .mail-draft a { cursor:pointer !important; }
+.cursor-fx.modal-open, .cursor-fx.modal-open a, .cursor-fx.modal-open button { cursor:auto !important; }
+.cursor-fx.modal-open .store-modal button, .cursor-fx.modal-open .mail-draft button, .cursor-fx.modal-open .store-modal a, .cursor-fx.modal-open .mail-draft a { cursor:pointer !important; }
+html:has(.store-modal:not([hidden])), html:has(.mail-draft:not([hidden])) { cursor:auto; }
+html:has(.store-modal:not([hidden])) #cur-dot, html:has(.store-modal:not([hidden])) #cur-ring,
+html:has(.mail-draft:not([hidden])) #cur-dot, html:has(.mail-draft:not([hidden])) #cur-ring { display:none !important; }
+html:has(.store-modal:not([hidden])) .store-modal, html:has(.mail-draft:not([hidden])) .mail-draft { cursor:auto; }
+html:has(.store-modal:not([hidden])) .store-modal button, html:has(.mail-draft:not([hidden])) .mail-draft button,
+html:has(.store-modal:not([hidden])) .store-modal a, html:has(.mail-draft:not([hidden])) .mail-draft a { cursor:pointer; }
