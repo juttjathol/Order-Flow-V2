@@ -9,7 +9,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="./styles.css?v=5"/>
+  <link rel="stylesheet" href="./styles.css?v=6"/>
+  <style>/* critical store-badge fallback — ensures black pills even if styles.css is cached */
+  .store-badge{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;background:#000!important;color:#fff!important;border:1.5px solid #000!important;border-radius:8px!important;padding:6px 14px!important;line-height:1!important;cursor:pointer!important;text-align:left!important;min-width:148px!important;box-shadow:0 4px 14px rgba(0,0,0,.18)!important}
+  .store-badge__kicker{font-size:8px!important;letter-spacing:.14em!important;text-transform:uppercase!important;opacity:.9!important;font-weight:700!important;color:#fff!important}
+  .store-badge__name{font-size:15px!important;font-weight:800!important;letter-spacing:-.02em!important;margin-top:2px!important;color:#fff!important}
+  @media(max-width:640px){.store-badge{flex:1 1 auto!important}}
+  </style>
   <link rel="manifest" href="/manifest.json"/>
   <link rel="apple-touch-icon" href="./media/logo.png"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -557,7 +563,7 @@
   </div>
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
   <script defer src="./hero3d.js"></script>
-  <script src="./site.js?v=5"></script>
+  <script src="./site.js?v=6"></script>
   <script src="./fx3d.js" defer></script>
   <script src="./reactbits.js?v=2" defer></script>
 </body>

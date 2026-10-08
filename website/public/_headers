@@ -5,9 +5,9 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), bluetooth=(), display-capture=()
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), usb=(self), bluetooth=(self), display-capture=()
   Cross-Origin-Opener-Policy: same-origin
-  Cross-Origin-Resource-Policy: same-origin
+  Cross-Origin-Resource-Policy: cross-origin
 /media/*
   Cache-Control: public, max-age=604800
   Cross-Origin-Resource-Policy: same-origin

@@ -2,7 +2,9 @@ const EMAIL = "contact@jathol.org";
 const CONSENT_KEY = "of-consent";
 
 // Store badges + PWA install — nav/hero/dl all open the same modals
-(function storeBadges(){
+function hasConsent(){ try{ const v=localStorage.getItem(CONSENT_KEY)||sessionStorage.getItem(CONSENT_KEY); return v==='yes'; }catch(_){ return false; } }
+function initStoreBadges(){
+  try{
   const play = document.getElementById('store-play-modal');
   const app = document.getElementById('store-app-modal');
   if(!play || !app) return;
@@ -40,7 +42,9 @@ const CONSENT_KEY = "of-consent";
     }
   });
   window.addEventListener('appinstalled', ()=>{ if(hint) hint.textContent='App installed ✓ — launch from Home Screen.'; });
-})();
+  }catch(e){ console.error('storeBadges', e); }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initStoreBadges); else initStoreBadges();
 function mailto(subject, lines) {
   return "mailto:" + EMAIL +
     "?subject=" + encodeURIComponent(subject) +
@@ -280,7 +284,7 @@ document.querySelectorAll("[data-apk]").forEach((el) => {
 });
 
 // ── v1.1.59: scroll reveals, price count-up, plan CTAs, hero parallax ──
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reduceMotion = (typeof matchMedia !== 'undefined' && matchMedia("(prefers-reduced-motion: reduce)").matches) || false;
 
 // Scroll reveal (additive; hero .reveal animations above stay untouched)
 try {
