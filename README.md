@@ -5,16 +5,18 @@
 [![Runs on](https://img.shields.io/badge/Main_on-Android_%7C_Windows_10--11-14532d)](#how-the-shop-works)
 [![Shop UI](https://img.shields.io/badge/UI-English_%7C_%D8%A7%D8%B1%D8%AF%D9%88-b45309)](https://jathol.org/guide)
 [![Download](https://img.shields.io/badge/download-jathol.org%2Fdownload-0ea5e9)](https://jathol.org/download)
+[![Web app](https://img.shields.io/badge/PWA-jathol.org%2Fapp-2FFFA0?labelColor=052e16)](https://jathol.org/app)
 
 Offline-first multi-device POS for restaurants, retail, fast food, and services, plus a Cloudflare license dashboard.
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
 - **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.89+)
+- **iPhone / web app** (`website/public/app/`) — the same POS rebuilt as an installable PWA at **jathol.org/app**; guest QR menu at `/order.html`; iOS printing via share-sheet PDF (standalone), AirPrint sheet (Safari tab), or Bluetooth ESC/POS
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke, plans & per-key feature access, push broadcasts
 - **APK + Windows ZIP** — create a GitHub Release tag `v1.1.89` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.89+87**.
+Version **1.1.89+87**. The web app deploys continuously from `main` (current shell cache `of-shell-v37`).
 
 You only need two things after this repo is on GitHub:
 
@@ -134,6 +136,8 @@ When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud r
 flowchart TD
     %% Visitors
     Visitor(["Visitor"]) --> Website["Product website<br/>website/public/index.html<br/>+ guide.html"]
+    Visitor --> WebApp["Order Flow Web (PWA)<br/>website/public/app/*<br/>jathol.org/app · SW of-shell-vNN"]
+    Guest(["Guest scans QR"]) --> GuestMenu["Guest QR menu<br/>order.html · instant snapshot cache<br/>menu_request self-heal · flood caps"]
     Website -->|"requests APK / ZIP"| DownloadProxy["Download proxy<br/>functions/download.js<br/>3 copies: root / website / dashboard"]
     DownloadProxy -->|"fetches latest release<br/>skips draft / prerelease / -rc"| GitHub["GitHub releases<br/>app-release.apk + order-flow-windows.zip"]
 
@@ -153,6 +157,11 @@ flowchart TD
 
     Main -- "POST /api/v1/license/validate<br/>{licenseKey, deviceId}" --> LicenseAPI
     Main <-->|"room + code<br/>AES-GCM"| Relay
+    WebApp -->|"same-origin first<br/>POST /api/v1/license/validate"| LicenseAPI
+    WebApp <-->|"OF1: room code<br/>AES-GCM pairing"| Relay
+    GuestMenu -->|"menu_request / orders<br/>same Wi-Fi or relay"| Relay
+    WebApp --> WebPrint["Web printing<br/>standalone: PDF → iOS share sheet → Print<br/>Safari tab: AirPrint sheet<br/>Bluetooth ESC/POS 9100"]
+    WebApp --> WebDB[("IndexedDB orderflow-web<br/>add-stores-only, never wiped")]
     DownloadProxy -. "Bearer GITHUB_TOKEN<br/>if repo private" .-> GitHub
 
     %% POS app
@@ -192,8 +201,8 @@ flowchart TD
     classDef storage fill:#fefce8,stroke:#a16207,stroke-width:1.5;
     class SaaS saas
     class POS pos
-    class DownloadProxy,GitHub,Main infra
-    class D1,LocalPersist,ShopState storage
+    class DownloadProxy,GitHub,Main,Website,WebApp,GuestMenu,WebPrint infra
+    class D1,LocalPersist,ShopState,WebDB storage
 ```
 
 > **Shop data lives on Main only.** Cloud relay is transit (ciphertext, deleted on read, 30m expiry). SaaS never stores orders.
@@ -239,6 +248,22 @@ Kitchen **ready** notifies every Order Taker and Main. English + Urdu. Dark / li
 Printing is network ESC/POS on **TCP 9100**, Bluetooth (Classic + Low-Energy), or — on Windows Main — any installed **Windows printer** (USB thermal works with the built-in *Generic / Text Only* driver). **Every station can use its own printer** (printer icon in the station top bar), independent of Main. A **cash drawer** (RJ11 kick port on the receipt printer) opens automatically on cash payments only; card / wallet / other never open it. Payments support **split tender** (two methods on one sale), receipts can be **shared on WhatsApp/SMS**, paid orders can be **refunded** (stock returns), saved customers earn **loyalty points** automatically, and any screen can become a **customer display** with a giant animated total. Backup is JSON export / import.
 
 The full walkthrough lives on the website: **https://jathol.org/guide** (English + Urdu).
+
+---
+
+## Order Flow Web — the same POS in a browser (`jathol.org/app`)
+
+`website/public/app/` is the whole product rebuilt as an installable PWA — same license keys, same roles, screens mirrored from the Flutter UI (`gate_screens.dart` spec, theme tokens, splash) — so an iPhone (or any browser) can be Main or a station with zero install. English + اردو with full RTL, dark / light green theme, branded **Order Flow Web**.
+
+- **Install** — open `jathol.org/app` in Safari → Share → **Add to Home Screen**. Launches full-screen like the APK (splash included).
+- **License** — the same `OF-XXXX-XXXX-XXXX-XXXX` key, validated **same-origin first** against `/api/v1/license/validate`; only `not_found` / `revoked` / `expired` ever lock. Stations pair with the `OF1:` room code — AES-GCM over the cloud relay, text/plain — no key needed.
+- **Offline-first** — all state in IndexedDB `orderflow-web` (add-stores-only migrations, never wiped); service worker `of-shell-vNN` is bumped on every deploy and serves app assets network-first. On iOS standalone, swipe-up kill + relaunch picks up a new build.
+- **Printing on iOS** — the part Safari makes hard, solved three ways:
+  - **Home-screen app (standalone):** iOS silently blocks `window.print()` and `about:blank` popups there, so the receipt is built in-page as a **real PDF** and sent through the **iOS share sheet** — which has a native **Print** action (AirPrint), and can also save the receipt or **WhatsApp it straight to a customer**.
+  - **Safari tab:** a same-document print area swaps in and opens the normal **AirPrint** sheet in the same tap.
+  - **Thermal printers:** ESC/POS over Web Bluetooth where the browser allows it; stations running a print gateway also honor relay `printjob` messages. Kitchen auto-print on send follows the same `autoPrint` rules as the APK.
+- **Guest QR menu** (`/order.html`) — repeat scans render **instantly** from a localStorage snapshot before any network; self-heals with `menu_request` + a waiting hint if Main is offline; same per-table `24/h` and shop `900/h` flood caps as the LAN page; `qr_brand` customization applies.
+- **Quality gate** — `node selftest.mjs` (136 checks: gates, license, printing paths, guest menu, relay contract, i18n, CSS invariants) must be green before every push to `main`.
 
 ---
 
