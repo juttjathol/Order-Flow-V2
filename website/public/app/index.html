@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=15"/>
+  <link rel="stylesheet" href="./styles.css?v=16"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
@@ -343,9 +343,9 @@
   </div>
 </div>
 
-  <script src="./db.js?v=15"></script>
-  <script src="./print.js?v=15"></script>
-  <script src="./app.js?v=15"></script>
+  <script src="./db.js?v=16"></script>
+  <script src="./print.js?v=16"></script>
+  <script src="./app.js?v=16"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){
@@ -387,7 +387,9 @@
       const btn=document.getElementById('btn-activate');
       const ofApp=document.getElementById('of-app');
       if(!gate||!inp||!btn) return;
-      const RELAY_BASE=''; // same-origin: jathol.org/api/cloud/open (works on pages.dev too)
+      // API + license D1 live on order-flow-v2.pages.dev — jathol.org (jathol-order-flow Pages)
+      // has NO /api functions, so same-origin 404s there. Try API origin first, same-origin as fallback.
+      const RELAY_BASE='https://order-flow-v2.pages.dev';
       // accepts OF-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX (16 alnum)
       const KEY_RE=/^(OF-)?[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
       function formatKey(v){
@@ -416,16 +418,19 @@
         if(!id){ id='web-'+Math.random().toString(36).slice(2,10)+'-'+Date.now().toString(36); localStorage.setItem('of_deviceId', id); try{ if(window.kvSet) await kvSet('deviceId', id);}catch{} }
         return id;
       }
+      // NOTE: db.js declares kvGet/kvSet as top-level `const` — they are visible to
+      // later classic scripts lexically but NEVER become window.* properties.
+      // So `window.kvGet` is always undefined; use `typeof kvGet` instead.
       async function validatedKey(){
         try{
-          if(window.kvGet){ const v=await kvGet('licenseValidated', null); if(v) return v; }
+          if(typeof kvGet==='function'){ const v=await kvGet('licenseValidated', null); if(v) return v; }
         }catch{}
         const ls=localStorage.getItem('of_licenseValidated');
         return ls==='1' ? localStorage.getItem('of_licenseKey')||'' : '';
       }
       async function setValidated(key){
         localStorage.setItem('of_licenseValidated','1'); localStorage.setItem('of_licenseKey', key);
-        try{ if(window.kvSet){ await kvSet('licenseValidated', key); await kvSet('licenseKey', key); } }catch{}
+        try{ if(typeof kvSet==='function'){ await kvSet('licenseValidated', key); await kvSet('licenseKey', key); } }catch{}
       }
       async function checkGate(){
         const saved=await validatedKey();
@@ -466,25 +471,29 @@
         const old=btn.textContent; btn.disabled=true; btn.textContent='Validating…'; setErr('');
         let deviceId='';
         try{ deviceId=await getDeviceId(); }catch{}
+        // DB stores keys dashed as OF-XXXX-… (exact match) → dashed first, undashed fallback.
+        // text/plain keeps the cross-origin call a CORS "simple request" (no preflight).
         const tryKeys=[fmt, fmt.replace(/-/g,'')];
-        let lastErr='key_invalid', ok=false, resp=null;
-        for(const k of tryKeys){
-          try{
-            const r=await fetch((RELAY_BASE||'')+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({licenseKey: k, deviceId, shopName: 'validation'})});
-            const j=await r.json().catch(()=>null);
-            resp=j;
-            if(j && j.ok){ ok=true; break; }
-            lastErr=j?.error||('http_'+r.status);
-            if(lastErr==='not_found' || lastErr==='key_invalid' || lastErr==='invalid_key') continue;
-            else break;
-          }catch(e){
-            lastErr=e?.message||'network';
-            resp=null;
-            break;
+        const bases=[RELAY_BASE, ''];
+        let lastErr='key_invalid', ok=false, resp=null, firstJsonErr='';
+        outer: for(const base of bases){
+          for(const k of tryKeys){
+            try{
+              const r=await fetch(base+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({licenseKey: k, deviceId, shopName: 'validation'})});
+              const j=await r.json().catch(()=>null);
+              resp=j||resp;
+              if(j && j.ok){ ok=true; break outer; }
+              lastErr=j?.error||('http_'+r.status);
+              if(j?.error && !firstJsonErr) firstJsonErr=j.error;
+              continue;
+            }catch(e){
+              lastErr=e?.message||'network';
+              continue;
+            }
           }
         }
         if(!ok){
-          const msg=resp?.error||lastErr||'key_invalid';
+          const msg=firstJsonErr||resp?.error||lastErr||'key_invalid';
           const map={key_invalid:'That key is not valid. Check and try again.', invalid_key:'That key is not valid.', not_found:'Key not found — check the key or create it in Admin.', expired:'Key expired — contact support.', bound_other:'Key is bound to another device.', plan:'Key has no cloud plan.', no_license:'Key required.', network:'Network error — check internet.', http_404:'Service not found (404) — try again.'};
           let out=map[msg]||('That key could not be validated — '+msg);
           if(String(msg).includes('network')||String(msg).includes('Failed to fetch')) out='Could not reach server — check internet and try again.';

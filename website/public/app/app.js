@@ -8,6 +8,18 @@ let RELAY = null;
 let CUR_ORDER = null;
 let HOT = true;
 
+// license key canonical form — accepts OF-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX.
+// Keys are generated server-side as OF-XXXX-… and must match the DB exactly.
+function ofNormalizeKey(v){
+  v = String(v==null?'':v).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  let prefix='';
+  if(v.startsWith('OF')){ prefix='OF-'; v=v.slice(2); }
+  v = v.slice(0,16);
+  const body = v.replace(/(.{4})/g,'$1-').replace(/-$/,'');
+  return prefix ? prefix+body : body;
+}
+const OF_KEY_RE = /^(OF-)?[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+
 // device id
 async function deviceId(){
   let id = await kvGet('deviceId', null);
@@ -369,9 +381,8 @@ async function initRoleUI(){
   // strict gate: Main must have validated license (like APK LicenseGate)
   let validated='';
   try{ validated = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || ''; }catch{ validated = localStorage.getItem('of_licenseKey')||''; }
-  const KEY_RE=/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-  validated = validated.toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})/g,'$1-').replace(/-$/,'');
-  const hasValidKey = validated && KEY_RE.test(validated);
+  validated = ofNormalizeKey(validated);
+  const hasValidKey = validated && OF_KEY_RE.test(validated);
   if(savedRole==='main' && !hasValidKey){
     // block auto-enter — show license gate, stay on setup
     console.warn('Main without valid license — gate blocked');
@@ -468,7 +479,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     // license is the validated gate key — never TRIAL, never offline fallback
     let license = '';
     try{ license = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || $('#license-key')?.value.trim() || ''; }catch{ license = $('#license-key')?.value.trim()||''; }
-    license = license.toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})/g,'$1-').replace(/-$/,'');
+    license = ofNormalizeKey(license);
     const hint = $('#open-room-hint') || $('#license-error');
     const setHint=(m, isErr=true)=>{
       const el=hint; if(!el) return;
@@ -476,19 +487,33 @@ document.addEventListener('DOMContentLoaded', async ()=>{
       el.textContent=m; el.style.color=isErr? 'var(--danger)' : 'var(--muted)';
       if(isErr && el.id==='license-error'){ el.hidden=false; }
     };
-    const KEY_RE=/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-    if(!license){ setHint('Enter license key first — XXXX-XXXX-XXXX-XXXX. Open License gate and Activate.'); btn.disabled=false; btn.textContent='Open room & show QR'; return; }
+    const KEY_RE=OF_KEY_RE;
+    if(!license){ setHint('Enter license key first — OF-XXXX-XXXX-XXXX-XXXX. Open License gate and Activate.'); btn.disabled=false; btn.textContent='Open room & show QR'; return; }
     if(!KEY_RE.test(license)){
-      setHint('Invalid license format — use XXXX-XXXX-XXXX-XXXX (16 chars).'); btn.disabled=false; btn.textContent='Open room & show QR';
+      setHint('Invalid license format — use OF-XXXX-XXXX-XXXX-XXXX.'); btn.disabled=false; btn.textContent='Open room & show QR';
       // surface inline on gate as well
-      const ge=document.getElementById('license-error'); if(ge){ ge.textContent='Invalid format — use XXXX-XXXX-XXXX-XXXX'; ge.hidden=false; const inp=document.getElementById('license-key'); if(inp) inp.classList.add('is-error'); }
+      const ge=document.getElementById('license-error'); if(ge){ ge.textContent='Invalid format — use OF-XXXX-XXXX-XXXX-XXXX'; ge.hidden=false; ge.removeAttribute('hidden'); ge.style.display='block'; const inp=document.getElementById('license-key'); if(inp) inp.classList.add('is-error'); }
       return;
     }
     const id = await deviceId();
     try{
-      const r = await fetch(RELAY_BASE+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({licenseKey: license.replace(/-/g,''), deviceId: id, shopName: shop})});
-      const j = await r.json();
-      if(!j || !j.ok) throw new Error(j?.error||'key_invalid');
+      // DB stores keys as OF-XXXX-… (dashed, exact match) — send dashed first.
+      // API+D1 live on order-flow-v2.pages.dev (jathol.org has no /api functions),
+      // so try the API origin first, then same-origin as a fallback.
+      // content-type text/plain keeps it a CORS "simple request" (no preflight).
+      let j=null, lastErr='key_invalid', firstJsonErr='';
+      outer: for(const base of [RELAY_BASE, '']){
+        for(const keyTry of [license, license.replace(/-/g,'')]){
+          try{
+            const r = await fetch(base+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({licenseKey: keyTry, deviceId: id, shopName: shop})});
+            const jr = await r.json().catch(()=>null);
+            if(jr && jr.ok){ j=jr; break outer; }
+            lastErr = jr?.error || ('http_'+r.status);
+            if(jr?.error && !firstJsonErr) firstJsonErr=jr.error;
+          }catch(e){ lastErr='network'; }
+        }
+      }
+      if(!j || !j.ok) throw new Error(firstJsonErr || lastErr);
       const base = RELAY_BASE;
       const pairing = pairingEncode(j.room, j.code, j.secret, base);
       $('#room-box').hidden=false;
