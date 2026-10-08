@@ -45,14 +45,32 @@ window.OFMoreRender = async function () {
     const wrap = ce('div', 'tilewrap'); wrap.appendChild(el); host.appendChild(wrap);
   };
 
-  section(L.t('config_head'));
+  section('🏪 My shop');
   mrow('🧾', L.t('bill_profile'), 'Name, phone, address, receipt header/footer, currency, payment QR', 'more.bill');
   mrow('🖨️', L.t('printers'), 'Paper, copies, auto print, kitchen slips, Apple print, gateway', 'more.printers');
-  mrow('👥', L.t('staff'), 'PINs, roles, shifts, 5-strike lock', 'more.staff');
+
+  section('🔐 Account');
+  mrow('👥', L.t('staff'), 'Manager PINs, roles, shifts — 5 wrong tries locks 5 minutes', 'more.staff');
+  mrow('🔄', L.t('refresh_plan'), 'Sync license & plan from the server', 'more.refresh');
+  const leave = ce('button', 'btn btn--danger', L.t('leave_shop'));
+  leave.style.cssText = 'width:100%;margin:12px 0 4px;border-radius:14px';
+  leave.onclick = () => leaveShop();
+  host.appendChild(leave);
+
+  section('📡 Devices & QR');
+  mrow('🧑‍🤝‍🧑', L.t('multi_terminal'), 'Stations join by QR — no key needed', 'more.cloud', !canF('multi_terminal'));
+  mrow('📡', L.t('cloud_sync'), 'E2E-encrypted room relay for every device', 'more.cloud', !canF('cloud_sync'));
+  mrow('🧍', L.t('qr_ordering'), 'Guests order from their table', 'more.qr', !canF('qr_ordering'));
+  mrow('🎨', L.t('guest_branding'), 'Guest page name, cover, hours, accent', 'more.branding', !canF('qr_branding'));
+  mrow('🖨️', L.t('station_printers'), 'Print-gateway device for the whole room', 'more.printers', !canF('station_printers'));
+  mrow('📺', L.t('customer_display'), 'Giant total for the guest, from any ticket', 'more.custdisp');
+  mrow('📅', L.t('reservations'), 'Tables or appointment slots', 'more.reservations', !canF('reservations'));
+
+  section('👥 ' + L.t('customers') + ' & team');
   mrow('🏆', L.t('customers') + ' & ' + L.t('loyalty'), 'Points, visits, top customers', 'more.customers', !canF('loyalty'));
   mrow('🛵', L.t('drivers'), 'Delivery team, free/busy/offline', 'more.drivers');
 
-  section(L.t('reports'));
+  section('💰 ' + L.t('reports'));
   mrow('📊', L.t('x_report'), "Whole day's picture, totals & mix", 'more.xreport');
   mrow('🔐', L.t('z_report'), 'Close till — snapshot and reset day', 'more.zreport');
   mrow('📈', L.t('insights'), 'Top sellers, stock to watch, staff & shifts', 'more.insights');
@@ -60,34 +78,21 @@ window.OFMoreRender = async function () {
   mrow('🚫', L.t('sold_out_word'), 'Off the menu right now', 'more.soldout');
   mrow('↩️', L.t('refunds'), 'Stock returns, ledger notes, reprints', 'more.refunds', !canF('refunds'));
   mrow('📣', L.t('third_party'), 'GrabFood / Foodpanda day totals + report split', 'more.thirdparty', !canF('third_party'));
-
-  section(L.t('extras_head'));
-  mrow('🧑‍🤝‍🧑', L.t('multi_terminal'), 'Stations join by QR — no key needed', 'more.cloud', !canF('multi_terminal'));
-  mrow('📡', L.t('cloud_sync'), 'E2E-encrypted room relay for every device', 'more.cloud', !canF('cloud_sync'));
-  mrow('🧍', L.t('qr_ordering'), 'Guests order from their table', 'more.qr', !canF('qr_ordering'));
-  mrow('🎨', L.t('guest_branding'), 'Guest page name, cover, hours, accent', 'more.branding', !canF('qr_branding'));
   mrow('💸', L.t('split_payment'), 'Two methods on one bill — on the pay sheet', 'more.splitinfo');
-  mrow('📺', L.t('customer_display'), 'Giant total for the guest, from any ticket', 'more.custdisp');
-  mrow('📅', L.t('reservations'), 'Tables or appointment slots', 'more.reservations', !canF('reservations'));
+
+  section('🧂 Menu & stock');
   mrow('🧂', L.t('recipe_costing'), 'Ingredients → cost, price, margin', 'more.recipes', !canF('recipes'));
   mrow('🗑️', L.t('wastage'), 'Spilled, expired, broken — keeps stock honest', 'more.wastage', !canF('wastage'));
   mrow('🚚', L.t('suppliers') + ' & ' + L.t('purchases'), 'Buy, receive, stock rises', 'more.suppliers', !canF('suppliers'));
-  mrow('🖨️', L.t('station_printers'), 'Print-gateway device for the whole room', 'more.printers', !canF('station_printers'));
 
-  section(L.t('tools_head'));
+  section('🛠 ' + L.t('tools_head'));
   mrow('💾', L.t('backup_title'), 'Export / import — works with the APK backup too', 'more.backup');
   mrow('🌐', L.t('language'), 'English / اردو — RTL for Urdu', 'more.language');
   mrow('🌗', L.t('theme'), 'Auto, Light (cream), Dark — phone rules by default', 'more.theme');
-  mrow('🔄', L.t('refresh_plan'), 'Sync license & plan from the server', 'more.refresh');
   mrow('📲', L.t('install'), 'Full-screen app icon on your iPhone home', 'more.install');
   mrow('💬', L.t('wa_support'), 'wa.me/Jathol_Jutt — real human help', 'more.whatsapp');
-  mrow('🔒', L.t('privacy'), 'Everything lives on your devices; cloud relay sees only encrypted ciphertext', 'more.privacy');
+  mrow('🔒', L.t('privacy'), 'Privacy policy — opens jathol.org/privacy.html', 'more.privacy');
   mrow('ℹ️', 'About', 'Order Flow Web', 'more.about');
-
-  const leave = ce('button', 'btn btn--danger', L.t('leave_shop'));
-  leave.style.cssText = 'width:100%;margin:18px 0 40px;border-radius:14px';
-  leave.onclick = () => leaveShop();
-  host.appendChild(leave);
 };
 window.OFMoreRefresh = function () { OFMoreRender().catch(() => {}); };
 
@@ -771,7 +776,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v33</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v34</div></div>'));
   });
 }
 
@@ -787,7 +792,7 @@ Object.assign(A, {
   'more.wastage': () => scrWastage(), 'more.suppliers': () => scrSuppliers(),
   'more.backup': () => scrBackup(), 'more.language': () => scrLanguage(), 'more.theme': () => scrTheme(),
   'more.refresh': () => scrRefresh(), 'more.install': () => { $('sheet-install').classList.add('is-open'); },
-  'more.whatsapp': () => scrWhatsApp(), 'more.privacy': () => scrPrivacy(), 'more.about': () => scrAbout(),
+  'more.whatsapp': () => scrWhatsApp(), 'more.privacy': () => window.open('/privacy.html', '_blank'), 'more.about': () => scrAbout(),
   'more.openAt': (what) => { if (what === 'cloud') scrCloud(); },
   'install.close': () => $('sheet-install').classList.remove('is-open'),
 });

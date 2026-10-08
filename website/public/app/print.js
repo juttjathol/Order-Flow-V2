@@ -86,11 +86,18 @@ function receiptOne(order, opts) {
   return head + sub + body + rows + foot + `<div class="r-foot">${esc(s.receiptFoot || '')}${s.tagline ? ' · ' + esc(s.tagline) : ''}</div>`;
 }
 
-function htmlDoc(order, opts) {
+function htmlDoc(order, opts, autoScript) {
+  // honor the 58/80mm paper picker (the CSS ships 80mm by default)
+  const paper = String(shop().paper) === '58' ? 58 : 80;
+  const css = paper === 80 ? RECEIPT_CSS : RECEIPT_CSS.replace(/80mm/g, '58mm').replace(/72mm/g, '50mm');
   const copies = Math.max(1, Math.min(3, Number(opts.copies || shop().copies) || 1));
   let pages = '';
   for (let i = 0; i < copies; i++) pages += `<div class="r-copy receipt">${receiptOne(order, opts)}</div>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><style>${RECEIPT_CSS}</style></head><body>${pages}<script>window.onload=function(){ setTimeout(function(){ window.print(); }, 100); window.onafterprint=function(){ try{ window.close(); }catch(e){} }; }<\/script></body></html>`;
+  // the auto-printing script goes ONLY into the window.open fallback doc —
+  // inside the hidden iframe the parent calls contentWindow.print() itself,
+  // and both firing together made iOS show the AirPrint sheet twice.
+  const auto = autoScript ? `<script>window.onload=function(){ setTimeout(function(){ window.print(); }, 150); window.onafterprint=function(){ try{ window.close(); }catch(e){} }; }<\/script>` : '';
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${pages}${auto}</body></html>`;
 }
 
 /* plain-text for share / WhatsApp */
@@ -106,7 +113,7 @@ function receiptText(order) {
 }
 
 function printViaApple(order, opts) {
-  const html = htmlDoc(order, opts);
+  const html = htmlDoc(order, opts, false);
   let frame = document.getElementById('apple-print-frame');
   if (!frame) {
     frame = document.createElement('iframe');
@@ -122,8 +129,9 @@ function printViaApple(order, opts) {
     const go = () => frame.contentWindow.print();
     if (doc.readyState === 'complete') go(); else frame.onload = go;
   } catch (e) {
+    // pop-up fallback — this one needs its own auto-print script
     const w = window.open('', '_blank');
-    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    if (w) { w.document.open(); w.document.write(htmlDoc(order, opts, true)); w.document.close(); }
   }
 }
 

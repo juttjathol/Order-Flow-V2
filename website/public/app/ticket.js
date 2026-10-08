@@ -432,6 +432,9 @@ async function confirmPay() {
   CUR.tenderCents = tenderC; CUR.changeCents = check.change;
   if (PAY.split) CUR.splitPayment = { method1: PAY.method, method2: PAY.method2 || 'cash', amount1Cents: check.tenderDue - splitAmt, amount2Cents: splitAmt };
   CUR.status = 'paid'; CUR.paidAt = Date.now();
+  // print while the user's tap is still "warm" for iOS, and only when the
+  // Auto print switch in More → Printers is on
+  if (SHOP_SAFE().profile.autoPrint !== false && window.OFPrintReceipt) OFPrintReceipt(CUR, { type: 'receipt' });
   if (PAY.method === 'cash' && !SHOP_SAFE().profile.drawerNoteShown) { SHOP_SAFE().profile.drawerNoteShown = true; setTimeout(() => toast2('No cash drawer on the web POS', 'Asking staff to put the tendered cash in the drawer'), 700); }
   // stock deduct (linked items)
   for (const l of CUR.lines) if (l.productId) {
@@ -442,8 +445,6 @@ async function confirmPay() {
   await freeTable(); await persist();
   // loyalty points
   if (C.allowsFeature(SHOP_SAFE().entitlements, 'loyalty') && CUR.customerId) { const cst = await idbGet('customers', CUR.customerId, null); if (cst) { cst.points = (cst.points || 0) + Math.floor(b.due / 100); await idbPut('customers', cst); } }
-  // print in the same tap — synchronously, so iOS honours it
-  if (window.OFPrintReceipt) OFPrintReceipt(CUR, { type: 'receipt' });
   chimePaid();
   closePay();
   toast2(L.t('paid') + ' ✓', L.t('change') + ' ' + money(check.change) + ' — table freed');

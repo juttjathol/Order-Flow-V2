@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v33'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v34'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -316,6 +316,14 @@ ok('v32 push failures are surfaced, never swallowed', appJs.includes('Menu push 
   eq('v33 AES-GCM round trip through OFCore b64u helpers', new TextDecoder().decode(dec), 'flow-state-payload');
 }
 ok('menu thumb + dim styles', css.includes('.lrow__ic img') && css.includes('.lrow.is-off'));
+
+
+/* v34 — settings sections, privacy link, printing fixes */
+ok('v34 More screen has clean sections incl. Account', moreJs.includes("section('🔐 Account')") && moreJs.includes("section('🏪 My shop')") && moreJs.includes("section('📡 Devices & QR')") && moreJs.includes("section('🧂 Menu & stock')") && moreJs.includes('Manager PINs'));
+ok('v34 Privacy row opens the website privacy page', moreJs.includes("window.open('/privacy.html'"));
+ok('v34 single AirPrint sheet — auto script only in the popup fallback', printJs.includes('htmlDoc(order, opts, false)') && printJs.includes('autoScript'));
+ok('v34 58mm paper setting honored in print CSS', printJs.includes('58mm') && printJs.includes("=== '58'"));
+ok('v34 pay receipt respects the Auto print switch', readFileSync(join(APP, 'ticket.js'), 'utf8').includes("profile.autoPrint !== false && window.OFPrintReceipt"));
 
 console.log('\n────────────────────────────');
 console.log(`${pass} passed, ${failCount} failed`);
