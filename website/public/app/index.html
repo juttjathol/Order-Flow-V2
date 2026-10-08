@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=14"/>
+  <link rel="stylesheet" href="./styles.css?v=15"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
@@ -343,9 +343,9 @@
   </div>
 </div>
 
-  <script src="./db.js?v=14"></script>
-  <script src="./print.js?v=14"></script>
-  <script src="./app.js?v=14"></script>
+  <script src="./db.js?v=15"></script>
+  <script src="./print.js?v=15"></script>
+  <script src="./app.js?v=15"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){
@@ -497,7 +497,6 @@
         if(ofApp) ofApp.classList.remove('gate-hidden');
         hint.textContent='License validated ✓ — you can now open a room.';
         btn.disabled=false; btn.textContent=old;
-      });
       });
       document.getElementById('btn-license-connect')?.addEventListener('click', ()=>{
         // Station without key — allow through to setup-station but still mark gate dismissed for station flow
