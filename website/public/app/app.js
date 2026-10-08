@@ -20,6 +20,29 @@ function ofNormalizeKey(v){
 }
 const OF_KEY_RE = /^(OF-)?[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
+// ——— device settings (APK parity — shop/receipt/kitchen/qr ordering) ———
+const SET_DEFAULTS = { shopName:'My Shop', shopPhone:'', currency:'RM', tax:0, svc:0, receiptHead:'Thank you!', receiptFoot:'See you again', copies:1, paper:'80', showQr:false, autoPrint:true, kitchenSound:true, qrOrder:false };
+let _setCache = null;
+async function getSettings(){
+  if(_setCache) return _setCache;
+  let saved = {};
+  try{ saved = (await kvGet('settings', {})) || {}; }catch{}
+  _setCache = {...SET_DEFAULTS, ...saved};
+  return _setCache;
+}
+async function saveSettings(patch){
+  const cur = await getSettings();
+  Object.assign(cur, patch); _setCache = cur;
+  await kvSet('settings', cur);
+  try{ await kvSet('rev', Date.now()); }catch{}
+  const st = document.getElementById('settings-status');
+  if(st){ st.textContent='Saved ✓'; clearTimeout(st._t); st._t=setTimeout(()=> st.textContent='', 1400); }
+}
+function fmtMoney(n){
+  const cur = _setCache || SET_DEFAULTS;
+  return (cur.currency||'RM') + ' ' + (Number(n)||0).toFixed(2);
+}
+
 // device id
 async function deviceId(){
   let id = await kvGet('deviceId', null);
@@ -222,37 +245,66 @@ async function renderTables(filter='all'){
   if(!grid.children.length) grid.innerHTML='<p class="muted" style="grid-column:1/-1;padding:12px">No tables in this filter.</p>';
   renderHome().catch(()=>{});
 }
+// UI: order sheet — real bottom sheet above everything (like APK order sheet)
 async function openOrder(tableId){
   const orders = await idbGetAll('orders');
-  let o = orders.find(x=> x.table===tableId && x.status==='open');
+  let o = orders.find(x=> x.table===tableId && (x.status==='open'||x.status==='sent'));
   if(!o){ o = {id:'ord-'+Date.now(), table:tableId, status:'open', items:[], total:0, createdAt: Date.now()}; await idbPut('orders', o); }
   CUR_ORDER = o;
-  $('#order-title').textContent = 'Order · '+tableId + ' · ' + o.id.slice(-6);
-  const itemsEl = $('#order-items'); itemsEl.innerHTML='';
+  $('#order-title').textContent = 'Table '+tableId.replace(/^T/,'')+' — Order';
+  const pick = $('#order-items'); pick.innerHTML='';
   const products = await idbGetAll('products');
-  for(const p of products){
+  const list = products.filter(p=> p && p.name);
+  if(!list.length) pick.innerHTML='<p class="muted" style="font-weight:600">Menu is empty — add items in the Menu tab first.</p>';
+  for(const p of list){
+    const off = p.avail===false;
     const row = document.createElement('div');
-    row.style.cssText='display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:#FFFDF9';
-    row.innerHTML=`<span>${p.name} · RM ${p.price}</span><button class="btn btn-ghost" style="padding:6px 10px">Add</button>`;
-    row.querySelector('button').onclick=async()=>{
-      CUR_ORDER.items.push({name:p.name, qty:1, total:p.price});
+    row.className='menu-pick-row'+(off?' is-off':'');
+    row.innerHTML='<div style="min-width:0"><div class="name">'+p.name+(off?' · sold out':'')+'</div><div class="price">'+fmtMoney(p.price)+'</div></div><button class="add" type="button">Add</button>';
+    row.querySelector('.add').onclick=async()=>{
+      if(off) return;
+      const ex = CUR_ORDER.items.find(it=> it.name===p.name);
+      if(ex){ ex.qty++; ex.total = ex.qty * p.price; }
+      else CUR_ORDER.items.push({name:p.name, qty:1, price:p.price, total:p.price});
       CUR_ORDER.total = CUR_ORDER.items.reduce((a,b)=> a+b.total, 0);
       await idbPut('orders', CUR_ORDER); await kvSet('rev', Date.now());
       buildOrderSheet();
     };
-    itemsEl.appendChild(row);
+    pick.appendChild(row);
   }
-  // current items
-  const cur = document.createElement('div'); cur.style.marginTop='10px';
-  cur.innerHTML = CUR_ORDER.items.map(it=> `<div style="display:flex;justify-content:space-between"><span>${it.name} × ${it.qty}</span><span>RM ${it.total.toFixed(2)}</span></div>`).join('') || '<p class="mono" style="color:var(--muted)">No items yet — add from above.</p>';
-  itemsEl.appendChild(cur);
-  $('#order-sheet').hidden=false;
-  $('#order-sheet').scrollIntoView({behavior:'smooth'});
+  await buildOrderSheet();
+  const sh = $('#sheet-order'); sh.classList.add('is-open'); sh.setAttribute('aria-hidden','false');
 }
-function buildOrderSheet(){
+function closeOrderSheet(){ const sh=$('#sheet-order'); if(!sh) return; sh.classList.remove('is-open'); sh.setAttribute('aria-hidden','true'); }
+async function buildOrderSheet(){
   if(!CUR_ORDER) return;
-  const box = $('#order-items').lastElementChild;
-  if(box) box.innerHTML = CUR_ORDER.items.map(it=> `<div style=\"display:flex;justify-content:space-between\"><span>${it.name} × ${it.qty}</span><span>RM ${it.total.toFixed(2)}</span></div>`).join('') || '<p class="mono" style="color:var(--muted)">No items yet</p>';
+  const s = await getSettings();
+  const cur = $('#order-current'); if(cur) cur.innerHTML='';
+  if(!CUR_ORDER.items.length){
+    cur.innerHTML='<p class="muted" style="font-weight:600;margin:0">Nothing added yet — pick from the menu below.</p>';
+  }
+  for(const [i,it] of CUR_ORDER.items.entries()){
+    const row=document.createElement('div');
+    row.className='ord-line';
+    row.innerHTML='<span style="min-width:0">'+it.name+'</span><span class="qty"><button type="button" data-d="-1">−</button><b>'+it.qty+'</b><button type="button" data-d="1">+</button><span style="min-width:64px;text-align:right">'+fmtMoney(it.total)+'</span></span>';
+    row.querySelectorAll('.qty button').forEach(b=> b.onclick=async()=>{
+      it.qty += Number(b.dataset.d);
+      if(it.qty<=0) CUR_ORDER.items.splice(i,1); else it.total = it.qty * (it.price ?? (it.total/ (it.qty-Number(b.dataset.d)) || 0));
+      CUR_ORDER.total = CUR_ORDER.items.reduce((a,x)=> a+x.total, 0);
+      await idbPut('orders', CUR_ORDER); await kvSet('rev', Date.now());
+      buildOrderSheet();
+    });
+    cur.appendChild(row);
+  }
+  const sub = CUR_ORDER.total||0;
+  const tax = sub * (Number(s.tax)||0)/100;
+  const svc = sub * (Number(s.svc)||0)/100;
+  const grand = sub + tax + svc;
+  $('#order-total-row').innerHTML =
+    '<div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>'+fmtMoney(sub)+'</span></div>'
+    + ((Number(s.tax)||0) ? '<div style="display:flex;justify-content:space-between"><span>Tax ('+s.tax+'%)</span><span>'+fmtMoney(tax)+'</span></div>' : '')
+    + ((Number(s.svc)||0) ? '<div style="display:flex;justify-content:space-between"><span>Service ('+s.svc+'%)</span><span>'+fmtMoney(svc)+'</span></div>' : '')
+    + '<div class="grand"><span>Total</span><span>'+fmtMoney(grand)+'</span></div>';
 }
 
 async function renderMenu(){
@@ -428,6 +480,22 @@ async function startRelay(info){
   const r = new Relay({room: info.room, secret: info.secret, base: info.base, deviceId: id, isMain: ROLE==='main'});
   await r.init();
   r.onCmd = async (cmd)=>{
+    // guest table ordering: phone on the table asks for the menu
+    if(cmd && cmd.type==='menu_request'){ r._lastRev=-1; r._lastPush=0; try{ await r.pushCheck(); }catch{} return; }
+    // guest table ordering: order sent from a guest phone
+    if(cmd && cmd.type==='order' && cmd.table && Array.isArray(cmd.items) && cmd.items.length){
+      const o = { id:'ord-'+Date.now(), table: cmd.table, status:'sent', source:'qr', items: cmd.items, total: cmd.items.reduce((a,x)=> a+(Number(x.total)||0),0), createdAt: Date.now() };
+      await idbPut('orders', o);
+      const t=await idbGet('tables', cmd.table); if(t){ t.state='busy'; t.since=Date.now(); await idbPut('tables', t); }
+      await kvSet('rev', Date.now());
+      refreshAll();
+      try{
+        const s=await getSettings();
+        if(s.kitchenSound && window.AudioContext){ const ac=new AudioContext(); const osc=ac.createOscillator(); const g=ac.createGain(); osc.connect(g); g.connect(ac.destination); osc.frequency.value=880; g.gain.setValueAtTime(.12, ac.currentTime); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime+.18); osc.start(); osc.stop(ac.currentTime+.2); }
+        if(s.autoPrint) printViaApple(o, {name:s.shopName});
+      }catch{}
+      return;
+    }
     // station pushed an order update — merge: for demo, just replace orders with cmd.orders
     if(cmd.orders) for(const o of cmd.orders) await idbPut('orders', o);
     await kvSet('rev', Date.now());
@@ -601,10 +669,12 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   // order sheet actions
   $('#btn-send-kitchen')?.addEventListener('click', async()=>{
     if(!CUR_ORDER) return;
+    if(!CUR_ORDER.items.length){ const t=$('#order-title'); if(t){ const old=t.textContent; t.textContent='Add at least one item first'; setTimeout(()=> t.textContent=old, 1400); } return; }
     CUR_ORDER.status='sent'; await idbPut('orders', CUR_ORDER);
-    // update table state
     const t=await idbGet('tables', CUR_ORDER.table); if(t){ t.state='busy'; t.since=Date.now(); await idbPut('tables', t); }
-    await kvSet('rev', Date.now()); refreshAll(); $('#order-sheet').hidden=true;
+    await kvSet('rev', Date.now()); refreshAll(); closeOrderSheet();
+    const s = await getSettings();
+    if(s.autoPrint){ try{ printViaApple(CUR_ORDER, {name:s.shopName}); }catch{} }
     if(RELAY){
       if(ROLE==='main') {} else await window.OFRelay.sendOrders();
     }
@@ -613,7 +683,88 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     if(!CUR_ORDER) return;
     const shop={name: $('#shop-name')?.value||'Order Flow'}; printViaApple(CUR_ORDER, shop);
   });
-  $('#btn-close-order')?.addEventListener('click', ()=> $('#order-sheet').hidden=true);
+  $('#btn-close-order')?.addEventListener('click', closeOrderSheet);
+  $('#sheet-order')?.addEventListener('click', (e)=>{ if(e.target.id==='sheet-order') closeOrderSheet(); });
+  // ——— Settings module (APK parity) ———
+  async function renderSettings(){
+    const s = await getSettings();
+    const val = (id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+    const chk = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked=!!v; };
+    val('set-shop-name', s.shopName); val('set-shop-phone', s.shopPhone); val('set-currency', s.currency);
+    val('set-tax', s.tax); val('set-svc', s.svc); val('set-receipt-head', s.receiptHead); val('set-receipt-foot', s.receiptFoot);
+    val('set-copies', s.copies); val('set-paper', s.paper);
+    chk('set-showqr', s.showQr); chk('set-auto-print', s.autoPrint); chk('set-kitchen-sound', s.kitchenSound); chk('set-qr-order', s.qrOrder);
+    // license + device rows
+    try{
+      const key = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || '';
+      const m = key ? key.slice(0,6)+'••••••'+key.slice(-4) : '—';
+      const lk=document.getElementById('set-license-key'); if(lk) lk.textContent=m;
+    }catch{}
+    try{ const d=await deviceId(); const di=document.getElementById('set-device-id'); if(di) di.textContent=d; }catch{}
+    const sl=document.getElementById('set-sync-line'); if(sl) sl.textContent=document.getElementById('sync-state')?.textContent||'—';
+    renderQrTables().catch(()=>{});
+  }
+  async function renderQrTables(){
+    const host = document.getElementById('qr-table-list'); if(!host) return;
+    const s = await getSettings();
+    host.innerHTML='';
+    if(!s.qrOrder){ host.innerHTML='<div class="set-row" style="color:var(--muted);font-weight:600">Turn on “Let guests order by QR” to see your table QRs here.</div>'; return; }
+    const info = await kvGet('roomInfo', null);
+    if(!info){ host.innerHTML='<div class="set-row" style="color:var(--muted);font-weight:600">Open a room first (Setup → Open room & show QR) — table QRs carry your room key.</div>'; return; }
+    const tables = await idbGetAll('tables');
+    if(!tables.length){ host.innerHTML='<div class="set-row" style="color:var(--muted);font-weight:600">No tables yet.</div>'; return; }
+    for(const t of tables){
+      const d = {r:info.room, c:info.code, k:info.secret, b:info.base, t:t.id, shop:(await getSettings()).shopName};
+      const url = location.origin + '/order.html#' + b64uEncode(new TextEncoder().encode(JSON.stringify(d)));
+      const row = document.createElement('div'); row.className='qr-row';
+      row.innerHTML = '<img alt="QR '+t.label+'"/><div class="info">'+t.label+' — guest ordering<small>'+url.slice(0,64)+'…</small></div><button class="set-btn" type="button">Download</button>';
+      const img = row.querySelector('img');
+      img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=6&data='+encodeURIComponent(url);
+      row.querySelector('button').onclick=()=>{ const a=document.createElement('a'); a.href='https://api.qrserver.com/v1/create-qr-code/?size=640x640&margin=12&data='+encodeURIComponent(url); a.download='qr-'+t.label+'.png'; a.target='_blank'; a.rel='noopener'; a.click(); };
+      host.appendChild(row);
+    }
+  }
+  $('#set-shop-name')?.addEventListener('change', e=> saveSettings({shopName:e.target.value.trim()||'My Shop'}));
+  $('#set-shop-phone')?.addEventListener('change', e=> saveSettings({shopPhone:e.target.value.trim()}));
+  $('#set-currency')?.addEventListener('change', e=> saveSettings({currency:e.target.value.trim()||'RM'}));
+  $('#set-tax')?.addEventListener('change', e=> saveSettings({tax:Math.max(0, Math.min(40, Number(e.target.value)||0))}));
+  $('#set-svc')?.addEventListener('change', e=> saveSettings({svc:Math.max(0, Math.min(30, Number(e.target.value)||0))}));
+  $('#set-receipt-head')?.addEventListener('change', e=> saveSettings({receiptHead:e.target.value}));
+  $('#set-receipt-foot')?.addEventListener('change', e=> saveSettings({receiptFoot:e.target.value}));
+  $('#set-copies')?.addEventListener('change', e=> saveSettings({copies:Math.max(1, Math.min(4, Number(e.target.value)||1))}));
+  $('#set-paper')?.addEventListener('change', e=> saveSettings({paper:e.target.value}));
+  $('#set-showqr')?.addEventListener('change', e=> saveSettings({showQr:e.target.checked}));
+  $('#set-auto-print')?.addEventListener('change', e=> saveSettings({autoPrint:e.target.checked}));
+  $('#set-kitchen-sound')?.addEventListener('change', e=> saveSettings({kitchenSound:e.target.checked}));
+  $('#set-qr-order')?.addEventListener('change', async e=>{ await saveSettings({qrOrder:e.target.checked}); renderQrTables(); });
+  $('#btn-qr-all')?.addEventListener('click', ()=>{
+    document.querySelectorAll('#qr-table-list .qr-row button').forEach((b,i)=> setTimeout(()=> b.click(), i*350));
+  });
+  async function showReport(z){
+    const out = document.getElementById('report-out'); if(!out) return;
+    const orders = await idbGetAll('orders').catch(()=>[]);
+    const start = new Date(); start.setHours(0,0,0,0);
+    const today = orders.filter(o=> (o.createdAt||0) >= start.getTime());
+    const open = today.filter(o=> o.status!=='closed');
+    const sent = today.filter(o=> o.status==='sent'||o.status==='closed');
+    const total = today.reduce((a,o)=> a+(o.total||0), 0);
+    const perTable = {};
+    for(const o of today){ perTable[o.table]=(perTable[o.table]||0)+(o.total||0); }
+    out.hidden=false;
+    out.textContent =
+      (z?'Z-REPORT — Day close':'X-REPORT — Today so far') + '\n' +
+      '────────────────────────\n' +
+      'Orders today: '+today.length+'  (open: '+open.length+')\n' +
+      'Total sales : '+fmtMoney(total)+'\n' +
+      'Avg / order : '+fmtMoney(today.length? total/today.length : 0)+'\n' +
+      '────────────────────────\n' +
+      Object.entries(perTable).map(([t,v])=> 'Table '+t.replace(/^T/,'')+': '+fmtMoney(v)).join('\n') +
+      (z && sent.length ? '\n────────────────────────\nClosed orders can be archived now.' : '');
+    out.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+  $('#btn-report-x')?.addEventListener('click', ()=> showReport(false));
+  $('#btn-report-z')?.addEventListener('click', ()=> showReport(true));
+  renderSettings().catch(()=>{});
   // export / import
   async function doExport(){
     const blob = await exportBackup();

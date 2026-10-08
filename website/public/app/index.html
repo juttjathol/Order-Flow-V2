@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=19"/>
+  <link rel="stylesheet" href="./styles.css?v=20"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
@@ -219,15 +219,6 @@
           </div>
         </div>
         <div id="table-grid" class="tile-grid" style="margin-top:12px"></div>
-        <div id="order-sheet" class="of-card pad" hidden style="margin-top:14px;border-style:dashed">
-          <h3 id="order-title" style="margin:0;font-weight:900"></h3>
-          <div id="order-items" style="display:grid;gap:6px;margin-top:10px"></div>
-          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-            <button class="btn btn--forest" id="btn-send-kitchen">Send to kitchen</button>
-            <button class="btn btn--ghost" id="btn-print-order-apple">Print with Apple</button>
-            <button class="btn btn--muted" id="btn-close-order">Close</button>
-          </div>
-        </div>
       </section>
 
       <!-- MENU -->
@@ -256,33 +247,95 @@
 
       <!-- PRINT -->
       <section id="tab-print" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Print — Apple + Android</h2>
-        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">iPhone: AirPrint via Apple dialog. Android: raw Bluetooth. No printer here? Enable relay-print — job rides encrypted room to station with printer.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="btn btn--forest" id="btn-print-apple">🖨️ Print with Apple</button>
-          <button class="btn btn--ghost" id="btn-print-bt">Bluetooth (Android)</button>
-          <label class="of-badge" style="gap:8px;cursor:pointer"><input type="checkbox" id="chk-relay-print"/> Relay-print if no printer</label>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Printing</h2>
+        <div class="print-card">
+          <h4>🖨️ iPhone / iPad</h4>
+          <p>Uses AirPrint. Tap the button and pick your printer — that's it.</p>
+          <button class="btn btn--forest" id="btn-print-apple">Print with Apple</button>
         </div>
-        <div id="print-status" class="mono muted" style="margin-top:8px;font-size:12px"></div>
-        <div class="divider"></div>
-        <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">Gateway</p>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-weight:700"><input type="checkbox" id="chk-gateway"/> This device prints relay jobs</label>
-        <p class="muted" style="font-size:12px;margin:6px 0 0">For Android paired to printer. Keep this tab open.</p>
-        <div id="gateway-log" class="mono" style="margin-top:8px;background:var(--cream);border:1.2px solid var(--creamBorder);border-radius:14px;padding:10px;max-height:180px;overflow:auto;font-size:11px"></div>
-        <div class="divider"></div>
-        <button class="btn btn--ghost" id="btn-print-test">Print test slip</button>
+        <div class="print-card">
+          <h4>📶 Android</h4>
+          <p>Prints to a paired Bluetooth thermal printer.</p>
+          <button class="btn btn--ghost" id="btn-print-bt">Bluetooth print</button>
+        </div>
+        <div class="print-card">
+          <h4>📶 No printer on this device?</h4>
+          <p>Turn this on and the nearest device that has a printer will print for you.</p>
+          <label style="display:flex;align-items:center;gap:10px;font-weight:700"><input type="checkbox" id="chk-relay-print"/> Print from another device (relay)</label>
+        </div>
+        <div class="print-card">
+          <h4>🖥️ This device owns the printer</h4>
+          <p>Keep this tab open. Anything anyone prints anywhere in the shop comes out here.</p>
+          <label style="display:flex;align-items:center;gap:10px;font-weight:700"><input type="checkbox" id="chk-gateway"/> This device is the printer hub</label>
+        </div>
+        <div id="print-status" class="mono muted" style="margin-top:10px;font-size:12px"></div>
+        <div id="gateway-log" class="mono" style="margin-top:8px;background:var(--cream);border:1.2px solid var(--creamBorder);border-radius:14px;padding:10px;max-height:140px;overflow:auto;font-size:11px" hidden></div>
+        <button class="btn btn--muted" id="btn-print-test" style="margin-top:12px">Print a test receipt</button>
       </section>
 
       <!-- SETTINGS -->
       <section id="tab-settings" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Settings & backup</h2>
-        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">On this device only — export/import via Files, AirDrop, or Android JSON.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <button class="btn btn--forest" id="btn-export2">Export backup</button>
-          <label class="btn btn--ghost" style="cursor:pointer">Import JSON <input id="import-file2" type="file" accept=".json,application/json" hidden/></label>
-          <button class="btn btn--muted" id="btn-wipe">Wipe device</button>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Settings</h2>
+        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Saved on this device and synced to your stations.</p>
+
+        <div class="set-group">
+          <div class="set-group__title">Shop</div>
+          <label class="set-row"><span class="grow">Shop name<span class="sub">Shown on receipts and the QR page</span></span><input type="text" id="set-shop-name" placeholder="My Shop"/></label>
+          <label class="set-row"><span class="grow">Phone / WhatsApp<span class="sub">Printed on the receipt</span></span><input type="text" id="set-shop-phone" placeholder="+60 12-345 6789"/></label>
+          <label class="set-row"><span class="grow">Currency</span><input type="text" id="set-currency" placeholder="RM" style="width:70px;text-align:center"/></label>
+          <label class="set-row"><span class="grow">Tax %<span class="sub">SST / GST — 0 for none</span></span><input type="number" id="set-tax" min="0" max="40" step="0.1" value="0" style="width:70px;text-align:center"/></label>
+          <label class="set-row"><span class="grow">Service charge %</span><input type="number" id="set-svc" min="0" max="30" step="0.5" value="0" style="width:70px;text-align:center"/></label>
         </div>
-        <p id="settings-status" class="mono muted" style="margin-top:8px;font-size:12px"></p>
+
+        <div class="set-group">
+          <div class="set-group__title">Receipt</div>
+          <label class="set-row"><span class="grow">Receipt header line<span class="sub">e.g. “Welcome to Ali Café”</span></span><input type="text" id="set-receipt-head" placeholder="Thank you!"/></label>
+          <label class="set-row"><span class="grow">Receipt footer line</span><input type="text" id="set-receipt-foot" placeholder="See you again"/></label>
+          <label class="set-row"><span class="grow">Copies per print</span><input type="number" id="set-copies" min="1" max="4" value="1" style="width:60px;text-align:center"/></label>
+          <label class="set-row"><span class="grow">Paper width</span><select id="set-paper"><option value="58">58 mm</option><option value="80">80 mm</option></select></label>
+          <label class="set-row"><span class="grow">Show pay-QR on receipt</span><input type="checkbox" id="set-showqr"/></label>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group__title">Kitchen</div>
+          <label class="set-row"><span class="grow">Auto-print kitchen slip<span class="sub">Fires when you tap “Send to kitchen”</span></span><input type="checkbox" id="set-auto-print" checked/></label>
+          <label class="set-row"><span class="grow">Sound on new ticket</span><input type="checkbox" id="set-kitchen-sound" checked/></label>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group__title">QR table ordering</div>
+          <label class="set-row"><span class="grow">Let guests order by QR<span class="sub">Guests scan the table QR, order from their phone</span></span><input type="checkbox" id="set-qr-order"/></label>
+          <div id="qr-table-list"></div>
+          <div class="set-row"><span class="grow muted" style="font-weight:600;color:var(--muted)">Open a room first — QRs carry your room key.</span><button class="set-btn set-btn--mint" id="btn-qr-all" type="button">Download all QRs</button></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group__title">Reports</div>
+          <div class="set-row"><span class="grow">X-report — today so far<span class="sub">Orders, totals, by table</span></span><button class="set-btn" id="btn-report-x" type="button">View</button></div>
+          <div class="set-row"><span class="grow">Z-report — day close<span class="sub">Totals for the whole day</span></span><button class="set-btn" id="btn-report-z" type="button">View</button></div>
+          <div class="set-row" id="report-out" hidden style="display:block;white-space:pre-line;font-family:ui-monospace,monospace;font-size:12px;line-height:1.6"></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group__title">Backup</div>
+          <div class="set-row"><span class="grow">Export a backup file<span class="sub">Share via Files, AirDrop or WhatsApp</span></span><button class="set-btn set-btn--mint" id="btn-export2" type="button">Export</button></div>
+          <div class="set-row"><span class="grow">Import a backup</span><label class="set-btn" style="cursor:pointer">Choose file<input id="import-file2" type="file" accept=".json,application/json" hidden/></label></div>
+          <div class="set-row"><span class="grow" style="color:var(--danger)">Wipe this device<span class="sub">Deletes local data only</span></span><button class="set-btn" id="btn-wipe" type="button" style="color:var(--danger)">Wipe</button></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group__title">License & this device</div>
+          <div class="set-row"><span class="grow">License key</span><span class="mono" id="set-license-key">—</span></div>
+          <div class="set-row"><span class="grow">Device ID</span><span class="mono" id="set-device-id" style="font-size:11px">—</span></div>
+          <div class="set-row"><span class="grow">Sync</span><span id="set-sync-line">—</span></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group__title">Support</div>
+          <a class="set-row" href="https://wa.me/923000000000?text=Hello%20Jathol%2C%20I%20need%20help%20with%20Order%20Flow" target="_blank" rel="noopener" style="text-decoration:none"><span class="grow">💬 WhatsApp Jathol support</span><span>↗</span></a>
+        </div>
+
+        <p id="settings-status" class="mono muted" style="margin-top:12px;font-size:12px"></p>
       </section>
 
       <div id="print-root" hidden></div>
@@ -341,11 +394,29 @@
       </div>
     </div>
   </div>
+
+  <!-- ORDER SHEET — tap a table: order summary + full menu on top, like APK order sheet -->
+  <div class="sheet" id="sheet-order" aria-hidden="true">
+    <div class="sheet__panel">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h3 id="order-title" style="margin:0;font-weight:900;color:var(--forest)">Order</h3>
+        <button class="of-icon-btn" id="btn-close-order" aria-label="Close">✕</button>
+      </div>
+      <div id="order-current" style="display:grid;gap:6px;margin-top:12px"></div>
+      <div id="order-total-row" style="margin-top:10px;padding-top:10px;border-top:1.2px dashed var(--creamBorder)"></div>
+      <p style="font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px">Menu — tap Add</p>
+      <div id="order-items" style="display:grid;gap:6px;max-height:32dvh;overflow:auto;padding-bottom:4px"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn--forest" id="btn-send-kitchen">Send to kitchen</button>
+        <button class="btn btn--ghost" id="btn-print-order-apple">Print with Apple</button>
+      </div>
+    </div>
+  </div>
 </div>
 
-  <script src="./db.js?v=19"></script>
-  <script src="./print.js?v=19"></script>
-  <script src="./app.js?v=19"></script>
+  <script src="./db.js?v=20"></script>
+  <script src="./print.js?v=20"></script>
+  <script src="./app.js?v=20"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){

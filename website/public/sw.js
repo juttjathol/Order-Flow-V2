@@ -1,7 +1,7 @@
 /* Order Flow PWA — offline app shell + runtime cache
    v1 • additive only; never caches /api/* or /download
 */
-const CACHE_SHELL = 'of-shell-v19';
+const CACHE_SHELL = 'of-shell-v20';
 const SHELL = [
   '/app/',
   '/app/index.html',
@@ -12,7 +12,8 @@ const SHELL = [
   '/media/logo.png',
   '/media/bolt.png',
   '/styles.css',
-  '/manifest.json'
+  '/manifest.json',
+ '/order.html'
 ];
 
 self.addEventListener('install', (e) => {
