@@ -189,6 +189,11 @@ console.log('\n[7] click-path simulation: setup → table → item → ticket �
   // EXISTING DB never wiped: db.js upgrade only ADDS stores
   const dbJs = readFileSync(join(APP, 'db.js'), 'utf8');
   ok('db upgrade only adds stores', dbJs.includes('if (!db.objectStoreNames.contains(s))') && !/deleteObjectStore/.test(dbJs));
+  ok('db open handles blocked upgrades', dbJs.includes('onblocked') && dbJs.includes('onerror'));
+  ok('db degrades to memory instead of hanging boot', dbJs.includes('finishMem') && dbJs.includes('isMemory'));
+  ok('db open has a stall timeout', dbJs.includes('3500'));
+  ok('boot has a watchdog that never leaves a blank page', appJs.includes('watchdog') || appJs.includes('anyVisible'));
+  ok('boot errors are caught (no unhandled blank screen)', appJs.includes("boot().catch"));
 
   // export → import → sale persists
   const backup = JSON.stringify({ orders: all('orders'), tables: all('tables') });
@@ -207,7 +212,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v25'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v26'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));

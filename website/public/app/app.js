@@ -62,7 +62,7 @@ function toast(main, sub) {
   const el = ce('div', 'of-toast'); el.dataset.key = key; el.textContent = main;
   if (sub) { const s = ce('small'); s.textContent = sub; el.appendChild(s); }
   root.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('is-in'));
+  try { requestAnimationFrame(() => el.classList.add('is-in')); } catch { el.classList.add('is-in'); }
   setTimeout(() => { el.classList.remove('is-in'); setTimeout(() => el.remove(), 260); }, 3800);
 }
 let _ac = null;
@@ -96,9 +96,9 @@ const buzz = p => { try { if ('vibrate' in navigator) navigator.vibrate(p); } ca
 const VIEWS = ['view-license', 'view-locked', 'view-connect', 'view-role', 'view-setup', 'view-main', 'view-rolehome', 'view-ticket', 'view-sub', 'view-display'];
 let VSTACK = [];
 function show(id, remember) {
-  const cur = VIEWS.find(v => !$(v).hidden);
+  const cur = VIEWS.find(v => { const el = $(v); return el && !el.hidden; });
   if (remember && cur && cur !== id) VSTACK.push(cur);
-  VIEWS.forEach(v => $(v).hidden = v !== id);
+  VIEWS.forEach(v => { const el = $(v); if (el) el.hidden = v !== id; });
   window.scrollTo(0, 0);
 }
 function goBack() { const prev = VSTACK.pop(); if (prev) show(prev); else show(ROLE === 'main' ? 'view-main' : 'view-rolehome'); }
@@ -192,6 +192,9 @@ async function boot() {
   const lang = await kvGet('lang', 'en');
   OFLang.setLang(lang); applyDir();
   await idbGetAll('products', []); // warm db open (upgrade runs)
+  if (window.OFDB && OFDB.isMemory && OFDB.isMemory()) {
+    toast('Running without local save', 'Close any other Order Flow tab, then reload — data will persist again.');
+  }
   licenseBoot();
 }
 function applyTheme(pref, announce) {
@@ -1149,6 +1152,9 @@ window.OFLicenseInfo = async () => ({ lic: await kvGet('license', null), ent: SH
 
 function window_init() {
   if (window.__ofInit) return; window.__ofInit = 1;
+  // never leave the iPhone staring at cream: capture errors + watchdog
+  window.addEventListener('error', (e) => { window.__lastErr = String(e.message || e.error || e); });
+  window.addEventListener('unhandledrejection', (e) => { window.__lastErr = String((e.reason && e.reason.message) || e.reason || e); });
   // delegated dispatcher
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
@@ -1162,7 +1168,17 @@ function window_init() {
   };
   tick();
   setTimeout(() => { const sp = $('splash'); if (sp) sp.remove(); }, 6000); // failsafe even if JS stalls
-  boot();
+  boot().catch(err => { window.__lastErr = String((err && err.message) || err); console.error('boot', err); });
+  // watchdog: if nothing became visible, recover + show what broke
+  setTimeout(() => {
+    const anyVisible = VIEWS.some(v => { const el = $(v); return el && !el.hidden; });
+    if (!anyVisible) {
+      show('view-license');
+      const sub = document.querySelector('#view-license .gate__sub');
+      if (sub && window.__lastErr) sub.textContent = 'Recovered from a hiccup — ' + window.__lastErr.slice(0, 90) + '. Enter your key again.';
+      else if (sub) sub.textContent = 'Enter your license key to continue.';
+    }
+  }, 4200);
 }
 
 /* ================= MINI DIALOGS (pick an action etc.) ================= */
