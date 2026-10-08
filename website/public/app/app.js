@@ -1209,7 +1209,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     if(host){
       let seen={}; try{ seen=(await kvGet('stationsSeen', {}))||{}; }catch{}
       let me=''; try{ me=await deviceId(); }catch{}
-      try{ seen[me]={role:(ROLE||'station')+' · this device', at:Date.now()}; }catch{}
+      try{ seen[me]={role:(ROLE==='main'?'Main · we hold the license':'Station · this device'), at:Date.now()}; }catch{}
       const entries=Object.entries(seen).sort((a,b)=> b[1].at-a[1].at);
       host.innerHTML='';
       if(!entries.length){
