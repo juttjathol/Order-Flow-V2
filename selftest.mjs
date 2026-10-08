@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v28'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v29'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -276,6 +276,18 @@ ok('relay print-job contract', appJs.includes("cmd.type === 'printjob'") && appJ
 const langJs = readFileSync(join(APP, 'lang.js'), 'utf8');
 ok('lang has EN + UR', /[\u0600-\u06FF]/.test(langJs));
 ok('RTL switches for ur', appJs.includes('langDir') && appJs.includes("'rtl'"));
+
+/* v29 — cloud relay contract + menu row actions */
+const moreJs = readFileSync(join(APP, 'more.js'), 'utf8');
+ok('cloud open sends licenseKey + deviceId (worker contract)', moreJs.includes("OFApiCloud('/api/cloud/open'") && moreJs.includes('licenseKey') && moreJs.includes('deviceId'));
+ok('plan error gets a real message, not check internet', moreJs.includes("res.error === 'plan'"));
+ok('station join includes deviceId (membership)', appJs.includes("role: 'station', deviceId"));
+ok('guest join includes room + deviceId (membership)', readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('room: cfg.r, code: cfg.c') && readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('deviceId: CFG.device'));
+ok('cloud API has an upstream fallback base', appJs.includes('order-flow-v2.pages.dev') && readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('order-flow-v2.pages.dev'));
+ok('menu row: one overflow button, name keeps the width', appJs.includes('aria-label="Actions"') && !appJs.includes('data-act="menu.soldout"') && !appJs.includes('data-act="menu.edit"'));
+ok('menu actions: edit + soldout + delete via sheet', appJs.includes('menuToggleSoldout') && appJs.includes('menuDeleteConfirm') && appJs.includes('OFPick('));
+ok('menu.keep registered handlers for legacy rows', appJs.includes("'menu.soldout':") && appJs.includes("'menu.edit':"));
+ok('menu thumb + dim styles', css.includes('.lrow__ic img') && css.includes('.lrow.is-off'));
 
 console.log('\n────────────────────────────');
 console.log(`${pass} passed, ${failCount} failed`);

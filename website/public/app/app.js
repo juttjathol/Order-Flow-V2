@@ -288,17 +288,24 @@ async function seedIfEmpty() {
 const CLOUD_BASES = ['', 'https://order-flow-v2.pages.dev'];
 let RELAY = null, RELAY_HOT = false;
 let PUSH_TIMER = null;
-async function cloudApi(path, body, info) {
-  const payload = JSON.stringify({ room: info.room, device: info.device, ...body });
-  const bases = ['', (info.base || '')].filter((b, i, a) => a.indexOf(b) === i);
-  for (const base of bases) {
+async function OFApiCloudRaw(path, body, bases) {
+  const payload = JSON.stringify(body);
+  for (const base of (bases || CLOUD_BASES)) {
     try {
       const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload });
       const j = await r.json().catch(() => null);
-      if (j) return j;
+      if (j) return { json: j, base };
     } catch {}
   }
   return null;
+}
+window.OFApiCloud = async (path, body) => (await OFApiCloudRaw(path, body)) || null;
+async function cloudApi(path, body, info) {
+  const payload = { room: info.room, device: info.device, ...body };
+  const bases = ['', info.base, ...CLOUD_BASES].filter((b, i, a) => b != null && a.indexOf(b) === i);
+  const res = await OFApiCloudRaw(path, payload, bases);
+  if (res && res.base !== (info.base || '')) { info.base = res.base; kvSet('roomInfo', info).catch(() => {}); }
+  return res ? res.json : null;
 }
 async function relayKey(secret) {
   const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|' + secret));
@@ -876,16 +883,46 @@ async function renderMenu() {
   const list = ps.filter(p => (MENU_CAT === 'all' || (p.categoryId || p.cat || 'Items') === MENU_CAT) && (!MENU_Q || (p.name || '').toLowerCase().includes(MENU_Q.toLowerCase())));
   for (const p of list) {
     const off = p.available === false || p.avail === false;
-    const el = ce('div', 'lrow' + (off ? '' : ''), '');
-    el.innerHTML = '<span class="lrow__ic">' + (p.imageBase64 ? '<img class="lrow__ic" src="' + p.imageBase64 + '"/>' : '🍽️') + '</span>'
-      + '<div class="hd grow"><b>' + esc(p.name) + (off ? ' <span class="tag tag--danger">' + L.t('sold_out_word') + '</span>' : '') + '</b><small>' + esc(p.categoryId || p.cat || '') + (p.sku ? ' · ' + esc(p.sku) : '') + '</small></div>'
+    // APK-style row: [icon][name+cat, flexible][price][⋯]. Tapping the row
+    // opens the editor; ⋯ opens an action sheet (sold-out / delete live here)
+    // so the name always gets the full width — never one letter per line.
+    const el = ce('div', 'lrow' + (off ? ' is-off' : ''));
+    el.innerHTML = '<span class="lrow__ic">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️') + '</span>'
+      + '<div class="hd grow"><b>' + esc(p.name) + (off ? ' <span class="tag tag--danger">' + L.t('sold_out_word') + '</span>' : '') + '</b><small>' + esc(p.categoryId || p.cat || 'Items') + (p.sku ? ' · ' + esc(p.sku) : '') + '</small></div>'
       + '<span class="lrow__amt">' + money(p.priceCents) + '</span>'
-      + '<button class="btn btn--sm ' + (off ? '' : 'btn--ghost') + '" data-act="menu.soldout" data-id="' + p.id + '">' + (off ? L.t('back_on_menu') : L.t('mark_sold')) + '</button>'
-      + '<button class="btn btn--sm btn--ghost" data-act="menu.edit" data-id="' + p.id + '">' + L.t('edit') + '</button>';
-    el.querySelectorAll('button').forEach(b => b.onclick = (e) => { e.stopPropagation(); OFAct[b.dataset.act](b, e); });
+      + '<button class="iconbtn" type="button" aria-label="Actions">⋯</button>';
+    el.onclick = () => OFMenuEditor(p.id);
+    el.querySelector('button').onclick = (e) => {
+      e.stopPropagation();
+      OFPick(p.name, esc(p.categoryId || p.cat || 'Items') + ' · ' + money(p.priceCents), [
+        { label: '✏️ ' + L.t('edit'), act: () => OFMenuEditor(p.id) },
+        { label: (off ? '✅ ' : '🚫 ') + L.t(off ? 'back_on_menu' : 'mark_sold'), act: () => menuToggleSoldout(p.id) },
+        { label: '🗑 ' + L.t('delete'), kind: 'danger', act: () => menuDeleteConfirm(p) },
+        { label: L.t('cancel'), kind: 'ghost' }
+      ]);
+    };
     host.appendChild(el);
   }
   if (!list.length) host.appendChild(ce('p', 'muted small', L.t('empty')));
+}
+async function menuToggleSoldout(id) {
+  const p = await idbGet('products', id, null); if (!p) return;
+  p.available = (p.available === false || p.avail === false);
+  p.avail = p.available;
+  await idbPut('products', p); await kvSet('rev', Date.now()); syncNow();
+  toast(p.available ? p.name + ' — ' + L.t('back_on_menu') : p.name + ' — ' + L.t('sold_out_word'));
+  if (ACTIVE_TAB === 'menu') renderMenu();
+}
+function menuDeleteConfirm(p) {
+  OFDialog({ title: L.t('delete') + ' — ' + esc(p.name), bodyHtml: '<p class="muted small">This removes the item from your menu. Sales history is kept in reports.</p>' });
+  const wrap = ce('div', 'row');
+  const no = ce('button', 'btn btn--ghost grow', L.t('cancel'));
+  no.onclick = () => closeDlg();
+  const yes = ce('button', 'btn btn--primary grow', L.t('delete'));
+  yes.style.background = 'var(--danger)';
+  yes.onclick = async () => { closeDlg(); await idbDel('products', p.id); await kvSet('rev', Date.now()); syncNow(); if (ACTIVE_TAB === 'menu') renderMenu(); };
+  wrap.append(no, yes);
+  $('dlg-body').appendChild(wrap);
 }
 
 /* ================= STOCK TAB ================= */
@@ -1226,13 +1263,13 @@ async function OFConnectJoin() {
   let pair;
   try { pair = C.pairingDecode($('connect-paste').value); }
   catch { err.textContent = 'That does not look like an OF1:… pairing text. Copy it fully.'; return; }
-  // preflight: join room over the cloud
+  // preflight: join room over the cloud (deviceId is what makes us a member)
   const dev = await deviceId();
   let info = { ...pair, base: '', device: dev };
-  const j = await cloudApi('/api/cloud/join', { code: pair.code, role: 'station' }, info);
+  const j = await cloudApi('/api/cloud/join', { code: pair.code, role: 'station', deviceId: dev }, info);
   if (!j) { err.textContent = 'No internet — could not reach the relay. Try again.'; return; }
   if (j.ok !== true) {
-    err.textContent = j.error === 'bad_code' ? 'Wrong join code — get a fresh QR/text from Main.' : (j.error || 'Could not join.');
+    err.textContent = j.error === 'code' || j.error === 'bad_code' ? 'Wrong join code — get a fresh QR/text from Main.' : (j.error === 'no_room' ? 'That room is closed — Main should reopen it (More → Cloud room).' : (j.error === 'full' ? 'The room is full (16 devices).' : (j.error || 'Could not join.')));
     return;
   }
   await kvSet('roomInfo', info);

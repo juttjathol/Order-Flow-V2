@@ -14,7 +14,8 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 
 let CFG = null, KEY = null, CURSOR = 0, STATE = null, CART = new Map(), SESSION_START = Date.now();
 let CAT = 'all', SENT_GIDS = [];
-const BASE = location.protocol.startsWith('http') ? '' : 'https://order-flow-v2.pages.dev';
+const BASES = ['', 'https://order-flow-v2.pages.dev'];
+let BASE = location.protocol.startsWith('http') ? '' : BASES[1];
 
 function fail(t, b) { $('g-err').hidden = false; $('g-err-t').textContent = t; if (b) $('g-err-b').textContent = b; $('g-bar').hidden = true; }
 
@@ -35,10 +36,15 @@ async function dec(blob) {
   } catch { return null; }
 }
 async function api(path, body) {
-  try {
-    const r = await fetch(BASE + path, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) });
-    return await r.json();
-  } catch { return null; }
+  const payload = JSON.stringify(body);
+  for (const b of [BASE, ...BASES]) {
+    try {
+      const r = await fetch(b + path, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload });
+      const j = await r.json();
+      if (j) { BASE = b; return j; }
+    } catch { /* next base */ }
+  }
+  return null;
 }
 
 async function boot() {
@@ -48,9 +54,11 @@ async function boot() {
   try { cfg = JSON.parse(new TextDecoder().decode(C.b64uDecode(hash))); } catch { return fail('This QR looks out of date', 'Ask the staff for a fresh code — we renew them when the room reopens.'); }
   if (!cfg.r || !cfg.c || !cfg.k) return fail('This QR looks out of date');
   CFG = cfg; KEY = await key(cfg.k);
-  const j = await api('/api/cloud/join', { code: cfg.c, role: 'guest' });
-  if (!j || j.ok !== true) return fail('Room is closed right now', 'The shop is not taking QR orders at the moment. Order at the counter.');
   CFG.device = 'guest-' + Math.random().toString(36).slice(2, 10);
+  // Worker contract (v1.1.83+): join needs room + code + deviceId — the
+  // deviceId is what makes us a member allowed to send.
+  const j = await api('/api/cloud/join', { room: cfg.r, code: cfg.c, role: 'guest', deviceId: CFG.device });
+  if (!j || j.ok !== true) return fail('Room is closed right now', 'The shop is not taking QR orders at the moment. Order at the counter.');
   $('g-shop').textContent = cfg.shop || 'Order here';
   if (cfg.tn) {
     const chip = ce('div', 'g-chip', '📍 Table ' + esc(cfg.tn));

@@ -189,6 +189,8 @@ html[data-theme="dark"] .bnav__dest.is-on{ color:var(--mint); }
 .lrow .hd small{ display:block; font-size:12px; font-weight:600; color:var(--muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .avatar,.lrow__ic{ width:42px; height:42px; border-radius:13px; background:var(--surface2); display:grid; place-items:center; font-size:19px; flex:0 0 42px; font-weight:900; color:var(--btn-forest); overflow:hidden; }
 .lrow img.lrow__ic{ padding:0; object-fit:cover; width:42px; height:42px; }
+.lrow__ic img{ width:100%; height:100%; object-fit:cover; display:block; }
+.lrow.is-off{ opacity:.62; }
 .lrow__amt{ font-weight:900; font-size:15px; white-space:nowrap; flex:none; margin-left:auto; text-align:right; }
 .lrow button, .lrow .qtyctl, .lrow .tag{ flex:none; }
 .tag{ display:inline-flex; align-items:center; min-height:26px; padding:0 9px; border-radius:8px; font-size:11.5px; font-weight:800; background:var(--surface2); color:var(--muted); }

@@ -442,11 +442,20 @@ async function scrCloud() {
       body.appendChild(ce('p', 'muted small', 'Open an encrypted room so Android and iPhone stations meet here. Orders never upload as cloud backups — state stays on your devices; the relay just passes ciphertext.'));
       const open = ce('button', 'btn btn--mint btn--full', L.t('open_room'));
       open.onclick = async () => {
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        const res = await fetch((location.protocol.startsWith('http') ? '' : 'https://order-flow-v2.pages.dev') + '/api/cloud/open', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ code }) }).then(r => r.json()).catch(() => null);
-        if (!res || !res.room || !res.secret) { toast('Could not open the room', 'Check internet'); return; }
-        const info = { room: res.room, code: res.code || code, secret: res.secret, base: '', device: await kvGet('deviceId', 'web-main') };
-        await kvSet('roomInfo', info); location.reload();
+        open.disabled = true;
+        try {
+          const licInfo = await OFLicenseInfo();
+          const deviceId = await kvGet('deviceId', null) || 'web-main';
+          const api = await window.OFApiCloud('/api/cloud/open', { licenseKey: licInfo.lic && licInfo.lic.key, deviceId });
+          const res = api && api.json ? api.json : null;
+          if (!res) { toast('Could not open the room', 'No internet — try again.'); return; }
+          if (res.error === 'plan') { toast('Cloud is not on your plan', 'Tap Refresh my plan — or WhatsApp Jathol to add it.'); return; }
+          if (!res.ok || !res.room || !res.secret) { toast('Could not open the room', 'Cloud answered: ' + (res.error || 'unknown') + '. Try again.'); return; }
+          const info = { room: res.room, code: res.code, secret: res.secret, base: api.base || '', device: deviceId };
+          await kvSet('roomInfo', info);
+          await kvSet('relayErr', null);
+          location.reload();
+        } finally { open.disabled = false; }
       };
       body.appendChild(open);
     }
@@ -755,7 +764,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v28</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v29</div></div>'));
   });
 }
 
