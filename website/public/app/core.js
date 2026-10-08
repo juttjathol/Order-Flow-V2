@@ -33,10 +33,12 @@
 
   // ——— license key contract (OF-XXXX-XXXX-XXXX-XXXX) ———
   const KEY_RE = /^OF-(?:[A-Z0-9]{4}-){3}[A-Z0-9]{4}$/;
+  // paste from WhatsApp/email in ANY shape (spaced, no hyphens, lowercase) → OF-XXXX-XXXX-XXXX-XXXX
   function normalizeKey(raw) {
-    let v = String(raw || '').toUpperCase().trim().replace(/[\s]/g, '');
-    if (v && !v.startsWith('OF-')) v = 'OF-' + v;
-    return v;
+    let v = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (v.startsWith('OF')) v = v.slice(2);
+    const groups = v.match(/.{1,4}/g) || [];
+    return 'OF-' + groups.slice(0, 4).join('-');
   }
   function isValidKey(raw) { return KEY_RE.test(normalizeKey(raw)); }
   function maskKey(key) {
