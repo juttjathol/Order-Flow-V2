@@ -407,7 +407,7 @@ async function scrThirdParty() {
 }
 
 async function scrCloud() {
-  OFShowSub(L.t('cloud_sync'), 'Room relay: end-to-end encrypted, nothing readable in the cloud', async (body) => {
+  const draw = async (body) => {
     body.innerHTML = '';
     const relay = OFRelayState();
     const err = await kvGet('relayErr', null);
@@ -454,12 +454,18 @@ async function scrCloud() {
           const info = { room: res.room, code: res.code, secret: res.secret, base: api.base || '', device: deviceId };
           await kvSet('roomInfo', info);
           await kvSet('relayErr', null);
-          location.reload();
+          // Boot the relay right here — NO location.reload(): a splash reload
+          // used to wed the room (server had it, this app forgot it).
+          if (window.OFStartRelay) await window.OFStartRelay(info);
+          if (window.OFUpdateChips) window.OFUpdateChips();
+          toast('Room is live ✓', 'Code ' + res.code + ' — stations join via Connect, guests scan the QR.');
+          draw(body); // swap in the live card with QR — same screen, no splash
         } finally { open.disabled = false; }
       };
       body.appendChild(open);
     }
-  });
+  };
+  OFShowSub(L.t('cloud_sync'), 'Room relay: end-to-end encrypted, nothing readable in the cloud', draw);
 }
 
 async function scrQR() {
@@ -764,7 +770,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v30</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v31</div></div>'));
   });
 }
 

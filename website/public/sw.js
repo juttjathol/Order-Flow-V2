@@ -2,7 +2,7 @@
    v25 • additive only; never caches /api/* or /download
    /app/*.{html,js,css} + /order.html are network-first
    so the freshest shell always wins and old builds die. */
-const CACHE_SHELL = 'of-shell-v30';
+const CACHE_SHELL = 'of-shell-v31';
 const SHELL = [
   '/app/',
   '/app/index.html',

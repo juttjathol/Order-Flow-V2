@@ -402,9 +402,15 @@ function loop() {
           let env; try { env = JSON.parse(plain); } catch { continue; }
           await handleMsg(env);
         }
+        RELAY.deadCount = 0;
         updateChips();
       } else if (j && j.ok === false && (j.error === 'no_room' || j.error === 'no_key')) {
-        RELAY.dead = true; await kvSet('relayErr', 'Room is gone — open it again from More → Cloud room'); updateChips();
+        // Two strikes before declaring death: one transient (proxy/replica
+        // race right after /open) must not wipe a room the server just made.
+        RELAY.deadCount = (RELAY.deadCount || 0) + 1;
+        if (RELAY.deadCount >= 2) {
+          RELAY.dead = true; await kvSet('relayErr', 'Room is gone — open it again from More → Cloud room'); updateChips();
+        }
       }
     } catch {}
     loop();
@@ -492,6 +498,8 @@ function updateChips() {
     el.onclick = () => { window.OFAct['more.goto.cloud'] && window.OFAct['more.goto.cloud'](); };
   }
 }
+window.OFStartRelay = startRelayBoot;
+window.OFUpdateChips = updateChips;
 
 /* ================= NOTIFICATION ENGINE ================= */
 const memo = { map: new Map(), seeded: false };
@@ -1149,12 +1157,15 @@ Object.assign(window.OFAct, {
     OFDialog({ title: L.t('add_stock') });
     $('dlg-body').innerHTML = '<div class="grid"><input id="sk-name" placeholder="' + L.t('name_label') + '"/><input id="sk-qty" type="number" inputmode="decimal" placeholder="' + 'Starting qty' + '"/><input id="sk-low" type="number" placeholder="' + L.t('low_at') + '"/><input id="sk-unit" placeholder="' + 'Unit (pcs, kg, L)' + '"/><input id="sk-cost" type="number" inputmode="decimal" placeholder="' + L.t('cost') + '"/></div>';
     $('dlg-btns').innerHTML = '';
+    const no = ce('button', 'btn btn--ghost', L.t('cancel'));
+    no.onclick = () => closeDlg();
     const ok = ce('button', 'btn btn--mint', L.t('save'));
     ok.onclick = async () => {
       const name = $('sk-name').value.trim(); if (!name) return toast('Name?');
       await idbPut('stock', { id: C.uuid(), name, qty: Number($('sk-qty').value) || 0, lowStockAt: Number($('sk-low').value) || 5, unit: $('sk-unit').value.trim() || 'pcs', costCents: C.cents(Number($('sk-cost').value) || 0) });
       await kvSet('rev', Date.now()); syncNow(); closeDlg(); toast(name + ' added'); renderActiveTab(true); if (ROLE !== 'main') renderRoleHome(STATION_ROLE);
     };
+    $('dlg-btns').appendChild(no);
     $('dlg-btns').appendChild(ok);
   },
   'stock.adjust': async (b) => {
@@ -1244,6 +1255,12 @@ window.OFDialog = function ({ title, bodyHtml, buttons }) {
 };
 function closeDlg() { const root = $('dlg'); root.classList.remove('is-open'); root.setAttribute('aria-hidden', 'true'); }
 window.OFCloseDlg = closeDlg;
+// Tapping the dimmed area OUTSIDE any dialog card closes it — the user
+// must never be trapped inside a card (Add stock item, pickers, etc.).
+{
+  const dlgEl = $('dlg');
+  dlgEl.addEventListener('click', (e) => { if (e.target === dlgEl) closeDlg(); });
+}
 function pickAction(title, sub, entries) {
   const body = ce('div', 'grid');
   for (const en of entries) {

@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v30'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v31'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -288,6 +288,9 @@ ok('menu row: one overflow button, name keeps the width', appJs.includes('aria-l
 ok('menu actions: edit + soldout + delete via sheet', appJs.includes('menuToggleSoldout') && appJs.includes('menuDeleteConfirm') && appJs.includes('OFPick('));
 ok('menu.keep registered handlers for legacy rows', appJs.includes("'menu.soldout':") && appJs.includes("'menu.edit':"));
 ok('main boot starts the relay when a room is open', appJs.includes('enterMain(); startRelayBoot(room);'));
+ok('v31 dialogs close on backdrop tap', appJs.includes('e.target === dlgEl'));
+ok('v31 cloud open boots relay in place, no reload', moreJs.includes('OFStartRelay') && moreJs.includes("toast('Room is live ✓'") && appJs.includes('window.OFStartRelay = startRelayBoot'));
+ok('v31 dead room needs two strikes', appJs.includes('deadCount'));
 ok('menu thumb + dim styles', css.includes('.lrow__ic img') && css.includes('.lrow.is-off'));
 
 console.log('\n────────────────────────────');
