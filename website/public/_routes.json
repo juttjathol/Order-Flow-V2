@@ -1,6 +1,8 @@
 {
   "version": 1,
   "include": [
+    "/api/*",
+    "/api/cloud/*",
     "/download",
     "/download*",
     "/geo",
