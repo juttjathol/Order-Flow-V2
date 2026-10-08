@@ -315,7 +315,7 @@ async function renderMenu(){
   for(const p of list){
     const row=document.createElement('div');
     row.className='prod';
-    row.innerHTML='<div class="prod__img">'+(p.image?'<img src="'+p.image+'" alt="" loading="lazy"/>':'<span style="font-size:28px">🍽️</span>')+'</div><div class="prod__body"><div class="prod__name">'+p.name+(p.avail?'':' · 86')+'</div><div class="prod__price">RM '+(Number(p.price).toFixed(2))+'</div><button class="prod__add" data-a="86">'+(p.avail?'86':'Un-86')+'</button><button class="btn btn--muted" data-a="del" style="min-height:36px;margin-top:6px;padding:0 10px;border-radius:12px;font-size:13px">Delete</button></div>';
+    row.innerHTML='<div class="prod__img">'+(p.image?'<img src="'+p.image+'" alt="" loading="lazy"/>':'<span style="font-size:28px">🍽️</span>')+'</div><div class="prod__body"><div class="prod__name">'+p.name+(p.avail?'':' · <span style="color:var(--danger);font-weight:800">Sold out</span>')+'</div><div class="prod__price">'+fmtMoney(p.price)+'</div><button class="prod__add" data-a="86">'+(p.avail?'Mark sold out':'Back on menu')+'</button><button class="btn btn--muted" data-a="del" style="min-height:36px;margin-top:6px;padding:0 10px;border-radius:12px;font-size:13px">Delete</button></div>';
     row.querySelector('[data-a="86"]').onclick=async()=>{ p.avail=!p.avail; await idbPut('products', p); await kvSet('rev', Date.now()); renderMenu(); renderHome().catch(()=>{}); };
     row.querySelector('[data-a="del"]').onclick=async()=>{ await idbDel('products', p.id); await kvSet('rev', Date.now()); renderMenu(); renderHome().catch(()=>{}); };
     host.appendChild(row);
@@ -331,9 +331,9 @@ async function renderKitchen(){
     const age = Math.max(0,Math.round((Date.now()-(o.createdAt||Date.now()))/60000));
     const card=document.createElement('div');
     card.className='of-card pad';
-    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><b>'+o.table+' · #'+o.id.slice(-6)+'</b><span class="of-badge '+(age>12?'of-badge--gold':'')+'">'+age+' min</span></div><div style="margin-top:8px;display:grid;gap:4px">'+(o.items||[]).map(it=> '<div style="display:flex;justify-content:space-between"><span>'+it.name+' × '+it.qty+'</span><span style="font-weight:800">RM '+(it.total||0).toFixed(2)+'</span></div>').join('')+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn--forest" data-a="ready" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Mark ready</button><button class="btn btn--ghost" data-a="print" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Print with Apple</button></div>';
-    card.querySelector('[data-a="ready"]').onclick=async()=>{ o.status='ready'; await idbPut('orders', o); await kvSet('rev', Date.now()); renderKitchen(); renderTables(); renderHome().catch(()=>{}); };
-    card.querySelector('[data-a="print"]').onclick=()=> handlePrint(o, {name: (document.getElementById('shop-name')?.value||'Order Flow')});
+    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><b>'+o.table+' · #'+o.id.slice(-6)+'</b><span class="of-badge '+(age>12?'of-badge--gold':'')+'">'+age+' min</span></div><div style="margin-top:8px;display:grid;gap:4px">'+(o.items||[]).map(it=> '<div style="display:flex;justify-content:space-between"><span>'+it.name+' × '+it.qty+'</span><span style="font-weight:800">'+fmtMoney(it.total||0)+'</span></div>').join('')+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn--forest" data-a="ready" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Mark ready</button><button class="btn btn--ghost" data-a="print" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Print slip</button></div>';
+    card.querySelector('[data-a="ready"]').onclick=async()=>{ o.status='ready'; await idbPut('orders', o); await kvSet('rev', Date.now()); renderKitchen(); renderTables(); renderHome().catch(()=>{}); window.OFAfterReady?.(o); };
+    card.querySelector('[data-a="print"]').onclick=()=> window.OFPrintReceipt?.(o, {type:'kitchen'});
     host.appendChild(card);
   }
   // also paint home live
@@ -427,6 +427,7 @@ async function renderHome(){
 async function refreshAll(){
   const f = document.querySelector('#tab-tables [data-filter].is-active')?.dataset.filter || document.querySelector('#tab-tables [data-filter].active')?.dataset.filter || 'all';
   await Promise.all([renderTables(f), renderMenu(), renderKitchen(), renderStock(), renderHome()]);
+  try{ await window.OFCheckOrders?.(); }catch{}
   const est = await storageEstimate();
   if(est && $('#storage-est')) $('#storage-est').textContent = `Storage ${((est.usage/1024/1024).toFixed(1))} MB / ${(est.quota/1024/1024/1024).toFixed(1)} GB · ${est.pct}%`;
   // header live badge
@@ -674,14 +675,15 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     const t=await idbGet('tables', CUR_ORDER.table); if(t){ t.state='busy'; t.since=Date.now(); await idbPut('tables', t); }
     await kvSet('rev', Date.now()); refreshAll(); closeOrderSheet();
     const s = await getSettings();
-    if(s.autoPrint){ try{ printViaApple(CUR_ORDER, {name:s.shopName}); }catch{} }
+    if(s.autoPrint) window.OFKitchenPrint?.(CUR_ORDER);
+    window.OFToast?.('Sent to kitchen ✓', 'Table '+CUR_ORDER.table.replace(/^T/,'')+' ticket is live');
     if(RELAY){
       if(ROLE==='main') {} else await window.OFRelay.sendOrders();
     }
   });
   $('#btn-print-order-apple')?.addEventListener('click', ()=>{
-    if(!CUR_ORDER) return;
-    const shop={name: $('#shop-name')?.value||'Order Flow'}; printViaApple(CUR_ORDER, shop);
+    if(!CUR_ORDER || !CUR_ORDER.items.length) return;
+    window.OFPrintReceipt?.(CUR_ORDER);
   });
   $('#btn-close-order')?.addEventListener('click', closeOrderSheet);
   $('#sheet-order')?.addEventListener('click', (e)=>{ if(e.target.id==='sheet-order') closeOrderSheet(); });
@@ -764,6 +766,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   }
   $('#btn-report-x')?.addEventListener('click', ()=> showReport(false));
   $('#btn-report-z')?.addEventListener('click', ()=> showReport(true));
+  window.__ofRenderSettings = renderSettings;
   renderSettings().catch(()=>{});
   // export / import
   async function doExport(){
@@ -789,25 +792,12 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   $('#btn-leave')?.addEventListener('click', async()=>{
     if(confirm('Leave room and go back to setup? Your local data stays.')){ await kvSet('roomInfo', null); await kvSet('role', null); if(RELAY) RELAY.stop(); location.reload(); }
   });
-  // print tab
-  $('#btn-print-apple')?.addEventListener('click', async()=>{
-    const demo = CUR_ORDER || {id:'TEST-'+Date.now(), items:[{name:'Demo item', qty:1, total:12}], total:12};
-    const shop={name: $('#shop-name')?.value||'Order Flow'}; $('#print-status').textContent='Opening Apple print dialog… pick your AirPrint/Bluetooth printer.';
-    try{ printViaApple(demo, shop); setTimeout(()=> $('#print-status').textContent='Dialog opened — pick printer and Print. For Bluetooth, pair the printer in iOS Settings → Bluetooth first, if it supports AirPrint it appears here.', 800); } catch(e){ $('#print-status').textContent='Print failed: '+e; }
-  });
-  $('#btn-print-bt')?.addEventListener('click', async()=>{
-    const demo = CUR_ORDER || {id:'TEST-'+Date.now(), items:[{name:'Demo item', qty:1, total:12}], total:12};
-    const shop={name: $('#shop-name')?.value||'Order Flow'};
-    $('#print-status').textContent='Requesting Bluetooth device… pick your thermal printer.';
-    try{ await printViaBluetooth(demo, shop); $('#print-status').textContent='Sent to Bluetooth printer ✓'; } catch(e){ $('#print-status').textContent='Bluetooth: '+ String(e.message||e) + ' — on iPhone use Print with Apple instead.'; }
-  });
+  // print tab buttons are wired in the APK MIRROR block at the end of this file
   $('#chk-relay-print')?.addEventListener('change', async(e)=>{ await kvSet('relayPrint', e.target.checked); });
   $('#chk-gateway')?.addEventListener('change', async(e)=>{ await kvSet('gateway', e.target.checked); if(e.target.checked) $('#gateway-log').textContent='Gateway on — waiting for print jobs…'; });
   // restore saved checks
   kvGet('relayPrint', false).then(v=>{ const el=$('#chk-relay-print'); if(el) el.checked=!!v; });
   kvGet('gateway', false).then(v=>{ const el=$('#chk-gateway'); if(el) el.checked=!!v; if(v) $('#gateway-log').textContent='Gateway on — waiting for print jobs…'; });
-  $('#btn-print-test')?.addEventListener('click', ()=> $('#btn-print-apple').click());
-
   // PWA install handling — guide is popup-only, never inline
   let deferredPrompt=null;
   window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; window.__ofDeferredPrompt=e; const b=$('#btn-install'); const pb=$('#btn-install-popup'); const hint=$('#install-hint'); if(b) b.hidden=false; if(pb) pb.hidden=false; if(hint) hint.textContent='Tap Add to Home Screen for install guide — Install now available.'; });
@@ -820,3 +810,166 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     const hint=$('#install-hint'); if(hint && !hint.textContent) hint.textContent='iPhone: tap Share ⎙ → Add to Home Screen → Add (Safari only).';
   }
 });
+
+/* ============================================================
+   APK MIRROR v2 — theme toggle, toast notifications,
+   kitchen/order-taker alerts, instant AirPrint receipt.
+   ============================================================ */
+(function(){
+  'use strict';
+  const $=(id)=>document.getElementById(id);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  // ——— toast ———
+  function toast(main, sub){
+    const root = $('toast-root'); if(!root) return alert(sub? main+'\n'+sub : main);
+    const el = document.createElement('div'); el.className='of-toast';
+    el.textContent = main;
+    if(sub){ const s=document.createElement('small'); s.textContent=sub; el.appendChild(s); }
+    root.appendChild(el);
+    requestAnimationFrame(()=> el.classList.add('is-in'));
+    setTimeout(()=>{ el.classList.remove('is-in'); setTimeout(()=> el.remove(), 300); }, 4200);
+  }
+  window.OFToast = toast;
+
+  // ——— sound ———
+  let _ac=null;
+  function ding(freq){
+    try{
+      _ac = _ac || new (window.AudioContext||window.webkitAudioContext)();
+      if(_ac.state==='suspended') _ac.resume().catch(()=>{});
+      const o=_ac.createOscillator(), g=_ac.createGain();
+      o.connect(g); g.connect(_ac.destination);
+      o.type='sine'; o.frequency.value=freq||880;
+      g.gain.setValueAtTime(.12,_ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(.001,_ac.currentTime+.25);
+      o.start(); o.stop(_ac.currentTime+.28);
+    }catch{}
+  }
+
+  // ——— theme (System/Light/Dark) — mirrors APK theme picker ———
+  async function getThemePref(){ try{ return (await kvGet('theme', 'system')) || 'system'; }catch{ return 'system'; } }
+  async function setThemePref(t){
+    await kvSet('theme', t);
+    applyTheme(t);
+    toast('Theme: '+(t==='system'?'Auto (follows phone)':t[0].toUpperCase()+t.slice(1)));
+  }
+  function applyTheme(pref){
+    const t = pref || (getThemePref._cached || 'system');
+    getThemePref._cached = t;
+    const dark = t==='dark' || (t==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    const meta=document.getElementById('theme-color-meta');
+    if(meta) meta.setAttribute('content', dark ? '#0F1512' : '#FAF7F2');
+    document.querySelectorAll('#seg-theme button').forEach(b=> b.classList.toggle('is-on', b.dataset.t===t));
+  }
+  async function initTheme(){
+    const t = await getThemePref();
+    applyTheme(t);
+    if(window.matchMedia){
+      try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=> applyTheme()); }catch{}
+    }
+    document.querySelectorAll('#seg-theme button').forEach(b=> b.addEventListener('click', ()=> setThemePref(b.dataset.t)));
+  }
+
+  // ——— shop info for receipts (from Settings) ———
+  async function shopFor(){
+    const s = await getSettings();
+    return s;
+  }
+
+  // ——— Receipt engine: builds the paper + calls the REAL system print dialog ———
+  function esc(s){ return String(s??'').replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  function buildReceiptDom(order, s, opts){
+    const kitchen = opts && opts.type==='kitchen';
+    const cur = s.currency||'RM';
+    const m = n=> cur+' '+(Number(n)||0).toFixed(2);
+    const lines = (order.items||[]).map(it=> '<div class="rp-line"><span>'+esc(it.name)+' × '+it.qty+'</span>' + (kitchen?'':'<span>'+m(it.total||0)+'</span>') + '</div>').join('');
+    const sub = (order.items||[]).reduce((a,i)=> a+(Number(i.total)||0), 0);
+    const tax = sub*(Number(s.tax)||0)/100, svc = sub*(Number(s.svc)||0)/100;
+    const grand = sub+tax+svc;
+    return ''
+      + '<div style="font-family:ui-monospace,Menlo,monospace;color:#111;width:62mm;margin:0 auto">'
+      + '<div style="text-align:center;border-bottom:1.5px dashed #111;padding:6px 0 8px">'
+      +   (kitchen ? '<b style="font-size:16px">KITCHEN TICKET</b>' : '<b style="font-size:16px">'+esc(s.shopName)+'</b>')
+      +   (!kitchen && s.receiptHead ? '<div style="font-size:11px;margin-top:2px">'+esc(s.receiptHead)+'</div>' : '')
+      +   (!kitchen && s.shopPhone ? '<div style="font-size:11px;color:#444">'+esc(s.shopPhone)+'</div>' : '')
+      +   '<div style="font-size:10px;color:#444;margin-top:3px">'+new Date().toLocaleString()+' · Table '+esc(String(order.table||'').replace(/^T/,''))+(order.id?' · #'+esc(String(order.id).slice(-6)):'')+'</div>'
+      + '</div>'
+      + (lines || '<div class="rp-line"><span>No items</span></div>')
+      + (kitchen ? '' :
+          '<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:6px;padding-bottom:3px;border-bottom:1px dotted #ccc"><span style="float:none">Subtotal</span><span>'+m(sub)+'</span></div>'
+        + ((Number(s.tax)||0)? '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted #ccc"><span>Tax ('+s.tax+'%)</span><span>'+m(tax)+'</span></div>':'')
+        + ((Number(s.svc)||0)? '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted #ccc"><span>Service ('+s.svc+'%)</span><span>'+m(svc)+'</span></div>':'')
+        + '<div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;border-top:2px solid #111;margin-top:4px;padding-top:4px"><span>TOTAL</span><span>'+m(grand)+'</span></div>')
+      + '<div style="text-align:center;font-size:10px;color:#666;margin-top:8px;border-top:1.5px dashed #111;padding-top:6px">'
+      +   (kitchen ? 'Fire now — '+new Date().toLocaleTimeString() : esc(s.receiptFoot||'Thank you — please come again'))
+      + '</div></div>'
+      + '<style>.rp-line{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px dotted #ccc}</style>';
+  }
+  function printReceipt(order, opts){
+    getSettings().then(s=>{
+      const root = document.getElementById('print-root');
+      if(!root) return;
+      root.innerHTML = buildReceiptDom(order, s, opts||{});
+      requestAnimationFrame(()=>{ try{ window.print(); }catch(e){ toast('Print failed', 'Try again — or pick another device as printer hub'); } });
+    });
+  }
+  window.OFPrintReceipt = printReceipt;
+  // Kitchen slip on "Send to kitchen": direct print on Android; on iPhone a toast (iOS needs a tap)
+  window.OFKitchenPrint = function(order){
+    if(isIOS){ toast('New ticket — Table '+String(order.table||'').replace(/^T/,''), 'Tap “Print slip” on the Kitchen tab'); return; }
+    try{ printReceipt(order, {type:'kitchen'}); }catch{}
+  };
+  window.OFAfterReady = function(order){
+    toast('Marked ready ✓', 'Table '+String(order.table||'').replace(/^T/,'')+' — takers notified');
+    try{ if(RELAY && ROLE==='station' && window.OFRelay && window.OFRelay.sendOrders) window.OFRelay.sendOrders(); }catch{}
+  };
+
+  // ——— live notifications engine (new ticket → kitchen + takers; ready → takers) ———
+  window.OFCheckOrders = async function(){
+    let orders=[];
+    try{ orders = await idbGetAll('orders'); }catch{}
+    const s = await getSettings();
+    const bag = window._ofMemo || (window._ofMemo = {map:new Map(), seeded:false});
+    const live = orders.filter(o=> o.status==='open'||o.status==='sent');
+    const badge = $('badge-kitchen');
+    if(badge){ badge.textContent = String(live.length); badge.hidden = live.length===0; }
+    for(const o of orders){
+      const prev = bag.map.get(o.id);
+      if(prev===undefined && (o.status==='open'||o.status==='sent')){
+        if(bag.seeded){
+          if(s.kitchenSound) ding(880);
+          toast('New ticket — Table '+String(o.table||'').replace(/^T/,''),
+            (o.source==='qr' ? 'Guest ordered by QR code · ' : '') + (o.items||[]).length + ' item(s) to fire');
+        }
+      }
+      if(prev!==undefined && prev!=='ready' && o.status==='ready'){
+        if(s.kitchenSound) ding(660);
+        toast('Table '+String(o.table||'').replace(/^T/,'')+' — ready ✓', 'Please serve the guest');
+      }
+      bag.map.set(o.id, o.status);
+      if(bag.map.size>300) bag.map.clear(), bag.map.set(o.id, o.status); // bound memory
+    }
+    bag.seeded = true;
+  };
+
+  // ——— wire Print tab + sample receipt ———
+  function sampleOrder(){
+    return {id:'ord-test', table:'T1', items:[{name:'Cappuccino', qty:1, price:12, total:12},{name:'Nasi Lemak', qty:2, price:18, total:36}]};
+  }
+  function wirePrintTab(){
+    $('btn-print-apple')?.addEventListener('click', ()=> printReceipt(sampleOrder()));
+    $('btn-print-test')?.addEventListener('click', ()=> printReceipt(sampleOrder()));
+    $('btn-print-bt')?.addEventListener('click', async ()=>{
+      try{ await printViaBluetooth(sampleOrder(), await shopFor()); }
+      catch(e){ toast('Bluetooth print failed', String(e?.message||e).slice(0,120)); }
+    });
+  }
+
+  // ——— Settings shortcut: open Print page ———
+  function wireGotoPrint(){ $('btn-goto-print')?.addEventListener('click', ()=> document.querySelector('[data-tab="print"]')?.click()); }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=>{ initTheme(); wirePrintTab(); wireGotoPrint(); });
+  else { initTheme(); wirePrintTab(); wireGotoPrint(); }
+})();

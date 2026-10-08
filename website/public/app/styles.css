@@ -335,3 +335,64 @@ body.is-inapp #view-setup{ display:none !important }
 .print-card{ background:var(--cream); border:1.2px solid var(--creamBorder); border-radius:16px; padding:14px; margin-top:10px }
 .print-card h4{ margin:0 0 4px; font-weight:900; font-size:14px; color:var(--forest) }
 .print-card p{ margin:0 0 10px; font-weight:600; font-size:13px; color:var(--muted); line-height:1.45 }
+
+/* ============================================================
+   APK MIRROR v2 — theme system (light/dark), toasts, badges,
+   print-only receipt. Mirrors APK palette exactly.
+   ============================================================ */
+/* DARK palette — exact APK dark green (theme.dart):
+   deep #0F1512 · forestDark #0D281E · cardDark #18221D · cardDarkAlt #202C26
+   ink #EAF4ED · muted #A9C6B7 · mint #2EA771 */
+html[data-theme="dark"]{
+  --cream: #0F1512;
+  --creamMuted: #0D281E;
+  --creamBorder: rgba(169,198,183,.24);
+  --creamSurf: rgba(24,34,29,.78);
+  --surf: #18221D;
+  --cardAlt: #202C26;
+  --forest: #EAF4ED;
+  --muted: #A9C6B7;
+  --line: rgba(169,198,183,.14);
+}
+html[data-theme="dark"] .of-card,
+html[data-theme="dark"] .print-card,
+html[data-theme="dark"] .set-group,
+html[data-theme="dark"] .sheet__panel,
+html[data-theme="dark"] .menu-pick-row,
+html[data-theme="dark"] .ord-line,
+html[data-theme="dark"] .table-tile,
+html[data-theme="dark"] .of-tile{ background: #18221D; border-color: rgba(169,198,183,.24); box-shadow: 0 10px 24px rgba(0,0,0,.35); }
+html[data-theme="dark"] .menu-pick-row.is-off,
+html[data-theme="dark"] .ord-line{ background:#1C2620; }
+html[data-theme="dark"] .set-row + .set-row{ border-top-color: rgba(169,198,183,.18); }
+html[data-theme="dark"] input[type="text"],
+html[data-theme="dark"] input[type="number"],
+html[data-theme="dark"] select{ background:#101A15; }
+html[data-theme="dark"] .table-tile .st{ color: rgba(234,244,237,.62); }
+html[data-theme="dark"] .grand{ border-top-color: rgba(169,198,183,.24); }
+html[data-theme="dark"] .of-topbar{ background: rgba(15,21,18,.8); border-bottom-color: rgba(169,198,183,.18); backdrop-filter: blur(14px) saturate(1.1); }
+html[data-theme="dark"] .btn--ghost{ background:#202C26; border-color: rgba(169,198,183,.3); color: #EAF4ED; }
+html[data-theme="dark"] .btn--muted{ background:#0D281E; border-color: rgba(169,198,183,.18); color:#A9C6B7; }
+html[data-theme="dark"] .of-badge{ background: #0D281E; border-color: rgba(169,198,183,.2); color: #A9C6B7; }
+/* Toasts — one small card, fades itself */
+.of-toasts{ position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: 0; right: 0; display: grid; gap: 8px; justify-items: center; z-index: 400; pointer-events: none; }
+.of-toast{ max-width: min(92vw, 420px); background: var(--forest); color: var(--cream); border-radius: 16px; padding: 12px 16px; font-weight: 800; font-size: 14px; box-shadow: 0 14px 32px rgba(0,0,0,.35); opacity: 0; transform: translateY(-8px) scale(.98); transition: opacity .25s, transform .25s; text-align: center; }
+html[data-theme="dark"] .of-toast{ background: #2EA771; color: #07130D; }
+.of-toast.is-in{ opacity: 1; transform: translateY(0) scale(1); }
+.of-toast small{ display: block; font-weight: 600; opacity: .75; font-size: 12px; margin-top: 2px; }
+/* Kitchen nav badge — number of live tickets */
+button[data-tab="kitchen"]{ position: relative; }
+.nav-badge{ position: absolute; top: 4px; right: calc(50% - 22px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #D94838; color: #fff; font-size: 11px; font-weight: 900; line-height: 18px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+/* Segmented control (theme: System/Light/Dark) */
+.seg{ display: inline-flex; background: var(--creamMuted); border: 1.2px solid var(--creamBorder); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button{ border: 0; background: transparent; color: var(--muted); font-weight: 800; font-size: 13px; padding: 7px 14px; border-radius: 9px; cursor: pointer; font-family: inherit; }
+.seg button.is-on{ background: var(--surf); color: var(--forest); box-shadow: 0 2px 8px rgba(22,62,46,.14); }
+/* Print-only receipt — window.print shows ONLY this */
+#print-root{ display: none; }
+@media print{
+  @page{ size: 80mm auto; margin: 0; }
+  html, body{ background: #fff !important; }
+  body *{ visibility: hidden !important; }
+  #print-root, #print-root *{ visibility: visible !important; }
+  #print-root{ display: block !important; position: absolute; left: 0; top: 0; width: 72mm; padding: 4mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

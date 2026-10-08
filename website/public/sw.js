@@ -1,7 +1,7 @@
 /* Order Flow PWA — offline app shell + runtime cache
    v1 • additive only; never caches /api/* or /download
 */
-const CACHE_SHELL = 'of-shell-v20';
+const CACHE_SHELL = 'of-shell-v21';
 const SHELL = [
   '/app/',
   '/app/index.html',

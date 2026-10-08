@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1"/>
   <title>Order Flow — POS</title>
   <meta name="description" content="Order Flow POS — offline-first. Data stays on this device. Stations join via QR (OF1)."/>
-  <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)"/>
-  <meta name="theme-color" content="#0F1512" media="(prefers-color-scheme: dark)"/>
+  <meta name="theme-color" id="theme-color-meta" content="#FAF7F2"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Order Flow"/>
@@ -17,7 +16,7 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=20"/>
+  <link rel="stylesheet" href="./styles.css?v=21"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
@@ -50,7 +49,7 @@
     <button id="btn-activate" class="license-gate__btn license-gate__btn--mint">Activate</button>
     <button id="btn-license-connect" class="license-gate__btn license-gate__btn--outline">Connect to Main</button>
     <p class="license-gate__foot">No key needed for stations — scan Main’s QR.</p>
-    <a id="btn-wa" class="license-gate__btn license-gate__btn--wa" href="https://wa.me/923000000000?text=Hello%20Jathol%2C%20I%20need%20an%20Order%20Flow%20license" target="_blank" rel="noopener" style="text-decoration:none">💬 WhatsApp Support</a>
+    <a id="btn-wa" class="license-gate__btn license-gate__btn--wa" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="text-decoration:none">💬 WhatsApp Support</a>
     <div class="license-gate__wa">@Jathol_Jutt</div>
     <div class="license-gate__chips"><button class="of-badge" data-locale="en">English</button><button class="of-badge" data-locale="ur">اردو</button></div>
     <div class="license-gate__brand">Jathol</div>
@@ -165,7 +164,7 @@
           <button data-tab="home" class="is-active" aria-selected="true">Home</button>
           <button data-tab="tables">Tables</button>
           <button data-tab="menu">Menu</button>
-          <button data-tab="kitchen">Kitchen</button>
+          <button data-tab="kitchen">Kitchen<span class="nav-badge" id="badge-kitchen" hidden>0</span></button>
           <button data-tab="stock">Stock</button>
         </div>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
@@ -224,7 +223,7 @@
       <!-- MENU -->
       <section id="tab-menu" class="of-card pad" hidden>
         <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Menu</h2>
-        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Catalog lives in IndexedDB — add, 86, rename. Local-first.</p>
+        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Your catalog — add items, mark sold out, rename. Saved on this device, synced to stations.</p>
         <div class="of-toolbar" style="margin-top:10px">
           <input id="new-item-name" placeholder="New dish name"/>
           <input id="new-item-price" placeholder="Price" type="number" inputmode="decimal" style="max-width:120px"/>
@@ -241,7 +240,8 @@
 
       <!-- STOCK -->
       <section id="tab-stock" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Stock & 86</h2>
+        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Stock</h2>
+        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Low items show a warning — count once a day.</p>
         <div id="stock-list" style="display:grid;gap:8px;margin-top:12px"></div>
       </section>
 
@@ -288,6 +288,11 @@
         </div>
 
         <div class="set-group">
+          <div class="set-group__title">Appearance</div>
+          <div class="set-row"><span class="grow">Theme<span class="sub">Pick here — no need to change your phone’s mode</span></span><span class="seg" id="seg-theme"><button type="button" data-t="system">Auto</button><button type="button" data-t="light">Light</button><button type="button" data-t="dark">Dark</button></span></div>
+        </div>
+
+        <div class="set-group">
           <div class="set-group__title">Receipt</div>
           <label class="set-row"><span class="grow">Receipt header line<span class="sub">e.g. “Welcome to Ali Café”</span></span><input type="text" id="set-receipt-head" placeholder="Thank you!"/></label>
           <label class="set-row"><span class="grow">Receipt footer line</span><input type="text" id="set-receipt-foot" placeholder="See you again"/></label>
@@ -300,6 +305,11 @@
           <div class="set-group__title">Kitchen</div>
           <label class="set-row"><span class="grow">Auto-print kitchen slip<span class="sub">Fires when you tap “Send to kitchen”</span></span><input type="checkbox" id="set-auto-print" checked/></label>
           <label class="set-row"><span class="grow">Sound on new ticket</span><input type="checkbox" id="set-kitchen-sound" checked/></label>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group__title">Printers</div>
+          <div class="set-row"><span class="grow">Set up printing<span class="sub">AirPrint on iPhone, Bluetooth on Android</span></span><button class="set-btn set-btn--mint" id="btn-goto-print" type="button">Open Print page</button></div>
         </div>
 
         <div class="set-group">
@@ -332,7 +342,7 @@
 
         <div class="set-group">
           <div class="set-group__title">Support</div>
-          <a class="set-row" href="https://wa.me/923000000000?text=Hello%20Jathol%2C%20I%20need%20help%20with%20Order%20Flow" target="_blank" rel="noopener" style="text-decoration:none"><span class="grow">💬 WhatsApp Jathol support</span><span>↗</span></a>
+          <a class="set-row" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="text-decoration:none"><span class="grow">💬 WhatsApp Jathol support</span><span>↗</span></a>
         </div>
 
         <p id="settings-status" class="mono muted" style="margin-top:12px;font-size:12px"></p>
@@ -382,6 +392,9 @@
     </div>
   </div>
   <!-- Install guide — popup only, never inline on startup -->
+  <div class="of-toasts" id="toast-root" aria-live="polite"></div>
+  <div id="print-root" aria-hidden="true"></div>
+
   <div class="sheet" id="sheet-install" aria-hidden="true">
     <div class="sheet__panel">
       <div style="display:flex;align-items:center;justify-content:space-between"><h3 style="margin:0;font-weight:900">Add to Home Screen</h3><button class="of-icon-btn" id="sheet-install-close" aria-label="Close">✕</button></div>
@@ -414,9 +427,9 @@
   </div>
 </div>
 
-  <script src="./db.js?v=20"></script>
-  <script src="./print.js?v=20"></script>
-  <script src="./app.js?v=20"></script>
+  <script src="./db.js?v=21"></script>
+  <script src="./print.js?v=21"></script>
+  <script src="./app.js?v=21"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){
@@ -612,6 +625,8 @@
         // header title like APK OfScaffold — per screen
         const titles={home:'Home', tables:'Tables', menu:'Menu', kitchen:'Kitchen', stock:'Stock', print:'Print', settings:'Settings'};
         const ht=document.querySelector('.of-header__title'); if(ht) ht.textContent=titles[t]||'Order Flow';
+        if(t==='settings') window.__ofRenderSettings?.();
+        if(t==='kitchen') window.OFCheckOrders?.();
       }
       document.querySelectorAll('[data-tab]').forEach(b=>{
         b.addEventListener('click', ()=>{
