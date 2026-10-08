@@ -214,7 +214,7 @@ async function licenseBoot() {
   if (lic && lic.key && C.isValidKey(lic.key)) {
     ROLE = 'main';
     const setup = await kvGet('setupDone', false);
-    if (setup) { enterMain(); return; }
+    if (setup) { enterMain(); startRelayBoot(room); return; }
     show('view-setup'); renderSetup(); return;
   }
   show('view-license');
