@@ -6,7 +6,7 @@
   "scope": "/app/",
   "id": "/app/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "any",
   "theme_color": "#FAF7F2",
   "background_color": "#FAF7F2",

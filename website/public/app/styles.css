@@ -9,10 +9,12 @@
   --r12:12px; --r14:14px; --r16:16px; --r22:22px; --r28:28px;
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px); --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
 }
-*{box-sizing:border-box}
-html{ -webkit-text-size-adjust:100%; height:100% }
-html,body{margin:0;padding:0;min-height:100%;background:var(--cream);color:var(--ink);font-family:Inter, ui-sans-system, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased}
-body{ display:flex; flex-direction:column; min-height:100dvh; min-height:-webkit-fill-available }
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html{ -webkit-text-size-adjust:100%; height:100%; overscroll-behavior:none; background:#020404 }
+html,body{margin:0;padding:0;min-height:100%;background:var(--cream);color:var(--ink);font-family:Inter, ui-sans-system, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased; overscroll-behavior-y:contain}
+body{ display:flex; flex-direction:column; min-height:100dvh; min-height:-webkit-fill-available; touch-action:manipulation; -webkit-touch-callout:none }
+input, textarea, select{ user-select:text; -webkit-user-select:text }
+.of-main, .sheet__panel{ -webkit-overflow-scrolling:touch }
 a{color:inherit}
 img{max-width:100%}
 

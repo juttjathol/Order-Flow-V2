@@ -609,12 +609,15 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   kvGet('gateway', false).then(v=>{ const el=$('#chk-gateway'); if(el) el.checked=!!v; if(v) $('#gateway-log').textContent='Gateway on — waiting for print jobs…'; });
   $('#btn-print-test')?.addEventListener('click', ()=> $('#btn-print-apple').click());
 
-  // PWA install handling
+  // PWA install handling — guide is popup-only, never inline
   let deferredPrompt=null;
-  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; const b=$('#btn-install'); if(b){ b.hidden=false; b.onclick=async()=>{ if(deferredPrompt){ deferredPrompt.prompt(); const c=await deferredPrompt.userChoice; deferredPrompt=null; b.hidden=true; $('#install-hint').textContent = c.outcome==='accepted' ? 'Installed ✓ — open from Home Screen' : 'You can still add via Share → Add to Home Screen'; } }; } });
-  window.addEventListener('appinstalled', ()=>{ const b=$('#btn-install'); if(b) b.hidden=true; $('#install-hint').textContent='App installed ✓ — launch from Home Screen for standalone mode.'; });
-  // iOS standalone detection
+  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; window.__ofDeferredPrompt=e; const b=$('#btn-install'); const pb=$('#btn-install-popup'); const hint=$('#install-hint'); if(b) b.hidden=false; if(pb) pb.hidden=false; if(hint) hint.textContent='Tap Add to Home Screen for install guide — Install now available.'; });
+  window.addEventListener('appinstalled', ()=>{ const b=$('#btn-install'); if(b) b.hidden=true; const pb=$('#btn-install-popup'); if(pb) pb.hidden=true; const hint=$('#install-hint'); if(hint) hint.textContent='App installed ✓ — launch from Home Screen for standalone mode.'; });
+  // iOS standalone detection — hint now lives in sheet, not inline
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
-  if(isStandalone) $('#install-hint').textContent='Running in standalone — you’re on the Home Screen app ✓';
-  else if(/iPad|iPhone|iPod/.test(navigator.userAgent)) $('#install-hint').textContent='iPhone: tap Share → Add to Home Screen → Add (Safari only). The App Store button does the same.';
+  if(isStandalone){
+    const hint=$('#install-hint'); if(hint) hint.textContent='Running as installed app ✓ — no browser chrome.';
+  } else if(/iPad|iPhone|iPod/.test(navigator.userAgent)){
+    const hint=$('#install-hint'); if(hint && !hint.textContent) hint.textContent='iPhone: tap Share ⎙ → Add to Home Screen → Add (Safari only).';
+  }
 });

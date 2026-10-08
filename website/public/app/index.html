@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1"/>
   <title>Order Flow — POS</title>
   <meta name="description" content="Order Flow POS — offline-first. Data stays on this device. Stations join via QR (OF1)."/>
   <meta name="theme-color" content="#FAF7F2" media="(prefers-color-scheme: light)"/>
@@ -147,12 +147,6 @@
         </div>
       </div>
 
-      <div class="of-card pad" style="border-style:dashed">
-        <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">Add to Home Screen</p>
-        <h4 style="margin:6px 0 0;font-weight:900">Add Order Flow to your Home Screen</h4>
-        <ol style="margin:8px 0 0 18px;color:var(--muted);font-weight:600;font-size:13px;line-height:1.5"><li>Safari (iPhone) or Chrome (Android).</li><li>iPhone: <b>Share</b> <span style="border:1px solid var(--creamBorder);border-radius:6px;padding:0 6px;background:var(--creamSurf)">⎙</span> → <b>Add to Home Screen</b> → <b>Add</b>. Android: Chrome menu → <b>Install app</b> or use button above.</li><li>Launch from the icon — standalone, offline, splash, no URL bar.</li></ol>
-        <p id="install-hint" class="mono muted" style="font-size:12px;margin-top:8px"></p>
-      </div>
     </section>
 
     <!-- APP — hidden until role set -->
@@ -324,8 +318,22 @@
         <button class="of-card pad" data-tab="kitchen" style="text-align:left;display:flex;justify-content:space-between;align-items:center">Kitchen <span class="of-badge">Live</span></button>
         <button class="of-card pad" data-tab="print" style="text-align:left">Print — AirPrint / Bluetooth</button>
         <button class="of-card pad" data-tab="settings" style="text-align:left">Settings & backup</button>
-        <a href="/" class="of-card pad" style="text-align:left;text-decoration:none;display:block">jathol.org ↗</a>
+        <a href="/" class="of-card pad hide-standalone" style="text-align:left;text-decoration:none;display:block">jathol.org ↗</a>
+        <button class="of-card pad hide-standalone" id="btn-install-sheet" style="text-align:left">Add to Home Screen — guide</button>
         <p class="mono muted" id="more-room" style="font-size:11px;word-break:break-all"></p>
+      </div>
+    </div>
+  </div>
+  <!-- Install guide — popup only, never inline on startup -->
+  <div class="sheet" id="sheet-install" aria-hidden="true">
+    <div class="sheet__panel">
+      <div style="display:flex;align-items:center;justify-content:space-between"><h3 style="margin:0;font-weight:900">Add to Home Screen</h3><button class="of-icon-btn" id="sheet-install-close" aria-label="Close">✕</button></div>
+      <div class="of-card pad" style="margin-top:14px">
+        <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">PWA · iOS & Android</p>
+        <h4 style="margin:6px 0 0;font-weight:900">Add Order Flow to your Home Screen</h4>
+        <ol style="margin:8px 0 0 18px;color:var(--muted);font-weight:600;font-size:13px;line-height:1.5"><li>Open in <b>Safari</b> (iPhone) or <b>Chrome</b> (Android).</li><li>iPhone: tap <b>Share</b> <span style="border:1px solid var(--creamBorder);border-radius:6px;padding:0 6px;background:var(--creamSurf)">⎙</span> → <b>Add to Home Screen</b> → <b>Add</b>. Android: Chrome menu → <b>Install app</b> or tap the button below.</li><li>Launch from the new icon — standalone, offline, dark splash, no Safari bar.</li></ol>
+        <p id="install-hint" class="mono muted" style="font-size:12px;margin-top:8px"></p>
+        <button class="btn btn--forest" id="btn-install-popup" hidden style="width:100%;margin-top:10px">Install now</button>
       </div>
     </div>
   </div>
@@ -515,19 +523,81 @@
         document.querySelectorAll('#kitchen-list > div, #kitchen-live > div').forEach(el=>{ el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none'; });
       });
     })();
-    // hide bottom nav while in setup
+    // hide bottom nav while in setup (after license)
     (function(){
       const nav=document.getElementById('of-nav');
       const vs=document.getElementById('view-setup');
       const va=document.getElementById('view-app');
+      const gate=document.getElementById('view-license');
       if(!nav||!vs||!va) return;
       const sync=()=>{
-        const inSetup = !vs.hidden;
+        const inSetup = !vs.hidden || (gate && !gate.hidden);
         nav.style.display = inSetup ? 'none' : '';
+        const hdr=document.getElementById('of-header');
+        if(hdr) hdr.style.display = (gate && !gate.hidden) ? 'none' : '';
       };
       new MutationObserver(sync).observe(vs,{attributes:true, attributeFilter:['hidden']});
       new MutationObserver(sync).observe(va,{attributes:true, attributeFilter:['hidden']});
+      if(gate) new MutationObserver(sync).observe(gate,{attributes:true, attributeFilter:['hidden']});
       sync();
+      window.addEventListener('of:splashDone', sync);
+    })();
+    // — iOS native install guide — popup only, never inline
+    (function(){
+      const sheet=document.getElementById('sheet-install');
+      const openBtn=document.getElementById('btn-install');
+      const sheetOpenBtn=document.getElementById('btn-install-sheet');
+      const closeBtn=document.getElementById('sheet-install-close');
+      const popupBtn=document.getElementById('btn-install-popup');
+      const hint=document.getElementById('install-hint');
+      if(!sheet) return;
+      function openInstall(){ sheet.classList.add('is-open'); sheet.removeAttribute('hidden'); sheet.setAttribute('aria-hidden','false'); }
+      function closeInstall(){ sheet.classList.remove('is-open'); sheet.setAttribute('aria-hidden','true'); setTimeout(()=>{ if(!sheet.classList.contains('is-open')) sheet.hidden=true; }, 260); }
+      [openBtn, sheetOpenBtn].forEach(b=> b && b.addEventListener('click', (e)=>{
+        e.preventDefault();
+        // if deferred prompt exists, still show guide first — guide has Install now
+        openInstall();
+      }));
+      closeBtn?.addEventListener('click', closeInstall);
+      sheet.addEventListener('click', e=>{ if(e.target===sheet) closeInstall(); });
+      // bridge to app.js deferredPrompt
+      let deferred=null;
+      // expose for app.js
+      window.__ofDeferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', e=>{
+        e.preventDefault(); deferred=e; window.__ofDeferredPrompt=e;
+        if(popupBtn) popupBtn.hidden=false;
+        if(openBtn) openBtn.hidden=false;
+        if(sheetOpenBtn) sheetOpenBtn.hidden=false;
+        if(hint) hint.textContent='Tap Install now below, or use Share → Add to Home Screen.';
+      });
+      popupBtn?.addEventListener('click', async()=>{
+        if(deferred){
+          deferred.prompt();
+          const c=await deferred.userChoice;
+          deferred=null; window.__ofDeferredPrompt=null;
+          closeInstall();
+          if(hint) hint.textContent = c.outcome==='accepted' ? 'Installed ✓ — open from Home Screen' : 'You can still add via Share → Add to Home Screen';
+          if(popupBtn) popupBtn.hidden=true;
+        } else {
+          // iOS — just keep guide open, hint already explains Share flow
+          if(hint) hint.textContent='iPhone: tap Share ⎙ → Add to Home Screen → Add (Safari only).';
+        }
+      });
+      // standalone: never show install UI
+      const isStand = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
+      if(isStand){
+        if(openBtn) openBtn.hidden=true;
+      } else {
+        // show help button even without prompt (iOS)
+        if(openBtn) openBtn.hidden=false;
+        // iOS hint
+        if(/iPad|iPhone|iPod/.test(navigator.userAgent) && hint && !hint.textContent) hint.textContent='iPhone: tap Share ⎙ → Add to Home Screen → Add (Safari only). The App Store button does the same.';
+      }
+      // keep in sync when entering standalone later
+      window.matchMedia('(display-mode: standalone)').addEventListener?.('change', e=>{
+        if(e.matches && openBtn) openBtn.hidden=true;
+      });
     })();
     if('serviceWorker' in navigator){ window.addEventListener('load', ()=> navigator.serviceWorker.register('/sw.js', {scope:'/'}).catch(()=>{})); }
   </script>
