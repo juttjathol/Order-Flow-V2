@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=22"/>
+  <link rel="stylesheet" href="./styles.css?v=23"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
@@ -206,6 +206,23 @@
           </div>
           <div id="kitchen-live" class="kds" style="margin-top:10px"></div>
           <p id="live-empty" class="muted" style="margin:8px 0 0;font-weight:600;font-size:13px">No open tickets — all caught up ✓</p>
+
+          <!-- READY TO SERVE — stays visible for order takers until tapped -->
+          <div id="ready-strip" style="margin-top:14px;display:grid;gap:8px" hidden></div>
+
+          <!-- PAYMENT QUEUE — cashier + main: every unpaid bill, pay in one tap -->
+          <div class="of-card pad" style="margin-top:14px" id="payqueue-card" hidden>
+            <h3 style="margin:0;font-weight:900;color:var(--forest)">Payment queue</h3>
+            <p class="muted" style="margin:4px 0 10px;font-weight:600;font-size:12px">Every unpaid bill — tap Pay when the guest is ready.</p>
+            <div id="payqueue-list"></div>
+          </div>
+
+          <!-- STATIONS — main sees every device live in the room -->
+          <div class="of-card pad" style="margin-top:14px" id="stations-card">
+            <h3 style="margin:0;font-weight:900;color:var(--forest)">Stations in this room</h3>
+            <p class="muted" style="margin:4px 0 10px;font-weight:600;font-size:12px">Main and every station share the same tables, tickets and bills — live.</p>
+            <div id="stations-list"></div>
+          </div>
         </div>
       </section>
 
@@ -421,15 +438,69 @@
       <div id="order-items" style="display:grid;gap:6px;max-height:32dvh;overflow:auto;padding-bottom:4px"></div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="btn btn--forest" id="btn-send-kitchen">Send to kitchen</button>
-        <button class="btn btn--ghost" id="btn-print-order-apple">Print with Apple</button>
+        <button class="btn" id="btn-pay-order" style="background:#D49E35;color:#2b1d00;font-weight:900;border-radius:14px;min-height:46px;padding:0 18px;border:0">Pay</button>
+        <button class="btn btn--ghost" id="btn-print-order-apple">Receipt</button>
       </div>
+    </div>
+  </div>
+
+  <!-- PAY SHEET — mirrors the APK paySheet: method chips, numpad, change due -->
+  <div class="sheet" id="sheet-pay" aria-hidden="true">
+    <div class="sheet__panel">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h3 style="margin:0;font-weight:900;color:var(--forest)">Take payment</h3>
+        <button class="of-icon-btn" id="btn-pay-close" aria-label="Close">✕</button>
+      </div>
+      <div id="pay-breakdown" style="margin-top:10px"></div>
+      <p style="font-weight:800;font-size:12px;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.06em">Pay with</p>
+      <div class="pay-chips" id="pay-methods">
+        <button class="pay-chip is-on" type="button" data-m="cash">💵 Cash</button>
+        <button class="pay-chip" type="button" data-m="card">💳 Card</button>
+        <button class="pay-chip" type="button" data-m="wallet">👛 Wallet</button>
+        <button class="pay-chip" type="button" data-m="other">⊡ Other</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:10px;margin-top:12px;font-weight:700"><input type="checkbox" id="pay-split-on"/> Split this bill between two methods</label>
+      <div id="pay-split-box" hidden style="margin-top:8px">
+        <div class="pay-chips" id="pay-methods2">
+          <button class="pay-chip" type="button" data-m="cash">💵 Cash</button>
+          <button class="pay-chip is-on" type="button" data-m="card">💳 Card</button>
+          <button class="pay-chip" type="button" data-m="wallet">👛 Wallet</button>
+          <button class="pay-chip" type="button" data-m="other">⊡ Other</button>
+        </div>
+        <input type="number" id="pay-split-amount" inputmode="decimal" placeholder="Amount on the second method" style="margin-top:8px;width:100%;padding:12px;border-radius:12px;border:1.2px solid var(--creamBorder);background:var(--surf);color:var(--forest);font-weight:700;font-size:16px"/>
+      </div>
+      <div style="margin-top:14px;font-weight:800;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cash received</div>
+      <div class="pay-tender" id="pay-tender">0</div>
+      <div class="pay-change" id="pay-change"></div>
+      <div class="numpad" id="pay-pad" style="margin-top:10px">
+        <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+        <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+        <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+        <button type="button">.</button><button type="button">0</button><button type="button">⌫</button>
+        <button type="button" class="exact">Exact</button>
+      </div>
+      <button class="btn btn--forest" id="btn-pay-confirm" style="width:100%;margin-top:14px;min-height:54px;font-size:17px">Confirm payment</button>
+      <p class="muted" style="text-align:center;font-weight:600;font-size:12px;margin:8px 0 0">After paying: the receipt prints, the table frees up, and the sale is recorded everywhere.</p>
+    </div>
+  </div>
+
+  <!-- RECEIPT PREVIEW — looks like the paper, then Print with Apple -->
+  <div class="sheet" id="sheet-receipt" aria-hidden="true">
+    <div class="sheet__panel">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h3 style="margin:0;font-weight:900;color:var(--forest)">Receipt</h3>
+        <button class="of-icon-btn" id="btn-receipt-close" aria-label="Close">✕</button>
+      </div>
+      <div class="receipt-preview" id="receipt-preview" style="margin-top:12px"></div>
+      <button class="btn btn--forest" id="btn-receipt-print" style="width:100%;margin-top:12px;min-height:52px;font-size:16px">🖨️ Print with Apple</button>
+      <p class="muted" style="text-align:center;font-weight:600;font-size:12px;margin:8px 0 0">Opens the Apple print dialog — pick your paired AirPrint printer.</p>
     </div>
   </div>
 </div>
 
-  <script src="./db.js?v=22"></script>
-  <script src="./print.js?v=22"></script>
-  <script src="./app.js?v=22"></script>
+  <script src="./db.js?v=23"></script>
+  <script src="./print.js?v=23"></script>
+  <script src="./app.js?v=23"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){

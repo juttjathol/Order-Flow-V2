@@ -379,7 +379,7 @@ async function renderHome(){
       live: document.getElementById('kitchen-live'),
       liveEmpty: document.getElementById('live-empty'),
     };
-    if(els.sales) els.sales.textContent='RM '+totalSales.toFixed(2);
+    if(els.sales) els.sales.textContent=fmtMoney(totalSales);
     if(els.kicker){
       const isMain=ROLE==='main'; const now=new Date();
       els.kicker.textContent=(isMain?'Main':'Station')+' · '+now.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})+' · '+(HOT?'live':'idle');
@@ -481,6 +481,18 @@ async function startRelay(info){
   const r = new Relay({room: info.room, secret: info.secret, base: info.base, deviceId: id, isMain: ROLE==='main'});
   await r.init();
   r.onCmd = async (cmd)=>{
+    // station/main heartbeat — builds the "Stations in this room" panel
+    if(cmd && cmd.type==='hello' && cmd.device){
+      try{
+        const seen=(await kvGet('stationsSeen', {}))||{};
+        seen[String(cmd.device)] = {role: cmd.role||'station', at: Number(cmd.at)||Date.now()};
+        const now=Date.now();
+        for(const k of Object.keys(seen)){ if(now-(seen[k]?.at||0)>10*60*1000) delete seen[k]; }
+        await kvSet('stationsSeen', seen);
+        try{ window.OFRenderLivePanels?.(); }catch{}
+      }catch{}
+      return;
+    }
     // guest table ordering: phone on the table asks for the menu
     if(cmd && cmd.type==='menu_request'){ r._lastRev=-1; r._lastPush=0; try{ await r.pushCheck(); }catch{} return; }
     // guest table ordering: order sent from a guest phone
@@ -682,7 +694,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   });
   $('#btn-print-order-apple')?.addEventListener('click', ()=>{
     if(!CUR_ORDER || !CUR_ORDER.items.length) return;
-    window.OFPrintReceipt?.(CUR_ORDER);
+    window.OFOpenReceiptPreview?.(CUR_ORDER);
   });
   $('#btn-close-order')?.addEventListener('click', closeOrderSheet);
   $('#sheet-order')?.addEventListener('click', (e)=>{ if(e.target.id==='sheet-order') closeOrderSheet(); });
@@ -746,21 +758,27 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     const orders = await idbGetAll('orders').catch(()=>[]);
     const start = new Date(); start.setHours(0,0,0,0);
     const today = orders.filter(o=> (o.createdAt||0) >= start.getTime());
-    const open = today.filter(o=> o.status!=='closed');
-    const sent = today.filter(o=> o.status==='sent'||o.status==='closed');
-    const total = today.reduce((a,o)=> a+(o.total||0), 0);
-    const perTable = {};
-    for(const o of today){ perTable[o.table]=(perTable[o.table]||0)+(o.total||0); }
+    const paid = today.filter(o=> o.status==='paid'||o.status==='closed');
+    const unpaid = today.filter(o=> o.status!=='paid' && o.status!=='closed' && o.status!=='void');
+    const taken = paid.reduce((a,o)=>{ const s=o.items?.reduce((x,i)=>x+(i.total||0),0)||o.total||0; return a+s; },0);
+    const waiting = unpaid.reduce((a,o)=>{ const s=o.items?.reduce((x,i)=>x+(i.total||0),0)||o.total||0; return a+s; },0);
+    const byMethod = {};
+    for(const o of paid){ const m=o.payment?.method||'cash'; byMethod[m]=(byMethod[m]||0)+((o.items||[]).reduce((x,i)=>x+(i.total||0),0)||o.total||0); }
+    const best = {};
+    for(const o of today) for(const it of (o.items||[])) best[it.name]=(best[it.name]||0)+(it.qty||1);
+    const top = Object.entries(best).sort((a,b)=>b[1]-a[1]).slice(0,5);
     out.hidden=false;
     out.textContent =
-      (z?'Z-REPORT — Day close':'X-REPORT — Today so far') + '\n' +
-      '────────────────────────\n' +
-      'Orders today: '+today.length+'  (open: '+open.length+')\n' +
-      'Total sales : '+fmtMoney(total)+'\n' +
-      'Avg / order : '+fmtMoney(today.length? total/today.length : 0)+'\n' +
-      '────────────────────────\n' +
-      Object.entries(perTable).map(([t,v])=> 'Table '+t.replace(/^T/,'')+': '+fmtMoney(v)).join('\n') +
-      (z && sent.length ? '\n────────────────────────\nClosed orders can be archived now.' : '');
+      (z ? 'End of day (Z) — time to close' : 'Quick check (X) — today so far') + '\n' +
+      '───────────────────────\n' +
+      'Bills paid today    : '+paid.length+'\n' +
+      'Money taken         : '+fmtMoney(taken)+'\n' +
+      'Still unpaid bills  : '+unpaid.length+' ('+fmtMoney(waiting)+')\n' +
+      'Average per bill    : '+fmtMoney(paid.length? taken/paid.length : 0)+'\n' +
+      (Object.keys(byMethod).length? '───────────────────────\n' +
+      Object.entries(byMethod).map(([m,v])=> 'Paid by '+m.padEnd(6,' ')+': '+fmtMoney(v)).join('\n')+'\n' : '') +
+      (top.length? '───────────────────────\nBest sellers today:\n'+top.map(([n,q])=> '  · '+n+' × '+q).join('\n') : '───────────────────────\nNothing sold yet today.') +
+      (z && paid.length ? '\n───────────────────────\nLooks good? The day is ready to close.' : '');
     out.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
   $('#btn-report-x')?.addEventListener('click', ()=> showReport(false));
@@ -855,19 +873,20 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     try{
       const o=_ac.createOscillator(), g=_ac.createGain();
       o.connect(g); g.connect(_ac.destination);
-      o.type='sine'; o.frequency.value=freq||880;
+      o.type='triangle'; o.frequency.value=freq||880;
       const t0=(_ac.currentTime)+(at||0);
-      g.gain.setValueAtTime(.14,t0);
-      g.gain.exponentialRampToValueAtTime(.001,t0+.24);
-      o.start(t0); o.stop(t0+.26);
+      g.gain.setValueAtTime(.32,t0);
+      g.gain.exponentialRampToValueAtTime(.001,t0+.3);
+      o.start(t0); o.stop(t0+.32);
       return true;
     }catch{ return false; }
   }
   function ding(kind){
     _unlockAudio();
-    // two-note chime like the APK ticket sound
-    if(kind==='ready'){ beep(660); beep(880,.16); }
-    else { beep(880); beep(1320,.16); }
+    // rising chime — loud enough to hear in a kitchen
+    if(kind==='ready'){ beep(660); beep(880,.18); }
+    else if(kind==='paid'){ beep(523); beep(784,.14); beep(1047,.28); }
+    else { beep(880); beep(1320,.16); beep(1760,.32); }
   }
   function buzz(pattern){ try{ if('vibrate' in navigator) navigator.vibrate(pattern); }catch{} }
 
@@ -927,6 +946,12 @@ document.addEventListener('DOMContentLoaded', async ()=>{
         + ((Number(s.tax)||0)? '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted #ccc"><span>Tax ('+s.tax+'%)</span><span>'+m(tax)+'</span></div>':'')
         + ((Number(s.svc)||0)? '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted #ccc"><span>Service ('+s.svc+'%)</span><span>'+m(svc)+'</span></div>':'')
         + '<div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;border-top:2px solid #111;margin-top:4px;padding-top:4px"><span>TOTAL</span><span>'+m(grand)+'</span></div>')
+      + (order.payment ? '<div style="margin-top:6px;padding-top:5px;border-top:1px dotted #ccc;font-size:11px">'
+        + (order.status==='paid' ? '<div style="text-align:center;font-weight:800;font-size:13px;letter-spacing:2px;margin-bottom:3px">PAID ✓</div>' : '')
+        + '<div style="display:flex;justify-content:space-between;padding:2px 0"><span>Paid with '+esc(order.payment.method||'cash')+'</span><span>'+m(order.payment.tendered||grand)+'</span></div>'
+        + (Number(order.payment.change)>0 ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span>Change</span><span>'+m(order.payment.change)+'</span></div>' : '')
+        + (order.payment.split ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span>Split: '+esc(order.payment.method2)+'</span><span>'+m(order.payment.splitAmt)+'</span></div>' : '')
+        + '</div>' : '')
       + '<div style="text-align:center;font-size:10px;color:#666;margin-top:8px;border-top:1.5px dashed #111;padding-top:6px">'
       +   (kitchen ? 'Fire now — '+new Date().toLocaleTimeString() : esc(s.receiptFoot||'Thank you — please come again'))
       + '</div></div>'
@@ -944,10 +969,11 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     else getSettings().then(run); // rare: first-ever print before cache warms
   }
   window.OFPrintReceipt = printReceipt;
+  window.OFBuildReceiptDom = buildReceiptDom;
   // Kitchen slip on "Send to kitchen": direct print on Android; on iPhone a toast (iOS needs a tap)
   window.OFKitchenPrint = function(order){
-    if(isIOS){ toast('New ticket — Table '+String(order.table||'').replace(/^T/,''), 'Tap “Print slip” on the Kitchen tab'); return; }
     try{ printReceipt(order, {type:'kitchen'}); }catch{}
+    if(isIOS) toast('Kitchen slip printing…', 'If the print page didn’t open, tap “Print slip” on the Kitchen tab');
   };
   window.OFAfterReady = function(order){
     toast('Marked ready ✓', 'Table '+String(order.table||'').replace(/^T/,'')+' — takers notified');
@@ -978,10 +1004,17 @@ document.addEventListener('DOMContentLoaded', async ()=>{
         buzz([80,40,120]);
         toast('Table '+String(o.table||'').replace(/^T/,'')+' — ready ✓', 'Please serve the guest');
       }
+      if(prev!==undefined && prev!=='paid' && prev!=='closed' && o.status==='paid'){
+        if(s.kitchenSound) ding('paid');
+        buzz([60]);
+        const m=o.payment?.method||'';
+        toast('Table '+String(o.table||'').replace(/^T/,'')+' — paid ✓'+ (m?' ('+m+')':''), 'Sale recorded · table freeing up');
+      }
       bag.map.set(o.id, o.status);
       if(bag.map.size>300) bag.map.clear(), bag.map.set(o.id, o.status); // bound memory
     }
     bag.seeded = true;
+    try{ window.OFRenderLivePanels?.(); }catch{}
   };
 
   // ——— wire Print tab + sample receipt ———
@@ -1002,4 +1035,219 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=>{ initTheme(); wirePrintTab(); wireGotoPrint(); });
   else { initTheme(); wirePrintTab(); wireGotoPrint(); }
+})();
+
+/* ============================================================
+   v23 — APK MIRROR: pay sheet (order.paySheet), payment queue,
+   ready strip, stations panel + heartbeat, receipt preview
+   ============================================================ */
+(function(){
+  'use strict';
+  const $=(id)=>document.getElementById(id);
+  function sNow(){ return _setCache || SET_DEFAULTS; }
+  function moneyN(n){ const cur=(sNow().currency)||'RM'; return cur+' '+(Number(n)||0).toFixed(2); }
+
+  function calcBill(o){
+    const s=sNow();
+    const sub=(o.items||[]).reduce((a,i)=> a+(Number(i.total)||0),0);
+    const tax=sub*(Number(s.tax)||0)/100, svc=sub*(Number(s.svc)||0)/100;
+    return {sub, tax, svc, due: sub+tax+svc};
+  }
+
+  // ——— PAY SHEET (mirrors order_screen._pay) ———
+  const PAY={order:null, method:'cash', split:false, method2:'card', splitAmt:'', tender:''};
+  function openPay(order){
+    if(!order || !(order.items||[]).length){ window.OFToast?.('Nothing to pay','Add items to this order first'); return; }
+    Object.assign(PAY,{order, method:'cash', split:false, method2:'card', splitAmt:'', tender:''});
+    const sh=$('sheet-pay'); if(!sh) return;
+    sh.classList.add('is-open'); sh.setAttribute('aria-hidden','false');
+    renderPay();
+  }
+  window.OFOpenPay=openPay;
+  function closePay(){ const sh=$('sheet-pay'); if(!sh) return; sh.classList.remove('is-open'); sh.setAttribute('aria-hidden','true'); }
+  function dueInfo(){
+    const b=calcBill(PAY.order);
+    const splitAmt=PAY.split ? (Number(PAY.splitAmt)||0) : 0;
+    const primary=PAY.split ? b.due-splitAmt : b.due;
+    return {...b, splitAmt, primary};
+  }
+  function renderPay(){
+    const d=dueInfo();
+    const bd=$('pay-breakdown'); if(bd){
+      bd.innerHTML=
+        '<div class="pay-amt">'+moneyN(d.due)+'</div>'
+        +'<div class="pay-line muted"><span>Subtotal</span><span>'+moneyN(d.sub)+'</span></div>'
+        +((sNow().tax||0)?'<div class="pay-line muted"><span>Tax ('+sNow().tax+'%)</span><span>'+moneyN(d.tax)+'</span></div>':'')
+        +((sNow().svc||0)?'<div class="pay-line muted"><span>Service ('+sNow().svc+'%)</span><span>'+moneyN(d.svc)+'</span></div>':'')
+        +(PAY.split&&d.splitAmt?'<div class="pay-line muted"><span>Second method ('+PAY.method2+')</span><span>'+moneyN(d.splitAmt)+'</span></div>':'')
+        +'<div class="pay-line grand"><span>'+(PAY.split?('On '+PAY.method):'Total to pay')+'</span><span>'+moneyN(d.primary)+'</span></div>';
+    }
+    document.querySelectorAll('#pay-methods .pay-chip').forEach(b=> b.classList.toggle('is-on', b.dataset.m===PAY.method));
+    document.querySelectorAll('#pay-methods2 .pay-chip').forEach(b=> b.classList.toggle('is-on', b.dataset.m===PAY.method2));
+    const sp=$('pay-split-on'); if(sp) sp.checked=PAY.split;
+    const sb=$('pay-split-box'); if(sb) sb.hidden=!PAY.split;
+    const sa=$('pay-split-amount'); if(sa && document.activeElement!==sa) sa.value=PAY.splitAmt;
+    const needsCash = PAY.method==='cash' || (PAY.split&&PAY.method2==='cash');
+    const cashTarget = PAY.method==='cash' ? d.primary : d.splitAmt;
+    const rec=Number(PAY.tender)||0;
+    const tEl=$('pay-tender');
+    const pad=$('pay-pad');
+    if(tEl) tEl.textContent = needsCash ? (PAY.tender===''?'0':PAY.tender) : '—';
+    if(pad) pad.style.display = needsCash ? '' : 'none';
+    const ch=$('pay-change');
+    if(ch){
+      if(!needsCash){ ch.textContent=''; ch.classList.remove('short'); }
+      else if(rec+0.001>=cashTarget && PAY.tender!==''){ ch.textContent='Change to give:  '+moneyN(rec-cashTarget); ch.classList.remove('short'); }
+      else if(PAY.tender!==''){ ch.textContent='Cash is short — needs '+moneyN(cashTarget-rec)+' more'; ch.classList.add('short'); }
+      else { ch.textContent=''; ch.classList.remove('short'); }
+    }
+    const cf=$('btn-pay-confirm');
+    if(cf){
+      const splitOk=!PAY.split || (d.splitAmt>0.001 && d.splitAmt<d.due-0.001);
+      const cashOk=!needsCash || rec+0.001>=cashTarget;
+      const ok=splitOk && cashOk && d.primary>0.001;
+      cf.disabled=!ok; cf.style.opacity=ok?'1':'.5';
+    }
+  }
+  function wirePay(){
+    document.querySelectorAll('#pay-methods .pay-chip').forEach(b=> b.addEventListener('click', ()=>{ PAY.method=b.dataset.m; renderPay(); }));
+    document.querySelectorAll('#pay-methods2 .pay-chip').forEach(b=> b.addEventListener('click', ()=>{ PAY.method2=b.dataset.m; renderPay(); }));
+    $('pay-split-on')?.addEventListener('change', e=>{ PAY.split=!!e.target.checked; PAY.splitAmt=''; renderPay(); });
+    $('pay-split-amount')?.addEventListener('input', e=>{ PAY.splitAmt=e.target.value; renderPay(); });
+    $('pay-pad')?.addEventListener('click', e=>{
+      const k=e.target?.textContent; if(!k) return;
+      if(e.target.classList.contains('exact')){ PAY.tender=String(dueInfo().primary.toFixed(2)); }
+      else if(k==='⌫'){ PAY.tender=PAY.tender.slice(0,-1); }
+      else if(k==='.' && PAY.tender.includes('.')) return;
+      else { PAY.tender=(PAY.tender+k).replace(/^0+(?=\d)/,''); }
+      renderPay();
+    });
+    $('btn-pay-close')?.addEventListener('click', closePay);
+    $('sheet-pay')?.addEventListener('click', e=>{ if(e.target.id==='sheet-pay') closePay(); });
+    $('btn-pay-confirm')?.addEventListener('click', async()=>{
+      const d=dueInfo();
+      const splitOk=!PAY.split || (d.splitAmt>0.001 && d.splitAmt<d.due-0.001);
+      if(!splitOk){ window.OFToast?.('Split amount is wrong','It must be less than the total'); return; }
+      const needsCash = PAY.method==='cash' || (PAY.split&&PAY.method2==='cash');
+      const cashTarget = PAY.method==='cash' ? d.primary : d.splitAmt;
+      const rec=needsCash ? (Number(PAY.tender)||0) : cashTarget;
+      if(needsCash && rec+0.001<cashTarget){ window.OFToast?.('Cash is short','Needs '+moneyN(cashTarget-rec)+' more'); return; }
+      const o=PAY.order;
+      // 1) system print sheet FIRST — keeps the tap gesture alive
+      o.payment={method:PAY.method, method2:PAY.split?PAY.method2:null, splitAmt:PAY.split?d.splitAmt:0, split:PAY.split, tendered:+rec.toFixed(2), change:+(rec-cashTarget).toFixed(2)};
+      o.status='paid'; o.paidAt=Date.now();
+      try{ window.OFPrintReceipt?.(o); }catch{}
+      // 2) persist + sync + ui
+      await idbPut('orders', o);
+      const unpaid = (await idbGetAll('orders')).filter(x=> x.table===o.table && x.status!=='paid' && x.status!=='closed' && x.status!=='void' && x.id!==o.id);
+      if(!unpaid.length){ const t=await idbGet('tables', o.table); if(t){ t.state='free'; t.since=null; await idbPut('tables', t); } }
+      await kvSet('rev', Date.now());
+      closePay(); closeOrderSheet();
+      window.OFToast?.('Paid ✓ '+moneyN(d.due)+(needsCash&&o.payment.change>0?' — change '+moneyN(o.payment.change):''), 'Receipt printed · table is free');
+      try{ if(RELAY && ROLE==='station' && window.OFRelay?.sendOrders) await window.OFRelay.sendOrders(); }catch{}
+      refreshAll();
+      openReceiptPreview(o);
+    });
+  }
+
+  // ——— Receipt preview (the "Apple print page") ———
+  function openReceiptPreview(order){
+    const sh=$('sheet-receipt'); const pv=$('receipt-preview'); if(!sh||!pv) return;
+    pv.innerHTML = window.OFBuildReceiptDom
+      ? window.OFBuildReceiptDom(order, sNow(), {})
+      : '<p style="font-family:monospace">Receipt unavailable</p>';
+    sh.classList.add('is-open'); sh.setAttribute('aria-hidden','false');
+    sh._order=order;
+  }
+  window.OFOpenReceiptPreview=openReceiptPreview;
+  function wireReceipt(){
+    $('btn-receipt-close')?.addEventListener('click', ()=> $('sheet-receipt')?.classList.remove('is-open'));
+    $('sheet-receipt')?.addEventListener('click', e=>{ if(e.target.id==='sheet-receipt') e.currentTarget.classList.remove('is-open'); });
+    $('btn-receipt-print')?.addEventListener('click', ()=>{
+      const o=$('sheet-receipt')?._order; if(o) window.OFPrintReceipt?.(o);
+    });
+  }
+
+  // ——— LIVE PANELS: ready strip, payment queue, stations ———
+  async function renderLivePanels(){
+    const orders=await idbGetAll('orders').catch(()=>[]);
+    // ready strip
+    const ready=orders.filter(o=> o.status==='ready');
+    const strip=$('ready-strip');
+    if(strip){
+      strip.hidden=!ready.length;
+      strip.innerHTML='';
+      for(const o of ready){
+        const el=document.createElement('div'); el.className='ready-chip';
+        el.innerHTML='<span class="wh">🔔</span><span class="ttl">Table '+String(o.table||'').replace(/^T/,'')+' — ready to serve<small class="sub" style="display:block">'+(o.items||[]).length+' dish(es) waiting for the guest</small></span><button type="button">Served ✓</button>';
+        el.querySelector('button').onclick=async()=>{
+          o.status='served'; await idbPut('orders', o); await kvSet('rev', Date.now());
+          window.OFToast?.('Table '+String(o.table||'').replace(/^T/,'')+' served ✓');
+          try{ if(RELAY && ROLE==='station' && window.OFRelay?.sendOrders) window.OFRelay.sendOrders(); }catch{}
+          refreshAll();
+        };
+        strip.appendChild(el);
+      }
+    }
+    // payment queue — every unpaid bill
+    const unpaid=orders.filter(o=> o.status!=='paid'&&o.status!=='closed'&&o.status!=='void');
+    const card=$('payqueue-card'); const list=$('payqueue-list');
+    if(card&&list){
+      card.hidden=!unpaid.length;
+      list.innerHTML='';
+      for(const o of unpaid){
+        const d=calcBill(o);
+        const age=Math.max(0,Math.round((Date.now()-(o.createdAt||Date.now()))/60000));
+        const row=document.createElement('div'); row.className='qrow';
+        row.innerHTML='<div class="meta"><b>Table '+String(o.table||'').replace(/^T/,'')+' · '+(o.items||[]).length+' item(s)</b><small>'+(o.status==='ready'?'Ready to serve':o.status==='sent'?'In the kitchen':'Being taken')+' · '+age+' min</small></div><span class="amt">'+moneyN(d.due)+'</span><button class="pay-chip" type="button" style="background:#D49E35;border-color:#D49E35;color:#2b1d00">Pay</button>';
+        row.querySelector('button').onclick=()=> openPay(o);
+        list.appendChild(row);
+      }
+    }
+    // stations panel
+    const host=$('stations-list');
+    if(host){
+      let seen={}; try{ seen=(await kvGet('stationsSeen', {}))||{}; }catch{}
+      let me=''; try{ me=await deviceId(); }catch{}
+      try{ seen[me]={role:(ROLE||'station')+' · this device', at:Date.now()}; }catch{}
+      const entries=Object.entries(seen).sort((a,b)=> b[1].at-a[1].at);
+      host.innerHTML='';
+      if(!entries.length){
+        host.innerHTML='<p class="muted" style="margin:0;font-weight:600;font-size:13px">No devices yet. Open Setup → “Open room & show QR”, then join from your other phones — they appear here, live.</p>';
+      }
+      for(const [dev,info] of entries){
+        const ageSec=Math.round((Date.now()-(info.at||0))/1000);
+        const live=ageSec<75 && dev!==me;
+        const row=document.createElement('div'); row.className='qrow';
+        row.innerHTML='<span class="live-dot'+(dev===me?'':' '+(live?'':'off'))+'"></span><div class="meta"><b>'+(dev===me?'This device':dev)+'</b><small>'+(info.role||'station')+(dev===me?'':' · '+(live?'live now':'seen '+fmtAgo(ageSec)))+'</small></div><span class="amt" style="font-size:12px;color:var(--muted)">'+(live?'● online':'idle')+'</span>';
+        host.appendChild(row);
+      }
+    }
+  }
+  function fmtAgo(sec){
+    if(sec<60) return sec+'s ago';
+    const m=Math.floor(sec/60); if(m<60) return m+'m ago';
+    return Math.floor(m/60)+'h ago';
+  }
+  window.OFRenderLivePanels=renderLivePanels;
+
+  // ——— station heartbeat: every 45s say hello to the room ———
+  let _dev=null;
+  async function myDev(){ if(_dev) return _dev; try{ _dev= await deviceId(); }catch{ _dev='web-'+Math.random().toString(36).slice(2,8); } return _dev; }
+  setInterval(async()=>{
+    if(!RELAY || !window.OFRelay) return;
+    try{
+      const dev=await myDev();
+      const role=(ROLE==='main')?'main':((await kvGet('stationRole','station'))||'station');
+      if(typeof window.OFRelay.send==='function'){ await window.OFRelay.send({type:'hello', device:'web-'+String(dev).slice(-8), role, at:Date.now()}); }
+    }catch{}
+  }, 45000);
+
+  // ——— wire it all ———
+  function wire(){
+    wirePay(); wireReceipt();
+    $('btn-pay-order')?.addEventListener('click', ()=>{ if(CUR_ORDER) openPay(CUR_ORDER); });
+    renderLivePanels().catch(()=>{});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 })();

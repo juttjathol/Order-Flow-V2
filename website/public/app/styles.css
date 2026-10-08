@@ -460,3 +460,54 @@ html,body{ width:100%; overflow-x:hidden; }
 /* 6) seg pills must allow badge overflow */
 .seg{ overflow:visible; }
 .seg button{ position:relative; overflow:visible; }
+
+/* ============================================================
+   v23 — APK MIRROR: hero fix, payment sheet, ready strip,
+   payment queue, stations panel, iOS polish
+   ============================================================ */
+/* The green sales hero must stay green in LIGHT mode too */
+html[data-theme="light"] .of-card--forest{ background:linear-gradient(160deg, #163E2E 0%, #0D281E 100%) !important; color:#fff !important; border-color:rgba(46,167,113,.4); }
+html[data-theme="light"] .of-card--forest .kicker, html[data-theme="light"] .of-card--forest p, html[data-theme="light"] .of-card--forest span{ color:rgba(255,255,255,.85) !important; }
+html[data-theme="light"] .of-card--forest h1, html[data-theme="light"] .of-card--forest .home-sales, html[data-theme="light"] .of-card--forest b{ color:#fff !important; }
+/* Ready-to-serve strip — gold, stays visible until served */
+.ready-chip{ display:flex; align-items:center; gap:10px; background:#FDF6E4; border:1.4px solid #D49E35; border-radius:16px; padding:10px 12px; box-shadow:0 6px 16px rgba(212,158,53,.14); }
+html[data-theme="dark"] .ready-chip{ background:#2b2413; border-color:#8a6a1a; }
+.ready-chip .wh{ display:grid; place-items:center; width:34px; height:34px; border-radius:11px; background:#D49E35; color:#2b1d00; font-weight:900; }
+.ready-chip .ttl{ font-weight:800; font-size:14px; color:var(--forest); }
+.ready-chip .sub{ font-size:12px; font-weight:600; color:var(--muted); }
+.ready-chip button{ margin-left:auto; min-height:36px; border-radius:999px; border:0; background:#D49E35; color:#2b1d00; font-weight:900; padding:0 14px; cursor:pointer; }
+/* Payment queue / stations rows */
+.qrow{ display:flex; align-items:center; gap:10px; padding:11px 12px; border:1.2px solid var(--creamBorder); border-radius:14px; background:var(--surf); }
+.qrow + .qrow{ margin-top:8px; }
+.qrow .meta{ min-width:0; flex:1 1 auto; }
+.qrow .meta b{ display:block; font-size:14px; color:var(--forest); }
+.qrow .meta small{ display:block; font-weight:600; color:var(--muted); font-size:12px; margin-top:1px; }
+.qrow .amt{ font-weight:900; font-size:15px; color:var(--forest); white-space:nowrap; }
+.qrow .live-dot{ width:9px; height:9px; border-radius:50%; background:#2EA771; box-shadow:0 0 0 3px rgba(46,167,113,.18); flex:0 0 auto; }
+.qrow .live-dot.off{ background:#B9C4BC; box-shadow:none; }
+/* Payment sheet — APK order.paySheet mirror */
+.pay-amt{ text-align:center; font-weight:900; font-size:26px; color:var(--forest); letter-spacing:-.5px; }
+.pay-line{ display:flex; justify-content:space-between; font-weight:700; font-size:13px; padding:5px 0; color:var(--forest); }
+.pay-line.muted{ color:var(--muted); font-weight:600; }
+.pay-line.grand{ font-size:17px; font-weight:900; border-top:1.4px dashed var(--creamBorder); padding-top:9px; margin-top:4px; }
+.pay-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.pay-chip{ min-height:42px; padding:0 16px; border-radius:999px; border:1.4px solid var(--creamBorder); background:var(--surf); font-weight:800; font-size:14px; color:var(--forest); cursor:pointer; }
+.pay-chip.is-on{ background:#2EA771; border-color:#2EA771; color:#07130D; }
+.pay-tender{ text-align:center; font-weight:900; font-size:34px; letter-spacing:-.5px; color:var(--forest); min-height:44px; }
+.pay-change{ text-align:center; font-weight:800; font-size:14px; color:#163E2E; min-height:20px; }
+html[data-theme="dark"] .pay-change{ color:#2EA771; }
+.pay-change.short{ color:#D94838; }
+.numpad{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+.numpad button{ min-height:52px; border-radius:14px; border:1.2px solid var(--creamBorder); background:var(--surf); font-weight:900; font-size:20px; color:var(--forest); cursor:pointer; }
+.numpad button:active{ transform:scale(.97); background:var(--creamMuted); }
+.numpad .exact{ grid-column:span 3; min-height:44px; font-size:15px; background:#0D281E; color:#fff; border-color:#0D281E; }
+html[data-theme="light"] .numpad .exact{ background:#163E2E; color:#fff; }
+/* Receipt preview — the "Apple print page" look */
+.receipt-preview{ background:#fff; color:#111; border-radius:14px; padding:18px 16px; box-shadow:0 10px 24px rgba(0,0,0,.12); max-height:46dvh; overflow:auto; }
+/* iOS polish across the app */
+html{ height:100%; }
+body{ min-height:100dvh; min-height:-webkit-fill-available; overscroll-behavior-y:none; }
+#tab-home, #tab-tables, #tab-menu, #tab-kitchen, #tab-stock, #tab-print, #tab-settings{ -webkit-overflow-scrolling:touch; }
+.of-header{ -webkit-backdrop-filter:saturate(1.2) blur(18px); }
+.sheet{ -webkit-backdrop-filter:blur(2px); }
+.of-nav{ -webkit-backdrop-filter:blur(18px); }
