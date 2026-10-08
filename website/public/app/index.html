@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=13"/>
+  <link rel="stylesheet" href="./styles.css?v=14"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
@@ -45,7 +45,7 @@
     <h1 class="license-gate__title">Order Flow</h1>
     <p class="license-gate__sub">Enter your license key to continue.<br/>Stations can join without a key via QR.</p>
     <label class="license-gate__label" for="license-key">License key</label>
-    <input id="license-key" class="license-gate__input" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" maxlength="19" inputmode="text"/>
+    <input id="license-key" class="license-gate__input" placeholder="OF-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" maxlength="24" inputmode="text"/>
     <p id="license-error" class="license-gate__err" hidden></p>
     <button id="btn-activate" class="license-gate__btn license-gate__btn--mint">Activate</button>
     <button id="btn-license-connect" class="license-gate__btn license-gate__btn--outline">Connect to Main</button>
@@ -343,36 +343,38 @@
   </div>
 </div>
 
-  <script src="./db.js?v=13"></script>
-  <script src="./print.js?v=13"></script>
-  <script src="./app.js?v=13"></script>
+  <script src="./db.js?v=14"></script>
+  <script src="./print.js?v=14"></script>
+  <script src="./app.js?v=14"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){
-      const splash=document.getElementById('splash');
-      const typedEl=document.getElementById('splash-typed');
-      const cursor=document.getElementById('splash-cursor');
-      const tag=document.getElementById('splash-tagline');
-      if(!splash||!typedEl) return;
-      const word='Jathol';
-      let idx=0;
-      // entrance already via CSS .2s; type after 1.1s like APK
-      setTimeout(()=>{
-        cursor.style.display='';
-        const iv=setInterval(()=>{
-          idx++;
-          typedEl.textContent=word.slice(0, idx);
-          if(idx>=word.length){
-            clearInterval(iv);
-            setTimeout(()=>{
-              cursor.style.display='none';
-              tag.classList.add('is-in');
-            },700);
-          }
-        },120);
-      },1100);
-      // auto fade at 4800ms like APK, then reveal gate/app
-      setTimeout(()=>{ splash.classList.add('is-out'); setTimeout(()=> splash.hidden=true, 700); window.dispatchEvent(new CustomEvent('of:splashDone')); },4800);
+      try{
+        const splash=document.getElementById('splash');
+        const typedEl=document.getElementById('splash-typed');
+        const cursor=document.getElementById('splash-cursor');
+        const tag=document.getElementById('splash-tagline');
+        if(!splash||!typedEl){ console.warn('[splash] missing nodes'); return; }
+        const word='Jathol';
+        let idx=0;
+        setTimeout(()=>{
+          try{
+            if(cursor) cursor.style.display='';
+            const iv=setInterval(()=>{
+              try{
+                idx++;
+                typedEl.textContent=word.slice(0, idx);
+                if(idx>=word.length){
+                  clearInterval(iv);
+                  setTimeout(()=>{ try{ if(cursor) cursor.style.display='none'; if(tag) tag.classList.add('is-in'); }catch{} },700);
+                }
+              }catch(e){ clearInterval(iv); typedEl.textContent=word; if(tag) tag.classList.add('is-in'); console.warn('[splash] typing err', e); }
+            },120);
+          }catch(e){ typedEl.textContent=word; if(tag) tag.classList.add('is-in'); console.warn('[splash] timeout err', e); }
+        },1100);
+        setTimeout(()=>{ try{ if(typedEl.textContent==='') typedEl.textContent=word; if(tag && !tag.classList.contains('is-in')) tag.classList.add('is-in'); }catch{} }, 2600);
+        setTimeout(()=>{ try{ splash.classList.add('is-out'); setTimeout(()=>{ try{splash.hidden=true}catch{} }, 700); window.dispatchEvent(new CustomEvent('of:splashDone')); }catch(e){ console.warn('[splash] fade err', e); try{splash.hidden=true; window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} } },4800);
+      }catch(e){ console.warn('[splash] init err', e); try{ const s=document.getElementById('splash'); if(s){ s.classList.add('is-out'); setTimeout(()=>s.hidden=true,600); } }catch{} }
     })();
     // failsafe: stuck splash (e.g. JS error, cached old) — CSS hides at 5.9s, JS ensures hidden+event at 6.5s
     setTimeout(()=>{ try{ const s=document.getElementById('splash'); if(!s||s.hidden) return; const cs=getComputedStyle(s); const faded=cs.visibility==='hidden'||parseFloat(cs.opacity)===0; if(faded){ s.hidden=true; window.dispatchEvent(new CustomEvent('of:splashDone')); } else { s.classList.add('is-out'); setTimeout(()=>{ s.hidden=true; try{window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} },700); try{window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} } }catch{} }, 6500);
@@ -385,15 +387,24 @@
       const btn=document.getElementById('btn-activate');
       const ofApp=document.getElementById('of-app');
       if(!gate||!inp||!btn) return;
-      const RELAY_BASE='https://order-flow-v2.pages.dev';
-      const KEY_RE=/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+      const RELAY_BASE=''; // same-origin: jathol.org/api/cloud/open (works on pages.dev too)
+      // accepts OF-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX (16 alnum)
+      const KEY_RE=/^(OF-)?[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
       function formatKey(v){
-        v=v.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,16);
-        return v.replace(/(.{4})/g, '$1-').replace(/-$/,'');
+        v=v.toUpperCase().replace(/[^A-Z0-9]/g,'');
+        let prefix='';
+        if(v.startsWith('OF')){
+          prefix='OF-';
+          v=v.slice(2);
+        }
+        v=v.slice(0,16);
+        const body=v.replace(/(.{4})/g,'$1-').replace(/-$/,'');
+        return prefix ? prefix+body : body;
       }
       function setErr(msg){
-        if(!msg){ errEl.hidden=true; errEl.textContent=''; inp.classList.remove('is-error'); return; }
-        errEl.textContent=msg; errEl.hidden=false; inp.classList.add('is-error');
+        if(!msg){ errEl.hidden=true; errEl.textContent=''; errEl.style.display='none'; inp.classList.remove('is-error'); return; }
+        errEl.textContent=msg; errEl.hidden=false; errEl.style.display='block'; errEl.removeAttribute('hidden'); inp.classList.add('is-error');
+        try{ errEl.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch{}
       }
       inp.addEventListener('input', ()=>{ inp.value=formatKey(inp.value); setErr(''); });
       // deviceId helper (mirrors app.js deviceId)
@@ -444,29 +455,49 @@
       checkGate();
       btn.addEventListener('click', async ()=>{
         const raw=inp.value.trim();
-        if(!raw){ setErr('Enter your license key — XXXX-XXXX-XXXX-XXXX'); return; }
+        if(!raw){ setErr('Enter your license key — OF-XXXX-XXXX-XXXX-XXXX'); return; }
         const fmt=formatKey(raw);
         inp.value=fmt;
-        if(!KEY_RE.test(fmt)){ setErr('Invalid format — use XXXX-XXXX-XXXX-XXXX (16 chars)'); return; }
-        btn.disabled=true; const old=btn.textContent; btn.textContent='Validating…'; setErr('');
-        try{
-          const deviceId=await getDeviceId();
-          const r=await fetch(RELAY_BASE+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({licenseKey: fmt.replace(/-/g,''), deviceId, shopName: 'validation'})});
-          const j=await r.json().catch(()=>null);
-          if(!j || !j.ok){
-            const msg=j?.error||'key_invalid';
-            const map={key_invalid:'That key is not valid. Check and try again.', invalid_key:'That key is not valid.', not_found:'Key not found.', expired:'Key expired — contact support.', bound_other:'Key is bound to another device.', plan:'Key has no cloud plan.', no_license:'Key required.'};
-            setErr(map[msg]||'That key could not be validated — '+msg);
-            btn.disabled=false; btn.textContent=old; return;
+        if(!KEY_RE.test(fmt)){
+          setErr('Invalid format — use OF-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX');
+          inp.animate?.([{transform:'translateX(0)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)'}],{duration:220});
+          return;
+        }
+        const old=btn.textContent; btn.disabled=true; btn.textContent='Validating…'; setErr('');
+        let deviceId='';
+        try{ deviceId=await getDeviceId(); }catch{}
+        const tryKeys=[fmt, fmt.replace(/-/g,'')];
+        let lastErr='key_invalid', ok=false, resp=null;
+        for(const k of tryKeys){
+          try{
+            const r=await fetch((RELAY_BASE||'')+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({licenseKey: k, deviceId, shopName: 'validation'})});
+            const j=await r.json().catch(()=>null);
+            resp=j;
+            if(j && j.ok){ ok=true; break; }
+            lastErr=j?.error||('http_'+r.status);
+            if(lastErr==='not_found' || lastErr==='key_invalid' || lastErr==='invalid_key') continue;
+            else break;
+          }catch(e){
+            lastErr=e?.message||'network';
+            resp=null;
+            break;
           }
-          await setValidated(fmt);
-          gate.hidden=true; gate.setAttribute('aria-hidden','true');
-          if(ofApp) ofApp.classList.remove('gate-hidden');
-          // store validated key also for app.js open-room
-          hint.textContent='License validated ✓ — you can now open a room.';
-        }catch(e){
-          setErr('Could not validate — check internet and try again.');
-        } finally { btn.disabled=false; btn.textContent=old; }
+        }
+        if(!ok){
+          const msg=resp?.error||lastErr||'key_invalid';
+          const map={key_invalid:'That key is not valid. Check and try again.', invalid_key:'That key is not valid.', not_found:'Key not found — check the key or create it in Admin.', expired:'Key expired — contact support.', bound_other:'Key is bound to another device.', plan:'Key has no cloud plan.', no_license:'Key required.', network:'Network error — check internet.', http_404:'Service not found (404) — try again.'};
+          let out=map[msg]||('That key could not be validated — '+msg);
+          if(String(msg).includes('network')||String(msg).includes('Failed to fetch')) out='Could not reach server — check internet and try again.';
+          setErr(out);
+          console.warn('[license] validate failed', msg, resp);
+          btn.disabled=false; btn.textContent=old; return;
+        }
+        try{ await setValidated(fmt); }catch(e){ console.warn('[license] setValidated failed', e); }
+        gate.hidden=true; gate.setAttribute('aria-hidden','true');
+        if(ofApp) ofApp.classList.remove('gate-hidden');
+        hint.textContent='License validated ✓ — you can now open a room.';
+        btn.disabled=false; btn.textContent=old;
+      });
       });
       document.getElementById('btn-license-connect')?.addEventListener('click', ()=>{
         // Station without key — allow through to setup-station but still mark gate dismissed for station flow
