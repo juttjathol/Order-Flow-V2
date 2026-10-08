@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
       // so try the API origin first, then same-origin as a fallback.
       // content-type text/plain keeps it a CORS "simple request" (no preflight).
       let j=null, lastErr='key_invalid', firstJsonErr='';
-      outer: for(const base of [RELAY_BASE, '']){
+      outer: for(const base of ['', RELAY_BASE]){ // same-origin proxy first (no CORS), API origin fallback
         for(const keyTry of [license, license.replace(/-/g,'')]){
           try{
             const r = await fetch(base+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({licenseKey: keyTry, deviceId: id, shopName: shop})});
