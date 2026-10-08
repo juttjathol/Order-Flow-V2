@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v34'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v35'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -268,7 +268,7 @@ ok('guest fire-mode note', orderJs.includes('fireMode'));
 
 /* print contract */
 const printJs = readFileSync(join(APP, 'print.js'), 'utf8');
-ok('AirPrint via pre-rendered iframe + window.print', printJs.includes('window.print') && printJs.includes('apple-print-frame'));
+ok('v35 AirPrint via same-document print area + @media print (iOS-safe)', printJs.includes('of-print-area') && printJs.includes('is-printing') && printJs.includes('window.print') && css.includes('@media print') && css.includes('#of-print-area'));
 ok('Bluetooth offered only when navigator.bluetooth exists', printJs.includes("'bluetooth' in navigator"));
 ok('relay print-job contract', appJs.includes("cmd.type === 'printjob'") && appJs.includes('isGateway'));
 
@@ -321,7 +321,7 @@ ok('menu thumb + dim styles', css.includes('.lrow__ic img') && css.includes('.lr
 /* v34 — settings sections, privacy link, printing fixes */
 ok('v34 More screen has clean sections incl. Account', moreJs.includes("section('🔐 Account')") && moreJs.includes("section('🏪 My shop')") && moreJs.includes("section('📡 Devices & QR')") && moreJs.includes("section('🧂 Menu & stock')") && moreJs.includes('Manager PINs'));
 ok('v34 Privacy row opens the website privacy page', moreJs.includes("window.open('/privacy.html'"));
-ok('v34 single AirPrint sheet — auto script only in the popup fallback', printJs.includes('htmlDoc(order, opts, false)') && printJs.includes('autoScript'));
+ok('v35 ONE AirPrint sheet — single window.print call, no auto scripts', printJs.includes('window.print()') && !printJs.includes('window.onload=function()'));
 ok('v34 58mm paper setting honored in print CSS', printJs.includes('58mm') && printJs.includes("=== '58'"));
 ok('v34 pay receipt respects the Auto print switch', readFileSync(join(APP, 'ticket.js'), 'utf8').includes("profile.autoPrint !== false && window.OFPrintReceipt"));
 

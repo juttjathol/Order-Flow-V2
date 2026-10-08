@@ -311,6 +311,14 @@ html[data-theme="dark"] .of-toast{ background:var(--mint); color:#07130D; }
 @keyframes blinkC{ 0%,100%{opacity:1} 50%{opacity:0} }
 .splash__tag{ color:rgba(47,255,160,.5); letter-spacing:5.5px; font-size:13px; font-weight:300; margin-top:8px; opacity:0; transform:translateY(30%); transition:opacity .7s, transform .7s; z-index:1; }
 .splash__tag.is-in{ opacity:1; transform:translateY(0); }
+
+/* printing (iOS-safe same-document path — hidden iframes no-op on iOS Safari) */
+#of-print-area{ display:none; }
+@media print{
+  #of-print-area{ display:block; }
+  body.is-printing > *:not(#of-print-area):not(script):not(style){ display:none !important; }
+}
+
 .gate{ position:fixed; inset:0; z-index:95; background:linear-gradient(180deg, #061A14 0%, #04120D 100%); overflow-y:auto; }
 .gate__in{ width:min(430px, 100%); margin:0 auto; padding:calc(40px + var(--safe-t)) 26px calc(26px + var(--safe-b)); display:flex; flex-direction:column; }
 .gate__logo{ width:68px; height:68px; border-radius:18px; margin:0 auto; box-shadow:0 10px 28px rgba(0,0,0,.3); }
