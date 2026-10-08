@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v32'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v33'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -296,6 +296,25 @@ ok('v32 guest asks for the menu (menu_request) and caches it (ofqrmenu:)', readF
 ok('v32 guest first pull is immediate + faster while hungry', readFileSync(join(PUB, 'order.js'), 'utf8').includes('setTimeout(poll, document.hidden ? 9000 : (STATE ? 2500 : 1100))'));
 ok('v32 main republishes the menu when a guest says hello', appJs.includes("cmd.role === 'guest'"));
 ok('v32 push failures are surfaced, never swallowed', appJs.includes('Menu push failed') && appJs.includes('okAny'));
+
+/* v33 — REAL crypto round-trip: the ArrayBuffer bug that black-holed every relay message */
+{
+  const coreJs = readFileSync(join(APP, 'core.js'), 'utf8');
+  ok('v33 b64uEncode handles ArrayBuffer explicitly', coreJs.includes('bytes instanceof ArrayBuffer'));
+  globalThis.window = globalThis;
+  new Function('module', 'require', coreJs)(undefined, undefined);
+  const core = globalThis.OFCore;
+  ok('OFCore loads in selftest harness', !!core);
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|selftest'));
+  const key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode('flow-state-payload'));
+  const wire = core.b64uEncode(iv) + '.' + core.b64uEncode(enc);
+  ok('v33 relay wire carries real ciphertext, not an empty shell', wire.split('.')[1].length > 10);
+  const dot = wire.indexOf('.');
+  const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: core.b64uDecode(wire.slice(0, dot)) }, key, core.b64uDecode(wire.slice(dot + 1)));
+  eq('v33 AES-GCM round trip through OFCore b64u helpers', new TextDecoder().decode(dec), 'flow-state-payload');
+}
 ok('menu thumb + dim styles', css.includes('.lrow__ic img') && css.includes('.lrow.is-off'));
 
 console.log('\n────────────────────────────');

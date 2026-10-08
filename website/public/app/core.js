@@ -18,7 +18,16 @@
     });
   }
   function b64uEncode(bytes) {
-    let bin = ''; const u8 = typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes;
+    // crypto.subtle.encrypt returns an ArrayBuffer — ArrayBuffer.length is
+    // undefined, so the old "treat as Uint8Array" loop silently emitted ''
+    // and every relay message was an undecryptable empty shell. Handle
+    // ArrayBuffer + any view explicitly.
+    let u8;
+    if (typeof bytes === 'string') u8 = new TextEncoder().encode(bytes);
+    else if (bytes instanceof ArrayBuffer) u8 = new Uint8Array(bytes);
+    else if (ArrayBuffer.isView(bytes)) u8 = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    else u8 = new Uint8Array(0);
+    let bin = '';
     for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
     return (typeof btoa !== 'undefined' ? btoa(bin) : Buffer.from(u8).toString('base64'))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
