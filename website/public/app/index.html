@@ -1,807 +1,253 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1"/>
-  <title>Order Flow — POS</title>
-  <meta name="description" content="Order Flow POS — offline-first. Data stays on this device. Stations join via QR (OF1)."/>
-  <meta name="theme-color" id="theme-color-meta" content="#FAF7F2"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="Order Flow"/>
-  <meta name="mobile-web-app-capable" content="yes"/>
-  <meta name="application-name" content="Order Flow"/>
-  <link rel="icon" href="/media/logo.png"/>
-  <link rel="apple-touch-icon" href="/media/logo.png" sizes="180x180"/>
-  <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
-  <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
-  <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=24"/>
-  <!-- preconnect for relay -->
-  <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
-
-  <style>@media print{ body *{ visibility:hidden } #print-root, #print-root *{ visibility:visible } #print-root{ position:absolute; inset:0; } }</style>
-  <style>/* critical gate fallback — ensures dark even if styles.css cached old */
-    .license-gate{background:#051912 !important}
-    .license-gate__inner{max-width:420px;margin:0 auto}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Order Flow"/>
+<meta name="theme-color" id="theme-meta" content="#FAF7F2"/>
+<title>Order Flow</title>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="icon" href="/media/logo.png"/>
+<link rel="apple-touch-icon" href="/media/logo.png"/>
+<link rel="stylesheet" href="styles.css?v=25"/>
 </head>
 <body>
-<!-- APK Splash — radial + rings + typed Jathol -->
-<div id="splash" class="splash" aria-hidden="true">
-  <div class="splash__rings"><div class="splash__ring"></div><div class="splash__ring splash__ring--2"></div></div>
-  <div style="text-align:center;position:relative;z-index:1">
-    <img src="/media/logo.png" alt="" class="splash__logo" width="150" height="150"/>
-    <div class="splash__word"><span id="splash-typed" class="splash__typed"></span><span id="splash-cursor" class="splash__cursor"></span></div>
-    <div id="splash-tagline" class="splash__tagline">ORDER FLOW</div>
+
+<!-- ================= SPLASH (typed Jathol, failsafe auto-hide) ================= -->
+<div class="splash" id="splash">
+  <img class="splash__logo" src="/media/bolt.png" alt=""/>
+  <div class="splash__word"><span class="splash__typed" id="splash-typed"></span><span class="splash__cur"></span></div>
+  <div class="splash__tag" id="splash-tag">J A T H O L</div>
+</div>
+
+<!-- ================= LICENSE GATE / LOCKED ================= -->
+<div class="gate" id="view-license" hidden>
+  <div class="gate__in">
+    <img class="gate__logo" src="/media/logo.png" alt=""/>
+    <div class="gate__ttl">Order Flow</div>
+    <div class="gate__sub" data-t="enter_key">Enter your license key to continue.</div>
+    <div class="gate__lbl" data-t="license">License</div>
+    <input id="lic-key" class="gate__key" autocomplete="off" spellcheck="false" placeholder="OF-XXXX-XXXX-XXXX-XXXX" maxlength="19"/>
+    <div class="gate__err" id="lic-err"></div>
+    <button class="btn btn--mint" id="lic-btn" data-act="license.activate"><span data-t="activate">Activate</span></button>
+    <button class="gate__link" data-act="license.station" data-t="connect_as_station">Join as station (no key needed)</button>
+    <a class="gate__link" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="text-decoration:none">💬 <span data-t="support">WhatsApp support</span></a>
+    <div class="gate__foot" id="gate-foot">Order Flow Web · @Jathol_Jutt</div>
+  </div>
+</div>
+<div class="gate" id="view-locked" hidden>
+  <div class="gate__in" style="margin:auto 0;justify-content:center">
+    <div style="text-align:center;font-size:56px">🔒</div>
+    <div class="gate__ttl" data-t="locked_title">This license is locked</div>
+    <div class="gate__sub" data-t="locked_body" style="margin-top:10px">The key was removed, blocked, or expired. Talk to Jathol to get back in.</div>
+    <a class="btn btn--mint" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="margin-top:22px">💬 WhatsApp @Jathol_Jutt</a>
+    <button class="gate__link" data-act="license.reset" style="margin-top:14px">Use a different key</button>
   </div>
 </div>
 
-<!-- APK License gate — blocks until valid key (like LicenseScreen) — visible by default, JS hides if validated -->
-<div id="view-license" class="license-gate" aria-hidden="false">
-  <div class="license-gate__inner">
-    <img src="/media/logo.png" alt="Order Flow" class="license-gate__logo" width="72" height="72"/>
-    <h1 class="license-gate__title">Order Flow</h1>
-    <p class="license-gate__sub">Enter your license key to continue.<br/>Stations can join without a key via QR.</p>
-    <label class="license-gate__label" for="license-key">License key</label>
-    <input id="license-key" class="license-gate__input" placeholder="OF-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" maxlength="24" inputmode="text"/>
-    <p id="license-error" class="license-gate__err" hidden></p>
-    <button id="btn-activate" class="license-gate__btn license-gate__btn--mint">Activate</button>
-    <button id="btn-license-connect" class="license-gate__btn license-gate__btn--outline">Connect to Main</button>
-    <p class="license-gate__foot">No key needed for stations — scan Main’s QR.</p>
-    <a id="btn-wa" class="license-gate__btn license-gate__btn--wa" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="text-decoration:none">💬 WhatsApp Support</a>
-    <div class="license-gate__wa">@Jathol_Jutt</div>
-    <div class="license-gate__chips"><button class="of-badge" data-locale="en">English</button><button class="of-badge" data-locale="ur">اردو</button></div>
-    <div class="license-gate__brand">Jathol</div>
-    <p class="mono license-gate__foot" id="license-hint" style="margin-top:8px">Valid key required — the POS will not open with a blank or invalid key.</p>
+<!-- ================= CONNECT (station, no key) ================= -->
+<div class="view" id="view-connect" hidden>
+  <div class="hdr">
+    <img class="hdr__logo" src="/media/logo.png" alt=""/>
+    <div><div class="hdr__title">Join as station</div><div class="hdr__sub">Scan Main's QR code — no license key needed</div></div>
+  </div>
+  <div class="scroll-pad grid" style="padding-top:18px">
+    <div class="card card--pad grid">
+      <label class="small muted" style="font-weight:700" >OF1 pairing text from Main</label>
+      <textarea id="connect-paste" rows="4" placeholder="OF1:room:code:secret" style="resize:none"></textarea>
+      <div class="gate__err" id="connect-err" style="text-align:left"></div>
+      <button class="btn btn--primary btn--full" data-act="connect.join">Join this shop</button>
+      <button class="gate__link" data-act="license.back" style="margin-top:10px">I have a license key instead</button>
+    </div>
   </div>
 </div>
 
-<div class="of-app gate-hidden" id="of-app">
-  <!-- Header — APK shell: BrandMark + role + actions -->
-  <header class="of-header" id="of-header">
-    <div class="of-header__brand">
-      <div class="of-header__logo" aria-hidden="true"><img src="/media/logo.png" alt=""/></div>
-      <div class="of-header__titles">
-        <div class="of-header__title">Order Flow</div>
-        <div class="of-header__sub"><span id="role-badge" class="of-badge of-badge--forest">POS</span><span id="header-sub" class="hide-standalone" style="font-weight:700">Tap tables • offline-first</span><span id="sync-state" class="mono" style="max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span></div>
-      </div>
-    </div>
-    <div class="of-header__actions">
-      <button class="of-icon-btn" id="btn-search" aria-label="Search" title="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg></button>
-      <button class="of-icon-btn" id="btn-bell" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 17H5L7 14V10a5 5 0 0 1 10 0v4l2 3z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
-      <button class="btn btn--muted hide-standalone" id="btn-install" hidden style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Add to Home Screen</button>
-      <a class="of-icon-btn hide-standalone" href="/" aria-label="Website" title="jathol.org" style="text-decoration:none">↗</a>
-    </div>
-  </header>
-
-  <!-- Search row (collapsible) -->
-  <div id="search-row" hidden style="padding:10px 14px 0;max-width:980px;width:100%;margin:0 auto">
-    <label class="of-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg><input id="global-search" placeholder="Search tables, orders, menu…"/></label>
+<!-- ================= ROLE SCREEN (station picks role + optional PIN) ================= -->
+<div class="view" id="view-role" hidden>
+  <div class="hdr">
+    <img class="hdr__logo" src="/media/logo.png" alt=""/>
+    <div><div class="hdr__title" data-t="selecting_station">Pick your role</div><div class="hdr__sub" id="role-shop">—</div></div>
   </div>
+  <div class="scroll-pad" style="padding-top:18px">
+    <div class="grid" id="role-grid" style="grid-template-columns:repeat(auto-fill, minmax(150px,1fr))"></div>
+    <div class="card card--pad" id="role-pin-card" style="margin-top:14px" hidden>
+      <label class="small muted" style="font-weight:700" data-t="staff_pin_ask">Enter your PIN</label>
+      <input id="role-pin" inputmode="numeric" maxlength="6" type="password" style="margin-top:8px"/>
+      <div class="gate__err" id="role-pin-err"></div>
+    </div>
+  </div>
+</div>
 
-  <main id="main" class="of-main">
-    <!-- SETUP — native cards -->
-    <section id="view-setup" class="of-setup">
-      <div class="of-hero">
-        <p class="kicker" style="letter-spacing:.08em;font-weight:800;font-size:11px;opacity:.78">Bistro POS · offline after first load</p>
-        <h1>The shop on this device</h1>
-        <p>Data stays on this device (IndexedDB). iPhone can be <b>Main</b> or <b>Station</b> — same as Android. Stations scan Main’s QR (OF1), works cross-platform.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <span class="of-badge" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.18)">Encrypted relay</span>
-          <span class="of-badge" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.18)">AirPrint + Bluetooth</span>
-        </div>
+<!-- ================= SETUP ================= -->
+<div class="view" id="view-setup" hidden>
+  <div class="hdr">
+    <img class="hdr__logo" src="/media/logo.png" alt=""/>
+    <div><div class="hdr__title" data-t="setup_title">Set up your shop</div><div class="hdr__sub" data-t="setup_body">Pick what you run, then a few shop details.</div></div>
+  </div>
+  <div class="scroll-pad" style="padding-top:18px">
+    <div class="sect__t" data-t="business_model">Business model</div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr)" id="setup-models"></div>
+    <div class="sect"><div class="sect__t">Shop</div></div>
+    <div class="grid">
+      <input id="setup-name" data-ph="shop_name" placeholder="Shop name"/>
+      <input id="setup-phone" data-ph="phone" placeholder="Phone" inputmode="tel"/>
+      <input id="setup-addr" data-ph="address" placeholder="Address (for receipts and the guest page)"/>
+      <input id="setup-currency" data-ph="currency" placeholder="Currency (e.g. RM, Rs)" value="RM"/>
+    </div>
+    <button class="btn btn--primary btn--full" style="margin-top:18px" data-act="setup.done"><span data-t="open_shop">Open my shop</span></button>
+  </div>
+</div>
+
+<!-- ================= MAIN SHELL (main + manager) ================= -->
+<div class="view view-main" id="view-main" hidden>
+  <div class="rail" id="rail"></div>
+  <div class="view-main__col">
+    <div class="hdr">
+      <img class="hdr__logo" src="/media/logo.png" alt=""/>
+      <div class="grow" style="min-width:0">
+        <div class="hdr__title" id="hdr-shop">Order Flow</div>
+        <div class="hdr__sub" id="hdr-role">Main (server)</div>
       </div>
-
-      <div class="of-choices">
-        <button class="of-choice is-main" data-role="main">
-          <span class="of-badge of-badge--forest">Main</span>
-          <h3>Use this iPhone as Main</h3>
-          <p>Opens an encrypted room. Other devices join by scanning your QR. Queue, tables & tickets sync via relay.</p>
+      <div class="hdr__icons">
+        <span class="chip chip--live" id="hdr-status">Room live</span>
+        <button class="iconbtn" data-act="shell.cover" title="Cover station" aria-label="Cover station">
+          <svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a5 5 0 0 1 5-5h13"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a5 5 0 0 1-5 5H3"/></svg>
         </button>
-        <button class="of-choice" data-role="station">
-          <span class="of-badge of-badge--gold">Station</span>
-          <h3>Join as Station</h3>
-          <p>Scan or paste the OF1 pairing text from Main. Pick role — taker / kitchen / cashier.</p>
+        <button class="iconbtn" data-act="more.open" title="More" aria-label="More">
+          <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
         </button>
       </div>
-
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn--ghost" id="btn-restore" style="flex:1 1 160px">Restore backup</button><span id="storage-est" class="mono of-badge" style="align-self:center"></span></div>
-
-      <div id="setup-main" hidden class="of-card pad-lg">
-        <h3 style="margin:0;font-weight:900;letter-spacing:-.3px">Open a room for your shop</h3>
-        <p class="muted" style="margin:6px 0 0;font-size:13px;font-weight:600">Encrypted room (OF1) via relay — corridor your stations join. Sleeps until needed.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <input id="shop-name" placeholder="Shop name" style="flex:1 1 260px;padding:12px 14px;border:1.2px solid var(--creamBorder);border-radius:14px;background:var(--creamSurf)"/>
-          <button class="btn btn--forest" id="btn-open-room">Open room & show QR</button>
-        </div>
-        <p class="mono muted" id="open-room-hint" style="margin-top:8px;font-size:11px">License already validated ✓ — room uses that key. If gate showed, re-enter key in License screen.</p>
-        <div id="room-box" hidden style="margin-top:14px">
-          <div class="divider"></div>
-          <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">Share — stations scan it</p>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:10px">
-            <div class="of-qr"><canvas id="qr" width="220" height="220" style="border-radius:14px;background:#fff"></canvas></div>
-            <div style="flex:1 1 260px;min-width:0">
-              <p style="font-weight:900">JOIN CODE <span id="join-code" class="mono" style="font-size:20px;margin-left:8px;letter-spacing:.06em"></span></p>
-              <p class="mono" id="pairing-text" style="word-break:break-all;background:var(--cream);border:1.2px solid var(--creamBorder);border-radius:14px;padding:10px;margin-top:8px;font-size:12px"></p>
-              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-                <button class="btn btn--ghost" id="btn-copy-pair">Copy</button>
-                <button class="btn btn--ghost" id="btn-save-qr">Save QR</button>
-                <button class="btn btn--forest" id="btn-enter-app">Enter POS</button>
-              </div>
-              <p class="muted" style="font-size:12px;margin-top:8px">Android: jathol.org/app → Join as Station → paste full OF1 text.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="setup-station" hidden class="of-card pad-lg">
-        <h3 style="margin:0;font-weight:900;letter-spacing:-.3px">Join a Main</h3>
-        <p class="muted" style="margin:6px 0 0;font-size:13px;font-weight:600">Paste the <b>OF1:…</b> text from Main, or scan its QR.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-          <input id="pairing-input" placeholder="Paste OF1:room:code:secret:base64url" style="flex:1 1 360px;padding:12px 14px;border:1.2px solid var(--creamBorder);border-radius:14px;background:var(--creamSurf)"/>
-          <button class="btn btn--forest" id="btn-join">Join</button>
-          <label class="btn btn--ghost" style="cursor:pointer">Scan QR <input id="qr-file" type="file" accept="image/*" capture="environment" hidden/></label>
-        </div>
-        <p id="join-status" class="mono muted" style="margin-top:8px;font-size:12px"></p>
-        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-          <select id="station-role" style="padding:10px 12px;border:1.2px solid var(--creamBorder);border-radius:14px;background:var(--creamSurf);font-weight:700"><option value="taker">Order taker</option><option value="kitchen">Kitchen</option><option value="cashier">Cashier</option><option value="station">Station</option><option value="driver">Driver</option></select>
-          <button class="btn btn--forest" id="btn-enter-station">Enter as Station</button>
-        </div>
-      </div>
-
-    </section>
-
-    <!-- APP — hidden until role set -->
-    <section id="view-app" hidden style="display:flex;flex-direction:column;gap:14px">
-      <!-- legacy side block kept for app.js selectors (hidden visually but present for JS) -->
-      <div class="side" hidden aria-hidden="true">
-        <div class="card"><p id="side-role"></p><p id="side-room"></p></div>
-        <nav><button data-tab="home" class="active">Home</button><button data-tab="tables">Tables</button><button data-tab="menu">Menu</button><button data-tab="kitchen">Kitchen</button><button data-tab="stock">Stock</button><button data-tab="print">Print</button><button data-tab="settings">Settings</button></nav>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <div class="seg" role="tablist" aria-label="Sections">
-          <button data-tab="home" class="is-active" aria-selected="true">Home</button>
-          <button data-tab="tables">Tables</button>
-          <button data-tab="menu">Menu</button>
-          <button data-tab="kitchen">Kitchen<span class="nav-badge" id="badge-kitchen" hidden>0</span></button>
-          <button data-tab="stock">Stock</button>
-        </div>
-        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn--ghost" id="btn-export" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Export</button>
-          <label class="btn btn--muted" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px;cursor:pointer">Import <input id="import-file" type="file" accept=".json,application/json" hidden/></label>
-          <button class="btn btn--muted" id="btn-leave" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Leave</button>
-        </div>
-      </div>
-
-      <!-- HOME — APK replica: sales + tiles + stats + live -->
-      <section id="tab-home" class="col">
-        <div class="of-card of-card--forest of-sales">
-          <div class="of-sales__left">
-            <div class="of-sales__kicker" id="home-kicker">Today · offline</div>
-            <div class="of-sales__amount" id="home-sales">RM 0.00</div>
-            <div class="of-sales__meta"><span id="home-delta" class="of-badge" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.18)">— vs yesterday</span><span id="home-orders">0 orders</span><span id="home-tables">0 tables open</span></div>
-          </div>
-          <svg class="of-sales__spark" viewBox="0 0 108 48" aria-hidden="true"><polyline id="home-spark" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" points="0,30 14,28 24,32 36,20 48,24 60,14 72,18 84,10 96,16 108,12"/></svg>
-        </div>
-
-        <div class="of-tiles" id="home-tiles">
-          <button class="of-tile" data-tab="tables"><span class="of-tile__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="7" width="18" height="10" rx="3"/><path d="M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg></span><span class="of-tile__label">Tables</span></button>
-          <button class="of-tile" data-tab="menu"><span class="of-tile__icon" style="background:#1B8F62"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span><span class="of-tile__label">Menu</span></button>
-          <button class="of-tile" data-tab="kitchen"><span class="of-tile__icon" style="background:#D49E35;color:#2b1d00"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 7h12M8 7v8a4 4 0 0 0 8 0V7"/><path d="M9 19h6"/></svg></span><span class="of-tile__label">Kitchen</span></button>
-          <button class="of-tile" data-tab="stock"><span class="of-tile__icon" style="background:#23543F"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 7l6-3 6 3v10l-6 3-6-3z"/><path d="M6 7l6 3 6-3"/><path d="M12 10v10"/></svg></span><span class="of-tile__label">Stock</span></button>
-        </div>
-
-        <div class="of-stats" id="home-stats">
-          <div class="of-card of-stat"><div class="of-stat__kicker">Open orders</div><div class="of-stat__value" id="stat-orders">0</div><div class="of-stat__delta" id="stat-orders-d">—</div></div>
-          <div class="of-card of-stat"><div class="of-stat__kicker">Busy tables</div><div class="of-stat__value" id="stat-busy">0</div><div class="of-stat__delta" id="stat-busy-d">—</div></div>
-          <div class="of-card of-stat"><div class="of-stat__kicker">Menu items</div><div class="of-stat__value" id="stat-menu">0</div><div class="of-stat__delta" id="stat-menu-d">—</div></div>
-          <div class="of-card of-stat"><div class="of-stat__kicker">Low stock</div><div class="of-stat__value" id="stat-low">0</div><div class="of-stat__delta warn" id="stat-low-d">watch</div></div>
-        </div>
-
-        <div class="of-card pad" id="home-live">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <h3 style="margin:0;font-weight:900;letter-spacing:-.3px">Live tickets</h3>
-            <button class="btn btn--ghost" data-tab="kitchen" style="min-height:36px;padding:0 12px;border-radius:999px;font-size:13px">Open kitchen</button>
-          </div>
-          <div id="kitchen-live" class="kds" style="margin-top:10px"></div>
-          <p id="live-empty" class="muted" style="margin:8px 0 0;font-weight:600;font-size:13px">No open tickets — all caught up ✓</p>
-
-          <!-- READY TO SERVE — stays visible for order takers until tapped -->
-          <div id="ready-strip" style="margin-top:14px;display:grid;gap:8px" hidden></div>
-
-          <!-- PAYMENT QUEUE — cashier + main: every unpaid bill, pay in one tap -->
-          <div class="of-card pad" style="margin-top:14px" id="payqueue-card" hidden>
-            <h3 style="margin:0;font-weight:900;color:var(--forest)">Payment queue</h3>
-            <p class="muted" style="margin:4px 0 10px;font-weight:600;font-size:12px">Every unpaid bill — tap Pay when the guest is ready.</p>
-            <div id="payqueue-list"></div>
-          </div>
-
-          <!-- STATIONS — main sees every device live in the room -->
-          <div class="of-card pad" style="margin-top:14px" id="stations-card">
-            <h3 style="margin:0;font-weight:900;color:var(--forest)">Stations in this room</h3>
-            <p class="muted" style="margin:4px 0 10px;font-weight:600;font-size:12px">Main and every station share the same tables, tickets and bills — live.</p>
-            <div id="stations-list"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TABLES -->
-      <section id="tab-tables" class="of-card pad" hidden>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-          <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Tables</h2>
-          <div class="seg" role="tablist" aria-label="Filter">
-            <button data-filter="all" class="is-active">All</button><button data-filter="free">Free</button><button data-filter="busy">Busy</button><button data-filter="ready">Ready</button>
-          </div>
-        </div>
-        <div id="table-grid" class="tile-grid" style="margin-top:12px"></div>
-      </section>
-
-      <!-- MENU -->
-      <section id="tab-menu" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Menu</h2>
-        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Your catalog — add items, mark sold out, rename. Saved on this device, synced to stations.</p>
-        <div class="of-toolbar" style="margin-top:10px">
-          <input id="new-item-name" placeholder="New dish name"/>
-          <input id="new-item-price" placeholder="Price" type="number" inputmode="decimal" style="max-width:120px"/>
-          <button class="btn btn--forest" id="btn-add-item" style="min-height:44px">Add</button>
-        </div>
-        <div id="menu-list" class="prod-grid" style="margin-top:12px"></div>
-      </section>
-
-      <!-- KITCHEN -->
-      <section id="tab-kitchen" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Kitchen — live</h2>
-        <div id="kitchen-list" style="display:grid;gap:12px;margin-top:12px"></div>
-      </section>
-
-      <!-- STOCK -->
-      <section id="tab-stock" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Stock</h2>
-        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Low items show a warning — count once a day.</p>
-        <div id="stock-list" style="display:grid;gap:8px;margin-top:12px"></div>
-      </section>
-
-      <!-- PRINT -->
-      <section id="tab-print" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Printing</h2>
-        <div class="print-card">
-          <h4>🖨️ iPhone / iPad</h4>
-          <p>Uses AirPrint. Tap the button and pick your printer — that's it.</p>
-          <button class="btn btn--forest" id="btn-print-apple">Print with Apple</button>
-        </div>
-        <div class="print-card">
-          <h4>📶 Android</h4>
-          <p>Prints to a paired Bluetooth thermal printer.</p>
-          <button class="btn btn--ghost" id="btn-print-bt">Bluetooth print</button>
-        </div>
-        <div class="print-card">
-          <h4>📶 No printer on this device?</h4>
-          <p>Turn this on and the nearest device that has a printer will print for you.</p>
-          <label style="display:flex;align-items:center;gap:10px;font-weight:700"><input type="checkbox" id="chk-relay-print"/> Print from another device (relay)</label>
-        </div>
-        <div class="print-card">
-          <h4>🖥️ This device owns the printer</h4>
-          <p>Keep this tab open. Anything anyone prints anywhere in the shop comes out here.</p>
-          <label style="display:flex;align-items:center;gap:10px;font-weight:700"><input type="checkbox" id="chk-gateway"/> This device is the printer hub</label>
-        </div>
-        <div id="print-status" class="mono muted" style="margin-top:10px;font-size:12px"></div>
-        <div id="gateway-log" class="mono" style="margin-top:8px;background:var(--cream);border:1.2px solid var(--creamBorder);border-radius:14px;padding:10px;max-height:140px;overflow:auto;font-size:11px" hidden></div>
-        <button class="btn btn--muted" id="btn-print-test" style="margin-top:12px">Print a test receipt</button>
-      </section>
-
-      <!-- SETTINGS -->
-      <section id="tab-settings" class="of-card pad" hidden>
-        <h2 style="margin:0;font-weight:900;letter-spacing:-.4px">Settings</h2>
-        <p class="muted" style="margin:6px 0 0;font-weight:600;font-size:13px">Saved on this device and synced to your stations.</p>
-
-        <div class="set-group">
-          <div class="set-group__title">Shop</div>
-          <label class="set-row"><span class="grow">Shop name<span class="sub">Shown on receipts and the QR page</span></span><input type="text" id="set-shop-name" placeholder="My Shop"/></label>
-          <label class="set-row"><span class="grow">Phone / WhatsApp<span class="sub">Printed on the receipt</span></span><input type="text" id="set-shop-phone" placeholder="+60 12-345 6789"/></label>
-          <label class="set-row"><span class="grow">Currency</span><input type="text" id="set-currency" placeholder="RM" style="width:70px;text-align:center"/></label>
-          <label class="set-row"><span class="grow">Tax %<span class="sub">SST / GST — 0 for none</span></span><input type="number" id="set-tax" min="0" max="40" step="0.1" value="0" style="width:70px;text-align:center"/></label>
-          <label class="set-row"><span class="grow">Service charge %</span><input type="number" id="set-svc" min="0" max="30" step="0.5" value="0" style="width:70px;text-align:center"/></label>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">Appearance</div>
-          <div class="set-row"><span class="grow">Theme<span class="sub">Pick here — no need to change your phone’s mode</span></span><span class="seg" id="seg-theme"><button type="button" data-t="system">Auto</button><button type="button" data-t="light">Light</button><button type="button" data-t="dark">Dark</button></span></div>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">Receipt</div>
-          <label class="set-row"><span class="grow">Receipt header line<span class="sub">e.g. “Welcome to Ali Café”</span></span><input type="text" id="set-receipt-head" placeholder="Thank you!"/></label>
-          <label class="set-row"><span class="grow">Receipt footer line</span><input type="text" id="set-receipt-foot" placeholder="See you again"/></label>
-          <label class="set-row"><span class="grow">Copies per print</span><input type="number" id="set-copies" min="1" max="4" value="1" style="width:60px;text-align:center"/></label>
-          <label class="set-row"><span class="grow">Paper width</span><select id="set-paper"><option value="58">58 mm</option><option value="80">80 mm</option></select></label>
-          <label class="set-row"><span class="grow">Show pay-QR on receipt</span><input type="checkbox" id="set-showqr"/></label>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">Kitchen</div>
-          <label class="set-row"><span class="grow">Auto-print kitchen slip<span class="sub">Fires when you tap “Send to kitchen”</span></span><input type="checkbox" id="set-auto-print" checked/></label>
-          <label class="set-row"><span class="grow">Sound on new ticket</span><input type="checkbox" id="set-kitchen-sound" checked/></label>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">Printers</div>
-          <div class="set-row"><span class="grow">Set up printing<span class="sub">AirPrint on iPhone, Bluetooth on Android</span></span><button class="set-btn set-btn--mint" id="btn-goto-print" type="button">Open Print page</button></div>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">QR table ordering</div>
-          <label class="set-row"><span class="grow">Let guests order by QR<span class="sub">Guests scan the table QR, order from their phone</span></span><input type="checkbox" id="set-qr-order"/></label>
-          <div id="qr-table-list"></div>
-          <div class="set-row"><span class="grow muted" style="font-weight:600;color:var(--muted)">Open a room first — QRs carry your room key.</span><button class="set-btn set-btn--mint" id="btn-qr-all" type="button">Download all QRs</button></div>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">Reports</div>
-          <div class="set-row"><span class="grow">X-report — today so far<span class="sub">Orders, totals, by table</span></span><button class="set-btn" id="btn-report-x" type="button">View</button></div>
-          <div class="set-row"><span class="grow">Z-report — day close<span class="sub">Totals for the whole day</span></span><button class="set-btn" id="btn-report-z" type="button">View</button></div>
-          <div class="set-row" id="report-out" hidden style="display:block;white-space:pre-line;font-family:ui-monospace,monospace;font-size:12px;line-height:1.6"></div>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">Backup</div>
-          <div class="set-row"><span class="grow">Export a backup file<span class="sub">Share via Files, AirDrop or WhatsApp</span></span><button class="set-btn set-btn--mint" id="btn-export2" type="button">Export</button></div>
-          <div class="set-row"><span class="grow">Import a backup</span><label class="set-btn" style="cursor:pointer">Choose file<input id="import-file2" type="file" accept=".json,application/json" hidden/></label></div>
-          <div class="set-row"><span class="grow" style="color:var(--danger)">Wipe this device<span class="sub">Deletes local data only</span></span><button class="set-btn" id="btn-wipe" type="button" style="color:var(--danger)">Wipe</button></div>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">License & this device</div>
-          <div class="set-row"><span class="grow">License key</span><span class="mono" id="set-license-key">—</span></div>
-          <div class="set-row"><span class="grow">Device ID</span><span class="mono" id="set-device-id" style="font-size:11px">—</span></div>
-          <div class="set-row"><span class="grow">Sync</span><span id="set-sync-line">—</span></div>
-        </div>
-
-        <div class="set-group">
-          <div class="set-group__title">Support</div>
-          <a class="set-row" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="text-decoration:none"><span class="grow">💬 WhatsApp Jathol support</span><span>↗</span></a>
-        </div>
-
-        <p id="settings-status" class="mono muted" style="margin-top:12px;font-size:12px"></p>
-      </section>
-
-      <div id="print-root" hidden></div>
-    </section>
-  </main>
-
-  <!-- Bottom nav — APK MainShell 5 destinations -->
-  <nav class="of-nav" id="of-nav" aria-label="Sections">
-    <button class="of-nav__item is-active" data-tab="home" aria-current="page">
-      <span class="of-nav__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10L12 3l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>
-      <span>Home</span>
-    </button>
-    <button class="of-nav__item" data-tab="tables">
-      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="7" width="18" height="10" rx="3"/><path d="M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/></svg></span>
-      <span>Tables</span>
-    </button>
-    <button class="of-nav__item" data-tab="menu">
-      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16"/></svg></span>
-      <span>Menu</span>
-    </button>
-    <button class="of-nav__item" data-tab="stock">
-      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 7l6-3 6 3v10l-6 3-6-3z"/><path d="M12 10v10"/><path d="M6 7l6 3 6-3"/></svg></span>
-      <span>Stock</span>
-    </button>
-    <button class="of-nav__item" data-tab="more">
-      <span class="of-nav__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1.8"/><circle cx="19.5" cy="12" r="1.8"/><circle cx="4.5" cy="12" r="1.8"/></svg></span>
-      <span>More</span>
-      <span class="of-nav__dot" aria-hidden="true"></span>
-    </button>
-  </nav>
-
-  <!-- More sheet -->
-  <div class="sheet" id="sheet-more" aria-hidden="true">
-    <div class="sheet__panel">
-      <div style="display:flex;align-items:center;justify-content:space-between"><h3 style="margin:0;font-weight:900">More</h3><button class="of-icon-btn" id="sheet-close" aria-label="Close">✕</button></div>
-      <div style="display:grid;gap:10px;margin-top:14px">
-        <button class="of-card pad" data-tab="kitchen" style="text-align:left;display:flex;justify-content:space-between;align-items:center">Kitchen <span class="of-badge">Live</span></button>
-        <button class="of-card pad" data-tab="print" style="text-align:left">Print — AirPrint / Bluetooth</button>
-        <button class="of-card pad" data-tab="settings" style="text-align:left">Settings & backup</button>
-        <a href="/" class="of-card pad hide-standalone" style="text-align:left;text-decoration:none;display:block">jathol.org ↗</a>
-        <button class="of-card pad hide-standalone" id="btn-install-sheet" style="text-align:left">Add to Home Screen — guide</button>
-        <p class="mono muted" id="more-room" style="font-size:11px;word-break:break-all"></p>
-      </div>
+    </div>
+    <div class="view-main__body" id="main-body">
+      <div id="tab-home" class="scroll-pad"></div>
+      <div id="tab-floor" class="scroll-pad" hidden></div>
+      <div id="tab-menu" class="scroll-pad" hidden></div>
+      <div id="tab-stock" class="scroll-pad" hidden></div>
+      <div id="tab-more" class="scroll-pad" hidden></div>
     </div>
   </div>
-  <!-- Install guide — popup only, never inline on startup -->
-  <div class="of-toasts" id="toast-root" aria-live="polite"></div>
-  <div id="print-root" aria-hidden="true"></div>
+  <nav class="bnav" id="bnav"></nav>
+</div>
 
-  <div class="sheet" id="sheet-install" aria-hidden="true">
-    <div class="sheet__panel">
-      <div style="display:flex;align-items:center;justify-content:space-between"><h3 style="margin:0;font-weight:900">Add to Home Screen</h3><button class="of-icon-btn" id="sheet-install-close" aria-label="Close">✕</button></div>
-      <div class="of-card pad" style="margin-top:14px">
-        <p class="kicker" style="font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-size:11px">PWA · iOS & Android</p>
-        <h4 style="margin:6px 0 0;font-weight:900">Add Order Flow to your Home Screen</h4>
-        <ol style="margin:8px 0 0 18px;color:var(--muted);font-weight:600;font-size:13px;line-height:1.5"><li>Open in <b>Safari</b> (iPhone) or <b>Chrome</b> (Android).</li><li>iPhone: tap <b>Share</b> <span style="border:1px solid var(--creamBorder);border-radius:6px;padding:0 6px;background:var(--creamSurf)">⎙</span> → <b>Add to Home Screen</b> → <b>Add</b>. Android: Chrome menu → <b>Install app</b> or tap the button below.</li><li>Launch from the new icon — standalone, offline, dark splash, no Safari bar.</li></ol>
-        <p id="install-hint" class="mono muted" style="font-size:12px;margin-top:8px"></p>
-        <button class="btn btn--forest" id="btn-install-popup" hidden style="width:100%;margin-top:10px">Install now</button>
+<!-- ================= ROLE SCREENS (station) ================= -->
+<div class="view view-main" id="view-rolehome" hidden>
+  <div class="view-main__col">
+    <div class="hdr">
+      <button class="iconbtn" data-act="role.leave" title="Log out of role" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="grow" style="min-width:0">
+        <div class="hdr__title" id="rolehdr-title">Kitchen</div>
+        <div class="hdr__sub" id="rolehdr-sub">—</div>
       </div>
+      <div class="hdr__icons"><span class="chip chip--live" id="role-status">Room live</span></div>
     </div>
+    <div class="view-main__body scroll-pad" id="role-body"></div>
   </div>
+</div>
 
-  <!-- ORDER SHEET — tap a table: order summary + full menu on top, like APK order sheet -->
-  <div class="sheet" id="sheet-order" aria-hidden="true">
-    <div class="sheet__panel">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <h3 id="order-title" style="margin:0;font-weight:900;color:var(--forest)">Order</h3>
-        <button class="of-icon-btn" id="btn-close-order" aria-label="Close">✕</button>
-      </div>
-      <div id="order-current" style="display:grid;gap:6px;margin-top:12px"></div>
-      <div id="order-total-row" style="margin-top:10px;padding-top:10px;border-top:1.2px dashed var(--creamBorder)"></div>
-      <p style="font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px">Menu — tap Add</p>
-      <div id="order-items" style="display:grid;gap:6px;max-height:32dvh;overflow:auto;padding-bottom:4px"></div>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <button class="btn btn--forest" id="btn-send-kitchen">Send to kitchen</button>
-        <button class="btn" id="btn-pay-order" style="background:#D49E35;color:#2b1d00;font-weight:900;border-radius:14px;min-height:46px;padding:0 18px;border:0">Pay</button>
-        <button class="btn btn--ghost" id="btn-print-order-apple">Receipt</button>
-      </div>
+<!-- ================= TICKET (full-screen route, bottom nav hides) ================= -->
+<div class="view" id="view-ticket" hidden>
+  <div class="hdr">
+    <button class="iconbtn" data-act="ticket.back" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="grow" style="min-width:0">
+      <div class="hdr__title" id="tkt-title">Ticket</div>
+      <div class="hdr__sub" id="tkt-sub">—</div>
     </div>
+    <div class="hdr__icons" id="tkt-badges"></div>
   </div>
-
-  <!-- PAY SHEET — mirrors the APK paySheet: method chips, numpad, change due -->
-  <div class="sheet" id="sheet-pay" aria-hidden="true">
-    <div class="sheet__panel">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <h3 style="margin:0;font-weight:900;color:var(--forest)">Take payment</h3>
-        <button class="of-icon-btn" id="btn-pay-close" aria-label="Close">✕</button>
-      </div>
-      <div id="pay-breakdown" style="margin-top:10px"></div>
-      <p style="font-weight:800;font-size:12px;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.06em">Pay with</p>
-      <div class="pay-chips" id="pay-methods">
-        <button class="pay-chip is-on" type="button" data-m="cash">💵 Cash</button>
-        <button class="pay-chip" type="button" data-m="card">💳 Card</button>
-        <button class="pay-chip" type="button" data-m="wallet">👛 Wallet</button>
-        <button class="pay-chip" type="button" data-m="other">⊡ Other</button>
-      </div>
-      <label style="display:flex;align-items:center;gap:10px;margin-top:12px;font-weight:700"><input type="checkbox" id="pay-split-on"/> Split this bill between two methods</label>
-      <div id="pay-split-box" hidden style="margin-top:8px">
-        <div class="pay-chips" id="pay-methods2">
-          <button class="pay-chip" type="button" data-m="cash">💵 Cash</button>
-          <button class="pay-chip is-on" type="button" data-m="card">💳 Card</button>
-          <button class="pay-chip" type="button" data-m="wallet">👛 Wallet</button>
-          <button class="pay-chip" type="button" data-m="other">⊡ Other</button>
-        </div>
-        <input type="number" id="pay-split-amount" inputmode="decimal" placeholder="Amount on the second method" style="margin-top:8px;width:100%;padding:12px;border-radius:12px;border:1.2px solid var(--creamBorder);background:var(--surf);color:var(--forest);font-weight:700;font-size:16px"/>
-      </div>
-      <div style="margin-top:14px;font-weight:800;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Cash received</div>
-      <div class="pay-tender" id="pay-tender">0</div>
-      <div class="pay-change" id="pay-change"></div>
-      <div class="numpad" id="pay-pad" style="margin-top:10px">
-        <button type="button">1</button><button type="button">2</button><button type="button">3</button>
-        <button type="button">4</button><button type="button">5</button><button type="button">6</button>
-        <button type="button">7</button><button type="button">8</button><button type="button">9</button>
-        <button type="button">.</button><button type="button">0</button><button type="button">⌫</button>
-        <button type="button" class="exact">Exact</button>
-      </div>
-      <button class="btn btn--forest" id="btn-pay-confirm" style="width:100%;margin-top:14px;min-height:54px;font-size:17px">Confirm payment</button>
-      <p class="muted" style="text-align:center;font-weight:600;font-size:12px;margin:8px 0 0">After paying: the receipt prints, the table frees up, and the sale is recorded everywhere.</p>
-    </div>
+  <div class="scroll-pad" style="padding-top:12px">
+    <div class="typechips" id="tkt-types"></div>
+    <div class="grid" id="tkt-meta" style="margin-top:10px"></div>
+    <div class="grid" id="tkt-lines" style="margin-top:4px"></div>
+    <div class="sect__t" style="margin-top:18px" data-t="menu">Menu</div>
+    <div class="tkt__cat" id="tkt-cats"></div>
+    <div class="mgrid" id="tkt-mgrid" style="padding-bottom:8px"></div>
   </div>
-
-  <!-- RECEIPT PREVIEW — looks like the paper, then Print with Apple -->
-  <div class="sheet" id="sheet-receipt" aria-hidden="true">
-    <div class="sheet__panel">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <h3 style="margin:0;font-weight:900;color:var(--forest)">Receipt</h3>
-        <button class="of-icon-btn" id="btn-receipt-close" aria-label="Close">✕</button>
-      </div>
-      <div class="receipt-preview" id="receipt-preview" style="margin-top:12px"></div>
-      <button class="btn btn--forest" id="btn-receipt-print" style="width:100%;margin-top:12px;min-height:52px;font-size:16px">🖨️ Print with Apple</button>
-      <p class="muted" style="text-align:center;font-weight:600;font-size:12px;margin:8px 0 0">Opens the Apple print dialog — pick your paired AirPrint printer.</p>
+  <div class="tkt__strip">
+    <div id="tkt-totals"></div>
+    <div class="row" style="margin-top:10px;gap:8px">
+      <button class="btn btn--gold grow" style="flex:1.4" data-act="ticket.pay" data-t="pay">Pay</button>
+      <button class="btn btn--primary grow" data-act="ticket.send" data-t="send_kitchen">Send to kitchen</button>
+      <button class="btn btn--ghost" data-act="ticket.ops" aria-label="More actions">⋯</button>
     </div>
   </div>
 </div>
 
-  <script src="./db.js?v=24"></script>
-  <script src="./print.js?v=24"></script>
-  <script src="./app.js?v=24"></script>
-  <script>
-    // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
-    (function(){
-      try{
-        const splash=document.getElementById('splash');
-        const typedEl=document.getElementById('splash-typed');
-        const cursor=document.getElementById('splash-cursor');
-        const tag=document.getElementById('splash-tagline');
-        if(!splash||!typedEl){ console.warn('[splash] missing nodes'); return; }
-        const word='Jathol';
-        let idx=0;
-        setTimeout(()=>{
-          try{
-            if(cursor) cursor.style.display='';
-            const iv=setInterval(()=>{
-              try{
-                idx++;
-                typedEl.textContent=word.slice(0, idx);
-                if(idx>=word.length){
-                  clearInterval(iv);
-                  setTimeout(()=>{ try{ if(cursor) cursor.style.display='none'; if(tag) tag.classList.add('is-in'); }catch{} },700);
-                }
-              }catch(e){ clearInterval(iv); typedEl.textContent=word; if(tag) tag.classList.add('is-in'); console.warn('[splash] typing err', e); }
-            },120);
-          }catch(e){ typedEl.textContent=word; if(tag) tag.classList.add('is-in'); console.warn('[splash] timeout err', e); }
-        },1100);
-        setTimeout(()=>{ try{ if(typedEl.textContent==='') typedEl.textContent=word; if(tag && !tag.classList.contains('is-in')) tag.classList.add('is-in'); }catch{} }, 2600);
-        setTimeout(()=>{ try{ splash.classList.add('is-out'); setTimeout(()=>{ try{splash.hidden=true}catch{} }, 700); window.dispatchEvent(new CustomEvent('of:splashDone')); }catch(e){ console.warn('[splash] fade err', e); try{splash.hidden=true; window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} } },4800);
-      }catch(e){ console.warn('[splash] init err', e); try{ const s=document.getElementById('splash'); if(s){ s.classList.add('is-out'); setTimeout(()=>s.hidden=true,600); } }catch{} }
-    })();
-    // failsafe: stuck splash (e.g. JS error, cached old) — CSS hides at 5.9s, JS ensures hidden+event at 6.5s
-    setTimeout(()=>{ try{ const s=document.getElementById('splash'); if(!s||s.hidden) return; const cs=getComputedStyle(s); const faded=cs.visibility==='hidden'||parseFloat(cs.opacity)===0; if(faded){ s.hidden=true; window.dispatchEvent(new CustomEvent('of:splashDone')); } else { s.classList.add('is-out'); setTimeout(()=>{ s.hidden=true; try{window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} },700); try{window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} } }catch{} }, 6500);
-    // —— License gate: blocks POS until valid XXXX-XXXX-XXXX-XXXX ——
-    (function(){
-      const gate=document.getElementById('view-license');
-      const inp=document.getElementById('license-key');
-      const errEl=document.getElementById('license-error');
-      const hint=document.getElementById('license-hint');
-      const btn=document.getElementById('btn-activate');
-      const ofApp=document.getElementById('of-app');
-      if(!gate||!inp||!btn) return;
-      // API + license D1 live on order-flow-v2.pages.dev — jathol.org (jathol-order-flow Pages)
-      // has NO /api functions, so same-origin 404s there. Try API origin first, same-origin as fallback.
-      const RELAY_BASE='https://order-flow-v2.pages.dev';
-      // accepts OF-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX (16 alnum)
-      const KEY_RE=/^(OF-)?[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-      function formatKey(v){
-        v=v.toUpperCase().replace(/[^A-Z0-9]/g,'');
-        let prefix='';
-        if(v.startsWith('OF')){
-          prefix='OF-';
-          v=v.slice(2);
-        }
-        v=v.slice(0,16);
-        const body=v.replace(/(.{4})/g,'$1-').replace(/-$/,'');
-        return prefix ? prefix+body : body;
-      }
-      function setErr(msg){
-        if(!msg){ errEl.hidden=true; errEl.textContent=''; errEl.style.display='none'; inp.classList.remove('is-error'); return; }
-        errEl.textContent=msg; errEl.hidden=false; errEl.style.display='block'; errEl.removeAttribute('hidden'); inp.classList.add('is-error');
-        try{ errEl.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch{}
-      }
-      inp.addEventListener('input', ()=>{ inp.value=formatKey(inp.value); setErr(''); });
-      // deviceId helper (mirrors app.js deviceId)
-      async function getDeviceId(){
-        try{
-          if(window.kvGet){ const v=await kvGet('deviceId',null); if(v) return v; }
-        }catch{}
-        let id=localStorage.getItem('of_deviceId');
-        if(!id){ id='web-'+Math.random().toString(36).slice(2,10)+'-'+Date.now().toString(36); localStorage.setItem('of_deviceId', id); try{ if(window.kvSet) await kvSet('deviceId', id);}catch{} }
-        return id;
-      }
-      // NOTE: db.js declares kvGet/kvSet as top-level `const` — they are visible to
-      // later classic scripts lexically but NEVER become window.* properties.
-      // So `window.kvGet` is always undefined; use `typeof kvGet` instead.
-      async function validatedKey(){
-        try{
-          if(typeof kvGet==='function'){ const v=await kvGet('licenseValidated', null); if(v) return v; }
-        }catch{}
-        const ls=localStorage.getItem('of_licenseValidated');
-        return ls==='1' ? localStorage.getItem('of_licenseKey')||'' : '';
-      }
-      async function setValidated(key){
-        localStorage.setItem('of_licenseValidated','1'); localStorage.setItem('of_licenseKey', key);
-        try{ if(typeof kvSet==='function'){ await kvSet('licenseValidated', key); await kvSet('licenseKey', key); } }catch{}
-      }
-      async function checkGate(){
-        const saved=await validatedKey();
-        if(saved && KEY_RE.test(saved)){
-          inp.value=saved;
-          gate.hidden=true; gate.setAttribute('aria-hidden','true');
-          if(ofApp) ofApp.classList.remove('gate-hidden');
-          return true;
-        }
-        // show gate (after splash)
-        function showGate(){
-          gate.hidden=false; gate.removeAttribute('hidden'); gate.setAttribute('aria-hidden','false');
-          if(ofApp) ofApp.classList.add('gate-hidden');
-          // focus input
-          setTimeout(()=> inp.focus(), 120);
-        }
-        // if splash still visible, wait for its done
-        const splash=document.getElementById('splash');
-        if(splash && !splash.hidden){
-          window.addEventListener('of:splashDone', showGate, {once:true});
-        } else showGate();
-        return false;
-      }
-      // run on load
-      window.addEventListener('DOMContentLoaded', checkGate);
-      // also immediate check in case kv not needed
-      checkGate();
-      btn.addEventListener('click', async ()=>{
-        const raw=inp.value.trim();
-        if(!raw){ setErr('Enter your license key — OF-XXXX-XXXX-XXXX-XXXX'); return; }
-        const fmt=formatKey(raw);
-        inp.value=fmt;
-        if(!KEY_RE.test(fmt)){
-          setErr('Invalid format — use OF-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX');
-          inp.animate?.([{transform:'translateX(0)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)'}],{duration:220});
-          return;
-        }
-        const old=btn.textContent; btn.disabled=true; btn.textContent='Validating…'; setErr('');
-        let deviceId='';
-        try{ deviceId=await getDeviceId(); }catch{}
-        // DB stores keys dashed as OF-XXXX-… (exact match) → dashed first, undashed fallback.
-        // text/plain keeps the cross-origin call a CORS "simple request" (no preflight).
-        const tryKeys=[fmt, fmt.replace(/-/g,'')];
-        const bases=['', RELAY_BASE]; // same-origin proxy first (no CORS), API origin fallback
-        let lastErr='key_invalid', ok=false, resp=null, firstJsonErr='';
-        outer: for(const base of bases){
-          for(const k of tryKeys){
-            try{
-              const r=await fetch(base+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({licenseKey: k, deviceId, shopName: 'validation'})});
-              const j=await r.json().catch(()=>null);
-              resp=j||resp;
-              if(j && j.ok){ ok=true; break outer; }
-              lastErr=j?.error||('http_'+r.status);
-              if(j?.error && !firstJsonErr) firstJsonErr=j.error;
-              continue;
-            }catch(e){
-              lastErr=e?.message||'network';
-              continue;
-            }
-          }
-        }
-        if(!ok){
-          const msg=firstJsonErr||resp?.error||lastErr||'key_invalid';
-          const map={key_invalid:'That key is not valid. Check and try again.', invalid_key:'That key is not valid.', not_found:'Key not found — check the key or create it in Admin.', expired:'Key expired — contact support.', bound_other:'Key is bound to another device.', plan:'Key has no cloud plan.', no_license:'Key required.', network:'Network error — check internet.', http_404:'Service not found (404) — try again.'};
-          let out=map[msg]||('That key could not be validated — '+msg);
-          if(String(msg).includes('network')||String(msg).includes('Failed to fetch')) out='Could not reach server — check internet and try again.';
-          setErr(out);
-          console.warn('[license] validate failed', msg, resp);
-          btn.disabled=false; btn.textContent=old; return;
-        }
-        try{ await setValidated(fmt); }catch(e){ console.warn('[license] setValidated failed', e); }
-        gate.hidden=true; gate.setAttribute('aria-hidden','true');
-        if(ofApp) ofApp.classList.remove('gate-hidden');
-        hint.textContent='License validated ✓ — you can now open a room.';
-        btn.disabled=false; btn.textContent=old;
-      });
-      document.getElementById('btn-license-connect')?.addEventListener('click', ()=>{
-        // Station without key — allow through to setup-station but still mark gate dismissed for station flow
-        inp.value=''; setErr('');
-        // do not mark validated, just hide gate and let user pick Station
-        gate.hidden=true; gate.setAttribute('aria-hidden','true');
-        if(ofApp) ofApp.classList.remove('gate-hidden');
-        // auto open station panel
-        setTimeout(()=>{
-          document.querySelector('[data-role=\"station\"]')?.click();
-          document.getElementById('view-setup')?.scrollIntoView({behavior:'smooth'});
-        },120);
-      });
-    })();
-    // standalone detection for iOS + hide header cruft
-    (function(){ const isStand = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; if(isStand) document.documentElement.classList.add('is-standalone'); window.matchMedia('(display-mode: standalone)').addEventListener?.('change', e=> document.documentElement.classList.toggle('is-standalone', e.matches)); })();
-    // search toggle
-    document.getElementById('btn-search')?.addEventListener('click', ()=>{ const r=document.getElementById('search-row'); r.hidden=!r.hidden; if(!r.hidden) document.getElementById('global-search')?.focus(); });
-    // bell stub
-    document.getElementById('btn-bell')?.addEventListener('click', ()=>{ alert('No new broadcasts'); });
-    // bottom nav + chip nav sync
-    (function(){
-      const targets=['home','tables','menu','kitchen','stock','print','settings'];
-      function showTab(t){
-        if(t==='more'){ document.getElementById('sheet-more')?.classList.add('is-open'); return; }
-        document.getElementById('sheet-more')?.classList.remove('is-open');
-        document.querySelectorAll('#tab-home, #tab-tables, #tab-menu, #tab-kitchen, #tab-stock, #tab-print, #tab-settings').forEach(el=> el.hidden = !el.id.endsWith(t));
-        if(t==='home'){ document.getElementById('tab-home').hidden=false; ['tables','menu','kitchen','stock','print','settings'].forEach(x=> document.getElementById('tab-'+x).hidden=true); }
-        document.querySelectorAll('.of-nav__item, .seg button').forEach(b=>{ const v=b.getAttribute('data-tab'); if(!v) return; const on=v===t; b.classList.toggle('is-active', on); if(b.classList.contains('of-nav__item')) b.setAttribute('aria-current', on?'page':'false'); });
-        document.querySelectorAll('.side nav button').forEach(b=> b.classList.toggle('active', b.getAttribute('data-tab')===t));
-        const legacy=document.querySelector('.side nav button[data-tab="'+t+'"]'); legacy?.click();
-        document.getElementById('more-room').textContent = document.getElementById('side-room')?.textContent || '';
-        // header title like APK OfScaffold — per screen
-        const titles={home:'Home', tables:'Tables', menu:'Menu', kitchen:'Kitchen', stock:'Stock', print:'Print', settings:'Settings'};
-        const ht=document.querySelector('.of-header__title'); if(ht) ht.textContent=titles[t]||'Order Flow';
-        if(t==='settings') window.__ofRenderSettings?.();
-        if(t==='kitchen') window.OFCheckOrders?.();
-      }
-      document.querySelectorAll('[data-tab]').forEach(b=>{
-        b.addEventListener('click', ()=>{
-          const t=b.getAttribute('data-tab');
-          if(targets.includes(t) || t==='more') showTab(t);
-        });
-      });
-      document.getElementById('sheet-close')?.addEventListener('click', ()=> document.getElementById('sheet-more').classList.remove('is-open'));
-      document.getElementById('sheet-more')?.addEventListener('click', e=>{ if(e.target.id==='sheet-more') e.currentTarget.classList.remove('is-open'); });
-      // expose
-      window.__ofShowTab = showTab;
-      // default
-      showTab('home');
-      // keep side-room mirrored
-      new MutationObserver(()=>{ document.getElementById('more-room').textContent=document.getElementById('side-room')?.textContent||'' }).observe(document.getElementById('side-room'),{childList:true,characterData:true,subtree:true});
-    })();
-    // global search filter (tables/menu/kitchen/stock)
-    (function(){
-      const inp=document.getElementById('global-search');
-      if(!inp) return;
-      inp.addEventListener('input', ()=>{
-        const q=inp.value.trim().toLowerCase();
-        document.querySelectorAll('#table-grid .tile').forEach(el=>{ el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-        document.querySelectorAll('#menu-list .prod').forEach(el=>{ el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-        document.querySelectorAll('#kitchen-list > div, #kitchen-live > div').forEach(el=>{ el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-      });
-    })();
-    // hide bottom nav while in setup (after license)
-    (function(){
-      const nav=document.getElementById('of-nav');
-      const vs=document.getElementById('view-setup');
-      const va=document.getElementById('view-app');
-      const gate=document.getElementById('view-license');
-      if(!nav||!vs||!va) return;
-      const sync=()=>{
-        const inSetup = !vs.hidden || (gate && !gate.hidden);
-        nav.style.display = inSetup ? 'none' : '';
-        const hdr=document.getElementById('of-header');
-        if(hdr) hdr.style.display = (gate && !gate.hidden) ? 'none' : '';
-      };
-      new MutationObserver(sync).observe(vs,{attributes:true, attributeFilter:['hidden']});
-      new MutationObserver(sync).observe(va,{attributes:true, attributeFilter:['hidden']});
-      if(gate) new MutationObserver(sync).observe(gate,{attributes:true, attributeFilter:['hidden']});
-      sync();
-      window.addEventListener('of:splashDone', sync);
-    })();
-    // — iOS native install guide — popup only, never inline
-    (function(){
-      const sheet=document.getElementById('sheet-install');
-      const openBtn=document.getElementById('btn-install');
-      const sheetOpenBtn=document.getElementById('btn-install-sheet');
-      const closeBtn=document.getElementById('sheet-install-close');
-      const popupBtn=document.getElementById('btn-install-popup');
-      const hint=document.getElementById('install-hint');
-      if(!sheet) return;
-      function openInstall(){ sheet.classList.add('is-open'); sheet.removeAttribute('hidden'); sheet.setAttribute('aria-hidden','false'); }
-      function closeInstall(){ sheet.classList.remove('is-open'); sheet.setAttribute('aria-hidden','true'); setTimeout(()=>{ if(!sheet.classList.contains('is-open')) sheet.hidden=true; }, 260); }
-      [openBtn, sheetOpenBtn].forEach(b=> b && b.addEventListener('click', (e)=>{
-        e.preventDefault();
-        // if deferred prompt exists, still show guide first — guide has Install now
-        openInstall();
-      }));
-      closeBtn?.addEventListener('click', closeInstall);
-      sheet.addEventListener('click', e=>{ if(e.target===sheet) closeInstall(); });
-      // bridge to app.js deferredPrompt
-      let deferred=null;
-      // expose for app.js
-      window.__ofDeferredPrompt = null;
-      window.addEventListener('beforeinstallprompt', e=>{
-        e.preventDefault(); deferred=e; window.__ofDeferredPrompt=e;
-        if(popupBtn) popupBtn.hidden=false;
-        if(openBtn) openBtn.hidden=false;
-        if(sheetOpenBtn) sheetOpenBtn.hidden=false;
-        if(hint) hint.textContent='Tap Install now below, or use Share → Add to Home Screen.';
-      });
-      popupBtn?.addEventListener('click', async()=>{
-        if(deferred){
-          deferred.prompt();
-          const c=await deferred.userChoice;
-          deferred=null; window.__ofDeferredPrompt=null;
-          closeInstall();
-          if(hint) hint.textContent = c.outcome==='accepted' ? 'Installed ✓ — open from Home Screen' : 'You can still add via Share → Add to Home Screen';
-          if(popupBtn) popupBtn.hidden=true;
-        } else {
-          // iOS — just keep guide open, hint already explains Share flow
-          if(hint) hint.textContent='iPhone: tap Share ⎙ → Add to Home Screen → Add (Safari only).';
-        }
-      });
-      // standalone: never show install UI
-      const isStand = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
-      if(isStand){
-        if(openBtn) openBtn.hidden=true;
-      } else {
-        // show help button even without prompt (iOS)
-        if(openBtn) openBtn.hidden=false;
-        // iOS hint
-        if(/iPad|iPhone|iPod/.test(navigator.userAgent) && hint && !hint.textContent) hint.textContent='iPhone: tap Share ⎙ → Add to Home Screen → Add (Safari only). The App Store button does the same.';
-      }
-      // keep in sync when entering standalone later
-      window.matchMedia('(display-mode: standalone)').addEventListener?.('change', e=>{
-        if(e.matches && openBtn) openBtn.hidden=true;
-      });
-    })();
-    if('serviceWorker' in navigator){ window.addEventListener('load', ()=> navigator.serviceWorker.register('/sw.js', {scope:'/'}).catch(()=>{})); }
-  </script>
+<!-- ================= SUB SCREEN (generic — every More row lands here) ================= -->
+<div class="view" id="view-sub" hidden>
+  <div class="hdr">
+    <button class="iconbtn" data-act="sub.back" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="grow" style="min-width:0"><div class="hdr__title" id="sub-title">—</div><div class="hdr__sub" id="sub-sub"></div></div>
+  </div>
+  <div class="view-main__body scroll-pad" style="flex:1 1 auto" id="sub-body"></div>
+</div>
+
+<!-- ================= CUSTOMER DISPLAY ================= -->
+<div class="cdisp" id="view-display" hidden>
+  <div style="font-size:16px;font-weight:700;opacity:.75" id="cdisp-shop">Order Flow</div>
+  <div style="font-weight:800;font-size:20px;margin-top:10px;opacity:.85" id="cdisp-name"></div>
+  <div class="cdisp__total" id="cdisp-amt">RM 0.00</div>
+  <button class="btn btn--gold" data-act="display.close" style="margin-top:34px;min-width:180px">Close display</button>
+</div>
+
+<!-- ================= PAY SHEET ================= -->
+<div class="sheet" id="sheet-pay" aria-hidden="true">
+  <div class="sheet__panel">
+    <div class="sheet__head"><div class="sheet__title" data-t="payment">Payment</div><button class="iconbtn" data-act="pay.close" aria-label="Close">✕</button></div>
+    <div id="pay-breakdown"></div>
+    <p class="sect__t" style="margin:14px 0 6px" data-t="pay">Pay with</p>
+    <div class="pay-chips" id="pay-methods"></div>
+    <label class="switch" id="pay-split-row" style="margin-top:12px"><span data-t="split_bill">Split bill (two methods)</span><input type="checkbox" id="pay-split-on"/></label>
+    <div id="pay-split-box" hidden style="margin-top:8px">
+      <div class="pay-chips" id="pay-methods2"></div>
+      <input type="number" inputmode="decimal" id="pay-split-amount" placeholder="Amount on the second method" style="margin-top:8px"/>
+    </div>
+    <label class="switch" style="margin-top:6px"><span>Tip</span><input id="pay-tip" type="number" inputmode="decimal" style="width:110px;text-align:right" placeholder="0"/></label>
+    <p class="sect__t" style="margin:12px 0 2px" data-t="tendered">Cash received</p>
+    <div class="pay-tender" id="pay-tender">0</div>
+    <div class="pay-change" id="pay-change"></div>
+    <div class="numpad" id="pay-pad" style="margin-top:10px"></div>
+    <button class="btn btn--mint btn--full" id="pay-confirm" data-act="pay.confirm" style="margin-top:14px;font-size:16.5px">Confirm payment</button>
+    <p class="muted small" style="text-align:center;font-weight:600;margin:8px 0 0">Receipt prints right away · table frees · sale syncs to every device</p>
+  </div>
+</div>
+
+<!-- ================= GENERIC DIALOG ================= -->
+<div class="dlg" id="dlg" aria-hidden="true">
+  <div class="dlg__box" role="dialog" aria-modal="true">
+    <div class="dlg__title" id="dlg-title"></div>
+    <div id="dlg-body"></div>
+    <div class="dlg__btns" id="dlg-btns"></div>
+  </div>
+</div>
+
+<!-- ================= INSTALL SHEET (Add to Home, from More only) ================= -->
+<div class="sheet" id="sheet-install" aria-hidden="true">
+  <div class="sheet__panel">
+    <div class="sheet__head"><div class="sheet__title" data-t="install">Add to Home Screen</div><button class="iconbtn" data-act="install.close" aria-label="Close">✕</button></div>
+    <div class="card card--pad">
+      <p class="small muted" style="font-weight:600;line-height:1.6">iPhone: open in <b>Safari</b> → tap <b>Share</b> → <b>Add to Home Screen</b>. Android: Chrome menu → <b>Install app</b>. Then it runs full screen, no browser bar, offline after the first load.</p>
+    </div>
+  </div>
+</div>
+
+<div class="of-toasts" id="toast-root" aria-live="polite"></div>
+<div id="print-root" aria-hidden="true"></div>
+
+<script src="core.js?v=25"></script>
+<script src="lang.js?v=25"></script>
+<script src="db.js?v=25"></script>
+<script src="print.js?v=25"></script>
+<script src="app.js?v=25"></script>
+<script src="ticket.js?v=25"></script>
+<script src="more.js?v=25"></script>
 </body>
 </html>

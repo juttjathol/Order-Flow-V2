@@ -1,208 +1,70 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Order at your table — Order Flow</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#FAF7F2"/>
+<title>Order here</title>
+<link rel="stylesheet" href="/app/styles.css?v=25"/>
 <style>
-  :root{ --cream:#FAF7F2; --surf:#FFFDF9; --muted:#5E7166; --border:#E8E0D2; --forest:#163E2E; --mint:#2EA771; --safe-b:env(safe-area-inset-bottom,0px); }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
-  html,body{margin:0;min-height:100%;background:var(--cream);color:var(--forest);font-family:Inter,ui-sans-system,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
-  body{display:flex;flex-direction:column;max-width:640px;margin:0 auto;padding:14px 14px calc(90px + var(--safe-b))}
-  .brand{display:flex;align-items:center;gap:10px;padding:6px 2px 14px}
-  .brand b{font-weight:900;font-size:18px;letter-spacing:-.3px}
-  .brand span{display:block;font-weight:700;font-size:12px;color:var(--muted)}
-  .state{background:var(--surf);border:1.2px solid var(--border);border-radius:20px;padding:18px;text-align:center;font-weight:700;box-shadow:0 8px 20px rgba(22,62,46,.06)}
-  .state small{display:block;margin-top:6px;font-weight:600;color:var(--muted);line-height:1.5}
-  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
-  .item{background:var(--surf);border:1.2px solid var(--border);border-radius:18px;padding:12px;box-shadow:0 6px 16px rgba(22,62,46,.05);display:flex;flex-direction:column;gap:8px}
-  .item.off{opacity:.45}
-  .item .n{font-weight:800;font-size:14px;line-height:1.25}
-  .item .p{font-weight:700;font-size:12px;color:var(--muted)}
-  .item button{margin-top:auto;min-height:40px;border-radius:12px;border:0;background:var(--mint);color:#07130D;font-weight:900;font-size:14px;cursor:pointer}
-  .item button:active{transform:scale(.98)}
-  .cart{position:fixed;left:0;right:0;bottom:0;background:rgba(255,253,249,.97);backdrop-filter:blur(14px);border-top:1.2px solid var(--border);padding:10px 14px calc(10px + var(--safe-b));display:none}
-  .cart.on{display:block}
-  .cart__inner{max-width:640px;margin:0 auto}
-  .cart .lines{max-height:30dvh;overflow:auto;display:grid;gap:6px;margin-bottom:8px}
-  .cline{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:7px 10px;font-weight:700;font-size:13px}
-  .cline .q{display:inline-flex;align-items:center;gap:8px}
-  .cline .q button{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:var(--surf);font-weight:900;color:var(--forest);cursor:pointer}
-  .total{display:flex;justify-content:space-between;font-weight:900;font-size:17px;margin:4px 0 8px}
-  .send{width:100%;min-height:52px;border-radius:16px;border:0;background:var(--mint);color:#07130D;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 10px 22px rgba(46,167,113,.28)}
-  .hint{margin-top:10px;text-align:center;font-weight:600;font-size:12px;color:var(--muted)}
+  /* guest page chrome — light, fast, no app shell needed */
+  body{background:#FAF7F2}
+  .g-hero{border-radius:0 0 26px 26px;padding:calc(14px + env(safe-area-inset-top)) 16px 18px;color:#fff;background:linear-gradient(135deg,#0F4231,#16302A)}
+  .g-hero__ic{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.15);display:grid;place-items:center;font-size:22px;flex:none}
+  .g-hero h1{margin:0;font-size:20px;font-weight:900;letter-spacing:-.3px}
+  .g-hero p{margin:4px 0 0;font-size:12.5px;font-weight:600;opacity:.85}
+  .g-chip{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.16);font-size:12px;font-weight:700}
+  .g-wrap{max-width:560px;margin:0 auto;padding:0 14px calc(150px + env(safe-area-inset-bottom))}
+  .g-cat{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:10px 0;background:#FAF7F2;scrollbar-width:none}
+  .g-cat::-webkit-scrollbar{display:none}
+  .g-cat button{flex:none;padding:8px 14px;border-radius:999px;border:1px solid #D8D0C5;background:#fff;font-weight:700;font-size:13px;color:#2C3732;cursor:pointer;font-family:inherit}
+  .g-cat button.is-on{background:#1B4436;border-color:#1B4436;color:#fff}
+  .g-item{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:#fff;border:1px solid #E7E0D6;margin-bottom:10px;box-shadow:0 1px 2px rgba(27,58,45,.05)}
+  .g-item__img{width:52px;height:52px;border-radius:12px;object-fit:cover;background:#EFE9E0;display:grid;place-items:center;font-size:22px;flex:none;overflow:hidden}
+  .g-item__img img{width:100%;height:100%;object-fit:cover}
+  .g-item b{font-size:14.5px;display:block}
+  .g-item small{color:#6E7A74;font-size:12px;font-weight:600}
+  .g-item .prc{font-weight:800;font-size:14px;white-space:nowrap}
+  .g-add{width:34px;height:34px;border-radius:50%;border:0;background:#2EA771;color:#fff;font-size:18px;font-weight:800;cursor:pointer}
+  .g-qty{display:flex;align-items:center;gap:10px}
+  .g-qty button{width:30px;height:30px;border-radius:50%;border:1px solid #D8D0C5;background:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+  .g-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:rgba(250,247,242,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid rgba(27,58,45,.08);padding:10px 14px calc(12px + env(safe-area-inset-bottom))}
+  .g-bar__in{max-width:560px;margin:0 auto}
+  .g-tkt{position:sticky;bottom:0;text-align:center}
+  .g-live{display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:#EAF6EE;border:1px solid #BCE4C8;margin:10px 0;font-size:13px;font-weight:700;color:#176B49}
+  .g-live.is-prep{background:#FBF3DA;border-color:#E8D8A4;color:#8A6B14}
+  .g-live.is-paid{background:#EDE9E2;border-color:#DDD5C7;color:#6E7A74}
+  .g-err{max-width:420px;margin:20vh auto 0;padding:24px;text-align:center}
+  .g-note{font-size:12px;color:#6E7A74;font-weight:600;text-align:center;padding:12px 0}
 </style>
 </head>
 <body>
-  <div class="brand"><b>🍽️ <span id="shop">Order Flow</span></b><span id="table-line" style="font-size:13px"></span></div>
-  <div id="state" class="state">One moment…<small>Connecting to the shop.</small></div>
-  <div id="menu" class="grid" hidden></div>
-  <p id="menu-hint" class="hint" hidden>Everything is made fresh — your order goes straight to the kitchen. Pay at the counter.</p>
-
-  <div id="cart" class="cart">
-    <div class="cart__inner">
-      <div class="lines" id="cart-lines"></div>
-      <div class="total"><span>Total</span><span id="cart-total"></span></div>
-      <button class="send" id="btn-send">Send order to kitchen</button>
-      <p class="hint">Pay at the counter when you're done.</p>
-    </div>
+<div class="g-hero" id="g-hero">
+  <div style="display:flex;gap:12px;align-items:center;max-width:560px;margin:0 auto">
+    <div class="g-hero__ic">🍽️</div>
+    <div><h1 id="g-shop">Order here</h1><p id="g-sub">Loading the menu…</p></div>
   </div>
-
-<script>
-(function(){
-  const $=(id)=>document.getElementById(id);
-  const say=(t,sub)=>{ const s=$('state'); s.hidden=false; s.innerHTML=t+(sub?'<small>'+sub+'</small>':''); };
-
-  // ——— pairing payload in the URL hash: base64url JSON {r,c,k,b,t,shop} ———
-  function b64uDecode(s){ s=String(s||'').replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
-  let d=null;
-  try{ d=JSON.parse(new TextDecoder().decode(b64uDecode(location.hash.slice(1)))); }catch{}
-  if(!d || !d.r || !d.c || !d.k || !d.t){
-    say('This QR is out of date 😕','Ask the staff for a fresh table QR.');
-    return;
-  }
-  $('shop').textContent = d.shop || 'Order Flow';
-  $('table-line').textContent = '· ' + String(d.t).replace(/^T/,'Table ');
-  document.title = (d.shop||'Order Flow') + ' — table order';
-
-  const BASES = ['', (d.b||'')].filter((b,i,a)=> a.indexOf(b)===i);
-  const deviceId = 'guest-'+Math.random().toString(36).slice(2,10);
-  let key=null, cursor=0, dead=false;
-
-  function b64uEncode(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-  async function deriveKey(secret){
-    const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|'+secret));
-    return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
-  }
-  async function encryptString(key, plain){
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const enc = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, new TextEncoder().encode(plain));
-    return b64uEncode(iv)+'.'+b64uEncode(enc);
-  }
-  async function decryptString(key, blob){
-    const dot = blob.indexOf('.'); if(dot<=0) return null;
-    try{
-      const iv=b64uDecode(blob.slice(0,dot));
-      const data=b64uDecode(blob.slice(dot+1));
-      const dec=await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, data);
-      return new TextDecoder().decode(dec);
-    }catch{ return null; }
-  }
-  async function api(path, body){
-    const payload=JSON.stringify({room:d.r, device:deviceId, ...body});
-    for(const base of BASES){
-      try{
-        const r=await fetch(base+path, {method:'POST', headers:{'Content-Type':'text/plain'}, body:payload});
-        const j=await r.json().catch(()=>null);
-        if(j) return j;
-      }catch{}
-    }
-    return null;
-  }
-
-  const cart = []; // {name, qty, price}
-  function money(n){ return 'RM '+(Number(n)||0).toFixed(2); }
-
-  function renderMenu(products){
-    const host=$('menu'); host.innerHTML='';
-    const list=(products||[]).filter(p=> p && p.name);
-    if(!list.length){ say('Menu is on its way…','The shop is sharing today’s menu.'); return; }
-    $('state').hidden=true; host.hidden=false; $('menu-hint').hidden=false;
-    for(const p of list){
-      const off=p.avail===false;
-      const el=document.createElement('div'); el.className='item'+(off?' off':'');
-      el.innerHTML='<div class="n">'+p.name+(off?' · sold out':'')+'</div><div class="p">'+money(p.price)+'</div><button type="button">Add</button>';
-      el.querySelector('button').onclick=()=>{
-        if(off) return;
-        const ex=cart.find(x=> x.name===p.name);
-        if(ex) ex.qty++; else cart.push({name:p.name, qty:1, price:Number(p.price)||0});
-        renderCart();
-      };
-      host.appendChild(el);
-    }
-  }
-  function renderCart(){
-    const box=$('cart'); const lines=$('cart-lines'); lines.innerHTML='';
-    if(!cart.length){ box.classList.remove('on'); return; }
-    let total=0;
-    for(const [i,it] of cart.entries()){
-      total += it.qty*it.price;
-      const row=document.createElement('div'); row.className='cline';
-      row.innerHTML='<span style="min-width:0">'+it.name+'</span><span class="q"><button type="button" data-d="-1">−</button><b>'+it.qty+'</b><button type="button" data-d="1">+</button><span style="min-width:56px;text-align:right">'+money(it.qty*it.price)+'</span></span>';
-      row.querySelectorAll('.q button').forEach(b=> b.onclick=()=>{
-        it.qty+=Number(b.dataset.d);
-        if(it.qty<=0) cart.splice(i,1);
-        renderCart();
-      });
-      lines.appendChild(row);
-    }
-    $('cart-total').textContent=money(total);
-    box.classList.add('on');
-  }
-
-  $('btn-send').onclick=async()=>{
-    if(!cart.length) return;
-    const items=cart.map(it=> ({name:it.name, qty:it.qty, price:it.price, total:it.qty*it.price}));
-    const btn=$('btn-send'); btn.disabled=true; btn.textContent='Sending…';
-    try{
-      const blob=await encryptString(key, JSON.stringify({t:'cmd', c:{type:'order', table:d.t, items}}));
-      const j=await api('/api/cloud/send', {msg:blob});
-      if(j && j.ok){
-        cart.length=0; renderCart();
-        say('Order received! ✅','The kitchen has your order. Pay at the counter when you’re done.');
-        $('menu').hidden=true; $('menu-hint').hidden=true;
-      }else{
-        btn.textContent='Try again — tap to resend';
-      }
-    }catch(e){ btn.textContent='Try again — tap to resend'; }
-    btn.disabled=false;
-  };
-
-  async function pull(){
-    if(dead) return;
-    const j=await api('/api/cloud/pull', {after:cursor});
-    if(!j){ setTimeout(pull, 4000); return; }
-    if(j.ok===false){ setTimeout(pull, 6000); return; }
-    if(typeof j.cursor==='number') cursor=j.cursor;
-    if(Array.isArray(j.msgs)) for(const m of j.msgs){
-      if(!m || m.sender===deviceId) continue;
-      const plain=await decryptString(key, String(m.msg||''));
-      if(!plain) continue;
-      let env; try{ env=JSON.parse(plain); }catch{ continue; }
-      if(env.t==='state' && env.s){
-        try{ const obj=JSON.parse(env.s); if(obj && obj.products && !obj.__shown){ obj.__shown=true; renderMenu(obj.products); } }catch{}
-      } else if(env.t==='state_part'){
-        const k=Number(env.parts)||1, i=Number(env.part)||0;
-        pull._buf=pull._buf||Array(k).fill('');
-        if(i>=0&&i<pull._buf.length) pull._buf[i]=String(env.s||'');
-        if(pull._buf.every(p=> p!=='')){
-          try{ const obj=JSON.parse(pull._buf.join('')); if(obj && obj.products) renderMenu(obj.products); }catch{}
-          pull._buf=null;
-        }
-      }
-    }
-    setTimeout(pull, 1800);
-  }
-
-  (async()=>{
-    say('One moment…','Connecting to the shop.');
-    try{ key=await deriveKey(String(d.k)); }catch{ say('Your browser is too old for this page 😕','Please open the QR in Safari or Chrome.'); return; }
-    const j=await api('/api/cloud/join', {code:String(d.c), role:'guest'});
-    if(!j || j.ok!==true){
-      say('This QR has gone quiet 😕','Ask the staff to open the room again and show a fresh QR. ('+(j?.error||'no connection')+')');
-      return;
-    }
-    say('Getting today’s menu…','');
-    try{
-      const blob=await encryptString(key, JSON.stringify({t:'cmd', c:{type:'menu_request'}}));
-      await api('/api/cloud/send', {msg:blob});
-    }catch{}
-    pull();
-    // if the menu doesn't arrive, keep the gentle waiting state
-    setTimeout(()=>{ if($('menu').hidden) say('Still waiting for the menu…','The shop may be busy or offline — please tell the staff if this stays.'); }, 12000);
-  })();
-})();
-</script>
+</div>
+<div class="g-wrap">
+  <div id="g-live" hidden></div>
+  <div id="g-status" hidden></div>
+  <div class="g-cat" id="g-cats"></div>
+  <div id="g-menu"></div>
+  <div class="g-note" id="g-note">Encrypted table ordering · pay at the counter</div>
+</div>
+<div class="g-bar" id="g-bar" hidden>
+  <div class="g-bar__in">
+    <div id="g-cartlines"></div>
+    <button class="btn btn--mint btn--full" id="g-send" style="margin-top:10px" disabled>Send order</button>
+  </div>
+</div>
+<div class="g-err" id="g-err" hidden>
+  <div style="font-size:40px">🤔</div>
+  <h2 id="g-err-t" style="font-weight:900">This QR looks out of date</h2>
+  <p id="g-err-b" style="color:#6E7A74;font-weight:600">Ask the staff for a fresh code — we renew them when the room reopens.</p>
+</div>
+<script src="/app/core.js?v=25"></script>
+<script src="/order.js?v=25"></script>
 </body>
 </html>

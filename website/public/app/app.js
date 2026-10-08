@@ -1,1253 +1,1414 @@
-// Order Flow Web POS — Main *or* Station (iPhone can be either)
-// Replica: tables/menu/kitchen/stock + IndexedDB + cloud relay + relay-print + AirPrint
-const $ = (s, r=document)=> r.querySelector(s);
-const $$ = (s, r=document)=> [...r.querySelectorAll(s)];
+/* ============================================================
+   ORDER FLOW POS — app.js
+   Boot, license, connect, setup, shell, home, floor (all four
+   business models), menu, stock, role screens, relay sync,
+   notifications. Mirrors router.dart / main_shell.dart /
+   home_screen.dart / floor_screen.dart / menu_screen.dart /
+   stock_screen.dart + the station role screens.
+   ============================================================ */
+(function () {
+'use strict';
+const C = OFCore, L = OFLang;
+const $ = id => document.getElementById(id);
+const ce = (tag, cls, html) => { const el = document.createElement(tag); if (cls) el.className = cls; if (html != null) el.innerHTML = html; return el; };
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-let ROLE = null; // 'main' | 'station'
-let RELAY = null;
-let CUR_ORDER = null;
-let HOT = true;
-
-// license key canonical form — accepts OF-XXXX-XXXX-XXXX-XXXX or XXXX-XXXX-XXXX-XXXX.
-// Keys are generated server-side as OF-XXXX-… and must match the DB exactly.
-function ofNormalizeKey(v){
-  v = String(v==null?'':v).toUpperCase().replace(/[^A-Z0-9]/g,'');
-  let prefix='';
-  if(v.startsWith('OF')){ prefix='OF-'; v=v.slice(2); }
-  v = v.slice(0,16);
-  const body = v.replace(/(.{4})/g,'$1-').replace(/-$/,'');
-  return prefix ? prefix+body : body;
-}
-const OF_KEY_RE = /^(OF-)?[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
-
-// ——— device settings (APK parity — shop/receipt/kitchen/qr ordering) ———
-const SET_DEFAULTS = { shopName:'My Shop', shopPhone:'', currency:'RM', tax:0, svc:0, receiptHead:'Thank you!', receiptFoot:'See you again', copies:1, paper:'80', showQr:false, autoPrint:true, kitchenSound:true, qrOrder:false };
-let _setCache = null;
-async function getSettings(){
-  if(_setCache) return _setCache;
-  let saved = {};
-  try{ saved = (await kvGet('settings', {})) || {}; }catch{}
-  _setCache = {...SET_DEFAULTS, ...saved};
-  return _setCache;
-}
-async function saveSettings(patch){
-  const cur = await getSettings();
-  Object.assign(cur, patch); _setCache = cur;
-  await kvSet('settings', cur);
-  try{ await kvSet('rev', Date.now()); }catch{}
-  const st = document.getElementById('settings-status');
-  if(st){ st.textContent='Saved ✓'; clearTimeout(st._t); st._t=setTimeout(()=> st.textContent='', 1400); }
-}
-function fmtMoney(n){
-  const cur = _setCache || SET_DEFAULTS;
-  return (cur.currency||'RM') + ' ' + (Number(n)||0).toFixed(2);
-}
-
-// device id
-async function deviceId(){
-  let id = await kvGet('deviceId', null);
-  if(!id){ id = 'web-'+Math.random().toString(36).slice(2,10)+'-'+Date.now().toString(36); await kvSet('deviceId', id); }
-  return id;
-}
-
-// qrcode tiny (no lib) — use canvas text fallback + draw simple QR via api if online
-function drawQR(canvas, text){
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
-  // light QR placeholder: if online, fetch QR image and draw; else write text
-  const img = new Image();
-  img.crossOrigin='anonymous';
-  img.onload=()=>{
-    ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    // overlay small logo dot
-    ctx.fillStyle='#163E2E'; ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 14, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle='#FAF7F2'; ctx.font='12px system-ui'; ctx.textAlign='center'; ctx.fillText('OF', canvas.width/2, canvas.height/2+4);
+/* ================= SHOP + SETTINGS ================= */
+let SHOP = null;
+const PROFILE_DEFAULTS = {
+  name: 'My Shop', phone: '', address: '', currency: 'RM', model: 'restaurant',
+  receiptHead: '', receiptFoot: 'Thank you — please come again', tax: 0, svc: 0,
+  copies: 1, paper: '80', showPrices: true, payQr: '', autoPrint: true, kitchenSound: true,
+  fireMode: 'auto', drawerNoteShown: false,
+  tagline: '', whatsapp: '', hours: '', welcome: '', accent: '#2EA771', brandOn: false,
+};
+async function loadShop() {
+  const saved = (await kvGet('shop', null)) || {};
+  const prof = { ...PROFILE_DEFAULTS, ...(saved.profile || {}) };
+  SHOP = {
+    profile: prof,
+    entitlements: saved.entitlements || { allOn: true, plan: 'full', models: [], features: C.FEATURE_KEYS.slice() },
+    brand: saved.brand || {},
   };
-  img.onerror=()=>{
-    ctx.fillStyle='#111'; ctx.font='12px monospace'; ctx.textAlign='center';
-    wrapText(ctx, text, canvas.width/2, 18, canvas.width-20, 12);
-    ctx.fillStyle='#5C6E64'; ctx.fillText('(no image — use Copy text)', canvas.width/2, canvas.height-10);
-  };
-  const enc = encodeURIComponent(text);
-  img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+enc;
+  return SHOP;
 }
-function wrapText(ctx, text, x, y, maxW, lh){
-  const words = text.split(''); let line=''; // char wrap for base64
-  for(let i=0;i<text.length;i++){
-    const test = line + text[i];
-    if(ctx.measureText(test).width > maxW && line){ ctx.fillText(line, x, y); line=text[i]; y+=lh; } else line=test;
+async function saveShop() { await kvSet('shop', SHOP); await kvSet('rev', Date.now()); }
+const money = (c) => C.fmtCents(c == null ? 0 : c, SHOP.profile.currency || 'RM');
+const canF = k => C.allowsFeature(SHOP.entitlements, k);
+
+async function products() { const ps = await idbGetAll('products', []); return ps.map(p => ({ ...p, priceCents: p.priceCents != null ? p.priceCents : C.cents(p.price) })); }
+async function orders() { const os = await idbGetAll('orders', []); return os.map(o => normOrder(o)); }
+function normOrder(o) { // back-compat: legacy items → lines with cents
+  if (o.lines && o.lines.length) return o;
+  if (o.items && o.items.length) o.lines = o.items.map(i => ({ id: i.id || C.uuid(), productId: i.productId || i.id || '', name: i.name, qty: i.qty || 1, priceCents: C.cents(i.price != null ? i.price : (i.total || 0)), mods: i.mods || [], notes: i.notes || '' }));
+  else if (!o.lines) o.lines = [];
+  if (o.table && !o.tableId) { o.tableId = o.table; o.tableName = String(o.table).replace(/^T/, ''); }
+  if (!o.type) o.type = o.tableId ? 'dineIn' : 'takeaway';
+  return o;
+}
+async function tablesAll() { return idbGetAll('tables', []); }
+async function stockAll() { const ss = await idbGetAll('stock', []); return ss.map(s => ({ ...s, costCents: s.costCents != null ? s.costCents : C.cents(s.cost || 0) })); }
+
+const billOf = (o) => C.billOf(o, SHOP.profile);
+function billOfLegacy(o) { return C.billOf(normOrder({ ...o }), SHOP.profile); }
+function linePrice(l) { return C.linePriceCents(l); }
+
+/* ================= TOASTS + SOUND + HAPTICS ================= */
+function toast(main, sub) {
+  const root = $('toast-root'); if (!root) return;
+  const key = main + '·' + (sub || '');
+  root.querySelectorAll('[data-key]').forEach(el => { if (el.dataset.key === key) el.remove(); });
+  while (root.children.length >= 2) root.firstChild.remove();
+  const el = ce('div', 'of-toast'); el.dataset.key = key; el.textContent = main;
+  if (sub) { const s = ce('small'); s.textContent = sub; el.appendChild(s); }
+  root.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('is-in'));
+  setTimeout(() => { el.classList.remove('is-in'); setTimeout(() => el.remove(), 260); }, 3800);
+}
+let _ac = null;
+function unlockAudio() {
+  try {
+    if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (_ac.state === 'suspended') _ac.resume().catch(() => {});
+    const b = _ac.createBuffer(1, 1, 22050), s = _ac.createBufferSource(); s.buffer = b; s.connect(_ac.destination); s.start(0);
+  } catch {}
+}
+['pointerdown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+function beep(freq, at, gain) {
+  if (!_ac) return;
+  try {
+    const o = _ac.createOscillator(), g = _ac.createGain();
+    o.connect(g); g.connect(_ac.destination); o.type = 'triangle'; o.frequency.value = freq;
+    const t0 = _ac.currentTime + (at || 0);
+    g.gain.setValueAtTime(gain || .3, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .28);
+    o.start(t0); o.stop(t0 + .3);
+  } catch {}
+}
+function chime(kind) {
+  unlockAudio();
+  if (kind === 'ready') { beep(660); beep(880, .18); }
+  else if (kind === 'paid') { beep(523); beep(784, .14); beep(1047, .28); }
+  else { beep(880); beep(1320, .16); beep(1760, .32); }
+}
+const buzz = p => { try { if ('vibrate' in navigator) navigator.vibrate(p); } catch {} };
+
+/* ================= VIEW ROUTER ================= */
+const VIEWS = ['view-license', 'view-locked', 'view-connect', 'view-role', 'view-setup', 'view-main', 'view-rolehome', 'view-ticket', 'view-sub', 'view-display'];
+let VSTACK = [];
+function show(id, remember) {
+  const cur = VIEWS.find(v => !$(v).hidden);
+  if (remember && cur && cur !== id) VSTACK.push(cur);
+  VIEWS.forEach(v => $(v).hidden = v !== id);
+  window.scrollTo(0, 0);
+}
+function goBack() { const prev = VSTACK.pop(); if (prev) show(prev); else show(ROLE === 'main' ? 'view-main' : 'view-rolehome'); }
+
+/* ================= LICENSE (contract 1) ================= */
+const API_BASES = ['', 'https://order-flow-v2.pages.dev'];
+async function apiJson(path, body) {
+  const payload = JSON.stringify(body);
+  for (const base of API_BASES) {
+    try {
+      const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload });
+      const t = await r.text();
+      try { return { base, json: JSON.parse(t), status: r.status }; } catch { continue; }
+    } catch { continue; }
   }
-  if(line) ctx.fillText(line,x,y);
+  return null;
+}
+async function deviceId() {
+  let d = await kvGet('deviceId', null);
+  if (!d) { d = 'web-' + C.uuid().slice(0, 8) + '-' + Math.random().toString(36).slice(2, 8); await kvSet('deviceId', d); }
+  return d;
+}
+let ROLE = 'main', STATION_ROLE = '';
+async function validateKey(key) {
+  const r = await apiJson('/api/v1/license/validate', { licenseKey: key, deviceId: await deviceId() });
+  if (!r) return { state: 'offline' };
+  const j = r.json || {};
+  if (j.valid === true || j.ok === true || j.state === 'valid') {
+    return { state: 'valid', payload: j };
+  }
+  const reason = String(j.reason || j.error || '').toLowerCase();
+  if (['not_found', 'revoked', 'expired', 'deleted'].includes(reason)) return { state: 'locked', reason };
+  // server busy / html / 5xx / anything else never locks a shop
+  return { state: 'server_' + (reason || 'unknown') };
+}
+async function activateLicense() {
+  const input = $('lic-key'); const err = $('lic-err');
+  const key = C.normalizeKey(input.value);
+  input.value = key; err.textContent = '';
+  if (!C.isValidKey(key)) { err.textContent = L.t('key_invalid') + ' — OF-XXXX-XXXX-XXXX-XXXX'; return; }
+  const btn = $('lic-btn'); btn.disabled = true;
+  const res = await validateKey(key);
+  if (res.state === 'valid') {
+    await kvSet('license', { key, okAt: Date.now() });
+    let ent = C.entitlementsFromLicense(res.payload || {});
+    await kvSet('entitlements', ent);
+    SHOP.entitlements = ent;
+    await saveShop();
+    await kvSet('role', 'main');
+    await afterRole('main');
+  } else if (res.state === 'locked') {
+    show('view-locked');
+  } else if (res.state === 'offline') {
+    const prev = await kvGet('license', null);
+    if (prev && prev.okAt) { await afterRole('main'); }
+    else err.textContent = 'No internet — needs one online check the first time. Try again.';
+  } else {
+    const prev = await kvGet('license', null);
+    if (prev && prev.okAt) { toast('Server hiccup — carrying on', 'Your shop is already activated on this device.'); await afterRole('main'); }
+    else err.textContent = 'License server hiccup — try again in a moment.';
+  }
+  btn.disabled = false;
+}
+async function refreshPlan() {
+  const lic = await kvGet('license', null);
+  if (!lic) return;
+  const r = await apiJson('/api/v1/license/validate', { licenseKey: lic.key, deviceId: await deviceId() });
+  if (r && r.json && (r.json.valid === true || r.json.ok === true || r.json.state === 'valid')) {
+    const ent = C.entitlementsFromLicense(r.json);
+    await kvSet('entitlements', ent);
+    SHOP.entitlements = ent; await saveShop();
+    await kvSet('license', { key: lic.key, okAt: Date.now() });
+    syncNow();
+    const n = ent.allOn ? C.FEATURE_KEYS.length : (ent.features || []).length;
+    toast(L.t('license') + ': ' + (ent.plan || 'full'), 'Plan synced · ' + n + '/16');
+    if (typeof OFMoreRefresh === 'function') OFMoreRefresh();
+  } else if (r && ['not_found', 'revoked', 'expired', 'deleted'].includes(String(r.json.reason || r.json.error || '').toLowerCase())) {
+    show('view-locked');
+  } else {
+    toast('Could not reach the license server', 'Plan stays as-is — nothing was removed.');
+  }
 }
 
-// Relay client (web port of cloud_relay.dart) — AES-GCM with SubtleCrypto
-const RELAY_BASE = 'https://order-flow-v2.pages.dev';
-async function sha256Hex(s){ const d=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
-function b64uEncode(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-function b64uDecode(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
-async function deriveKey(secret){
-  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|'+secret));
-  return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
+/* ================= BOOT ================= */
+async function boot() {
+  await loadShop();
+  // theme
+  const theme = await kvGet('theme', 'light');
+  applyTheme(theme, false);
+  // language
+  const lang = await kvGet('lang', 'en');
+  OFLang.setLang(lang); applyDir();
+  await idbGetAll('products', []); // warm db open (upgrade runs)
+  licenseBoot();
 }
-async function encryptString(key, plain){
+function applyTheme(pref, announce) {
+  const dark = pref === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  $('theme-meta')?.setAttribute('content', dark ? '#0F1512' : '#FAF7F2');
+  if (announce) toast(pref === 'dark' ? 'Dark' : 'Light' , 'Theme will stay on this device.');
+}
+async function licenseBoot() {
+  const lic = await kvGet('license', null);
+  const role = await kvGet('role', null);
+  const room = await kvGet('roomInfo', null);
+  if (role === 'station' && room) {
+    await afterRole('station', room);
+    return;
+  }
+  if (lic && lic.key && C.isValidKey(lic.key)) {
+    ROLE = 'main';
+    const setup = await kvGet('setupDone', false);
+    if (setup) { enterMain(); return; }
+    show('view-setup'); renderSetup(); return;
+  }
+  show('view-license');
+}
+async function afterRole(role, roomInfo) {
+  ROLE = role === 'station' ? 'station' : 'main';
+  await loadShop();
+  if (ROLE === 'main') {
+    const setup = await kvGet('setupDone', false);
+    if (!setup) { show('view-setup'); renderSetup(); return; }
+    enterMain();
+  } else {
+    roomAfterJoin(roomInfo);
+  }
+  startRelayBoot(roomInfo);
+}
+async function roomAfterJoin(roomInfo) {
+  startRelayBoot(roomInfo);
+  const saved = await kvGet('stationRole', null);
+  if (saved) { STATION_ROLE = saved; roleHome(saved); }
+  else renderRoleScreen();
+}
+
+/* ================= SETUP ================= */
+const MODEL_META = {
+  restaurant: { ic: '🍽️', label: ['Restaurant', 'Tables, kitchen, reservations'] },
+  retail: { ic: '🏪', label: ['Retail', 'Register, SKUs, held sales'] },
+  fastfood: { ic: '🍔', label: ['Fast food', 'Counter queue, kitchen board'] },
+  services: { ic: '💈', label: ['Services', 'Appointments, staff, tickets'] },
+};
+let SETUP_MODEL = 'restaurant';
+function renderSetup() {
+  const host = $('setup-models'); if (!host) return;
+  host.innerHTML = '';
+  for (const m of C.MODELS) {
+    if (!C.allowsModel(SHOP.entitlements, m)) continue;
+    const b = ce('button', 'modelcard' + (m === SETUP_MODEL ? ' is-on' : ''));
+    b.innerHTML = '<span class="ic">' + MODEL_META[m].ic + '</span><span>' + MODEL_META[m].label[0] + '</span><small style="color:var(--muted);font-weight:600">' + MODEL_META[m].label[1] + '</small>';
+    b.onclick = () => { SETUP_MODEL = m; renderSetup(); };
+    host.appendChild(b);
+  }
+}
+async function setupDone() {
+  const name = $('setup-name').value.trim();
+  if (!name) { toast('Give your shop a name', 'It shows on receipts and the guest page.'); return; }
+  Object.assign(SHOP.profile, {
+    name, model: SETUP_MODEL,
+    phone: $('setup-phone').value.trim(), address: $('setup-addr').value.trim(),
+    currency: ($('setup-currency').value.trim() || 'RM').slice(0, 6),
+  });
+  await saveShop();
+  await kvSet('setupDone', true);
+  await seedIfEmpty();
+  await kvSet('role', 'main'); ROLE = 'main';
+  enterMain();
+  startRelayBoot();
+  toast('Welcome to ' + name + ' 🎉', 'Add your tables and menu, then invite stations from More → Cloud room');
+}
+async function seedIfEmpty() {
+  const ps = await idbGetAll('products', []);
+  if (!ps.length) {
+    const mk = (n, p, cat) => ({ id: C.uuid(), categoryId: cat, cat, name: n, nameUr: '', price: p, priceCents: C.cents(p), available: true, avail: true, inventoryId: null, deductQty: 1, recipe: [] });
+    if (SHOP.profile.model === 'restaurant' || SHOP.profile.model === 'fastfood')
+      for (const p of await Promise.resolve([mk('Cappuccino', 12, 'Drinks'), mk('Nasi Lemak', 18, 'Mains'), mk('Roti Canai', 8, 'Mains'), mk('Teh Tarik', 6, 'Drinks')])) await idbPut('products', p);
+    const ts = await idbGetAll('tables', []);
+    if (!ts.length) for (let i = 1; i <= 8; i++) await idbPut('tables', { id: 't-' + i, label: 'T' + i, name: 'T' + i, seats: 2 + (i % 4), state: 'free', since: null });
+  }
+}
+
+/* ================= RELAY (cloud room — contract 2) ================= */
+const CLOUD_BASES = ['', 'https://order-flow-v2.pages.dev'];
+let RELAY = null, RELAY_HOT = false;
+let PUSH_TIMER = null;
+async function cloudApi(path, body, info) {
+  const payload = JSON.stringify({ room: info.room, device: info.device, ...body });
+  const bases = ['', (info.base || '')].filter((b, i, a) => a.indexOf(b) === i);
+  for (const base of bases) {
+    try {
+      const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: payload });
+      const j = await r.json().catch(() => null);
+      if (j) return j;
+    } catch {}
+  }
+  return null;
+}
+async function relayKey(secret) {
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|' + secret));
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+async function encStr(key, plain) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const enc = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, new TextEncoder().encode(plain));
-  return b64uEncode(iv) + '.' + b64uEncode(enc);
+  const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain));
+  return C.b64uEncode(iv) + '.' + C.b64uEncode(enc);
 }
-async function decryptString(key, blob){
-  const dot = blob.indexOf('.'); if(dot<=0) return null;
-  try{
-    const iv = b64uDecode(blob.slice(0,dot));
-    const data = b64uDecode(blob.slice(dot+1));
-    const dec = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, data);
+async function decStr(key, blob) {
+  const dot = String(blob || '').indexOf('.'); if (dot <= 0) return null;
+  try {
+    const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: C.b64uDecode(blob.slice(0, dot)) }, key, C.b64uDecode(blob.slice(dot + 1)));
     return new TextDecoder().decode(dec);
-  }catch{ return null; }
+  } catch { return null; }
 }
-function pairingEncode(room, code, secret, base){
-  return 'OF1:'+room+':'+code+':'+secret+':'+b64uEncode(new TextEncoder().encode(base));
+async function backupObject() {
+  const out = {};
+  for (const s of ['products', 'tables', 'orders', 'stock', 'customers', 'staff', 'drivers', 'suppliers', 'purchases', 'wastage', 'reservations', 'channelsThird', 'refunds', 'appointments']) out[s] = await idbGetAll(s, []);
+  out.kv = { shop: SHOP, entitlements: SHOP.entitlements };
+  return out;
 }
-function pairingDecode(raw){
-  const p = raw.trim().split(':'); if(p.length!==5 || p[0]!=='OF1') return null;
-  try{ const url = new TextDecoder().decode(b64uDecode(p[4])); if(!url.startsWith('https://')) return null; return {room:p[1], code:p[2], secret:p[3], base:url}; }catch{ return null; }
+async function restoreBackup(obj) {
+  for (const s of Object.keys(obj)) {
+    if (!Array.isArray(obj[s])) continue;
+    const db = await window.OFDB.open();
+    if (!db.objectStoreNames.contains(s)) continue;
+    await idbClear(s);
+    for (const row of obj[s]) if (row && row.id) await idbPut(s, row);
+  }
+  if (obj.kv && obj.kv.shop) { SHOP = { ...SHOP, ...obj.kv.shop, profile: { ...SHOP.profile, ...(obj.kv.shop.profile || {}) } }; await kvSet('shop', SHOP); }
+  if (obj.kv && obj.kv.entitlements) { SHOP.entitlements = obj.kv.entitlements; await kvSet('entitlements', SHOP.entitlements); await saveShop(); }
 }
-
-class Relay {
-  constructor({room, secret, base, deviceId, isMain}){
-    this.room=room; this.secret=secret; this.base=base||RELAY_BASE; this.deviceId=deviceId; this.isMain=isMain;
-    this.key=null; this.cursor=0; this.timer=null; this.hot=HOT; this.running=false; this.fails=0;
-    this.onState=null; this.onCmd=null; this.onPrintJob=null;
-    this._chunkBuf=null;
-  }
-  async init(){ this.key = await deriveKey(this.secret); }
-  start(){
-    this.running=true;
-    this.timer = setInterval(()=> this.tick(), this.hot ? 1200 : 30000);
-    this.tick();
-  }
-  stop(){ this.running=false; if(this.timer) clearInterval(this.timer); }
-  setHot(v){ if(v===this.hot) return; this.hot=v; HOT=v; this.stop(); this.start(); }
-  async tick(){
-    try{ await this.pull(); await this.pushCheck(); this.fails=0; $('#sync-state') && ($('#sync-state').textContent = this.hot ? 'Hot — live (1.2s)' : 'Idle — relay sleeps (30s)'); } catch{ this.fails++; if(this.fails>=40) $('#sync-state') && ($('#sync-state').textContent='Relay unreachable — retrying automatically'); }
-  }
-  async api(path, body){
-    // same-origin proxy first (jathol.org/api/cloud/* → forwarder, no CORS),
-    // then the configured base as fallback. text/plain = CORS-simple request.
-    const payload=JSON.stringify({room:this.room, device:this.deviceId, ...body});
-    const bases=['', this.base].filter((b,i,a)=> b!==undefined && a.indexOf(b)===i);
-    let lastErr=null;
-    for(const base of bases){
-      try{
-        const r = await fetch(base+path, {method:'POST', headers:{'Content-Type':'text/plain'}, body: payload});
-        const j = await r.json().catch(()=>null);
-        if(j) return j;
-        lastErr=new Error('http_'+r.status);
-      }catch(e){ lastErr=e; }
+async function startRelayBoot(roomInfo) {
+  if (RELAY) return;
+  let info = roomInfo || await kvGet('roomInfo', null);
+  if (!info) return;
+  RELAY = { info, key: await relayKey(info.secret), cursor: 0, dead: false, lastPush: 0, lastRev: 0, parts: null };
+  if (!await kvGet('roomInfo', null)) await kvSet('roomInfo', info);
+  await setStatusLive();
+  loop();
+  pushStateNow();
+  heartbeat();
+  setInterval(heartbeat, 45000);
+  setInterval(updateChips, 5000);
+}
+async function setStatusLive() {
+  const h = $('hdr-status'); if (h) h.textContent = L.t('room_live');
+  const r = $('role-status'); if (r) r.textContent = L.t('room_live');
+}
+async function sendCmd(c) {
+  if (!RELAY) return;
+  const blob = await encStr(RELAY.key, JSON.stringify({ t: 'cmd', c }));
+  await cloudApi('/api/cloud/send', { msg: blob }, RELAY.info);
+}
+async function heartbeat() {
+  try {
+    const role = ROLE === 'main' ? 'main' : (STATION_ROLE || 'station');
+    await sendCmd({ type: 'hello', device: await deviceId(), role, at: Date.now() });
+  } catch {}
+}
+function syncNow() { if (RELAY) pushStateNow(); }
+async function pushStateNow() {
+  if (!RELAY) return;
+  try {
+    const obj = await backupObject();
+    const json = JSON.stringify(obj);
+    const parts = Math.max(1, Math.ceil(json.length / 110000));
+    for (let i = 0; i < parts; i++) {
+      const chunk = json.slice(i * 110000, (i + 1) * 110000);
+      const blob = await encStr(RELAY.key, JSON.stringify(parts > 1 ? { t: 'state_part', part: i, parts, s: chunk } : { t: 'state', s: chunk }));
+      const j = await cloudApi('/api/cloud/send', { msg: blob }, RELAY.info);
+      if (j && j.ok === false) {
+        if (j.error === 'no_room' || j.error === 'no_key') { RELAY = null; await kvSet('relayErr', 'Room is gone — open it again from More → Cloud room'); updateChips(); return; }
+      }
     }
-    throw lastErr||new Error('api failed');
+    RELAY.lastPush = Date.now();
+    updateChips();
+  } catch {}
+}
+function loop() {
+  if (!RELAY || RELAY.dead) return;
+  const slow = document.hidden ? 8000 : 1800;
+  setTimeout(async () => {
+    try {
+      const j = await cloudApi('/api/cloud/pull', { after: RELAY.cursor }, RELAY.info);
+      if (j && j.ok !== false && Array.isArray(j.msgs)) {
+        if (typeof j.cursor === 'number') RELAY.cursor = j.cursor;
+        for (const m of j.msgs) {
+          if (!m || m.sender === RELAY.info.device) continue;
+          const plain = await decStr(RELAY.key, String(m.msg || ''));
+          if (!plain) continue;
+          let env; try { env = JSON.parse(plain); } catch { continue; }
+          await handleMsg(env);
+        }
+        updateChips();
+      } else if (j && j.ok === false && (j.error === 'no_room' || j.error === 'no_key')) {
+        RELAY.dead = true; await kvSet('relayErr', 'Room is gone — open it again from More → Cloud room'); updateChips();
+      }
+    } catch {}
+    loop();
+  }, slow);
+}
+async function handleMsg(env) {
+  if (env.t === 'state' || env.t === 'state_part') {
+    if (env.t === 'state') await applyState(env.s);
+    else {
+      const k = Number(env.parts) || 1, i = Number(env.part) || 0;
+      RELAY.parts = RELAY.parts || Array(k).fill('');
+      if (i >= 0 && i < k) RELAY.parts[i] = String(env.s || '');
+      if (RELAY.parts.every(p => p !== '')) { const j = RELAY.parts.join(''); RELAY.parts = null; await applyState(j); }
+    }
+    return;
   }
-  async pull(){
-    const j = await this.api('/api/cloud/pull', {after:this.cursor, hot: this.hot?1:0});
-    if(!j || j.ok!==true) throw new Error('pull failed');
-    if(typeof j.cursor==='number') this.cursor=j.cursor;
-    if(j.peersHot>0 && this.isMain) this.hot=true;
-    if(Array.isArray(j.msgs)) for(const m of j.msgs) await this.handle(m);
-  }
-  async handle(raw){
-    if(!raw || raw.sender===this.deviceId) return;
-    const plain = await decryptString(this.key, String(raw.msg||''));
-    if(!plain) return;
-    let env; try{ env=JSON.parse(plain); }catch{ return; }
-    if(env.t==='state_part'){
-      const k = Number(env.parts)||1, i=Number(env.part)||0;
-      if(k<=1){ this.applyState(String(env.s||'')); return; }
-      this._chunkBuf = this._chunkBuf || Array(k).fill('');
-      if(i>=0 && i<this._chunkBuf.length) this._chunkBuf[i]=String(env.s||'');
-      if(this._chunkBuf.every(p=> p!=='')){ const s=this._chunkBuf.join(''); this._chunkBuf=null; this.applyState(s); }
-    } else if(env.t==='state'){ this.applyState(String(env.s||'')); }
-    else if(env.t==='cmd' && this.isMain){ if(env.c) this.onCmd && this.onCmd(env.c); }
-    else if(env.t==='print_job'){ if(env.job) { this.onPrintJob && this.onPrintJob(env.job); } }
-  }
-  async send(cmd){
-    const blob = await encryptString(this.key, JSON.stringify({t:'cmd', c:cmd}));
-    const j = await this.api('/api/cloud/send', {msg: blob});
-    return j && j.ok===true;
-  }
-  async sendPrintJob(job){
-    const blob = await encryptString(this.key, JSON.stringify({t:'print_job', job}));
-    const j = await this.api('/api/cloud/send', {msg: blob}); return j && j.ok===true;
-  }
-  _lastRev=-1; _lastPush=0;
-  async pushCheck(){
-    if(!this.isMain) return;
-    const rev = await kvGet('rev', 0);
+  if (env.t === 'cmd') return onCmd(env.c || {});
+}
+async function applyState(json) {
+  let obj; try { obj = JSON.parse(json); } catch { return; }
+  await restoreBackup(obj);
+  await renderActiveTab(true);
+  if (ROLE !== 'main' && STATION_ROLE) renderRoleHome(STATION_ROLE).catch(() => {});
+  renderStationsMini().catch(() => {});
+  refreshBoard().catch(() => {});
+}
+async function onCmd(cmd) {
+  if (!cmd) return;
+  if (cmd.type === 'hello' && cmd.device) {
+    const seen = (await kvGet('stationsSeen', {})) || {};
+    seen[String(cmd.device)] = { role: cmd.role || 'station', at: Number(cmd.at) || Date.now() };
     const now = Date.now();
-    const stale = now - this._lastPush > (this.hot ? 120000 : 600000);
-    if(rev===this._lastRev && !stale) return;
-    if(!this.hot && !stale) return;
-    const json = JSON.stringify(await exportBackup());
-    const CHUNK=480000;
-    if(json.length <= CHUNK){
-      const blob = await encryptString(this.key, JSON.stringify({t:'state', s: json}));
-      const j = await this.api('/api/cloud/send', {msg: blob}); if(j && j.ok) { this._lastRev=rev; this._lastPush=now; }
-    } else {
-      for(let i=0;i<json.length;i+=CHUNK){
-        const part = json.slice(i, i+CHUNK);
-        const blob = await encryptString(this.key, JSON.stringify({t:'state_part', part: Math.floor(i/CHUNK), parts: Math.ceil(json.length/CHUNK), s: part}));
-        const j = await this.api('/api/cloud/send', {msg: blob}); if(!j || !j.ok) return;
-      }
-      this._lastRev=rev; this._lastPush=now;
-    }
-  }
-  applyState(json){
-    try{ const obj = JSON.parse(json); if(obj && typeof obj==='object'){ importBackup(obj).then(()=> { refreshAll(); }).catch(()=>{}); } }catch{}
-  }
-}
-
-// Tables / menu / stock demo seed
-async function ensureSeed(){
-  const has = await kvGet('seeded', 0);
-  if(has) return;
-  const tables = Array.from({length:8}, (_,i)=> ({id:'T'+(i+1), label:'T'+(i+1), cap: 2+(i%4), state:'free', since:null}));
-  const products = [
-    {id:'p1', name:'Cappuccino', price:12, cat:'Drinks', avail:true},
-    {id:'p2', name:'Nasi Lemak', price:18, cat:'Mains', avail:true},
-    {id:'p3', name:'Roti Canai', price:8, cat:'Mains', avail:true},
-    {id:'p4', name:'Teh Tarik', price:6, cat:'Drinks', avail:true},
-  ];
-  const stock = [
-    {id:'s1', name:'Milk', qty: 40, lowAt: 10},
-    {id:'s2', name:'Rice', qty: 25, lowAt: 5},
-  ];
-  for(const t of tables) await idbPut('tables', t);
-  for(const p of products) await idbPut('products', p);
-  for(const s of stock) await idbPut('stock', s);
-  await kvSet('seeded', 1);
-  await kvSet('rev', 1);
-}
-
-// UI: tables — BistroTableTile (like common.dart)
-async function renderTables(filter='all'){
-  const grid = $('#table-grid'); if(!grid) return;
-  const tables = await idbGetAll('tables');
-  const orders = await idbGetAll('orders').catch(()=>[]);
-  grid.innerHTML = '';
-  for(const t of tables){
-    if(filter!=='all' && t.state!==filter) continue;
-    const st=(t.state||'free'); const busy=st==='busy'||st==='ready';
-    const amount=orders.filter(o=> o.table===t.id && o.status!=='closed').reduce((a,o)=> a+(o.total||0),0);
-    const el = document.createElement('button');
-    el.className='tile '+(busy?'is-busy':'')+' '+(st==='free'?'is-empty':'')+' '+st;
-    el.setAttribute('aria-label', t.label+' '+st);
-    el.innerHTML = '<div class="tile__top"><span class="tile__name">'+t.label+'</span><span class="tile__cap">'+t.cap+'×</span></div><div class="tile__center"><div class="tile__plate">'+(busy?'🍽️':'○')+'</div></div><div class="tile__meta"><span style="display:flex;align-items:center;gap:6px">'+(busy?'<span class="tile__pulse" aria-hidden="true"></span>':'')+'<span>'+(st==='free'?'Empty': st==='ready'?'Ready':'Busy')+'</span></span><span class="tile__amount">'+(busy&&amount? 'RM '+amount.toFixed(0): '')+'</span></div>';
-    el.onclick=()=> openOrder(t.id);
-    grid.appendChild(el);
-  }
-  if(!grid.children.length) grid.innerHTML='<p class="muted" style="grid-column:1/-1;padding:12px">No tables in this filter.</p>';
-  renderHome().catch(()=>{});
-}
-// UI: order sheet — real bottom sheet above everything (like APK order sheet)
-async function openOrder(tableId){
-  const orders = await idbGetAll('orders');
-  let o = orders.find(x=> x.table===tableId && (x.status==='open'||x.status==='sent'));
-  if(!o){ o = {id:'ord-'+Date.now(), table:tableId, status:'open', items:[], total:0, createdAt: Date.now()}; await idbPut('orders', o); }
-  CUR_ORDER = o;
-  $('#order-title').textContent = 'Table '+tableId.replace(/^T/,'')+' — Order';
-  const pick = $('#order-items'); pick.innerHTML='';
-  const products = await idbGetAll('products');
-  const list = products.filter(p=> p && p.name);
-  if(!list.length) pick.innerHTML='<p class="muted" style="font-weight:600">Menu is empty — add items in the Menu tab first.</p>';
-  for(const p of list){
-    const off = p.avail===false;
-    const row = document.createElement('div');
-    row.className='menu-pick-row'+(off?' is-off':'');
-    row.innerHTML='<div style="min-width:0"><div class="name">'+p.name+(off?' · sold out':'')+'</div><div class="price">'+fmtMoney(p.price)+'</div></div><button class="add" type="button">Add</button>';
-    row.querySelector('.add').onclick=async()=>{
-      if(off) return;
-      const ex = CUR_ORDER.items.find(it=> it.name===p.name);
-      if(ex){ ex.qty++; ex.total = ex.qty * p.price; }
-      else CUR_ORDER.items.push({name:p.name, qty:1, price:p.price, total:p.price});
-      CUR_ORDER.total = CUR_ORDER.items.reduce((a,b)=> a+b.total, 0);
-      await idbPut('orders', CUR_ORDER); await kvSet('rev', Date.now());
-      buildOrderSheet();
-    };
-    pick.appendChild(row);
-  }
-  await buildOrderSheet();
-  const sh = $('#sheet-order'); sh.classList.add('is-open'); sh.setAttribute('aria-hidden','false');
-}
-function closeOrderSheet(){ const sh=$('#sheet-order'); if(!sh) return; sh.classList.remove('is-open'); sh.setAttribute('aria-hidden','true'); }
-async function buildOrderSheet(){
-  if(!CUR_ORDER) return;
-  const s = await getSettings();
-  const cur = $('#order-current'); if(cur) cur.innerHTML='';
-  if(!CUR_ORDER.items.length){
-    cur.innerHTML='<p class="muted" style="font-weight:600;margin:0">Nothing added yet — pick from the menu below.</p>';
-  }
-  for(const [i,it] of CUR_ORDER.items.entries()){
-    const row=document.createElement('div');
-    row.className='ord-line';
-    row.innerHTML='<span style="min-width:0">'+it.name+'</span><span class="qty"><button type="button" data-d="-1">−</button><b>'+it.qty+'</b><button type="button" data-d="1">+</button><span style="min-width:64px;text-align:right">'+fmtMoney(it.total)+'</span></span>';
-    row.querySelectorAll('.qty button').forEach(b=> b.onclick=async()=>{
-      it.qty += Number(b.dataset.d);
-      if(it.qty<=0) CUR_ORDER.items.splice(i,1); else it.total = it.qty * (it.price ?? (it.total/ (it.qty-Number(b.dataset.d)) || 0));
-      CUR_ORDER.total = CUR_ORDER.items.reduce((a,x)=> a+x.total, 0);
-      await idbPut('orders', CUR_ORDER); await kvSet('rev', Date.now());
-      buildOrderSheet();
-    });
-    cur.appendChild(row);
-  }
-  const sub = CUR_ORDER.total||0;
-  const tax = sub * (Number(s.tax)||0)/100;
-  const svc = sub * (Number(s.svc)||0)/100;
-  const grand = sub + tax + svc;
-  $('#order-total-row').innerHTML =
-    '<div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>'+fmtMoney(sub)+'</span></div>'
-    + ((Number(s.tax)||0) ? '<div style="display:flex;justify-content:space-between"><span>Tax ('+s.tax+'%)</span><span>'+fmtMoney(tax)+'</span></div>' : '')
-    + ((Number(s.svc)||0) ? '<div style="display:flex;justify-content:space-between"><span>Service ('+s.svc+'%)</span><span>'+fmtMoney(svc)+'</span></div>' : '')
-    + '<div class="grand"><span>Total</span><span>'+fmtMoney(grand)+'</span></div>';
-}
-
-async function renderMenu(){
-  const host = $('#menu-list'); if(!host) return;
-  const list = await idbGetAll('products');
-  host.innerHTML='';
-  host.className='prod-grid';
-  for(const p of list){
-    const row=document.createElement('div');
-    row.className='prod';
-    row.innerHTML='<div class="prod__img">'+(p.image?'<img src="'+p.image+'" alt="" loading="lazy"/>':'<span style="font-size:28px">🍽️</span>')+'</div><div class="prod__body"><div class="prod__name">'+p.name+(p.avail?'':' · <span style="color:var(--danger);font-weight:800">Sold out</span>')+'</div><div class="prod__price">'+fmtMoney(p.price)+'</div><button class="prod__add" data-a="86">'+(p.avail?'Mark sold out':'Back on menu')+'</button><button class="btn btn--muted" data-a="del" style="min-height:36px;margin-top:6px;padding:0 10px;border-radius:12px;font-size:13px">Delete</button></div>';
-    row.querySelector('[data-a="86"]').onclick=async()=>{ p.avail=!p.avail; await idbPut('products', p); await kvSet('rev', Date.now()); renderMenu(); renderHome().catch(()=>{}); };
-    row.querySelector('[data-a="del"]').onclick=async()=>{ await idbDel('products', p.id); await kvSet('rev', Date.now()); renderMenu(); renderHome().catch(()=>{}); };
-    host.appendChild(row);
-  }
-  if(!host.children.length) host.innerHTML='<p class="muted" style="grid-column:1/-1;padding:12px">No products — add one above.</p>';
-}
-async function renderKitchen(){
-  const host = $('#kitchen-list'); if(!host) return;
-  const orders = await idbGetAll('orders');
-  const open = orders.filter(o=> o.status==='open' || o.status==='sent');
-  host.innerHTML = open.length ? '' : '<p class="muted" style="color:var(--muted)">No open tickets.</p>';
-  for(const o of open){
-    const age = Math.max(0,Math.round((Date.now()-(o.createdAt||Date.now()))/60000));
-    const card=document.createElement('div');
-    card.className='of-card pad';
-    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><b>'+o.table+' · #'+o.id.slice(-6)+'</b><span class="of-badge '+(age>12?'of-badge--gold':'')+'">'+age+' min</span></div><div style="margin-top:8px;display:grid;gap:4px">'+(o.items||[]).map(it=> '<div style="display:flex;justify-content:space-between"><span>'+it.name+' × '+it.qty+'</span><span style="font-weight:800">'+fmtMoney(it.total||0)+'</span></div>').join('')+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn btn--forest" data-a="ready" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Mark ready</button><button class="btn btn--ghost" data-a="print" style="min-height:40px;padding:0 14px;border-radius:999px;font-size:13px">Print slip</button></div>';
-    card.querySelector('[data-a="ready"]').onclick=async()=>{ o.status='ready'; await idbPut('orders', o); await kvSet('rev', Date.now()); renderKitchen(); renderTables(); renderHome().catch(()=>{}); window.OFAfterReady?.(o); };
-    card.querySelector('[data-a="print"]').onclick=()=> window.OFPrintReceipt?.(o, {type:'kitchen'});
-    host.appendChild(card);
-  }
-  // also paint home live
-  renderHome().catch(()=>{});
-}
-async function renderStock(){
-  const host = $('#stock-list'); if(!host) return;
-  const rows = await idbGetAll('stock');
-  host.innerHTML = rows.length ? '' : '<p class="muted" style="color:var(--muted)">No stock items.</p>';
-  for(const s of rows){
-    const n=s; const low = n.qty <= n.lowAt;
-    const row=document.createElement('div');
-    row.className='of-card pad'; row.style.cssText='display:flex;justify-content:space-between;align-items:center;'+(low?'background:#FFF4E6;border-color:#FFD7A0':'' );
-    row.innerHTML='<span><b>'+n.name+'</b> <span class="mono">qty '+n.qty+'</span> '+(low?'<span class="of-badge" style="background:#D94838;color:#fff;border-color:#D94838">LOW</span>':'')+'</span><span style="display:flex;gap:6px"><button class="btn btn--muted" data-a="minus" style="min-height:36px;padding:0 12px;border-radius:999px">−1</button><button class="btn btn--muted" data-a="plus" style="min-height:36px;padding:0 12px;border-radius:999px">+1</button></span>';
-    row.querySelector('[data-a="minus"]').onclick=async()=>{ n.qty=Math.max(0,n.qty-1); await idbPut('stock', n); await kvSet('rev', Date.now()); renderStock(); renderHome().catch(()=>{}); };
-    row.querySelector('[data-a="plus"]').onclick=async()=>{ n.qty+=1; await idbPut('stock', n); await kvSet('rev', Date.now()); renderStock(); renderHome().catch(()=>{}); };
-    host.appendChild(row);
-  }
-}
-
-// --- HOME — APK home_screen.dart replica: sales sparkline + stats + live ---
-async function renderHome(){
-  try{
-    const tables=(await idbGetAll('tables').catch(()=>[]));
-    const orders=(await idbGetAll('orders').catch(()=>[]));
-    const prods=(await idbGetAll('products').catch(()=>[]));
-    const stock=(await idbGetAll('stock').catch(()=>[]));
-    const openOrders=orders.filter(o=> o.status==='open'||o.status==='sent');
-    const busyTables=tables.filter(t=> t.state==='busy'||t.state==='ready').length;
-    const totalSales=orders.filter(o=> o.status!=='closed').reduce((a,o)=> a+(o.total||0),0);
-    const low=stock.filter(s=> s.qty<=s.lowAt).length;
-    const els={
-      kicker: document.getElementById('home-kicker'),
-      sales: document.getElementById('home-sales'),
-      delta: document.getElementById('home-delta'),
-      ordersMeta: document.getElementById('home-orders'),
-      tablesMeta: document.getElementById('home-tables'),
-      statOrders: document.getElementById('stat-orders'),
-      statBusy: document.getElementById('stat-busy'),
-      statMenu: document.getElementById('stat-menu'),
-      statLow: document.getElementById('stat-low'),
-      spark: document.getElementById('home-spark'),
-      live: document.getElementById('kitchen-live'),
-      liveEmpty: document.getElementById('live-empty'),
-    };
-    if(els.sales) els.sales.textContent=fmtMoney(totalSales);
-    if(els.kicker){
-      const isMain=ROLE==='main'; const now=new Date();
-      els.kicker.textContent=(isMain?'Main':'Station')+' · '+now.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'})+' · '+(HOT?'live':'idle');
-    }
-    if(els.delta){
-      const ySales=Math.max(0, totalSales * (0.88 + Math.random()*0.18));
-      const d= totalSales - ySales;
-      els.delta.textContent=(d>=0? '↗ +RM '+d.toFixed(0): '↘ RM '+d.toFixed(0))+' vs yesterday';
-      els.delta.style.background=d>=0? 'rgba(46,167,113,.16)': 'rgba(217,72,56,.14)';
-      els.delta.style.color=d>=0? '#163E2E': '#7C1D1D';
-    }
-    if(els.ordersMeta) els.ordersMeta.textContent=openOrders.length+' open';
-    if(els.tablesMeta) els.tablesMeta.textContent=busyTables+' tables busy';
-    if(els.statOrders) els.statOrders.textContent=String(openOrders.length);
-    if(els.statBusy) els.statBusy.textContent=String(busyTables);
-    if(els.statMenu) els.statMenu.textContent=String(prods.length);
-    if(els.statLow) els.statLow.textContent=String(low);
-    // spark — simple jitter
-    if(els.spark){
-      const vals=Array.from({length:9},(_,i)=> 26 - Math.round((totalSales%40)/4) - Math.round(Math.sin(i*0.9)*6) - (i%2?2:0));
-      const pts=vals.map((v,i)=> `${Math.round(i*108/8)},${Math.max(6,Math.min(42,v))}`).join(' ');
-      els.spark.setAttribute('points', pts);
-    }
-    // live tickets mini
-    if(els.live){
-      els.live.innerHTML='';
-      const toShow=openOrders.slice(0,3);
-      for(const o of toShow){
-        const age=Math.max(0,Math.round((Date.now()-(o.createdAt||Date.now()))/60000));
-        const el=document.createElement('div');
-        el.className='of-card pad';
-        el.style.cssText='padding:12px';
-        el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><b>'+o.table+' · #'+o.id.slice(-6)+'</b><span class="of-badge '+(age>12?'of-badge--gold':'')+'">'+age+'m</span></div><div class="muted" style="margin-top:4px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(o.items||[]).map(it=> it.name+'×'+it.qty).join(' · ')+'</div>';
-        els.live.appendChild(el);
-      }
-      if(els.liveEmpty) els.liveEmpty.hidden= toShow.length>0;
-      if(!toShow.length && els.live) els.live.innerHTML='';
-    }
-    // bottom nav dot for pending tickets
-    const navMore=document.querySelector('.of-nav__item[data-tab="more"]');
-    if(navMore) navMore.classList.toggle('has-dot', openOrders.length>0);
-  }catch(e){ /* no-op */ }
-}
-
-async function refreshAll(){
-  const f = document.querySelector('#tab-tables [data-filter].is-active')?.dataset.filter || document.querySelector('#tab-tables [data-filter].active')?.dataset.filter || 'all';
-  await Promise.all([renderTables(f), renderMenu(), renderKitchen(), renderStock(), renderHome()]);
-  try{ await window.OFCheckOrders?.(); }catch{}
-  const est = await storageEstimate();
-  if(est && $('#storage-est')) $('#storage-est').textContent = `Storage ${((est.usage/1024/1024).toFixed(1))} MB / ${(est.quota/1024/1024/1024).toFixed(1)} GB · ${est.pct}%`;
-  // header live badge
-  const orders=(await idbGetAll('orders').catch(()=>[])); const open=orders.filter(o=> o.status==='open'||o.status==='sent').length;
-  const badge=document.getElementById('role-badge');
-  if(badge && open>0){ badge.textContent=(ROLE==='main'?'Main':'Station')+' · '+open+' open'; badge.classList.add('of-badge--gold'); } else if(badge){
-    badge.textContent=ROLE==='main'?'Main': ROLE==='station'?'Station':'POS';
-    badge.classList.remove('of-badge--gold');
-  }
-}
-
-// role setup
-async function initRoleUI(){
-  const savedRole = await kvGet('role', null);
-  const savedRoom = await kvGet('roomInfo', null);
-  // strict gate: Main must have validated license (like APK LicenseGate)
-  let validated='';
-  try{ validated = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || ''; }catch{ validated = localStorage.getItem('of_licenseKey')||''; }
-  validated = ofNormalizeKey(validated);
-  const hasValidKey = validated && OF_KEY_RE.test(validated);
-  if(savedRole==='main' && !hasValidKey){
-    // block auto-enter — show license gate, stay on setup
-    console.warn('Main without valid license — gate blocked');
-    // ensure gate is visible (index.html will also show it)
-    const gate=document.getElementById('view-license'); if(gate){ gate.hidden=false; gate.removeAttribute('hidden'); document.getElementById('of-app')?.classList.add('gate-hidden'); }
+    for (const k of Object.keys(seen)) if (now - (seen[k]?.at || 0) > 12 * 60 * 1000) delete seen[k];
+    await kvSet('stationsSeen', seen);
+    await renderStationsPanel();
     return;
   }
-  if(savedRole && savedRoom){
-    ROLE = savedRole;
-    enterApp(savedRoom);
+  if (cmd.type === 'menu_request') { await pushStateNow(); return; }
+  if (cmd.type === 'order' && Array.isArray(cmd.lines)) { // guest QR order (transit only — not a cloud backup)
+    const info = normTypeForModel();
+    const o = C.newOrder({}, { type: info, tableId: cmd.tableId || null, tableName: cmd.tableName || '', channel: 'qr' });
+    for (const l of cmd.lines) o.lines.push({ id: C.uuid(), productId: l.productId || '', name: l.name, qty: l.qty || 1, priceCents: l.priceCents | 0, mods: [], notes: l.notes || '' });
+    o.status = 'sent'; o.sentAt = Date.now(); o.createdBy = 'guest@qr';
+    // flood caps: per-table 24/h, shop 900/h
+    const cap = await qrCapCheck(o.tableId || 'none');
+    if (!cap.ok) { await sendCmd({ type: 'order_rejected', tableId: o.tableId, reason: 'busy' }); return; }
+    await idbPut('orders', o); await kvSet('rev', Date.now());
+    if ((SHOP.profile.fireMode || 'auto') === 'auto' && SHOP.profile.autoPrint && canF('station_printers')) {
+      try { ofPrintKitchen(o); } catch {}
+    }
+    await refreshBoard(); await renderActiveTab(true);
     return;
   }
-  // show setup
-}
-
-function enterApp(roomInfo){
-  $('#view-setup').hidden=true;
-  $('#view-app').hidden=false;
-  // app chrome (bottom nav, header actions) only exists once a role is entered — like the APK shell
-  try{ document.body.classList.add('is-inapp'); }catch{}
-  $('#side-role').textContent = ROLE==='main' ? 'Main — this iPhone is the shop server' : 'Station — '+ ($('#station-role')?.value || 'taker');
-  $('#side-room').textContent = roomInfo ? (roomInfo.room.slice(0,8)+'… · '+roomInfo.code) : 'Offline only (no room)';
-  $('#role-badge').textContent = ROLE==='main' ? 'Main' : 'Station';
-  refreshAll();
-  if(roomInfo) startRelay(roomInfo);
-  ensurePersist();
-}
-
-async function startRelay(info){
-  const id = await deviceId();
-  const r = new Relay({room: info.room, secret: info.secret, base: info.base, deviceId: id, isMain: ROLE==='main'});
-  await r.init();
-  r.onCmd = async (cmd)=>{
-    // station/main heartbeat — builds the "Stations in this room" panel
-    if(cmd && cmd.type==='hello' && cmd.device){
-      try{
-        const seen=(await kvGet('stationsSeen', {}))||{};
-        seen[String(cmd.device)] = {role: cmd.role||'station', at: Number(cmd.at)||Date.now()};
-        const now=Date.now();
-        for(const k of Object.keys(seen)){ if(now-(seen[k]?.at||0)>10*60*1000) delete seen[k]; }
-        await kvSet('stationsSeen', seen);
-        try{ window.OFRenderLivePanels?.(); }catch{}
-      }catch{}
-      return;
-    }
-    // guest table ordering: phone on the table asks for the menu
-    if(cmd && cmd.type==='menu_request'){ r._lastRev=-1; r._lastPush=0; try{ await r.pushCheck(); }catch{} return; }
-    // guest table ordering: order sent from a guest phone
-    if(cmd && cmd.type==='order' && cmd.table && Array.isArray(cmd.items) && cmd.items.length){
-      const o = { id:'ord-'+Date.now(), table: cmd.table, status:'sent', source:'qr', items: cmd.items, total: cmd.items.reduce((a,x)=> a+(Number(x.total)||0),0), createdAt: Date.now() };
-      await idbPut('orders', o);
-      const t=await idbGet('tables', cmd.table); if(t){ t.state='busy'; t.since=Date.now(); await idbPut('tables', t); }
-      await kvSet('rev', Date.now());
-      refreshAll(); // toast + sound + vibration fire here via the notify engine
-      try{
-        const s=await getSettings();
-        if(s.autoPrint) window.OFKitchenPrint?.(o);
-      }catch{}
-      return;
-    }
-    // station pushed an order update — merge: for demo, just replace orders with cmd.orders
-    if(cmd.orders) for(const o of cmd.orders) await idbPut('orders', o);
-    await kvSet('rev', Date.now());
-    refreshAll();
-  };
-  r.onPrintJob = async (job)=>{
-    // this device is print gateway listening
-    const isGateway = await kvGet('gateway', false);
-    if(!isGateway) return;
-    const log = $('#gateway-log');
-    if(log) log.textContent += `\n[${new Date().toLocaleTimeString()}] print job ${job.id} → Printing with Apple…`;
-    try{ printViaApple(job.order, job.shop); if(log) log.textContent += ' ✓'; } catch(e){ if(log) log.textContent += ' — '+e; }
-  };
-  r.start();
-  RELAY = r; window.OFRelay = r;
-  // delta: when station creates order, push orders array
-  window.OFRelay.sendOrders = async ()=>{
-    const orders = await idbGetAll('orders');
-    await r.send({orders});
-  };
-  window.OFRelay.sendPrintJob = (job)=> r.sendPrintJob(job);
-}
-
-// events
-document.addEventListener('DOMContentLoaded', async ()=>{
-  await ensureSeed();
-  await initRoleUI();
-  refreshAll();
-
-  // tabs — now also supports home + sync header/bottom nav
-  function setTab(tab){
-    $$('.side nav button').forEach(x=> x.classList.toggle('active', x.dataset.tab===tab));
-    const pairs=[['home','tab-home'],['tables','tab-tables'],['menu','tab-menu'],['kitchen','tab-kitchen'],['stock','tab-stock'],['print','tab-print'],['settings','tab-settings']];
-    for(const [k,id] of pairs){ const el=document.getElementById(id); if(el) el.hidden = (k!==tab); }
-    // sync seg + bottom nav if present
-    document.querySelectorAll('.of-nav__item, .seg button, [data-tab]').forEach(b=>{
-      const v=b.getAttribute('data-tab'); if(!v) return;
-      const on=v===tab; b.classList.toggle('is-active', on); if(b.classList.contains('of-nav__item')) b.setAttribute('aria-current', on?'page':'false');
-    });
-    if(tab==='home') renderHome();
-    if(window.__ofShowTab && tab!=='home') { /* keep window helper in sync without loop */ }
+  if (cmd.type === 'printjob') {
+    const isGateway = await kvGet('printGateway', false);
+    if (isGateway && cmd.order) { try { printReceipt(cmd.order, {}); } catch {} }
+    return;
   }
-  // expose for header/bottom sheet
-  window.__ofSetTab = setTab;
-  $$('.side nav button').forEach(b=> b.addEventListener('click', ()=> setTab(b.dataset.tab)));
-  // seg + bottom nav clicks already handled in index.html, but also wire here as fallback
-  document.querySelectorAll('.seg button, .of-nav__item').forEach(b=> b.addEventListener('click', ()=>{ const t=b.getAttribute('data-tab'); if(t) setTab(t==='more'? 'settings': t); }));
-  // tiles on home
-  $$('#home-tiles [data-tab]').forEach(b=> b.addEventListener('click', ()=> setTab(b.getAttribute('data-tab'))));
-  // table filters
-  $$('#tab-tables [data-filter]').forEach(b=> b.addEventListener('click', ()=>{
-    $$('#tab-tables [data-filter]').forEach(x=> x.classList.remove('active'));
-    b.classList.add('active'); renderTables(b.dataset.filter);
+  if (cmd.orders) { for (const o of cmd.orders) await idbPut('orders', normOrder(o)); await kvSet('rev', Date.now()); await refreshBoard(); await renderActiveTab(true); }
+}
+async function qrCapCheck(tableId) {
+  const win = Date.now() - 3600 * 1000;
+  const all = await orders();
+  const guest = all.filter(o => o.channel === 'qr' && (o.createdAt || 0) > win);
+  if (guest.length >= 900) return { ok: false };
+  if (guest.filter(o => o.tableId === tableId).length >= 24) return { ok: false };
+  return { ok: true };
+}
+function normTypeForModel() { return SHOP.profile.model === 'retail' ? 'retail' : SHOP.profile.model === 'services' ? 'service' : SHOP.profile.model === 'fastfood' ? 'takeaway' : 'dineIn'; }
+
+/* ================= STATUS CHIPS ================= */
+function updateChips() {
+  const dead = RELAY && RELAY.dead;
+  const txt = dead ? 'Room gone' : (RELAY ? L.t('room_live') : 'Room idle');
+  for (const el of document.querySelectorAll('#hdr-status, #role-status')) { el.textContent = txt; el.className = 'chip ' + (dead ? 'chip--warn' : 'chip--live'); }
+}
+
+/* ================= NOTIFICATION ENGINE ================= */
+const memo = { map: new Map(), seeded: false };
+async function refreshBoard() {
+  const os = await orders();
+  for (const o of os) {
+    const prev = memo.map.get(o.id);
+    const where = o.tableName ? 'Table ' + o.tableName : (o.type === 'delivery' ? 'Delivery' : o.type === 'takeaway' ? 'Takeaway' : 'Ticket');
+    if (prev === undefined && (o.status === 'open' || o.status === 'sent')) {
+      if (memo.seeded) { if (SHOP.profile.kitchenSound) chime('ticket'); buzz([120, 60, 160]); toast('New ticket — ' + where, (o.channel === 'qr' ? 'Guest ordered by QR · ' : '') + (o.lines || []).length + ' item(s)'); }
+    }
+    if (prev !== undefined && prev !== 'ready' && o.status === 'ready') { if (SHOP.profile.kitchenSound) chime('ready'); buzz([80, 40, 120]); toast(where + ' — ready ✓', 'Please serve the guest'); }
+    if (prev !== undefined && !['paid', 'refunded', 'cancelled'].includes(prev) && o.status === 'paid') { if (SHOP.profile.kitchenSound) chime('paid'); toast(where + ' — paid ✓', 'Sale recorded'); }
+    memo.map.set(o.id, o.status);
+  }
+  if (memo.map.size > 400) memo.map.clear();
+  memo.seeded = true;
+  updateTakerBadge(os);
+}
+function takerReadyOrders(os) { return (os || []).filter(o => o.status === 'ready'); }
+function updateTakerBadge(os) { /* ready strip handles visibility; kitchen uses column counts */ }
+
+/* ================= MAIN SHELL ================= */
+const ICON = {
+  home: '<svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>',
+  tables: '<svg viewBox="0 0 24 24"><path d="M4 17h16M6 17V7h12v10M9 7V5h6v2"/></svg>',
+  register: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="6" rx="2"/><path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6M7 16h6"/></svg>',
+  queue: '<svg viewBox="0 0 24 24"><path d="M6 6l4 6-4 6M14 6l4 6-4 6"/></svg>',
+  appointments: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>',
+  menu: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+  services: '<svg viewBox="0 0 24 24"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg>',
+  stock: '<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>',
+};
+function dests() {
+  const m = SHOP.profile.model;
+  const second = { restaurant: ['tables', L.t('tables')], retail: ['register', L.t('register')], fastfood: ['queue', L.t('queue')], services: ['appointments', L.t('appointments')] }[m];
+  const third = m === 'services' ? ['services', L.t('services')] : ['menu', L.t('menu')];
+  return [
+    { id: 'home', label: L.t('home'), ic: ICON.home },
+    { id: 'floor', label: second[1], ic: ICON[second[0]] },
+    { id: 'menu', label: third[1], ic: ICON[third[0]] },
+    { id: 'stock', label: L.t('stock'), ic: ICON.stock },
+    { id: 'more', label: L.t('more'), ic: ICON.more },
+  ];
+}
+let ACTIVE_TAB = 'home';
+function buildNav() {
+  const ds = dests();
+  const rail = $('rail'), bn = $('bnav'); if (!rail || !bn) return;
+  rail.innerHTML = ''; bn.innerHTML = '';
+  for (const d of ds) {
+    const br = ce('button', 'rail__dest' + (d.id === ACTIVE_TAB ? ' is-on' : ''), d.ic + '<span>' + esc(d.label) + '</span>');
+    br.onclick = () => setTab(d.id); rail.appendChild(br);
+    const bb = ce('button', 'bnav__dest' + (d.id === ACTIVE_TAB ? ' is-on' : ''), d.ic + '<span>' + esc(d.label) + '</span>');
+    bb.dataset.tabId = d.id; bb.onclick = () => setTab(d.id); bn.appendChild(bb);
+  }
+}
+function setTab(tab) {
+  ACTIVE_TAB = tab;
+  for (const t of ['home', 'floor', 'menu', 'stock', 'more']) $('tab-' + t).hidden = t !== tab;
+  document.querySelectorAll('#rail .rail__dest, #bnav .bnav__dest').forEach((el, i) => {
+    const on = (el.dataset.tabId || '') === tab || el.classList.contains('is-on') && !el.dataset.tabId;
+  });
+  buildNavIfChanged(tab);
+  renderActiveTab();
+}
+function buildNavIfChanged(tab) {
+  document.querySelectorAll('#bnav .bnav__dest').forEach(el => el.classList.toggle('is-on', el.dataset.tabId === tab));
+  document.querySelectorAll('#rail .rail__dest').forEach((el, i) => {
+    const ds = dests(); el.classList.toggle('is-on', ds[i] && ds[i].id === tab);
+  });
+}
+async function renderActiveTab(silent) {
+  // never steal focus mid-typing (30s auto-refresh tick)
+  const ae = document.activeElement;
+  if (silent && ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT') && ae.closest('#main-body,#role-body,#sub-body')) return;
+  try {
+    const fn = { home: renderHome, floor: renderFloor, menu: renderMenu, stock: renderStock, more: OFMoreRender }[ACTIVE_TAB];
+    if (fn) await fn();
+  } catch (e) { console.error('render', e); }
+}
+function enterMain() {
+  ROLE = 'main';
+  $('hdr-shop').textContent = SHOP.profile.name;
+  $('hdr-role').textContent = L.t('role_main');
+  show('view-main');
+  buildNav(); setTab('home');
+  document.documentElement.dir = langDir();
+  applyText();
+  refreshBoard().catch(() => {});
+  setInterval(async () => { await renderActiveTab(true); await refreshBoard(); renderStationsMini().catch(() => {}); }, 30000);
+  setInterval(tickClocks, 30000);
+}
+function applyText() {
+  document.querySelectorAll('[data-t]').forEach(el => el.textContent = L.t(el.dataset.t));
+  document.querySelectorAll('[data-ph]').forEach(el => el.placeholder = L.t(el.dataset.ph));
+}
+function langDir() { return OFLang.getLang() === 'ur' ? 'rtl' : 'ltr'; }
+function applyDir() { document.documentElement.lang = OFLang.getLang(); document.documentElement.dir = langDir(); }
+
+/* ================= HOME ================= */
+function greeting() { const h = new Date().getHours(); return h < 12 ? L.t('greeting_morning') : h < 17 ? L.t('greeting_afternoon') : L.t('greeting_evening'); }
+async function renderHome() {
+  const host = $('tab-home'); if (!host || host.hidden) { if (host && ACTIVE_TAB === 'home') return; }
+  const os = await orders(), ps = await products(), ss = await stockAll();
+  const rep = C.reportXZ(os, SHOP.profile);
+  const start = C.dayStart();
+  const y = C.reportXZ(os, SHOP.profile, start - 3600000);
+  const delta = rep.taken - y.taken;
+  const openN = os.filter(o => !['paid', 'cancelled', 'refunded'].includes(o.status)).length;
+  const lowN = ss.filter(s => s.qty <= (s.lowStockAt ?? s.lowAt ?? 5)).length;
+  const apptN = SHOP.profile.model === 'services' ? (await idbGetAll('appointments', [])).filter(a => a.status !== 'done' && (a.at || 0) >= start && (a.at || 0) < start + 86400000).length : 0;
+  const ready = takerReadyOrders(os);
+  const busyClocks = os.filter(o => o.tableId && !['paid', 'cancelled', 'refunded'].includes(o.status)).length;
+  const spark = [...Array(7)].map((_, i) => { const d = start - (6 - i) * 86400000; return C.reportXZ(os, SHOP.profile, d).taken; });
+  const mx = Math.max(1, ...spark);
+  const now = new Date();
+  host.innerHTML = '';
+  const top = ce('h2', null, '<span class="muted" style="font-weight:600">' + greeting() + ', </span>' + esc(SHOP.profile.name));
+  top.style.cssText = 'font-weight:900;letter-spacing:-.5px;font-size:22px';
+  host.appendChild(top);
+  host.appendChild(ce('p', 'muted small', now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })));
+  // sales hero (dark in both themes)
+  const hero = ce('div', 'card card--forest hero');
+  hero.innerHTML = '<div class="row" style="justify-content:space-between"><span class="small" style="font-weight:700;opacity:.75">' + L.t('reports_today') + '</span><span class="chip">' + openN + ' open · ' + busyClocks + ' on tables</span></div>'
+    + '<div class="hero__amt" style="margin-top:8px">' + money(rep.taken) + '</div>'
+    + '<span class="chip ' + (delta >= 0 ? '' : 'chip--gold') + '" style="margin-top:10px">' + (delta >= 0 ? '↗ +' : '↘ ') + money(Math.abs(delta)).trim() + ' vs yesterday</span>'
+    + '<div class="hero__grid"><div><div class="small" style="opacity:.75">' + rep.unpaidCount + ' unpaid · ' + money(rep.waiting) + '</div><div class="prog" style="margin-top:8px;width:180px;max-width:46vw"><b style="width:' + Math.min(100, Math.round(rep.taken / mx * 100)) + '%"></b></div></div><svg class="hero__spark" viewBox="0 0 110 44">' + spark.map((v, i) => (i ? ' L' : 'M') + (i * (100 / 6) + 5).toFixed(0) + ' ' + (40 - (v / mx * 34)).toFixed(0)).join('') + '" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg></div>';
+  host.appendChild(hero);
+  // quick tiles (model-aware)
+  const tiles = ce('div', 'tiles'); tiles.style.marginTop = '14px';
+  const mkT = (label, ic, act) => { const b = ce('button', 'tile', '<span class="tile__ic">' + ic + '</span>' + esc(label)); b.dataset.act = act; tiles.appendChild(b); };
+  const m = SHOP.profile.model;
+  if (m === 'restaurant') { mkT(L.t('tables'), ICON.tables, 'shell.tab.floor'); mkT(L.t('new_ticket'), ICON.queue, 'ticket.new'); mkT(L.t('kitchen') || 'Kitchen', ICON.queue, 'rolecover.kitchen'); mkT(L.t('menu'), ICON.menu, 'shell.tab.menu'); }
+  else if (m === 'retail') { mkT(L.t('register'), ICON.register, 'shell.tab.floor'); mkT(L.t('new_ticket'), ICON.queue, 'ticket.new'); mkT(L.t('menu'), ICON.menu, 'shell.tab.menu'); mkT(L.t('stock'), ICON.stock, 'shell.tab.stock'); }
+  else if (m === 'fastfood') { mkT(L.t('queue'), ICON.queue, 'shell.tab.floor'); mkT(L.t('new_ticket'), ICON.queue, 'ticket.new'); mkT(L.t('menu'), ICON.menu, 'shell.tab.menu'); mkT(L.t('stock'), ICON.stock, 'shell.tab.stock'); }
+  else { mkT(L.t('appointments'), ICON.appointments, 'shell.tab.floor'); mkT(L.t('services'), ICON.services, 'shell.tab.menu'); mkT(L.t('stock'), ICON.stock, 'shell.tab.stock'); mkT(L.t('more'), ICON.more, 'shell.tab.more'); }
+  host.appendChild(tiles);
+  // room card — room live + join code + QR (never a fake Wi-Fi IP)
+  const roomInfo = RELAY ? RELAY.info : null;
+  const room = ce('div', 'card card--pad'); room.style.marginTop = '14px';
+  if (roomInfo) {
+    room.innerHTML = '<div class="row"><span class="chip chip--live">● ' + L.t('room_live') + '</span><span class="muted small grow" style="font-weight:600">' + L.t('join_code') + ': <b class="mono">' + esc(roomInfo.code) + '</b></span><button class="btn btn--sm" data-act="home.roomqr">QR</button></div><p class="small muted" style="margin-top:8px;font-weight:600">Android and iPhone stations meet in this room — scan the code on any station.</p><div id="stations-mini" style="display:grid;gap:6px;margin-top:10px"></div>';
+  } else {
+    room.innerHTML = '<div class="row"><span class="chip chip--warn">Room closed</span><span class="muted small grow" style="font-weight:600">Open it so stations can join</span><button class="btn btn--sm btn--primary" data-act="more.goto.cloud">Open room</button></div>';
+  }
+  host.appendChild(room);
+  renderStationsMini();
+  // ready strip
+  if (ready.length) {
+    host.appendChild(ce('div', 'sect__t', L.t('ready_to_serve')));
+    for (const o of ready) host.appendChild(readyLine(o));
+  }
+  // stats
+  const stats = ce('div', 'stats'); stats.style.marginTop = '12px';
+  const stat = (k, v, d) => { const el = ce('div', 'stat', '<div class="stat__k">' + k + '</div><div class="stat__v">' + v + '</div><div class="stat__d">' + d + '</div>'); stats.appendChild(el); };
+  stat('Open orders', String(openN), 'live');
+  stat(m === 'services' ? 'Appointments' : 'Items sold', m === 'services' ? String(apptN) : String(rep.top.reduce((a, x) => a + x[1], 0)), L.t('reports_today'));
+  stat('Menu items', String(ps.length), 'catalog');
+  stat('Low stock', String(lowN), lowN ? 'watch' : 'ok');
+  host.appendChild(stats);
+  // live board
+  const open = os.filter(o => !['paid', 'cancelled', 'refunded'].includes(o.status))
+    .sort((a, b) => b.createdAt - a.createdAt).slice(0, 8);
+  host.appendChild(ce('div', 'sect__t', 'Live board'));
+  if (!open.length) host.appendChild(ce('p', 'muted small', L.t('no_orders')));
+  else {
+    for (const o of open) host.appendChild(boardRow(o));
+  }
+}
+function readyLine(o) {
+  const el = ce('div', 'readyline',
+    '<span class="lrow__ic" style="background:rgba(212,158,53,.18)">🔔</span>'
+    + '<span class="ttl">' + esc(whereOf(o)) + ' — ' + L.t('ready_to_serve') + '<small class="sub" style="display:block">' + (o.lines || []).length + ' dish(es) waiting</small></span>'
+    + '<button type="button" data-act="tk.served" data-id="' + o.id + '">' + L.t('mark_served') + '</button>');
+  el.querySelector('button').onclick = (e) => { e.stopPropagation(); OFAct['ticket.served'](el.querySelector('button'), e); };
+  return el;
+}
+function whereOf(o) { return o.tableName ? 'Table ' + o.tableName : (o.type === 'delivery' ? 'Delivery' : o.type === 'takeaway' ? 'Takeaway' : 'Ticket #' + o.ticketNo); }
+function boardRow(o) {
+  const age = Math.max(0, Math.round((Date.now() - (o.createdAt || Date.now())) / 60000));
+  const b = billOf(o);
+  const st = { open: ['New', 'tag--blue'], sent: ['In kitchen', 'tag--blue'], preparing: ['Preparing', 'tag--gold'], ready: ['READY ✓', 'tag--mint'], served: ['Served', 'tag--gold'], out: ['Out for delivery', 'tag--blue'] }[o.status] || [o.status, ''];
+  const el = ce('div', 'lrow', '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + age + ' min · ' + (o.lines || []).length + ' item(s)</small></div><span class="tag ' + st[1] + '">' + st[0] + '</span><span class="lrow__amt">' + money(b.due) + '</span>');
+  el.onclick = () => openTicket(o.id);
+  return el;
+}
+async function renderStationsMini() {
+  const host = $('stations-mini'); if (!host) return;
+  const seen = (await kvGet('stationsSeen', {})) || {};
+  const me = await deviceId();
+  const rows = [['This device', { role: ROLE === 'main' ? L.t('role_main') : (STATION_ROLE || 'station'), at: Date.now() }], ...Object.entries(seen)];
+  host.innerHTML = '';
+  for (const [dev, info] of rows) {
+    const age = Math.round((Date.now() - (info.at || 0)) / 1000);
+    const live = age < 75;
+    const el = ce('div', 'row', '<span class="dot" style="background:' + (live ? 'var(--mint)' : 'var(--muted)') + '"></span><span class="small grow" style="font-weight:700">' + esc(dev === me ? 'This device' : dev) + '</span><span class="small muted" style="font-weight:600">' + esc(info.role) + (dev === me ? '' : ' · ' + (live ? 'live' : fmtAgo(age))) + '</span>');
+    host.appendChild(el);
+  }
+}
+function fmtAgo(sec) { return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; }
+async function renderStationsPanel() { renderStationsMini().catch(() => {}); }
+
+/* ================= TICKETS ================= */
+async function newTicket(opts) {
+  opts = opts || {};
+  const o = C.newOrder(SHOP.profile, { type: opts.type || normTypeForModel(), tableId: opts.table?.id || null, tableName: opts.table ? opts.table.name || opts.table.label : '' });
+  await idbPut('orders', o); await kvSet('rev', Date.now());
+  syncNow(); refreshBoard().catch(() => {});
+  openTicket(o.id);
+}
+function openTicket(id) { if (window.OFOpenTicket) OFOpenTicket(id); }
+
+/* ================= FLOOR ================= */
+let FLOOR_FILTER = 'all', FLOOR_Q = '';
+async function renderFloor() {
+  const host = $('tab-floor'); if (!host) return;
+  const m = SHOP.profile.model;
+  host.innerHTML = '';
+  if (m === 'restaurant') return renderFloorRestaurant(host);
+  if (m === 'retail') return renderFloorRetail(host);
+  if (m === 'fastfood') return renderFloorQueue(host);
+  return renderFloorAppts(host);
+}
+async function renderFloorRestaurant(host) {
+  const ts = await tablesAll(); const os = await orders();
+  const openByTable = {};
+  for (const o of os) if (!['paid', 'cancelled', 'refunded'].includes(o.status) && o.tableId) (openByTable[o.tableId] = openByTable[o.tableId] || []).push(o);
+  const head = ce('div', 'row');
+  head.innerHTML = '<h2 class="grow" style="font-weight:900;letter-spacing:-.5px">' + L.t('tables') + '</h2><button class="btn btn--sm btn--primary" data-act="floor.addtable">+ ' + L.t('new_table') + '</button>';
+  host.appendChild(head);
+  const srch = ce('input'); srch.placeholder = L.t('search'); srch.style.marginTop = '10px'; srch.value = FLOOR_Q;
+  srch.addEventListener('input', () => { FLOOR_Q = srch.value; renderFloorRestaurantTiles(); });
+  host.appendChild(srch); host._searchField = srch;
+  const chips = ce('div', 'filters'); chips.style.marginTop = '10px';
+  const counts = { all: 0, free: 0, busy: 0, ready: 0 };
+  const stateOf = t => (openByTable[t.id] && openByTable[t.id].length) ? (openByTable[t.id].some(o => o.status === 'ready') ? 'ready' : 'ordered') : 'free';
+  for (const t of ts) { counts.all++; counts[stateOf(t) === 'free' ? 'free' : 'busy']++; if (stateOf(t) === 'ready') counts.ready++; }
+  for (const f of [['all', 'All'], ['free', 'Free'], ['busy', 'Ordered'], ['ready', 'Ready']])
+    chips.appendChild(Object.assign(ce('button', 'fchip' + (FLOOR_FILTER === f[0] ? ' is-on' : '')), { textContent: f[1] + ' · ' + counts[f[0]] }));
+  chips.querySelectorAll('.fchip').forEach((b, i) => b.onclick = () => { FLOOR_FILTER = ['all', 'free', 'busy', 'ready'][i]; renderFloorRestaurant(host); });
+  host.appendChild(chips);
+  const map = ce('div', 'tmap'); map.style.marginTop = '12px'; host.appendChild(map);
+  host._tiles = { map, ts, openByTable };
+  renderFloorRestaurantTiles();
+}
+function renderFloorRestaurantTiles() {
+  const host = $('tab-floor'); if (!host || !host._tiles) return;
+  const { map, ts, openByTable } = host._tiles;
+  map.innerHTML = '';
+  const q = FLOOR_Q.toLowerCase();
+  for (const t of ts) {
+    if (q && !(t.label || t.name || '').toLowerCase().includes(q)) continue;
+    const os = openByTable[t.id] || [];
+    const st = os.length ? (os.some(o => o.status === 'ready') ? 'ready' : 'ordered') : 'free';
+    if (FLOOR_FILTER === 'busy' && st === 'free') continue;
+    if (FLOOR_FILTER !== 'all' && FLOOR_FILTER !== 'busy' && st !== FLOOR_FILTER) continue;
+    const since = os.length ? Math.min(...os.map(o => o.createdAt || Date.now())) : null;
+    const amt = os.reduce((a, o) => a + billOf(o).due, 0);
+    const el = ce('button', 'tcard' + (st === 'ready' ? ' tcard--ready' : st === 'ordered' ? ' tcard--busy' : ' tcard--free'));
+    el.innerHTML = '<div class="row" style="justify-content:space-between"><span class="tcard__name">' + esc(t.label || t.name || 'T') + '</span><span class="small muted" style="font-weight:700">' + (t.seats || 2) + '×🪑</span></div>'
+      + (os.length ? '<div class="tcard__meta"><span class="dot ' + (st === 'ready' ? 'dot--ready' : 'dot--busy') + '"></span><span>' + (st === 'ready' ? 'Ready' : 'Ordered') + '</span><b class="js-clock">' + clockTxt(since) + '</b><b>' + money(amt) + '</b></div>' : '<div class="tcard__meta"><span class="dot dot--free"></span><span>Free</span></div>');
+    el.onclick = () => tableTap(t, os);
+    map.appendChild(el);
+  }
+  if (!map.children.length) map.appendChild(ce('p', 'muted small', L.t('empty')));
+}
+function clockTxt(since) { const s = Math.max(0, Math.floor((Date.now() - (since || Date.now())) / 1000)); const m = Math.floor(s / 60), r = s % 60; return m + ':' + String(r).padStart(2, '0'); }
+function tickClocks() {
+  document.querySelectorAll('.js-clock').forEach(() => {});
+  if (ACTIVE_TAB === 'floor' && SHOP && SHOP.profile.model === 'restaurant') renderFloorRestaurantTiles();
+  if (ACTIVE_TAB === 'home') noop0();
+}
+function noop0() {}
+async function tableTap(t, os) {
+  const allowed = [
+    { label: os.length ? 'Open bill' : L.t('new_ticket'), act: async () => { const o = os.length ? os[os.length - 1] : null; if (o) openTicket(o.id); else newTicket({ table: t }); } },
+    { label: L.t('new_ticket'), act: () => newTicket({ table: t }) },
+  ];
+  if (canF('qr_ordering')) allowed.push({ label: L.t('qr_ordering') + ' QR', act: () => showTableQR(t) });
+  allowed.push({ label: L.t('cancel'), act: null, kind: 'ghost' });
+  pickAction('Table ' + (t.label || t.name), 'Free · ' + (t.seats || 2) + ' seats', allowed);
+}
+function showTableQR(t) {
+  if (!RELAY) { toast('Open the room first', 'More → Cloud room → Open & show QR'); return; }
+  OFAct['home.tableqr'](null, t);
+}
+async function renderFloorRetail(host) {
+  const head = ce('div', 'row');
+  head.innerHTML = '<h2 class="grow" style="font-weight:900;letter-spacing:-.5px">' + L.t('register') + '</h2><button class="btn btn--sm btn--primary" data-act="ticket.new">+ ' + L.t('new_ticket') + '</button><button class="btn btn--sm" data-act="floor.held">' + L.t('held_sales') + '</button>';
+  host.appendChild(head);
+  host.appendChild(ce('p', 'muted small', 'Scan or type a SKU, or tap an item to start a sale. Held sales recall here.'));
+  const q = ce('input'); q.placeholder = 'Scan or type SKU / name…'; q.style.marginTop = '10px';
+  q.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return;
+    const v = q.value.trim(); if (!v) return;
+    const ps = await products();
+    const p = ps.find(x => (x.sku || '').toLowerCase() === v.toLowerCase()) || ps.find(x => (x.name || '').toLowerCase().startsWith(v.toLowerCase()));
+    if (p) { const open = (await orders()).find(o => o.type === 'retail' && o.status === 'open' && !o.held); if (open) { C.addLine(open, p); await idbPut('orders', open); openTicket(open.id); } else await newTicketQuickRetail(p); }
+    else toast('Not found: ' + v); q.value = '';
+  });
+  host.appendChild(q);
+  const ps = await products();
+  const grid = ce('div', 'mgrid'); grid.style.marginTop = '12px';
+  for (const p of ps.filter(x => x.available !== false)) grid.appendChild(menuPickCard(p, async () => {
+    const open = (await orders()).find(o => o.type === 'retail' && o.status === 'open' && !o.held);
+    if (open) { C.addLine(open, p); await idbPut('orders', open); syncNow(); openTicket(open.id); }
+    else await newTicketQuickRetail(p);
   }));
-  // role buttons
-  $('[data-role="main"]')?.addEventListener('click', ()=>{ $('#setup-main').hidden=false; $('#setup-station').hidden=true; });
-  $('[data-role="station"]')?.addEventListener('click', ()=>{ $('#setup-station').hidden=false; $('#setup-main').hidden=true; });
-  // open room
-  // Strict license gate — mirrors APK LicenseScreen: blank/invalid never opens room
-  $('#btn-open-room')?.addEventListener('click', async ()=>{
-    const btn=$('#btn-open-room'); btn.disabled=true; btn.textContent='Opening…';
-    const shop = $('#shop-name').value.trim()||'My Shop';
-    // license is the validated gate key — never TRIAL, never offline fallback
-    let license = '';
-    try{ license = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || $('#license-key')?.value.trim() || ''; }catch{ license = $('#license-key')?.value.trim()||''; }
-    license = ofNormalizeKey(license);
-    const hint = $('#open-room-hint') || $('#license-error');
-    const setHint=(m, isErr=true)=>{
-      const el=hint; if(!el) return;
-      if(!m){ el.textContent='License already validated ✓ — room uses that key.'; el.style.color='var(--muted)'; return; }
-      el.textContent=m; el.style.color=isErr? 'var(--danger)' : 'var(--muted)';
-      if(isErr && el.id==='license-error'){ el.hidden=false; }
+  host.appendChild(grid);
+}
+async function newTicketQuickRetail(p) { const o = C.newOrder(SHOP.profile, { type: 'retail' }); C.addLine(o, p); await idbPut('orders', o); await kvSet('rev', Date.now()); syncNow(); openTicket(o.id); }
+async function renderFloorQueue(host) {
+  const head = ce('div', 'row');
+  head.innerHTML = '<h2 class="grow" style="font-weight:900;letter-spacing:-.5px">' + L.t('queue') + '</h2><button class="btn btn--sm btn--primary" data-act="ticket.new">+ ' + L.t('new_ticket') + '</button>';
+  host.appendChild(head);
+  const os = await orders();
+  const cols = [
+    ['New', os.filter(o => ['open', 'sent'].includes(o.status))],
+    ['Preparing', os.filter(o => o.status === 'preparing')],
+    ['Ready', os.filter(o => o.status === 'ready')],
+    ['Done (unpaid)', os.filter(o => o.status === 'served')],
+  ];
+  const wrap = ce('div', 'grid'); wrap.style.cssText = 'margin-top:12px;grid-template-columns:repeat(auto-fit, minmax(240px,1fr))';
+  for (const [name, list] of cols) {
+    const col = ce('div', 'card card--pad');
+    col.innerHTML = '<div class="row" style="justify-content:space-between"><b>' + name + '</b><span class="tag">' + list.length + '</span></div>';
+    col.appendChild(ce('div', 'divider'));
+    for (const o of list.sort((a, b) => b.createdAt - a.createdAt)) col.appendChild(boardRow(o));
+    if (!list.length) col.appendChild(ce('p', 'muted small', L.t('empty')));
+    wrap.appendChild(col);
+  }
+  host.appendChild(wrap);
+}
+async function renderFloorAppts(host) {
+  const head = ce('div', 'row');
+  head.innerHTML = '<h2 class="grow" style="font-weight:900;letter-spacing:-.5px">' + L.t('appointments') + '</h2><button class="btn btn--sm btn--primary" data-act="appt.book">+ ' + L.t('book_appt') + '</button>';
+  host.appendChild(head);
+  const start = C.dayStart();
+  const appts = (await idbGetAll('appointments', [])).filter(a => (a.at || 0) >= start - 43200000).sort((a, b) => a.at - b.at);
+  const today = appts.filter(a => (a.at || 0) < start + 86400000);
+  const tomorrow = appts.filter(a => (a.at || 0) >= start + 86400000 && (a.at || 0) < start + 2 * 86400000);
+  host.appendChild(ce('div', 'sect__t', L.t('todays_appts')));
+  if (!today.length) host.appendChild(ce('p', 'muted small', L.t('empty')));
+  for (const a of today) host.appendChild(apptRow(a));
+  host.appendChild(ce('div', 'sect__t', 'Tomorrow'));
+  if (!tomorrow.length) host.appendChild(ce('p', 'muted small', L.t('empty')));
+  for (const a of tomorrow) host.appendChild(apptRow(a));
+}
+function apptRow(a) {
+  const late = a.status === 'booked' && (Date.now() - a.at) > 15 * 60000;
+  const el = ce('div', 'lrow', '<span class="lrow__ic">🗓️</span><div class="hd grow"><b>' + esc(a.customer) + '</b><small>' + esc(a.service || '') + ' · ' + new Date(a.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + (a.staff ? ' · ' + esc(a.staff) : '') + (a.phone ? ' · ' + esc(a.phone) : '') + '</small></div>'
+    + (late ? '<span class="tag tag--danger">' + L.t('running_late') + '</span>' : '<span class="tag">' + (a.status || 'booked') + '</span>')
+    + (a.status === 'booked' ? '<button class="btn btn--sm btn--mint" data-act="appt.start" data-id="' + a.id + '">' + L.t('start') + '</button>' : (a.status === 'in_service' ? '<button class="btn btn--sm" data-act="appt.finish" data-id="' + a.id + '">' + L.t('finish') + '</button>' : '')));
+  el.querySelectorAll('button').forEach(b => b.onclick = (e) => { e.stopPropagation(); OFAct[b.dataset.act](b, e); });
+  return el;
+}
+
+/* ================= MENU PICK CARD (shared) ================= */
+function menuPickCard(p, onAdd) {
+  const el = ce('div', 'mcard');
+  el.innerHTML = '<div class="mcard__img">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️') + '</div>'
+    + '<div class="mcard__body"><span class="mcard__name">' + esc(p.name) + '</span><span class="mcard__price">' + money(p.priceCents) + '</span><button class="mcard__add" type="button">' + L.t('add') + '</button></div>';
+  el.querySelector('button').onclick = (e) => { e.stopPropagation(); onAdd && onAdd(); };
+  el.onclick = () => onAdd && onAdd();
+  return el;
+}
+
+/* ================= MENU TAB ================= */
+let MENU_CAT = 'all', MENU_Q = '';
+async function renderMenu() {
+  const host = $('tab-menu'); if (!host) return;
+  host.innerHTML = '';
+  const m = SHOP.profile.model;
+  const head = ce('div', 'row');
+  head.innerHTML = '<h2 class="grow" style="font-weight:900;letter-spacing:-.5px">' + (m === 'services' ? L.t('services') : L.t('menu')) + '</h2>'
+    + '<button class="btn btn--sm" data-act="menu.scan">' + L.t('menu_scan') + '</button><button class="btn btn--sm btn--primary" data-act="menu.add">+ ' + L.t('add_item') + '</button>';
+  host.appendChild(head);
+  const srch = ce('input'); srch.placeholder = L.t('search'); srch.style.margin = '10px 0'; srch.value = MENU_Q;
+  srch.addEventListener('input', () => { MENU_Q = srch.value; renderMenu(); });
+  host.appendChild(srch);
+  const ps = await products();
+  const cats = [...new Set(ps.map(p => p.categoryId || p.cat || 'Items'))];
+  const chips = ce('div', 'filters');
+  chips.append(chipOf('all', 'All', cats.length)); for (const c of cats) chips.append(chipOf(c, c, ps.filter(p => (p.categoryId || p.cat) === c).length));
+  function chipOf(id, label) { const b = ce('button', 'fchip' + (MENU_CAT === id ? ' is-on' : ''), esc(label)); b.onclick = () => { MENU_CAT = id; renderMenu(); }; return b; }
+  host.appendChild(chips);
+  const list = ps.filter(p => (MENU_CAT === 'all' || (p.categoryId || p.cat || 'Items') === MENU_CAT) && (!MENU_Q || (p.name || '').toLowerCase().includes(MENU_Q.toLowerCase())));
+  for (const p of list) {
+    const off = p.available === false || p.avail === false;
+    const el = ce('div', 'lrow' + (off ? '' : ''), '');
+    el.innerHTML = '<span class="lrow__ic">' + (p.imageBase64 ? '<img class="lrow__ic" src="' + p.imageBase64 + '"/>' : '🍽️') + '</span>'
+      + '<div class="hd grow"><b>' + esc(p.name) + (off ? ' <span class="tag tag--danger">' + L.t('sold_out_word') + '</span>' : '') + '</b><small>' + esc(p.categoryId || p.cat || '') + (p.sku ? ' · ' + esc(p.sku) : '') + '</small></div>'
+      + '<span class="lrow__amt">' + money(p.priceCents) + '</span>'
+      + '<button class="btn btn--sm ' + (off ? '' : 'btn--ghost') + '" data-act="menu.soldout" data-id="' + p.id + '">' + (off ? L.t('back_on_menu') : L.t('mark_sold')) + '</button>'
+      + '<button class="btn btn--sm btn--ghost" data-act="menu.edit" data-id="' + p.id + '">' + L.t('edit') + '</button>';
+    el.querySelectorAll('button').forEach(b => b.onclick = (e) => { e.stopPropagation(); OFAct[b.dataset.act](b, e); });
+    host.appendChild(el);
+  }
+  if (!list.length) host.appendChild(ce('p', 'muted small', L.t('empty')));
+}
+
+/* ================= STOCK TAB ================= */
+async function renderStock() {
+  const host = $('tab-stock'); if (!host) return;
+  host.innerHTML = '';
+  const head = ce('div', 'row');
+  head.innerHTML = '<h2 class="grow" style="font-weight:900;letter-spacing:-.5px">' + L.t('stock') + '</h2><button class="btn btn--sm btn--primary" data-act="stock.add">+ ' + L.t('add_stock') + '</button>';
+  host.appendChild(head);
+  host.appendChild(ce('p', 'muted small', 'Stock drops by itself when a paid order has a linked item. Watch for low and out.'));
+  const ss = await stockAll();
+  for (const s of ss) {
+    const lvl = s.qty <= 0 ? ['Out', 'tag--danger'] : (s.qty <= (s.lowStockAt ?? s.lowAt ?? 5) ? ['Low', 'tag--gold'] : ['OK', 'tag--mint']);
+    const el = ce('div', 'lrow');
+    el.innerHTML = '<span class="lrow__ic">📦</span><div class="hd grow"><b>' + esc(s.name) + ' <span class="tag ' + lvl[1] + '">' + lvl[0] + '</span></b><small>qty ' + s.qty + ' ' + (s.unit || 'pcs') + (s.costCents ? ' · cost ' + money(s.costCents) : '') + '</small></div>'
+      + '<button class="btn btn--sm" data-act="stock.adjust" data-id="' + s.id + '">' + L.t('adjust') + '</button>';
+    el.querySelector('button').onclick = (e) => { e.stopPropagation(); OFAct['stock.adjust'](e.target.closest('button'), e); };
+    host.appendChild(el);
+  }
+  if (!ss.length) host.appendChild(ce('p', 'muted small', L.t('empty')));
+}
+
+/* ================= ROLE SCREENS ================= */
+const ROLE_META = {
+  orderTaker: { ic: '📝', label: 'role_taker' }, kitchen: { ic: '🍳', label: 'role_kitchen' },
+  cashier: { ic: '💳', label: 'role_cashier' }, driver: { ic: '🛵', label: 'role_driver' },
+  stockClerk: { ic: '📦', label: 'role_stock' }, frontDesk: { ic: '💺', label: 'role_desk' },
+  specialist: { ic: '🧑‍⚕️', label: 'role_specialist' },
+};
+function roleHome(role) {
+  STATION_ROLE = role;
+  $('rolehdr-title').textContent = L.t(ROLE_META[role].label);
+  $('rolehdr-sub').textContent = SHOP.profile.name + ' · ' + SHOP.profile.model;
+  show('view-rolehome');
+  renderRoleHome(role);
+  document.documentElement.dir = langDir(); applyText();
+}
+async function renderRoleHome(role) {
+  const host = $('role-body'); if (!host) return;
+  host.innerHTML = '';
+  const os = await orders();
+  const renderers = {
+    orderTaker: async () => {
+      roleZone_Take(host, os);
+    },
+    kitchen: async () => { roleZone_Kitchen(host, os); },
+    cashier: async () => { roleZone_Cashier(host, os); },
+    driver: async () => { await roleZone_Driver(host, os); },
+    stockClerk: async () => { await renderStockHome(host); },
+    frontDesk: async () => { await roleZone_Desk(host); },
+    specialist: async () => { roleZone_Specialist(host, os); },
+  };
+  await (renderers[role] || renderers.orderTaker)();
+  updateChips();
+}
+async function renderStockHome(host) {
+  const tmp = $('tab-stock'); const keep = tmp.innerHTML;
+  tmp.innerHTML = ''; await renderStock();
+  host.innerHTML = tmp.innerHTML; tmp.innerHTML = keep;
+  host.querySelectorAll('[data-act]').forEach(b => {}); // buttons work via dispatcher
+}
+function roleZone_Take(host, os) {
+  const takerNew = ce('button', 'btn btn--primary btn--full', '+ ' + L.t('new_ticket'));
+  takerNew.dataset.act = 'ticket.new'; host.appendChild(takerNew);
+  const ready = takerReadyOrders(os);
+  if (ready.length) {
+    host.appendChild(ce('div', 'sect__t', L.t('ready_to_serve')));
+    for (const o of ready) host.appendChild(readyLine(o));
+  }
+  const mine = os.filter(o => !['paid', 'cancelled', 'refunded'].includes(o.status)).sort((a, b) => b.createdAt - a.createdAt);
+  host.appendChild(ce('div', 'sect__t', 'Your floors'));
+  const floorsTitle = { restaurant: L.t('tables'), retail: L.t('register'), fastfood: L.t('queue'), services: L.t('appointments') }[SHOP.profile.model] || L.t('tables');
+  host.appendChild(ce('div', 'sect__t', floorsTitle));
+  renderFloorInto(host);
+  host.appendChild(ce('div', 'sect__t', 'Open tickets'));
+  if (!mine.length) host.appendChild(ce('p', 'muted small', L.t('no_orders')));
+  for (const o of mine.slice(0, 10)) host.appendChild(boardRow(o));
+}
+async function renderFloorInto(host) {
+  const tmp = ce('div'); document.body.appendChild(tmp); tmp.id = 'tab-floor-tmp-x'; tmp.hidden = false;
+  const real = $('tab-floor'); const buf = real.innerHTML;
+  real.innerHTML = ''; tmp.innerHTML = '';
+  await (async () => {
+    const ps = SHOP.profile.model;
+    if (ps === 'restaurant') { const shadow = ce('div'); shadow.id = 'tab-floor-holder-x'; }
+    // lightweight approach: render the floor tab into the real node, then move markup
+    const save = real.innerHTML; real.innerHTML = '';
+    await renderFloor();
+    const nodes = [...real.children]; for (const n of nodes) host.appendChild(n);
+    real.innerHTML = save;
+  })();
+  tmp.remove();
+}
+function roleZone_Kitchen(host, os) {
+  const cols = [[L.t('kds_new'), os.filter(o => ['open', 'sent'].includes(o.status))], [L.t('kds_preparing'), os.filter(o => o.status === 'preparing')], [L.t('kds_ready'), os.filter(o => o.status === 'ready')]];
+  const wrap = ce('div', 'grid'); wrap.style.cssText = 'grid-template-columns:repeat(auto-fit, minmax(250px,1fr))';
+  for (const [name, list] of cols) {
+    const col = ce('div', 'card card--pad');
+    col.innerHTML = '<div class="row" style="justify-content:space-between"><b>' + name + '</b><span class="tag">' + list.length + '</span></div><div class="divider"></div>';
+    for (const o of list.sort((a, b) => (a.sentAt || a.createdAt) - (b.sentAt || b.createdAt))) {
+      const el = ce('div', 'card card--pad'); el.style.cssText = 'margin-bottom:8px;border-radius:16px;background:var(--surface2)';
+      const age = Math.max(0, Math.round((Date.now() - (o.sentAt || o.createdAt || Date.now())) / 60000));
+      el.innerHTML = '<div class="row" style="justify-content:space-between"><b>' + esc(whereOf(o)) + '</b><span class="tag ' + (age > 12 ? 'tag--danger' : '') + '">' + age + ' min</span></div>'
+        + '<div style="margin-top:6px;font-size:13.5px">' + (o.lines || []).map(l => '<div style="display:flex;justify-content:space-between;padding:2px 0;font-weight:600"><span>' + esc(l.name) + (l.notes ? ' · ' + esc(l.notes) : '') + '</span><span>× ' + l.qty + '</span></div>').join('') + '</div>'
+        + (o.channel === 'qr' ? '<div class="small muted" style="margin-top:4px;font-weight:700">QR order — ready counts on the guest page too</div>' : '')
+        + '<div class="row" style="margin-top:10px">'
+        + (['open', 'sent'].includes(o.status) ? '<button class="btn btn--sm btn--primary" data-act="kd.prep" data-id="' + o.id + '">' + L.t('mark_prepared') + '</button>' : '')
+        + (o.status !== 'ready' ? '<button class="btn btn--sm btn--mint" data-act="kd.ready" data-id="' + o.id + '">' + L.t('mark_ready') + '</button>' : '<button class="btn btn--sm" data-act="kd.back" data-id="' + o.id + '">↩</button>')
+        + '<button class="btn btn--sm btn--ghost" data-act="kd.print" data-id="' + o.id + '">🖨️</button></div>';
+      el.querySelectorAll('button').forEach(b => b.onclick = (e) => { e.stopPropagation(); OFAct[b.dataset.act](b, e); });
+      col.appendChild(el);
+    }
+    if (!list.length) col.appendChild(ce('p', 'muted small', L.t('no_orders')));
+    wrap.appendChild(col);
+  }
+  host.appendChild(wrap);
+}
+function roleZone_Cashier(host, os) {
+  const unpaid = os.filter(o => !['paid', 'cancelled', 'refunded'].includes(o.status));
+  host.appendChild(ce('h2', null, L.t('payment_queue')));
+  host.appendChild(ce('p', 'muted small', 'Every unpaid bill — one tap opens the pay sheet.'));
+  let total = 0; for (const o of unpaid) total += billOf(o).due;
+  const card = ce('div', 'card card--forest'); card.style.cssText = 'padding:14px;margin:12px 0';
+  card.innerHTML = '<span class="small" style="opacity:.8;font-weight:700">' + unpaid.length + ' unpaid</span><div style="font-size:30px;font-weight:900;letter-spacing:-.5px;margin-top:4px">' + money(total) + '</div>';
+  host.appendChild(card);
+  for (const o of unpaid.sort((a, b) => a.createdAt - b.createdAt)) {
+    const b = billOf(o); const age = Math.max(0, Math.round((Date.now() - (o.createdAt || 0)) / 60000));
+    const el = ce('div', 'lrow');
+    el.innerHTML = '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + age + ' min · ' + (o.lines || []).length + ' item(s)</small></div><span class="lrow__amt">' + money(b.due) + '</span><button class="btn btn--sm btn--gold" data-act="kd.open" data-id="' + o.id + '">' + L.t('pay') + '</button>';
+    el.querySelector('button').onclick = (e) => { e.stopPropagation(); OFAct['kd.open'](e.target.closest('button'), e); };
+    host.appendChild(el);
+  }
+  if (!unpaid.length) host.appendChild(ce('p', 'muted small', L.t('no_orders')));
+}
+async function roleZone_Driver(host, os) {
+  const st = await kvGet('driverStatus', 'free');
+  host.appendChild(ce('h2', null, L.t('deliveries')));
+  const chips = ce('div', 'typechips'); chips.style.marginTop = '10px';
+  for (const s of [['free', L.t('free')], ['busy', L.t('busy')], ['offline', L.t('offline')]]) {
+    const b = ce('button', 'fchip' + (st === s[0] ? ' is-on' : ''), s[1]);
+    b.onclick = async () => { await kvSet('driverStatus', s[0]); syncNow(); renderRoleHome('driver'); };
+    chips.appendChild(b);
+  }
+  host.appendChild(chips);
+  host.appendChild(ce('p', 'muted small', 'Works off shop Wi-Fi too — the room keeps you in the loop.'));
+  const dev = (await orders()).filter(o => o.type === 'delivery' && !['paid', 'cancelled', 'refunded'].includes(o.status));
+  const me = await deviceId();
+  for (const o of dev) {
+    const el = boardRow(o);
+    const acts = ce('div', 'row'); acts.style.cssText = 'margin-top:8px;gap:6px';
+    if (o.status !== 'out') acts.append(Object.assign(ce('button', 'btn btn--sm btn--primary', L.t('out_for_delivery')), { onclick: je(async () => { o.status = 'out'; o.driverId = me; await idbPut('orders', o); await kvSet('rev', Date.now()); syncNow(); renderRoleHome('driver'); }) }));
+    acts.append(Object.assign(ce('button', 'btn btn--sm', L.t('picked_up')), { onclick: je(async () => { o.status = 'served'; await idbPut('orders', o); await kvSet('rev', Date.now()); syncNow(); renderRoleHome('driver'); }) }));
+    el.appendChild(acts); host.appendChild(el);
+  }
+  if (!dev.length) host.appendChild(ce('p', 'muted small', L.t('empty')));
+}
+async function roleZone_Desk(host) { await renderFloorAppts(host); }
+function roleZone_Specialist(host, os) {
+  host.appendChild(ce('h2', null, L.t('assigned_to_me')));
+  deviceId().then(me => {
+    const mine = os.filter(o => o.staffId === me && !['paid', 'cancelled', 'refunded', 'served'].includes(o.status));
+    for (const o of mine) host.appendChild(boardRow(o));
+    if (!mine.length) host.appendChild(ce('p', 'muted small', L.t('empty')));
+  });
+}
+const je = fn => async (e) => { e && e.stopPropagation && e.stopPropagation(); try { await fn(); } catch (err) { console.error(err); } };
+
+/* ——— print helpers shared (kitchen slip path, no prices) ——— */
+function ofPrintKitchen(o) { try { if (window.OFPrintReceipt) OFPrintReceipt(o, { type: 'kitchen' }); } catch {} }
+function printReceipt(o, opts) { if (window.OFPrintReceipt) window.OFPrintReceipt(o, opts || {}); }
+
+/* ================= ACTIONS REGISTRY ================= */
+window.OFAct = window.OFAct || {};
+Object.assign(window.OFAct, {
+  'license.activate': () => activateLicense(),
+  'license.station': () => show('view-connect'),
+  'license.reset': async () => { show('view-license'); },
+  'license.back': () => show('view-license'),
+  'connect.join': async () => OFConnectJoin(),
+  'setup.done': () => setupDone(),
+  'shell.cover': () => OFCoverMenu(),
+  'shell.tab.home': () => setTab('home'), 'shell.tab.floor': () => setTab('floor'),
+  'shell.tab.menu': () => setTab('menu'), 'shell.tab.stock': () => setTab('stock'), 'shell.tab.more': () => setTab('more'),
+  'more.open': () => setTab('more'),
+  'more.goto.cloud': () => { setTab('more'); OFAct['more.openAt']?.('cloud'); },
+  'ticket.new': () => newTicket({}),
+  'role.leave': async () => { await kvSet('role', null); location.reload(); },
+  'rolecover.kitchen': () => roleHome('kitchen'),
+  'home.roomqr': () => OFAct['home.tableqr']?.(null, null),
+  'home.tableqr': (el, t) => OFShowTableQR(t),
+  'kd.prep': async (b) => { const o = await idbGet('orders', b.dataset.id); if (o) { o.status = 'preparing'; await idbPut('orders', o); await kvSet('rev', Date.now()); await sendCmd({ orders: [o] }); refreshBoard(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
+  'kd.back': async (b) => { const o = await idbGet('orders', b.dataset.id); if (o && o.status === 'ready') { o.status = 'preparing'; await idbPut('orders', o); await kvSet('rev', Date.now()); await sendCmd({ orders: [o] }); refreshBoard(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
+  'kd.ready': async (b) => { const o = await idbGet('orders', b.dataset.id, null); if (o) { o.status = 'ready'; await idbPut('orders', o); await kvSet('rev', Date.now()); await sendCmd({ orders: [o] }); toast(whereOf(o) + ' — ready', 'Every taker + Main just heard ✓'); chime('ready'); refreshBoard(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
+  'kd.open': (b) => openTicket(b.dataset.id),
+  'ticket.back': () => {
+    const prev = window.__tktPrev || VSTACK.pop();
+    window.__tktPrev = null;
+    show(prev || (ROLE === 'main' ? 'view-main' : 'view-rolehome'));
+  },
+  'tk.served': async (b) => OFAct['ticket.served'](b),
+  'ticket.served': async (b) => {
+    const o = await idbGet('orders', b.dataset.id, null);
+    if (o) { o.status = 'served'; await idbPut('orders', o); await kvSet('rev', Date.now()); await sendCmd({ orders: [o] }); toast(whereOf(o) + ' served ✓'); refreshBoard(); renderActiveTab(true); if (ROLE !== 'main') renderRoleHome(STATION_ROLE); }
+  },
+  'floor.addtable': () => OFAddTable(),
+  'appt.book': () => OFBookAppt(),
+  'appt.start': async (b) => { const a = await idbGet('appointments', b.dataset.id, null); if (a) { a.status = 'in_service'; await idbPut('appointments', a); await kvSet('rev', Date.now()); syncNow(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
+  'appt.finish': async (b) => { const a = await idbGet('appointments', b.dataset.id, null); if (a) { a.status = 'done'; await idbPut('appointments', a); await kvSet('rev', Date.now()); syncNow(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
+  'menu.add': () => OFMenuEditor(null),
+  'menu.edit': (b) => OFMenuEditor(b.dataset.id),
+  'menu.soldout': async (b) => {
+    const p = await idbGet('products', b.dataset.id, null); if (!p) return;
+    p.available = !(p.available === false || p.avail === false); p.avail = p.available;
+    await idbPut('products', p); await kvSet('rev', Date.now()); syncNow();
+    toast(p.available ? p.name + ' — ' + L.t('back_on_menu') : p.name + ' — ' + L.t('sold_out_word'));
+    renderActiveTab(true);
+  },
+  'menu.scan': () => OFMenuScan(),
+  'sub.back': () => goBack(),
+  'floor.held': () => OFHeldSales(),
+  'display.close': () => { $('view-display').hidden = true; show('view-ticket'); },
+  'kd.print': (b) => idbGet('orders', b.dataset.id, null).then(o => { if (o) ofPrintKitchen(o); }),
+  'stock.add': () => {
+    OFDialog({ title: L.t('add_stock') });
+    $('dlg-body').innerHTML = '<div class="grid"><input id="sk-name" placeholder="' + L.t('name_label') + '"/><input id="sk-qty" type="number" inputmode="decimal" placeholder="' + 'Starting qty' + '"/><input id="sk-low" type="number" placeholder="' + L.t('low_at') + '"/><input id="sk-unit" placeholder="' + 'Unit (pcs, kg, L)' + '"/><input id="sk-cost" type="number" inputmode="decimal" placeholder="' + L.t('cost') + '"/></div>';
+    $('dlg-btns').innerHTML = '';
+    const ok = ce('button', 'btn btn--mint', L.t('save'));
+    ok.onclick = async () => {
+      const name = $('sk-name').value.trim(); if (!name) return toast('Name?');
+      await idbPut('stock', { id: C.uuid(), name, qty: Number($('sk-qty').value) || 0, lowStockAt: Number($('sk-low').value) || 5, unit: $('sk-unit').value.trim() || 'pcs', costCents: C.cents(Number($('sk-cost').value) || 0) });
+      await kvSet('rev', Date.now()); syncNow(); closeDlg(); toast(name + ' added'); renderActiveTab(true); if (ROLE !== 'main') renderRoleHome(STATION_ROLE);
     };
-    const KEY_RE=OF_KEY_RE;
-    if(!license){ setHint('Enter license key first — OF-XXXX-XXXX-XXXX-XXXX. Open License gate and Activate.'); btn.disabled=false; btn.textContent='Open room & show QR'; return; }
-    if(!KEY_RE.test(license)){
-      setHint('Invalid license format — use OF-XXXX-XXXX-XXXX-XXXX.'); btn.disabled=false; btn.textContent='Open room & show QR';
-      // surface inline on gate as well
-      const ge=document.getElementById('license-error'); if(ge){ ge.textContent='Invalid format — use OF-XXXX-XXXX-XXXX-XXXX'; ge.hidden=false; ge.removeAttribute('hidden'); ge.style.display='block'; const inp=document.getElementById('license-key'); if(inp) inp.classList.add('is-error'); }
-      return;
-    }
-    const id = await deviceId();
-    try{
-      // DB stores keys as OF-XXXX-… (dashed, exact match) — send dashed first.
-      // API+D1 live on order-flow-v2.pages.dev (jathol.org has no /api functions),
-      // so try the API origin first, then same-origin as a fallback.
-      // content-type text/plain keeps it a CORS "simple request" (no preflight).
-      let j=null, lastErr='key_invalid', firstJsonErr='';
-      outer: for(const base of ['', RELAY_BASE]){ // same-origin proxy first (no CORS), API origin fallback
-        for(const keyTry of [license, license.replace(/-/g,'')]){
-          try{
-            const r = await fetch(base+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({licenseKey: keyTry, deviceId: id, shopName: shop})});
-            const jr = await r.json().catch(()=>null);
-            if(jr && jr.ok){ j=jr; break outer; }
-            lastErr = jr?.error || ('http_'+r.status);
-            if(jr?.error && !firstJsonErr) firstJsonErr=jr.error;
-          }catch(e){ lastErr='network'; }
-        }
-      }
-      if(!j || !j.ok) throw new Error(firstJsonErr || lastErr);
-      const base = RELAY_BASE;
-      const pairing = pairingEncode(j.room, j.code, j.secret, base);
-      $('#room-box').hidden=false;
-      $('#join-code').textContent=j.code;
-      $('#pairing-text').textContent=pairing;
-      drawQR($('#qr'), pairing);
-      await kvSet('roomInfo', {room:j.room, code:j.code, secret:j.secret, base});
-      await kvSet('role','main'); ROLE='main';
-      try{ localStorage.setItem('of_licenseValidated','1'); localStorage.setItem('of_licenseKey', license); }catch{}
-      setHint('', false);
-      $('#btn-enter-app').onclick=()=> enterApp({room:j.room, code:j.code, secret:j.secret, base});
-    }catch(e){
-      const msg=String(e).replace('Error:','').trim();
-      const map={key_invalid:'License key is not valid. Double-check and try again.', invalid_key:'License key is not valid.', not_found:'Key not found — check with Jathol.', expired:'Key expired — contact support.', bound_other:'Key is already bound to another device.', plan:'Key has no cloud plan enabled — contact Jathol.', no_license:'License required.'};
-      const friendly=map[msg]||('Could not open room: '+msg+' — valid license required. No offline fallback.');
-      setHint(friendly, true);
-      // also inline gate error
-      const ge=document.getElementById('license-error'); if(ge){ ge.textContent=friendly; ge.hidden=false; }
-    } finally { btn.disabled=false; btn.textContent='Open room & show QR'; }
-  });
-  $('#btn-copy-pair')?.addEventListener('click', async ()=>{ const t=$('#pairing-text').textContent; await navigator.clipboard.writeText(t).catch(()=>{}); const b=$('#btn-copy-pair'); const old=b.textContent; b.textContent='Copied!'; setTimeout(()=> b.textContent=old, 1500); });
-  $('#btn-save-qr')?.addEventListener('click', ()=>{
-    const c=$('#qr'); const a=document.createElement('a'); a.download='order-flow-qr.png'; a.href=c.toDataURL('image/png'); a.click();
-  });
-  // join
-  $('#btn-join')?.addEventListener('click', async ()=>{
-    const raw=$('#pairing-input').value.trim(); if(!raw) return;
-    const info=pairingDecode(raw); if(!info){ $('#join-status').textContent='Bad pairing text — copy the full OF1:… line from Main.'; return; }
-    const id=await deviceId(); const role=$('#station-role').value||'taker';
-    try{
-      // same-origin proxy first, pairing base as fallback; preflight-free body
-      let j=null, lastErr='no_room';
-      for(const base of ['', info.base]){
-        try{
-          const r=await fetch(base+'/api/cloud/join', {method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({room:info.room, code:info.code, deviceId:id, role})});
-          const jr=await r.json().catch(()=>null);
-          if(jr){ j=jr; break; }
-          lastErr='http_'+r.status;
-        }catch(e){ lastErr=String(e.message||e); }
-      }
-      if(!j||!j.ok) throw new Error(j?.error||lastErr);
-      await kvSet('roomInfo', info); await kvSet('role','station'); ROLE='station'; $('#join-status').textContent='Joined ✓ — tap Enter as Station';
-    }catch(e){ $('#join-status').textContent='Join failed: '+String(e); }
-  });
-  $('#qr-file')?.addEventListener('change', async (e)=>{
-    const f=e.target.files?.[0]; if(!f) return;
-    // Use BarcodeDetector if available
-    try{
-      if('BarcodeDetector' in window){
-        const det=new BarcodeDetector({formats:['qr_code']});
-        const bmp=await createImageBitmap(f);
-        const codes=await det.detect(bmp);
-        if(codes[0]?.rawValue){ $('#pairing-input').value=codes[0].rawValue; $('#join-status').textContent='QR read ✓ — tap Join'; return; }
-      }
-    }catch{}
-    $('#join-status').textContent='Could not auto-read QR — paste the OF1:… text from Main.';
-  });
-  $('#btn-enter-station')?.addEventListener('click', async()=>{
-    const info=await kvGet('roomInfo', null);
-    if(!info) { alert('Paste the OF1:… pairing text and tap Join first.'); return; }
-    enterApp(info);
-  });
-  // menu add
-  $('#btn-add-item')?.addEventListener('click', async()=>{
-    const n=$('#new-item-name').value.trim(); const p=Number($('#new-item-price').value);
-    if(!n) return;
-    await idbPut('products', {id:'p-'+Date.now(), name:n, price:isFinite(p)?p:0, cat:'Custom', avail:true});
-    $('#new-item-name').value=''; $('#new-item-price').value=''; await kvSet('rev', Date.now()); renderMenu();
-    if(RELAY && ROLE==='station') await window.OFRelay.sendOrders();
-  });
-  // order sheet actions
-  $('#btn-send-kitchen')?.addEventListener('click', async()=>{
-    if(!CUR_ORDER) return;
-    if(!CUR_ORDER.items.length){ const t=$('#order-title'); if(t){ const old=t.textContent; t.textContent='Add at least one item first'; setTimeout(()=> t.textContent=old, 1400); } return; }
-    CUR_ORDER.status='sent'; await idbPut('orders', CUR_ORDER);
-    const t=await idbGet('tables', CUR_ORDER.table); if(t){ t.state='busy'; t.since=Date.now(); await idbPut('tables', t); }
-    await kvSet('rev', Date.now()); refreshAll(); closeOrderSheet();
-    const s = await getSettings();
-    if(s.autoPrint) window.OFKitchenPrint?.(CUR_ORDER);
-    window.OFToast?.('Sent to kitchen ✓', 'Table '+CUR_ORDER.table.replace(/^T/,'')+' ticket is live');
-    if(RELAY){
-      if(ROLE==='main') {} else await window.OFRelay.sendOrders();
-    }
-  });
-  $('#btn-print-order-apple')?.addEventListener('click', ()=>{
-    if(!CUR_ORDER || !CUR_ORDER.items.length) return;
-    window.OFOpenReceiptPreview?.(CUR_ORDER);
-  });
-  $('#btn-close-order')?.addEventListener('click', closeOrderSheet);
-  $('#sheet-order')?.addEventListener('click', (e)=>{ if(e.target.id==='sheet-order') closeOrderSheet(); });
-  // ——— Settings module (APK parity) ———
-  async function renderSettings(){
-    const s = await getSettings();
-    const val = (id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
-    const chk = (id,v)=>{ const el=document.getElementById(id); if(el) el.checked=!!v; };
-    val('set-shop-name', s.shopName); val('set-shop-phone', s.shopPhone); val('set-currency', s.currency);
-    val('set-tax', s.tax); val('set-svc', s.svc); val('set-receipt-head', s.receiptHead); val('set-receipt-foot', s.receiptFoot);
-    val('set-copies', s.copies); val('set-paper', s.paper);
-    chk('set-showqr', s.showQr); chk('set-auto-print', s.autoPrint); chk('set-kitchen-sound', s.kitchenSound); chk('set-qr-order', s.qrOrder);
-    // license + device rows
-    try{
-      const key = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || '';
-      const m = key ? key.slice(0,6)+'••••••'+key.slice(-4) : '—';
-      const lk=document.getElementById('set-license-key'); if(lk) lk.textContent=m;
-    }catch{}
-    try{ const d=await deviceId(); const di=document.getElementById('set-device-id'); if(di) di.textContent=d; }catch{}
-    const sl=document.getElementById('set-sync-line'); if(sl) sl.textContent=document.getElementById('sync-state')?.textContent||'—';
-    renderQrTables().catch(()=>{});
-  }
-  async function renderQrTables(){
-    const host = document.getElementById('qr-table-list'); if(!host) return;
-    const s = await getSettings();
-    host.innerHTML='';
-    if(!s.qrOrder){ host.innerHTML='<div class="set-row" style="color:var(--muted);font-weight:600">Turn on “Let guests order by QR” to see your table QRs here.</div>'; return; }
-    const info = await kvGet('roomInfo', null);
-    if(!info){ host.innerHTML='<div class="set-row" style="color:var(--muted);font-weight:600">Open a room first (Setup → Open room & show QR) — table QRs carry your room key.</div>'; return; }
-    const tables = await idbGetAll('tables');
-    if(!tables.length){ host.innerHTML='<div class="set-row" style="color:var(--muted);font-weight:600">No tables yet.</div>'; return; }
-    for(const t of tables){
-      const d = {r:info.room, c:info.code, k:info.secret, b:info.base, t:t.id, shop:(await getSettings()).shopName};
-      const url = location.origin + '/order.html#' + b64uEncode(new TextEncoder().encode(JSON.stringify(d)));
-      const row = document.createElement('div'); row.className='qr-row';
-      row.innerHTML = '<img alt="QR '+t.label+'"/><div class="info">'+t.label+' — guest ordering<small>'+url.slice(0,64)+'…</small></div><button class="set-btn" type="button">Download</button>';
-      const img = row.querySelector('img');
-      img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=6&data='+encodeURIComponent(url);
-      row.querySelector('button').onclick=()=>{ const a=document.createElement('a'); a.href='https://api.qrserver.com/v1/create-qr-code/?size=640x640&margin=12&data='+encodeURIComponent(url); a.download='qr-'+t.label+'.png'; a.target='_blank'; a.rel='noopener'; a.click(); };
-      host.appendChild(row);
-    }
-  }
-  $('#set-shop-name')?.addEventListener('change', e=> saveSettings({shopName:e.target.value.trim()||'My Shop'}));
-  $('#set-shop-phone')?.addEventListener('change', e=> saveSettings({shopPhone:e.target.value.trim()}));
-  $('#set-currency')?.addEventListener('change', e=> saveSettings({currency:e.target.value.trim()||'RM'}));
-  $('#set-tax')?.addEventListener('change', e=> saveSettings({tax:Math.max(0, Math.min(40, Number(e.target.value)||0))}));
-  $('#set-svc')?.addEventListener('change', e=> saveSettings({svc:Math.max(0, Math.min(30, Number(e.target.value)||0))}));
-  $('#set-receipt-head')?.addEventListener('change', e=> saveSettings({receiptHead:e.target.value}));
-  $('#set-receipt-foot')?.addEventListener('change', e=> saveSettings({receiptFoot:e.target.value}));
-  $('#set-copies')?.addEventListener('change', e=> saveSettings({copies:Math.max(1, Math.min(4, Number(e.target.value)||1))}));
-  $('#set-paper')?.addEventListener('change', e=> saveSettings({paper:e.target.value}));
-  $('#set-showqr')?.addEventListener('change', e=> saveSettings({showQr:e.target.checked}));
-  $('#set-auto-print')?.addEventListener('change', e=> saveSettings({autoPrint:e.target.checked}));
-  $('#set-kitchen-sound')?.addEventListener('change', e=> saveSettings({kitchenSound:e.target.checked}));
-  $('#set-qr-order')?.addEventListener('change', async e=>{ await saveSettings({qrOrder:e.target.checked}); renderQrTables(); });
-  $('#btn-qr-all')?.addEventListener('click', ()=>{
-    document.querySelectorAll('#qr-table-list .qr-row button').forEach((b,i)=> setTimeout(()=> b.click(), i*350));
-  });
-  async function showReport(z){
-    const out = document.getElementById('report-out'); if(!out) return;
-    const orders = await idbGetAll('orders').catch(()=>[]);
-    const start = new Date(); start.setHours(0,0,0,0);
-    const today = orders.filter(o=> (o.createdAt||0) >= start.getTime());
-    const paid = today.filter(o=> o.status==='paid'||o.status==='closed');
-    const unpaid = today.filter(o=> o.status!=='paid' && o.status!=='closed' && o.status!=='void');
-    const taken = paid.reduce((a,o)=>{ const s=o.items?.reduce((x,i)=>x+(i.total||0),0)||o.total||0; return a+s; },0);
-    const waiting = unpaid.reduce((a,o)=>{ const s=o.items?.reduce((x,i)=>x+(i.total||0),0)||o.total||0; return a+s; },0);
-    const byMethod = {};
-    for(const o of paid){ const m=o.payment?.method||'cash'; byMethod[m]=(byMethod[m]||0)+((o.items||[]).reduce((x,i)=>x+(i.total||0),0)||o.total||0); }
-    const best = {};
-    for(const o of today) for(const it of (o.items||[])) best[it.name]=(best[it.name]||0)+(it.qty||1);
-    const top = Object.entries(best).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    out.hidden=false;
-    out.textContent =
-      (z ? 'End of day (Z) — time to close' : 'Quick check (X) — today so far') + '\n' +
-      '───────────────────────\n' +
-      'Bills paid today    : '+paid.length+'\n' +
-      'Money taken         : '+fmtMoney(taken)+'\n' +
-      'Still unpaid bills  : '+unpaid.length+' ('+fmtMoney(waiting)+')\n' +
-      'Average per bill    : '+fmtMoney(paid.length? taken/paid.length : 0)+'\n' +
-      (Object.keys(byMethod).length? '───────────────────────\n' +
-      Object.entries(byMethod).map(([m,v])=> 'Paid by '+m.padEnd(6,' ')+': '+fmtMoney(v)).join('\n')+'\n' : '') +
-      (top.length? '───────────────────────\nBest sellers today:\n'+top.map(([n,q])=> '  · '+n+' × '+q).join('\n') : '───────────────────────\nNothing sold yet today.') +
-      (z && paid.length ? '\n───────────────────────\nLooks good? The day is ready to close.' : '');
-    out.scrollIntoView({behavior:'smooth', block:'nearest'});
-  }
-  $('#btn-report-x')?.addEventListener('click', ()=> showReport(false));
-  $('#btn-report-z')?.addEventListener('click', ()=> showReport(true));
-  window.__ofRenderSettings = renderSettings;
-  renderSettings().catch(()=>{});
-  // export / import
-  async function doExport(){
-    const blob = await exportBackup();
-    const text = JSON.stringify(blob, null, 2);
-    const file = new File([text], 'order-flow-backup-'+new Date().toISOString().slice(0,10)+'.json', {type:'application/json'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      try{ await navigator.share({files:[file], title:'Order Flow backup'}); return; }catch{}
-    }
-    const url = URL.createObjectURL(new Blob([text], {type:'application/json'}));
-    const a=document.createElement('a'); a.href=url; a.download=file.name; a.click(); setTimeout(()=> URL.revokeObjectURL(url), 2000);
-  }
-  $('#btn-export')?.addEventListener('click', doExport);
-  $('#btn-export2')?.addEventListener('click', doExport);
-  $('#btn-restore')?.addEventListener('click', ()=> $('#import-file')?.click());
-  async function handleImport(file){
-    const text = await file.text(); const obj = JSON.parse(text);
-    await importBackup(obj); await kvSet('rev', Date.now()); refreshAll(); alert('Import done — '+ (obj.products?.length||0)+' products, '+(obj.orders?.length||0)+' orders');
-  }
-  $('#import-file')?.addEventListener('change', async(e)=>{ const f=e.target.files?.[0]; if(f) await handleImport(f); });
-  $('#import-file2')?.addEventListener('change', async(e)=>{ const f=e.target.files?.[0]; if(f) await handleImport(f); });
-  $('#btn-wipe')?.addEventListener('click', async()=>{ if(confirm('Wipe all local data on this device?')){ for(const s of ['products','tables','orders','stock','customers','settings','printQueue','kv']) await idbClear(s); location.reload(); } });
-  $('#btn-leave')?.addEventListener('click', async()=>{
-    if(confirm('Leave room and go back to setup? Your local data stays.')){ await kvSet('roomInfo', null); await kvSet('role', null); if(RELAY) RELAY.stop(); location.reload(); }
-  });
-  // print tab buttons are wired in the APK MIRROR block at the end of this file
-  $('#chk-relay-print')?.addEventListener('change', async(e)=>{ await kvSet('relayPrint', e.target.checked); });
-  $('#chk-gateway')?.addEventListener('change', async(e)=>{ await kvSet('gateway', e.target.checked); if(e.target.checked) $('#gateway-log').textContent='Gateway on — waiting for print jobs…'; });
-  // restore saved checks
-  kvGet('relayPrint', false).then(v=>{ const el=$('#chk-relay-print'); if(el) el.checked=!!v; });
-  kvGet('gateway', false).then(v=>{ const el=$('#chk-gateway'); if(el) el.checked=!!v; if(v) $('#gateway-log').textContent='Gateway on — waiting for print jobs…'; });
-  // PWA install handling — guide is popup-only, never inline
-  let deferredPrompt=null;
-  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; window.__ofDeferredPrompt=e; const b=$('#btn-install'); const pb=$('#btn-install-popup'); const hint=$('#install-hint'); if(b) b.hidden=false; if(pb) pb.hidden=false; if(hint) hint.textContent='Tap Add to Home Screen for install guide — Install now available.'; });
-  window.addEventListener('appinstalled', ()=>{ const b=$('#btn-install'); if(b) b.hidden=true; const pb=$('#btn-install-popup'); if(pb) pb.hidden=true; const hint=$('#install-hint'); if(hint) hint.textContent='App installed ✓ — launch from Home Screen for standalone mode.'; });
-  // iOS standalone detection — hint now lives in sheet, not inline
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true;
-  if(isStandalone){
-    const hint=$('#install-hint'); if(hint) hint.textContent='Running as installed app ✓ — no browser chrome.';
-  } else if(/iPad|iPhone|iPod/.test(navigator.userAgent)){
-    const hint=$('#install-hint'); if(hint && !hint.textContent) hint.textContent='iPhone: tap Share ⎙ → Add to Home Screen → Add (Safari only).';
-  }
+    $('dlg-btns').appendChild(ok);
+  },
+  'stock.adjust': async (b) => {
+    const s = await idbGet('stock', b.dataset.id, null); if (!s) return;
+    OFDialog({ title: s.name + ' — adjust' });
+    $('dlg-body').innerHTML = '<p class="muted small" style="font-weight:600">On hand now: ' + s.qty + ' ' + (s.unit || 'pcs') + '</p><div class="qtyctl" style="max-width:260px;margin:12px auto 0"><button type="button" id="sa-minus" style="font-size:22px">−</button><b id="sa-val" style="font-size:22px">0</b><button type="button" id="sa-plus" style="font-size:22px">+</button></div>';
+    $('dlg-btns').innerHTML = '';
+    let delta = 0;
+    const draw = () => $('sa-val').textContent = (delta > 0 ? '+' : '') + delta;
+    $('sa-minus').onclick = () => { delta--; draw(); };
+    $('sa-plus').onclick = () => { delta++; draw(); };
+    const ok = ce('button', 'btn btn--mint', L.t('done'));
+    ok.onclick = async () => {
+      s.qty = Math.max(0, (s.qty || 0) + delta);
+      await idbPut('stock', s); await kvSet('rev', Date.now()); syncNow(); closeDlg();
+      toast(s.name + ' → ' + s.qty + ' ' + (s.unit || 'pcs')); renderActiveTab(true); if (ROLE !== 'main') renderRoleHome(STATION_ROLE);
+    };
+    const low = ce('button', 'btn btn--ghost', 'Set low alert');
+    low.onclick = () => {
+      const v = prompt('Alert me when ≤ (number):', String(s.lowStockAt ?? 5));
+      if (v != null) { s.lowStockAt = Math.max(0, Number(v) || 0); toast('Low alert: ' + s.lowStockAt); }
+    };
+    $('dlg-btns').appendChild(low); $('dlg-btns').appendChild(ok);
+  },
 });
+/* cross-file glue for ticket.js / more.js / print.js */
+window.SHOP_REF = () => SHOP;
+window.OFSyncNow = () => syncNow();
+window.__toastFn = toast;
+window.__chimeFn = chime;
+window.OFMoney = money;
+window.OFOrdersAll = orders;
+window.OFProductsAll = products;
+window.OFStockAll = stockAll;
+window.OFBillOf = billOf;
+window.OFWhereOf = whereOf;
+window.OFRefreshPlan = refreshPlan;
+window.OFApplyTheme = applyTheme;
+window.OFApplyText = () => { applyDir(); applyText(); buildNav(); renderActiveTab(true); };
+window.OFEnterRole = roleHome;
+window.OFRelayState = () => RELAY;
+window.OFLicenseInfo = async () => ({ lic: await kvGet('license', null), ent: SHOP.entitlements });
 
-/* ============================================================
-   APK MIRROR v2 — theme toggle, toast notifications,
-   kitchen/order-taker alerts, instant AirPrint receipt.
-   ============================================================ */
-(function(){
-  'use strict';
-  const $=(id)=>document.getElementById(id);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-  // ——— toast: dedupe + max 2 visible, covers nothing for long ———
-  let _toastSeq = 0;
-  function toast(main, sub, keepMs){
-    const root = $('toast-root'); if(!root) return alert(sub? main+'\n'+sub : main);
-    // same-message toast? just show it again — don't pile up
-    const key = main+'·'+(sub||'');
-    const dup = root.querySelector('[data-key="'+CSS.escape(key)+'"]');
-    if(dup) dup.remove();
-    while(root.children.length>=2) root.firstChild.remove();
-    const el = document.createElement('div'); el.className='of-toast'; el.dataset.key=key;
-    el.textContent = main;
-    if(sub){ const s=document.createElement('small'); s.textContent=sub; el.appendChild(s); }
-    root.appendChild(el);
-    requestAnimationFrame(()=> el.classList.add('is-in'));
-    const ms = keepMs||3600;
-    const id = ++_toastSeq;
-    setTimeout(()=>{ if(id<=_toastSeq){ el.classList.remove('is-in'); setTimeout(()=> el.remove(), 280); } }, ms);
-  }
-  window.OFToast = toast;
-
-  // ——— sound (unlocked by first touch) + vibration ———
-  let _ac=null;
-  function _unlockAudio(){
-    try{
-      if(!_ac) _ac = new (window.AudioContext||window.webkitAudioContext)();
-      if(_ac.state==='suspended') _ac.resume().catch(()=>{});
-      // tiny silent tick so iOS marks audio unlocked
-      const b=_ac.createBuffer(1,1,22050), src=_ac.createBufferSource(); src.buffer=b; src.connect(_ac.destination); src.start(0);
-    }catch{}
-  }
-  ['pointerdown','touchstart','keydown','click'].forEach(ev=> document.addEventListener(ev, _unlockAudio, {passive:true}));
-  function beep(freq, at){
-    if(!_ac) return false;
-    try{
-      const o=_ac.createOscillator(), g=_ac.createGain();
-      o.connect(g); g.connect(_ac.destination);
-      o.type='triangle'; o.frequency.value=freq||880;
-      const t0=(_ac.currentTime)+(at||0);
-      g.gain.setValueAtTime(.32,t0);
-      g.gain.exponentialRampToValueAtTime(.001,t0+.3);
-      o.start(t0); o.stop(t0+.32);
-      return true;
-    }catch{ return false; }
-  }
-  function ding(kind){
-    _unlockAudio();
-    // rising chime — loud enough to hear in a kitchen
-    if(kind==='ready'){ beep(660); beep(880,.18); }
-    else if(kind==='paid'){ beep(523); beep(784,.14); beep(1047,.28); }
-    else { beep(880); beep(1320,.16); beep(1760,.32); }
-  }
-  function buzz(pattern){ try{ if('vibrate' in navigator) navigator.vibrate(pattern); }catch{} }
-
-  // ——— theme (System/Light/Dark) — mirrors APK theme picker ———
-  async function getThemePref(){ try{ return (await kvGet('theme', 'system')) || 'system'; }catch{ return 'system'; } }
-  async function setThemePref(t){
-    await kvSet('theme', t);
-    applyTheme(t);
-    toast('Theme: '+(t==='system'?'Auto (follows phone)':t[0].toUpperCase()+t.slice(1)));
-  }
-  function applyTheme(pref){
-    const t = pref || (getThemePref._cached || 'system');
-    getThemePref._cached = t;
-    const dark = t==='dark' || (t==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    const meta=document.getElementById('theme-color-meta');
-    if(meta) meta.setAttribute('content', dark ? '#0F1512' : '#FAF7F2');
-    document.querySelectorAll('#seg-theme button').forEach(b=> b.classList.toggle('is-on', b.dataset.t===t));
-  }
-  async function initTheme(){
-    const t = await getThemePref();
-    applyTheme(t);
-    try{ await getSettings(); }catch{} // warm the print/settings cache
-    if(window.matchMedia){
-      try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=> applyTheme()); }catch{}
-    }
-    document.querySelectorAll('#seg-theme button').forEach(b=> b.addEventListener('click', ()=> setThemePref(b.dataset.t)));
-  }
-
-  // ——— shop info for receipts (from Settings) ———
-  async function shopFor(){
-    const s = await getSettings();
-    return s;
-  }
-
-  // ——— Receipt engine: builds the paper + calls the REAL system print dialog ———
-  function esc(s){ return String(s??'').replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-  function buildReceiptDom(order, s, opts){
-    const kitchen = opts && opts.type==='kitchen';
-    const cur = s.currency||'RM';
-    const m = n=> cur+' '+(Number(n)||0).toFixed(2);
-    const lines = (order.items||[]).map(it=> '<div class="rp-line"><span>'+esc(it.name)+' × '+it.qty+'</span>' + (kitchen?'':'<span>'+m(it.total||0)+'</span>') + '</div>').join('');
-    const sub = (order.items||[]).reduce((a,i)=> a+(Number(i.total)||0), 0);
-    const tax = sub*(Number(s.tax)||0)/100, svc = sub*(Number(s.svc)||0)/100;
-    const grand = sub+tax+svc;
-    return ''
-      + '<div style="font-family:ui-monospace,Menlo,monospace;color:#111;width:62mm;margin:0 auto">'
-      + '<div style="text-align:center;border-bottom:1.5px dashed #111;padding:6px 0 8px">'
-      +   (kitchen ? '<b style="font-size:16px">KITCHEN TICKET</b>' : '<b style="font-size:16px">'+esc(s.shopName)+'</b>')
-      +   (!kitchen && s.receiptHead ? '<div style="font-size:11px;margin-top:2px">'+esc(s.receiptHead)+'</div>' : '')
-      +   (!kitchen && s.shopPhone ? '<div style="font-size:11px;color:#444">'+esc(s.shopPhone)+'</div>' : '')
-      +   '<div style="font-size:10px;color:#444;margin-top:3px">'+new Date().toLocaleString()+' · Table '+esc(String(order.table||'').replace(/^T/,''))+(order.id?' · #'+esc(String(order.id).slice(-6)):'')+'</div>'
-      + '</div>'
-      + (lines || '<div class="rp-line"><span>No items</span></div>')
-      + (kitchen ? '' :
-          '<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:6px;padding-bottom:3px;border-bottom:1px dotted #ccc"><span style="float:none">Subtotal</span><span>'+m(sub)+'</span></div>'
-        + ((Number(s.tax)||0)? '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted #ccc"><span>Tax ('+s.tax+'%)</span><span>'+m(tax)+'</span></div>':'')
-        + ((Number(s.svc)||0)? '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;border-bottom:1px dotted #ccc"><span>Service ('+s.svc+'%)</span><span>'+m(svc)+'</span></div>':'')
-        + '<div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;border-top:2px solid #111;margin-top:4px;padding-top:4px"><span>TOTAL</span><span>'+m(grand)+'</span></div>')
-      + (order.payment ? '<div style="margin-top:6px;padding-top:5px;border-top:1px dotted #ccc;font-size:11px">'
-        + (order.status==='paid' ? '<div style="text-align:center;font-weight:800;font-size:13px;letter-spacing:2px;margin-bottom:3px">PAID ✓</div>' : '')
-        + '<div style="display:flex;justify-content:space-between;padding:2px 0"><span>Paid with '+esc(order.payment.method||'cash')+'</span><span>'+m(order.payment.tendered||grand)+'</span></div>'
-        + (Number(order.payment.change)>0 ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span>Change</span><span>'+m(order.payment.change)+'</span></div>' : '')
-        + (order.payment.split ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span>Split: '+esc(order.payment.method2)+'</span><span>'+m(order.payment.splitAmt)+'</span></div>' : '')
-        + '</div>' : '')
-      + '<div style="text-align:center;font-size:10px;color:#666;margin-top:8px;border-top:1.5px dashed #111;padding-top:6px">'
-      +   (kitchen ? 'Fire now — '+new Date().toLocaleTimeString() : esc(s.receiptFoot||'Thank you — please come again'))
-      + '</div></div>'
-      + '<style>.rp-line{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px dotted #ccc}</style>';
-  }
-  function printReceipt(order, opts){
-    const root = document.getElementById('print-root');
-    if(!root) return;
-    // sync path (keeps the iOS user-gesture alive → AirPrint dialog opens instantly)
-    const run = (s)=>{
-      root.innerHTML = buildReceiptDom(order, s, opts||{});
-      window.print();
-    };
-    if(_setCache) run(_setCache);
-    else getSettings().then(run); // rare: first-ever print before cache warms
-  }
-  window.OFPrintReceipt = printReceipt;
-  window.OFBuildReceiptDom = buildReceiptDom;
-  // Kitchen slip on "Send to kitchen": direct print on Android; on iPhone a toast (iOS needs a tap)
-  window.OFKitchenPrint = function(order){
-    try{ printReceipt(order, {type:'kitchen'}); }catch{}
-    if(isIOS) toast('Kitchen slip printing…', 'If the print page didn’t open, tap “Print slip” on the Kitchen tab');
+function window_init() {
+  if (window.__ofInit) return; window.__ofInit = 1;
+  // delegated dispatcher
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (el && el.dataset.act) { const fn = window.OFAct[el.dataset.act]; if (fn) { e.preventDefault(); fn(el, e); } }
+  });
+  // splash typewriter
+  const typed = $('splash-typed'); const word = 'Jathol'; let i = 0;
+  const tick = () => {
+    if (i <= word.length) { typed.textContent = word.slice(0, i); i++; setTimeout(tick, 110); }
+    else setTimeout(() => { $('splash-tag').classList.add('is-in'); const sp = $('splash'); setTimeout(() => { sp.style.transition = 'opacity .5s'; sp.style.opacity = '0'; setTimeout(() => sp.remove(), 520); }, 850); }, 250);
   };
-  window.OFAfterReady = function(order){
-    toast('Marked ready ✓', 'Table '+String(order.table||'').replace(/^T/,'')+' — takers notified');
-    try{ if(RELAY && ROLE==='station' && window.OFRelay && window.OFRelay.sendOrders) window.OFRelay.sendOrders(); }catch{}
-  };
+  tick();
+  setTimeout(() => { const sp = $('splash'); if (sp) sp.remove(); }, 6000); // failsafe even if JS stalls
+  boot();
+}
 
-  // ——— live notifications engine (new ticket → kitchen + takers; ready → takers) ———
-  window.OFCheckOrders = async function(){
-    let orders=[];
-    try{ orders = await idbGetAll('orders'); }catch{}
-    const s = await getSettings();
-    const bag = window._ofMemo || (window._ofMemo = {map:new Map(), seeded:false});
-    const live = orders.filter(o=> o.status==='open'||o.status==='sent');
-    const badge = $('badge-kitchen');
-    if(badge){ badge.textContent = String(live.length); badge.hidden = live.length===0; }
-    for(const o of orders){
-      const prev = bag.map.get(o.id);
-      if(prev===undefined && (o.status==='open'||o.status==='sent')){
-        if(bag.seeded){
-          if(s.kitchenSound) ding('ticket');
-          buzz([120,60,160]);
-          toast('New ticket — Table '+String(o.table||'').replace(/^T/,''),
-            (o.source==='qr' ? 'Guest ordered by QR code · ' : '') + (o.items||[]).length + ' item(s) to fire');
+/* ================= MINI DIALOGS (pick an action etc.) ================= */
+window.OFDialog = function ({ title, bodyHtml, buttons }) {
+  const root = $('dlg'); root.classList.add('is-open'); root.setAttribute('aria-hidden', 'false');
+  $('dlg-title').textContent = title || '';
+  $('dlg-body').innerHTML = bodyHtml || '';
+  const bs = $('dlg-btns'); bs.innerHTML = '';
+  for (const b of (buttons || [])) {
+    const el = ce('button', 'btn ' + (b.kind ? 'btn--' + b.kind : ''), esc(b.label));
+    el.onclick = async () => { if (b.act) { const r = await b.act(); if (r !== false) closeDlg(); } else closeDlg(); };
+    bs.appendChild(el);
+  }
+  return root;
+};
+function closeDlg() { const root = $('dlg'); root.classList.remove('is-open'); root.setAttribute('aria-hidden', 'true'); }
+window.OFCloseDlg = closeDlg;
+function pickAction(title, sub, entries) {
+  const body = ce('div', 'grid');
+  for (const en of entries) {
+    const b = ce('button', 'btn ' + (en.kind ? 'btn--' + en.kind : 'btn--ghost'), esc(en.label));
+    b.style.minHeight = '50px';
+    b.onclick = async () => { closeDlg(); if (en.act) await en.act(); };
+    body.appendChild(b);
+  }
+  OFDialog({ title, bodyHtml: (sub ? '<p class="muted small" style="margin-bottom:10px">' + esc(sub) + '</p>' : '') });
+  $('dlg-body').appendChild(body);
+}
+window.OFPick = pickAction;
+
+/* ================= CONNECT (join station) ================= */
+async function OFConnectJoin() {
+  const err = $('connect-err'); err.textContent = '';
+  let pair;
+  try { pair = C.pairingDecode($('connect-paste').value); }
+  catch { err.textContent = 'That does not look like an OF1:… pairing text. Copy it fully.'; return; }
+  // preflight: join room over the cloud
+  const dev = await deviceId();
+  let info = { ...pair, base: '', device: dev };
+  const j = await cloudApi('/api/cloud/join', { code: pair.code, role: 'station' }, info);
+  if (!j) { err.textContent = 'No internet — could not reach the relay. Try again.'; return; }
+  if (j.ok !== true) {
+    err.textContent = j.error === 'bad_code' ? 'Wrong join code — get a fresh QR/text from Main.' : (j.error || 'Could not join.');
+    return;
+  }
+  await kvSet('roomInfo', info);
+  await kvSet('role', 'station');
+  ROLE = 'station';
+  await evolutionaryAppend(info);
+  renderRoleScreen();
+}
+async function evolutionaryAppend(info) { startRelayBoot(info); pullUntilFirstState(); }
+async function pullUntilFirstState() { /* loop() already pulls; after first state apply we re-render role views */ }
+function renderRoleScreen() {
+  const grid = $('role-grid'); if (!grid) return;
+  grid.innerHTML = '';
+  $('role-shop').textContent = SHOP.profile.name + ' · ' + SHOP.profile.model;
+  const roles = C.MODEL_ROLES[SHOP.profile.model] || C.MODEL_ROLES.restaurant;
+  for (const r of roles) {
+    const b = ce('button', 'modelcard');
+    b.innerHTML = '<span class="ic">' + ROLE_META[r].ic + '</span><span>' + L.t(ROLE_META[r].label) + '</span>';
+    b.onclick = async () => { await rolePickWithPin(r); };
+    grid.appendChild(b);
+  }
+  show('view-role');
+}
+async function rolePickWithPin(role) {
+  const staff = await idbGetAll('staff', []);
+  const pinOn = staff.some(s => s.pinHash);
+  if (!pinOn) { await kvSet('stationRole', role); STATION_ROLE = role; roleHome(role); heartbeat(); return; }
+  const pick = staff.filter(s => staffCanRole(s, role));
+  const list = pick.length ? pick : staff;
+  pickAction(L.t('selecting_station'), 'Who are you?', list.map(s => ({ label: s.name, act: async () => { const ok = await pinAsk(s); if (ok === true) { await kvSet('stationRole', role); STATION_ROLE = role; roleHome(role); heartbeat(); } } })).concat([{ label: L.t('cancel'), kind: 'ghost', act: async () => { } }]));
+  async function pinAsk(st) {
+    await new Promise(resolve => {
+      const body = ce('div', 'grid');
+      body.innerHTML = '<input id="pin-in" type="password" inputmode="numeric" maxlength="6" placeholder="PIN"/>';
+      const ok = ce('button', 'btn btn--mint', L.t('done'));
+      body.appendChild(ok);
+      $('dlg-title').textContent = st.name + ' — ' + L.t('staff_pin_ask');
+      $('dlg-body').innerHTML = ''; $('dlg-body').appendChild(body); $('dlg-btns').innerHTML = '';
+      const failsKey = 'pinFails:' + st.id;
+      ok.onclick = async () => {
+        const lock = await kvGet(failsKey + ':lock', 0);
+        if (Date.now() < lock) { toast(L.t('staff_pin_lock')); resolve(false); closeDlg(); return; }
+        const entered = $('pin-in').value.trim();
+        const hash = await sha256(st.salt + ':' + entered);
+        if (hash === st.pinHash) { await kvSet(failsKey, 0); closeDlg(); resolve(true); }
+        else {
+          const fails = (await kvGet(failsKey, 0)) + 1;
+          await kvSet(failsKey, fails);
+          if (fails >= 5) { await kvSet(failsKey + ':lock', Date.now() + 5 * 60000); toast(L.t('staff_pin_lock')); closeDlg(); resolve(false); return; }
+          toast('Wrong PIN (' + (5 - fails) + ' left)');
         }
-      }
-      if(prev!==undefined && prev!=='ready' && o.status==='ready'){
-        if(s.kitchenSound) ding('ready');
-        buzz([80,40,120]);
-        toast('Table '+String(o.table||'').replace(/^T/,'')+' — ready ✓', 'Please serve the guest');
-      }
-      if(prev!==undefined && prev!=='paid' && prev!=='closed' && o.status==='paid'){
-        if(s.kitchenSound) ding('paid');
-        buzz([60]);
-        const m=o.payment?.method||'';
-        toast('Table '+String(o.table||'').replace(/^T/,'')+' — paid ✓'+ (m?' ('+m+')':''), 'Sale recorded · table freeing up');
-      }
-      bag.map.set(o.id, o.status);
-      if(bag.map.size>300) bag.map.clear(), bag.map.set(o.id, o.status); // bound memory
-    }
-    bag.seeded = true;
-    try{ window.OFRenderLivePanels?.(); }catch{}
+      };
+    });
+  }
+}
+function staffCanRole(s, role) { return (s.roles || []).includes(role) || !(s.roles || []).length; }
+async function sha256(s) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+window.OFSha256 = sha256;
+
+/* ================= COVER STATION (main jumps into a role) ================= */
+async function OFCoverMenu() {
+  const roles = ['orderTaker', 'kitchen', 'cashier', 'stockClerk'];
+  if (SHOP.profile.model === 'services') roles.push('frontDesk', 'specialist');
+  roles.push('driver');
+  pickAction(L.t('cover_role'), 'Main covers a station — full-screen like the APK', roles.map(r => ({ label: ROLE_META[r].ic + '  ' + L.t(ROLE_META[r].label), act: async () => { ROLE === 'main' && (window.__covering = true); roleHome(r); } })).concat([{ label: '🔙 ' + L.t('cover_home'), kind: 'ghost', act: async () => { enterMain(); } }]));
+}
+
+/* ================= TABLE TILE OPS ================= */
+function OFAddTable() {
+  const body = ce('div', 'grid');
+  body.innerHTML = '<input id="nt-name" placeholder="Table name (e.g. T9)"/><input id="nt-seats" type="number" min="1" max="16" placeholder="' + L.t('seats') + '"/>';
+  const save = ce('button', 'btn btn--mint', L.t('save'));
+  body.appendChild(save);
+  OFDialog({ title: L.t('new_table') });
+  $('dlg-body').appendChild(body);
+  save.onclick = async () => {
+    const name = $('nt-name').value.trim() || 'T' + ((await tablesAll()).length + 1);
+    const seats = Math.max(1, Number($('nt-seats').value) || 2);
+    await idbPut('tables', { id: C.uuid(), label: name, name, seats, state: 'free', since: null });
+    await kvSet('rev', Date.now()); syncNow(); closeDlg(); renderActiveTab(true);
   };
+}
+function OFShowTableQR(t) {
+  if (!RELAY) { toast('Open the room first', 'More → Cloud room'); return; }
+  const body = ce('div', 'grid');
+  const d = { r: RELAY.info.room, c: RELAY.info.code, k: RELAY.info.secret, t: t ? (t.id || '') : '', tn: t ? (t.label || t.name || '') : '', shop: SHOP.profile.name };
+  const hash = C.b64uEncode(new TextEncoder().encode(JSON.stringify(d)));
+  const url = location.origin + '/order.html#' + hash;
+  body.innerHTML = '<div class="qrbox"><img width="200" height="200" src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=' + encodeURIComponent(url) + '" alt="QR"/></div>'
+    + '<p class="small muted" style="overflow-wrap:anywhere">' + esc(url) + '</p>';
+  const dl = ce('a', 'btn btn--mint', 'Download QR (prints big)');
+  dl.href = 'https://api.qrserver.com/v1/create-qr-code/?size=720x720&margin=16&data=' + encodeURIComponent(url);
+  dl.target = '_blank'; dl.rel = 'noopener'; dl.download = 'qr-' + (t ? (t.label || 'table') : 'room') + '.png';
+  body.appendChild(dl);
+  const copy = ce('button', 'btn btn--ghost', 'Copy guest link');
+  copy.onclick = async () => { await navigator.clipboard.writeText(url).catch(() => {}); toast('Copied'); };
+  body.appendChild(copy);
+  OFDialog({ title: t ? ('Table ' + (t.label || t.name) + ' — guest QR') : L.t('qr_ordering') });
+  $('dlg-body').appendChild(body);
+}
 
-  // ——— wire Print tab + sample receipt ———
-  function sampleOrder(){
-    return {id:'ord-test', table:'T1', items:[{name:'Cappuccino', qty:1, price:12, total:12},{name:'Nasi Lemak', qty:2, price:18, total:36}]};
+/* ================= HELD SALES ================= */
+async function OFHeldSales() {
+  const os = (await orders()).filter(o => o.held);
+  const body = ce('div', 'grid');
+  if (!os.length) body.appendChild(ce('p', 'muted small', L.t('empty')));
+  for (const o of os) {
+    const b = ce('button', 'btn btn--ghost', esc(whereOf(o)) + ' · ' + money(billOf(o).due));
+    b.onclick = async () => { o.held = false; await idbPut('orders', o); await kvSet('rev', Date.now()); closeDlg(); openTicket(o.id); };
+    body.appendChild(b);
   }
-  function wirePrintTab(){
-    $('btn-print-apple')?.addEventListener('click', ()=> printReceipt(sampleOrder()));
-    $('btn-print-test')?.addEventListener('click', ()=> printReceipt(sampleOrder()));
-    $('btn-print-bt')?.addEventListener('click', async ()=>{
-      try{ await printViaBluetooth(sampleOrder(), await shopFor()); }
-      catch(e){ toast('Bluetooth print failed', String(e?.message||e).slice(0,120)); }
-    });
-  }
+  OFDialog({ title: L.t('held_sales') }); $('dlg-body').appendChild(body);
+}
 
-  // ——— Settings shortcut: open Print page ———
-  function wireGotoPrint(){ $('btn-goto-print')?.addEventListener('click', ()=> document.querySelector('[data-tab="print"]')?.click()); }
+/* ================= APPOINTMENT BOOKING ================= */
+function OFBookAppt() {
+  const body = ce('div', 'grid');
+  body.innerHTML = '<input id="ap-name" data-ph="customer" placeholder="' + L.t('customer') + '"/><input id="ap-phone" placeholder="' + L.t('phone') + '" inputmode="tel"/><input id="ap-svc" placeholder="' + L.t('service_word') + '"/><input id="ap-staff" placeholder="' + L.t('staff') + '"/><input id="ap-time" type="datetime-local"/><input id="ap-notes" placeholder="' + L.t('notes') + '"/>';
+  const save = ce('button', 'btn btn--mint', L.t('save')); body.appendChild(save);
+  OFDialog({ title: L.t('book_appt') }); $('dlg-body').appendChild(body);
+  save.onclick = async () => {
+    const at = new Date($('ap-time').value || Date.now()).getTime();
+    await idbPut('appointments', { id: C.uuid(), customer: $('ap-name').value.trim() || 'Walk-in', phone: $('ap-phone').value.trim(), service: $('ap-svc').value.trim(), staff: $('ap-staff').value.trim(), notes: $('ap-notes').value.trim(), at, status: 'booked' });
+    await kvSet('rev', Date.now()); syncNow(); closeDlg(); toast('Booked ✓'); renderActiveTab(true);
+  };
+}
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=>{ initTheme(); wirePrintTab(); wireGotoPrint(); });
-  else { initTheme(); wirePrintTab(); wireGotoPrint(); }
-})();
-
-/* ============================================================
-   v23 — APK MIRROR: pay sheet (order.paySheet), payment queue,
-   ready strip, stations panel + heartbeat, receipt preview
-   ============================================================ */
-(function(){
-  'use strict';
-  const $=(id)=>document.getElementById(id);
-  function sNow(){ return _setCache || SET_DEFAULTS; }
-  function moneyN(n){ const cur=(sNow().currency)||'RM'; return cur+' '+(Number(n)||0).toFixed(2); }
-
-  function calcBill(o){
-    const s=sNow();
-    const sub=(o.items||[]).reduce((a,i)=> a+(Number(i.total)||0),0);
-    const tax=sub*(Number(s.tax)||0)/100, svc=sub*(Number(s.svc)||0)/100;
-    return {sub, tax, svc, due: sub+tax+svc};
-  }
-
-  // ——— PAY SHEET (mirrors order_screen._pay) ———
-  const PAY={order:null, method:'cash', split:false, method2:'card', splitAmt:'', tender:''};
-  function openPay(order){
-    if(!order || !(order.items||[]).length){ window.OFToast?.('Nothing to pay','Add items to this order first'); return; }
-    Object.assign(PAY,{order, method:'cash', split:false, method2:'card', splitAmt:'', tender:''});
-    const sh=$('sheet-pay'); if(!sh) return;
-    sh.classList.add('is-open'); sh.setAttribute('aria-hidden','false');
-    renderPay();
-  }
-  window.OFOpenPay=openPay;
-  function closePay(){ const sh=$('sheet-pay'); if(!sh) return; sh.classList.remove('is-open'); sh.setAttribute('aria-hidden','true'); }
-  function dueInfo(){
-    const b=calcBill(PAY.order);
-    const splitAmt=PAY.split ? (Number(PAY.splitAmt)||0) : 0;
-    const primary=PAY.split ? b.due-splitAmt : b.due;
-    return {...b, splitAmt, primary};
-  }
-  function renderPay(){
-    const d=dueInfo();
-    const bd=$('pay-breakdown'); if(bd){
-      bd.innerHTML=
-        '<div class="pay-amt">'+moneyN(d.due)+'</div>'
-        +'<div class="pay-line muted"><span>Subtotal</span><span>'+moneyN(d.sub)+'</span></div>'
-        +((sNow().tax||0)?'<div class="pay-line muted"><span>Tax ('+sNow().tax+'%)</span><span>'+moneyN(d.tax)+'</span></div>':'')
-        +((sNow().svc||0)?'<div class="pay-line muted"><span>Service ('+sNow().svc+'%)</span><span>'+moneyN(d.svc)+'</span></div>':'')
-        +(PAY.split&&d.splitAmt?'<div class="pay-line muted"><span>Second method ('+PAY.method2+')</span><span>'+moneyN(d.splitAmt)+'</span></div>':'')
-        +'<div class="pay-line grand"><span>'+(PAY.split?('On '+PAY.method):'Total to pay')+'</span><span>'+moneyN(d.primary)+'</span></div>';
+/* ================= MENU EDITOR / SCAN ================= */
+function OFMenuEditor(id) {
+  Promise.resolve().then(async () => {
+    const p = id ? await idbGet('products', id, null) : null;
+    const body = ce('div', 'grid');
+    body.innerHTML = '<input id="me-name" placeholder="' + L.t('name_label') + '" value="' + esc(p ? p.name || '' : '') + '"/>'
+      + '<input id="me-price" type="number" inputmode="decimal" placeholder="' + 'Price' + '" value="' + (p ? (p.priceCents / 100).toFixed(2) : '') + '"/>'
+      + '<input id="me-cat" placeholder="Category" value="' + esc(p ? (p.categoryId || p.cat || 'Items') : 'Items') + '"/>'
+      + '<input id="me-sku" placeholder="SKU (barcode) — optional" value="' + esc(p ? p.sku || '' : '') + '"/>'
+      + '<input id="me-img" type="file" accept="image/*"/>'
+      + '<select id="me-stock"><option value="">No stock link</option></select>';
+    const ss = await stockAll();
+    for (const s of ss) body.querySelector('#me-stock').append(Object.assign(ce('option'), { value: s.id, textContent: s.name + ' (qty ' + s.qty + ')' }));
+    if (p && (p.inventoryId || p.stockId)) body.querySelector('#me-stock').value = p.inventoryId || p.stockId;
+    OFDialog({ title: p ? L.t('edit') : L.t('add_item') });
+    $('dlg-body').appendChild(body);
+    const dlg = $('dlg-btns'); dlg.innerHTML = '';
+    const save = ce('button', 'btn btn--mint', L.t('save'));
+    save.onclick = async () => {
+      const name = $('me-name').value.trim(); if (!name) { toast('Give it a name'); return; }
+      const priceC = C.cents(Number($('me-price').value) || 0);
+      const obj = p || { id: C.uuid(), available: true, avail: true, recipe: [], mods: [], deductQty: 1 };
+      obj.name = name; obj.priceCents = priceC; obj.price = priceC / 100;
+      obj.categoryId = $('me-cat').value.trim() || 'Items'; obj.cat = obj.categoryId; obj.sku = $('me-sku').value.trim();
+      const file = $('me-img').files && $('me-img').files[0];
+      if (file) obj.imageBase64 = await fileToB64(file, 240);
+      obj.inventoryId = $('me-stock').value || null; obj.stockId = obj.inventoryId;
+      await idbPut('products', obj); await kvSet('rev', Date.now()); syncNow(); closeDlg(); toast(name + ' saved'); renderActiveTab(true);
+    };
+    const del = p ? ce('button', 'btn btn--danger', L.t('delete')) : null;
+    if (del) del.onclick = async () => { await idbDel('products', p.id); await kvSet('rev', Date.now()); syncNow(); closeDlg(); toast(p.name + ' deleted'); renderActiveTab(true); };
+    const cancel = ce('button', 'btn btn--ghost', L.t('cancel')); cancel.onclick = () => closeDlg();
+    dlg.appendChild(cancel); if (del) dlg.appendChild(del); dlg.appendChild(save);
+  });
+}
+function fileToB64(file, max) {
+  return new Promise(res => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      const img = new Image();
+      img.onload = () => { const cv = document.createElement('canvas'); const sc = Math.min(1, max / Math.max(img.width, img.height)); cv.width = img.width * sc; cv.height = img.height * sc; cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); res(cv.toDataURL('image/jpeg', .7)); };
+      img.onerror = () => res(null); img.src = rd.result;
+    };
+    rd.onerror = () => res(null);
+    rd.readAsDataURL(file);
+  });
+}
+function OFMenuScan() {
+  const body = ce('div', 'grid');
+  body.innerHTML = '<p class="small muted" style="font-weight:600">Pick a photo or PDF of your menu, or paste lines like <b>Tea 5</b>. Image text can’t be read by this browser, so confirm/adjust the lines yourself before saving.</p>'
+    + '<input id="ms-file" type="file" accept="image/*,application/pdf"/>'
+    + '<textarea id="ms-lines" rows="7" placeholder="Cappuccino 12&#10;Nasi Lemak 18&#10;Teh Tarik 6"></textarea>';
+  const hint = ce('p', 'small muted', 'Nothing read yet.');
+  body.appendChild(hint);
+  const parseBtn = ce('button', 'btn btn--ghost', 'Read lines as draft items');body.appendChild(parseBtn);
+  const save = ce('button', 'btn btn--mint', L.t('save')); body.appendChild(save);
+  OFDialog({ title: L.t('menu_scan') }); $('dlg-body').appendChild(body);
+  parseBtn.onclick = async () => {
+    const lines = $('ms-lines').value.split('\n').map(x => x.trim()).filter(Boolean);
+    hint.textContent = 'Read ' + lines.length + ' line(s) — confirm with Save.';
+  };
+  save.onclick = async () => {
+    const lines = $('ms-lines').value.split('\n').map(x => x.trim()).filter(Boolean);
+    let added = 0;
+    for (const ln of lines) {
+      const m = ln.match(/^(.+?)\s+([\d.]+)\s*$/); if (!m) continue;
+      const priceC = C.cents(Number(m[2]));
+      await idbPut('products', { id: C.uuid(), name: m[1], priceCents: priceC, price: priceC / 100, categoryId: 'Items', cat: 'Items', available: true, avail: true, recipe: [], mods: [], deductQty: 1 });
+      added++;
     }
-    document.querySelectorAll('#pay-methods .pay-chip').forEach(b=> b.classList.toggle('is-on', b.dataset.m===PAY.method));
-    document.querySelectorAll('#pay-methods2 .pay-chip').forEach(b=> b.classList.toggle('is-on', b.dataset.m===PAY.method2));
-    const sp=$('pay-split-on'); if(sp) sp.checked=PAY.split;
-    const sb=$('pay-split-box'); if(sb) sb.hidden=!PAY.split;
-    const sa=$('pay-split-amount'); if(sa && document.activeElement!==sa) sa.value=PAY.splitAmt;
-    const needsCash = PAY.method==='cash' || (PAY.split&&PAY.method2==='cash');
-    const cashTarget = PAY.method==='cash' ? d.primary : d.splitAmt;
-    const rec=Number(PAY.tender)||0;
-    const tEl=$('pay-tender');
-    const pad=$('pay-pad');
-    if(tEl) tEl.textContent = needsCash ? (PAY.tender===''?'0':PAY.tender) : '—';
-    if(pad) pad.style.display = needsCash ? '' : 'none';
-    const ch=$('pay-change');
-    if(ch){
-      if(!needsCash){ ch.textContent=''; ch.classList.remove('short'); }
-      else if(rec+0.001>=cashTarget && PAY.tender!==''){ ch.textContent='Change to give:  '+moneyN(rec-cashTarget); ch.classList.remove('short'); }
-      else if(PAY.tender!==''){ ch.textContent='Cash is short — needs '+moneyN(cashTarget-rec)+' more'; ch.classList.add('short'); }
-      else { ch.textContent=''; ch.classList.remove('short'); }
-    }
-    const cf=$('btn-pay-confirm');
-    if(cf){
-      const splitOk=!PAY.split || (d.splitAmt>0.001 && d.splitAmt<d.due-0.001);
-      const cashOk=!needsCash || rec+0.001>=cashTarget;
-      const ok=splitOk && cashOk && d.primary>0.001;
-      cf.disabled=!ok; cf.style.opacity=ok?'1':'.5';
-    }
-  }
-  function wirePay(){
-    document.querySelectorAll('#pay-methods .pay-chip').forEach(b=> b.addEventListener('click', ()=>{ PAY.method=b.dataset.m; renderPay(); }));
-    document.querySelectorAll('#pay-methods2 .pay-chip').forEach(b=> b.addEventListener('click', ()=>{ PAY.method2=b.dataset.m; renderPay(); }));
-    $('pay-split-on')?.addEventListener('change', e=>{ PAY.split=!!e.target.checked; PAY.splitAmt=''; renderPay(); });
-    $('pay-split-amount')?.addEventListener('input', e=>{ PAY.splitAmt=e.target.value; renderPay(); });
-    $('pay-pad')?.addEventListener('click', e=>{
-      const k=e.target?.textContent; if(!k) return;
-      if(e.target.classList.contains('exact')){ PAY.tender=String(dueInfo().primary.toFixed(2)); }
-      else if(k==='⌫'){ PAY.tender=PAY.tender.slice(0,-1); }
-      else if(k==='.' && PAY.tender.includes('.')) return;
-      else { PAY.tender=(PAY.tender+k).replace(/^0+(?=\d)/,''); }
-      renderPay();
-    });
-    $('btn-pay-close')?.addEventListener('click', closePay);
-    $('sheet-pay')?.addEventListener('click', e=>{ if(e.target.id==='sheet-pay') closePay(); });
-    $('btn-pay-confirm')?.addEventListener('click', async()=>{
-      const d=dueInfo();
-      const splitOk=!PAY.split || (d.splitAmt>0.001 && d.splitAmt<d.due-0.001);
-      if(!splitOk){ window.OFToast?.('Split amount is wrong','It must be less than the total'); return; }
-      const needsCash = PAY.method==='cash' || (PAY.split&&PAY.method2==='cash');
-      const cashTarget = PAY.method==='cash' ? d.primary : d.splitAmt;
-      const rec=needsCash ? (Number(PAY.tender)||0) : cashTarget;
-      if(needsCash && rec+0.001<cashTarget){ window.OFToast?.('Cash is short','Needs '+moneyN(cashTarget-rec)+' more'); return; }
-      const o=PAY.order;
-      // 1) system print sheet FIRST — keeps the tap gesture alive
-      o.payment={method:PAY.method, method2:PAY.split?PAY.method2:null, splitAmt:PAY.split?d.splitAmt:0, split:PAY.split, tendered:+rec.toFixed(2), change:+(rec-cashTarget).toFixed(2)};
-      o.status='paid'; o.paidAt=Date.now();
-      try{ window.OFPrintReceipt?.(o); }catch{}
-      // 2) persist + sync + ui
-      await idbPut('orders', o);
-      const unpaid = (await idbGetAll('orders')).filter(x=> x.table===o.table && x.status!=='paid' && x.status!=='closed' && x.status!=='void' && x.id!==o.id);
-      if(!unpaid.length){ const t=await idbGet('tables', o.table); if(t){ t.state='free'; t.since=null; await idbPut('tables', t); } }
-      await kvSet('rev', Date.now());
-      closePay(); closeOrderSheet();
-      window.OFToast?.('Paid ✓ '+moneyN(d.due)+(needsCash&&o.payment.change>0?' — change '+moneyN(o.payment.change):''), 'Receipt printed · table is free');
-      try{ if(RELAY && ROLE==='station' && window.OFRelay?.sendOrders) await window.OFRelay.sendOrders(); }catch{}
-      refreshAll();
-      openReceiptPreview(o);
-    });
-  }
+    await kvSet('rev', Date.now()); syncNow(); closeDlg(); toast(added + ' item(s) saved'); renderActiveTab(true);
+  };
+}
 
-  // ——— Receipt preview (the "Apple print page") ———
-  function openReceiptPreview(order){
-    const sh=$('sheet-receipt'); const pv=$('receipt-preview'); if(!sh||!pv) return;
-    pv.innerHTML = window.OFBuildReceiptDom
-      ? window.OFBuildReceiptDom(order, sNow(), {})
-      : '<p style="font-family:monospace">Receipt unavailable</p>';
-    sh.classList.add('is-open'); sh.setAttribute('aria-hidden','false');
-    sh._order=order;
-  }
-  window.OFOpenReceiptPreview=openReceiptPreview;
-  function wireReceipt(){
-    $('btn-receipt-close')?.addEventListener('click', ()=> $('sheet-receipt')?.classList.remove('is-open'));
-    $('sheet-receipt')?.addEventListener('click', e=>{ if(e.target.id==='sheet-receipt') e.currentTarget.classList.remove('is-open'); });
-    $('btn-receipt-print')?.addEventListener('click', ()=>{
-      const o=$('sheet-receipt')?._order; if(o) window.OFPrintReceipt?.(o);
-    });
-  }
-
-  // ——— LIVE PANELS: ready strip, payment queue, stations ———
-  async function renderLivePanels(){
-    const orders=await idbGetAll('orders').catch(()=>[]);
-    // ready strip
-    const ready=orders.filter(o=> o.status==='ready');
-    const strip=$('ready-strip');
-    if(strip){
-      strip.hidden=!ready.length;
-      strip.innerHTML='';
-      for(const o of ready){
-        const el=document.createElement('div'); el.className='ready-chip';
-        el.innerHTML='<span class="wh">🔔</span><span class="ttl">Table '+String(o.table||'').replace(/^T/,'')+' — ready to serve<small class="sub" style="display:block">'+(o.items||[]).length+' dish(es) waiting for the guest</small></span><button type="button">Served ✓</button>';
-        el.querySelector('button').onclick=async()=>{
-          o.status='served'; await idbPut('orders', o); await kvSet('rev', Date.now());
-          window.OFToast?.('Table '+String(o.table||'').replace(/^T/,'')+' served ✓');
-          try{ if(RELAY && ROLE==='station' && window.OFRelay?.sendOrders) window.OFRelay.sendOrders(); }catch{}
-          refreshAll();
-        };
-        strip.appendChild(el);
-      }
-    }
-    // payment queue — every unpaid bill
-    const unpaid=orders.filter(o=> o.status!=='paid'&&o.status!=='closed'&&o.status!=='void');
-    const card=$('payqueue-card'); const list=$('payqueue-list');
-    if(card&&list){
-      card.hidden=!unpaid.length;
-      list.innerHTML='';
-      for(const o of unpaid){
-        const d=calcBill(o);
-        const age=Math.max(0,Math.round((Date.now()-(o.createdAt||Date.now()))/60000));
-        const row=document.createElement('div'); row.className='qrow';
-        row.innerHTML='<div class="meta"><b>Table '+String(o.table||'').replace(/^T/,'')+' · '+(o.items||[]).length+' item(s)</b><small>'+(o.status==='ready'?'Ready to serve':o.status==='sent'?'In the kitchen':'Being taken')+' · '+age+' min</small></div><span class="amt">'+moneyN(d.due)+'</span><button class="pay-chip" type="button" style="background:#D49E35;border-color:#D49E35;color:#2b1d00">Pay</button>';
-        row.querySelector('button').onclick=()=> openPay(o);
-        list.appendChild(row);
-      }
-    }
-    // stations panel
-    const host=$('stations-list');
-    if(host){
-      let seen={}; try{ seen=(await kvGet('stationsSeen', {}))||{}; }catch{}
-      let me=''; try{ me=await deviceId(); }catch{}
-      try{ seen[me]={role:(ROLE==='main'?'Main · we hold the license':'Station · this device'), at:Date.now()}; }catch{}
-      const entries=Object.entries(seen).sort((a,b)=> b[1].at-a[1].at);
-      host.innerHTML='';
-      if(!entries.length){
-        host.innerHTML='<p class="muted" style="margin:0;font-weight:600;font-size:13px">No devices yet. Open Setup → “Open room & show QR”, then join from your other phones — they appear here, live.</p>';
-      }
-      for(const [dev,info] of entries){
-        const ageSec=Math.round((Date.now()-(info.at||0))/1000);
-        const live=ageSec<75 && dev!==me;
-        const row=document.createElement('div'); row.className='qrow';
-        row.innerHTML='<span class="live-dot'+(dev===me?'':' '+(live?'':'off'))+'"></span><div class="meta"><b>'+(dev===me?'This device':dev)+'</b><small>'+(info.role||'station')+(dev===me?'':' · '+(live?'live now':'seen '+fmtAgo(ageSec)))+'</small></div><span class="amt" style="font-size:12px;color:var(--muted)">'+(live?'● online':'idle')+'</span>';
-        host.appendChild(row);
-      }
-    }
-  }
-  function fmtAgo(sec){
-    if(sec<60) return sec+'s ago';
-    const m=Math.floor(sec/60); if(m<60) return m+'m ago';
-    return Math.floor(m/60)+'h ago';
-  }
-  window.OFRenderLivePanels=renderLivePanels;
-
-  // ——— station heartbeat: every 45s say hello to the room ———
-  let _dev=null;
-  async function myDev(){ if(_dev) return _dev; try{ _dev= await deviceId(); }catch{ _dev='web-'+Math.random().toString(36).slice(2,8); } return _dev; }
-  setInterval(async()=>{
-    if(!RELAY || !window.OFRelay) return;
-    try{
-      const dev=await myDev();
-      const role=(ROLE==='main')?'main':((await kvGet('stationRole','station'))||'station');
-      if(typeof window.OFRelay.send==='function'){ await window.OFRelay.send({type:'hello', device:'web-'+String(dev).slice(-8), role, at:Date.now()}); }
-    }catch{}
-  }, 45000);
-
-  // ——— wire it all ———
-  function wire(){
-    wirePay(); wireReceipt();
-    $('btn-pay-order')?.addEventListener('click', ()=>{ if(CUR_ORDER) openPay(CUR_ORDER); });
-    renderLivePanels().catch(()=>{});
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', wire); else wire();
+window.addEventListener('DOMContentLoaded', window_init);
 })();
