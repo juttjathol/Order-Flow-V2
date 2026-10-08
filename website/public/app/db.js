@@ -114,9 +114,16 @@
     },
     async kvGet(k, fallback) {
       const row = await this.idbGet('kv', k, null);
-      return row == null ? fallback : ('value' in row ? row.value : row);
+      const v = row == null ? undefined : ('value' in row ? row.value : row);
+      if (v !== undefined) return v;
+      // identity keys survive a degraded session via localStorage mirror
+      try { const j = localStorage.getItem('ofkv:' + k); if (j != null) return JSON.parse(j); } catch {}
+      return fallback;
     },
-    async kvSet(k, v) { return this.idbPut('kv', { id: k, value: v }); },
+    async kvSet(k, v) {
+      try { localStorage.setItem('ofkv:' + k, JSON.stringify(v)); } catch {}
+      return this.idbPut('kv', { id: k, value: v });
+    },
   };
 
   ['idbGet', 'idbGetAll', 'idbPut', 'idbDel', 'idbClear', 'kvGet', 'kvSet'].forEach(n => { window[n] = (...a) => window.OFDB[n](...a); });

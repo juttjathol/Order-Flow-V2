@@ -471,8 +471,19 @@ function normTypeForModel() { return SHOP.profile.model === 'retail' ? 'retail' 
 /* ================= STATUS CHIPS ================= */
 function updateChips() {
   const dead = RELAY && RELAY.dead;
-  const txt = dead ? 'Room gone' : (RELAY ? L.t('room_live') : 'Room idle');
-  for (const el of document.querySelectorAll('#hdr-status, #role-status')) { el.textContent = txt; el.className = 'chip ' + (dead ? 'chip--warn' : 'chip--live'); }
+  if (dead) { // a ghost room from an old build: clear it, show idle, no scary banner
+    RELAY = null;
+    kvSet('roomInfo', null).catch(() => {});
+    kvSet('relayErr', null).catch(() => {});
+    const t = window.__toastFn; t && t('Room closed', 'Reopen it any time: More → Cloud room');
+  }
+  const txt = RELAY ? L.t('room_live') : 'Room idle';
+  for (const el of document.querySelectorAll('#hdr-status, #role-status')) {
+    el.textContent = txt;
+    el.className = 'chip ' + (RELAY ? 'chip--live' : '');
+    el.style.cursor = 'pointer';
+    el.onclick = () => { window.OFAct['more.goto.cloud'] && window.OFAct['more.goto.cloud'](); };
+  }
 }
 
 /* ================= NOTIFICATION ENGINE ================= */

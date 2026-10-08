@@ -122,10 +122,59 @@
     points: ['points', 'پوائنٹس'],
   };
   let LANG = 'en';
+
   function setLang(l) { LANG = l === 'ur' ? 'ur' : 'en'; }
   function getLang() { return LANG; }
   function t(k) { const e = STR[k]; if (!e) return k; return LANG === 'ur' ? (e[1] || e[0]) : e[0]; }
   const OFL = { STR, setLang, getLang, t };
+
+  /* fill the last gaps — same strings as l10n.dart (UR falls back until translated) */
+  Object.assign(OFL.STR, {
+    add_customer: ['Add customer', 'Add customer'], add_driver: ['Add driver', 'ڈرائیور شامل کریں'],
+    add_staff: ['Add staff', 'عملہ شامل کریں'], add_supplier: ['Add supplier', 'سپلائر شامل کریں'],
+    app_name: ['Order Flow', 'Order Flow'], auto_print: ['Kitchen prints on fire', 'کچن خودکار پرنٹ'],
+    avg_sale: ['Average sale', 'اوسط فروخت'], backup_title: ['Backup', 'بیک اپ'],
+    bill_discount: ['Discount on bill', 'بل پر رعایت'], bill_profile: ['Bill profile', 'بل پروفائل'],
+    bill_service: ['Service charge', 'سروس چارج'], cancelled: ['Cancelled', 'منسوخ'],
+    change: ['Change', 'بقایا رقم'], config_head: ['Shop setup', 'دکان کی ترتیب'],
+    confirm: ['Confirm', 'تصدیق'], copy_link: ['Copy link', 'لنک کاپی'],
+    cost: ['Cost', 'لاگت'], customers: ['Customers', 'کسٹمر'],
+    export_backup: ['Export backup', 'بیک اپ فائل نکالیں'], extras_head: ['Extras', 'اضافی فیچرز'],
+    fire_auto: ['Slips fire straight to the kitchen', 'سلپ سیدھا کچن میں'],
+    fire_mode: ['Kitchen fire mode', 'کچن فائر موڈ'], guest_branding: ['Guest page branding', 'گیسٹ پیج برانڈنگ'],
+    guest_hint: ['Guests order from their table — the slip fires straight to the kitchen. Pay at the counter.', 'مہمان اپنی میز سے آرڈر کریں — رسید سیدھی کچن میں اڑتی ہے۔'],
+    import_backup: ['Import backup', 'بیک اپ فائل لگائیں'], kitchen: ['Kitchen', 'کچن'],
+    kitchen_sound: ['Ticket & ready sounds', 'ٹکٹ اور ریڈی آوازیں'], leave_body: ['Main signs out of this device. The key is needed again next time.', 'یہ ڈیوائس مین سے باہر ہوتی ہے۔'],
+    link_customer: ['Customer', 'کسٹمر'], locked_row: ['Not in your plan', 'آپ کے پلان میں نہیں'],
+    low_at: ['Low alert at', 'کم اسٹاک حد'], multi_terminal: ['Connect extra stations', 'اضافی سٹیشنز'],
+    open_room: ['Open room & show QR', 'روم کھولیں اور QR دکھائیں'], options: ['Options', 'اختیارات'],
+    order: ['Order', 'آرڈر'], percent: ['% percent', 'فیصد'],
+    pin_mismatch: ["PINs don't match", 'پن میل نہیں کھاتا'], print_bill: ['Print bill', 'بل پرنٹ کریں'],
+    print_bt: ['Bluetooth printer', 'بلوٹوتھ پرنٹر'], print_gateway_row: ['This device is the room print gateway', 'یہ ڈیوائس پرنٹ گیٹ وے ہے'],
+    print_now: ['Print now', 'ابھی پرنٹ کریں'], print_test: ['Print a test', 'ٹیسٹ پرنٹ'],
+    printers: ['Printers', 'پرنٹرز'], purchase: ['Purchase', 'خرید'],
+    reference: ['Reference', 'حوالہ'], refresh_plan: ['Refresh my plan', 'پلان تازہ کریں'],
+    refunds: ['Refunds', 'رقم واپسیاں'], reports: ['Reports', 'رپورٹس'],
+    restock: ['Stock comes back', 'اسٹاک واپس'], sales_count: ['Sales today', 'آج کی فروخت'],
+    sales_tax: ['Sales tax', 'سیلز ٹیکس'], saved: ['Saved', 'محفوظ'],
+    seat_label: ['Guests', 'مہمان'], short_by: ['Short by', 'کمی'],
+    split_even: ['Split evenly', 'برابر تقسیم'], staff_no_pin: ['No PIN yet', 'پن نہیں'],
+    staff_shifts: ['Staff & shifts', 'عملہ اور شفٹس'], station_printers: ['Station printers', 'سٹیشن پرنٹرز'],
+    stations: ['Stations in this room', 'اس روم کے سٹیشن'], stock_to_watch: ['Stock to watch', 'نظر رکھنے والا اسٹاک'],
+    sure: ['Are you sure?', 'پکا؟'], table_word: ['Table', 'میز'],
+    taken: ['Taken today', 'آج کی وصولی'], tax_word: ['Tax', 'ٹیکس'],
+    theme_auto: ['Auto', 'خودکار'], theme_body: ['Cream by default — even when the phone itself is dark.', 'کریم ڈیفالٹ — فون ڈارک ہو تب بھی'],
+    theme_dark: ['Dark', 'ڈارک'], theme_light: ['Light (cream)', 'لائٹ (کریم)'],
+    tools_head: ['Tools & care', 'اوزار'], top_items: ['Top items', 'مقبول اشیاء'],
+    undo_pay: ['Tap again to undo the payment.', 'ادائیگی واپس لینے کے لیے دوبارہ دبائیں'],
+    unpaid_bills: ['Bills to pay', 'ادائیگی والے بلز'], wa_support: ['WhatsApp support', 'واٹس ایپ سپورٹ'],
+    waiting: ['Waiting payment', 'ادائیگی کا انتظار'], wastage_add: ['Log wastage', 'ضیاع لکھیں'],
+    waste_dropped: ['Dropped', 'گر گیا'], waste_error: ['Error / broke', 'غلطی / ٹوٹا'],
+    waste_spoiled: ['Spoiled', 'خراب ہوا'],
+    z_report_body: ['Close the till — a snapshot for the books, then the day starts fresh.', 'تیل بند کریں — کتابوں کے لیے سنیپ شاٹ، دن نئے سرے سے'],
+  });
+
+  
   if (typeof module !== 'undefined' && module.exports) module.exports = OFL;
   else window.OFLang = OFL;
 })();

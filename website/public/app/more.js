@@ -755,7 +755,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v27</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' · by Jathol · same POS as the Android app — in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">v25 · cache of-shell-v28</div></div>'));
   });
 }
 
