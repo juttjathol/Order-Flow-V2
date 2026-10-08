@@ -366,6 +366,19 @@ async function refreshAll(){
 async function initRoleUI(){
   const savedRole = await kvGet('role', null);
   const savedRoom = await kvGet('roomInfo', null);
+  // strict gate: Main must have validated license (like APK LicenseGate)
+  let validated='';
+  try{ validated = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || ''; }catch{ validated = localStorage.getItem('of_licenseKey')||''; }
+  const KEY_RE=/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+  validated = validated.toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})/g,'$1-').replace(/-$/,'');
+  const hasValidKey = validated && KEY_RE.test(validated);
+  if(savedRole==='main' && !hasValidKey){
+    // block auto-enter — show license gate, stay on setup
+    console.warn('Main without valid license — gate blocked');
+    // ensure gate is visible (index.html will also show it)
+    const gate=document.getElementById('view-license'); if(gate){ gate.hidden=false; gate.removeAttribute('hidden'); document.getElementById('of-app')?.classList.add('gate-hidden'); }
+    return;
+  }
   if(savedRole && savedRoom){
     ROLE = savedRole;
     enterApp(savedRoom);
@@ -448,15 +461,34 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   $('[data-role="main"]')?.addEventListener('click', ()=>{ $('#setup-main').hidden=false; $('#setup-station').hidden=true; });
   $('[data-role="station"]')?.addEventListener('click', ()=>{ $('#setup-station').hidden=false; $('#setup-main').hidden=true; });
   // open room
+  // Strict license gate — mirrors APK LicenseScreen: blank/invalid never opens room
   $('#btn-open-room')?.addEventListener('click', async ()=>{
     const btn=$('#btn-open-room'); btn.disabled=true; btn.textContent='Opening…';
     const shop = $('#shop-name').value.trim()||'My Shop';
-    const license = $('#license-key').value.trim();
+    // license is the validated gate key — never TRIAL, never offline fallback
+    let license = '';
+    try{ license = (await kvGet('licenseKey','')) || localStorage.getItem('of_licenseKey') || $('#license-key')?.value.trim() || ''; }catch{ license = $('#license-key')?.value.trim()||''; }
+    license = license.toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/(.{4})/g,'$1-').replace(/-$/,'');
+    const hint = $('#open-room-hint') || $('#license-error');
+    const setHint=(m, isErr=true)=>{
+      const el=hint; if(!el) return;
+      if(!m){ el.textContent='License already validated ✓ — room uses that key.'; el.style.color='var(--muted)'; return; }
+      el.textContent=m; el.style.color=isErr? 'var(--danger)' : 'var(--muted)';
+      if(isErr && el.id==='license-error'){ el.hidden=false; }
+    };
+    const KEY_RE=/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+    if(!license){ setHint('Enter license key first — XXXX-XXXX-XXXX-XXXX. Open License gate and Activate.'); btn.disabled=false; btn.textContent='Open room & show QR'; return; }
+    if(!KEY_RE.test(license)){
+      setHint('Invalid license format — use XXXX-XXXX-XXXX-XXXX (16 chars).'); btn.disabled=false; btn.textContent='Open room & show QR';
+      // surface inline on gate as well
+      const ge=document.getElementById('license-error'); if(ge){ ge.textContent='Invalid format — use XXXX-XXXX-XXXX-XXXX'; ge.hidden=false; const inp=document.getElementById('license-key'); if(inp) inp.classList.add('is-error'); }
+      return;
+    }
     const id = await deviceId();
     try{
-      const r = await fetch(RELAY_BASE+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({licenseKey: license || 'TRIAL-WEB-PLACEHOLDER', deviceId: id, shopName: shop})});
+      const r = await fetch(RELAY_BASE+'/api/cloud/open', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({licenseKey: license.replace(/-/g,''), deviceId: id, shopName: shop})});
       const j = await r.json();
-      if(!j || !j.ok) throw new Error(j?.error||'plan');
+      if(!j || !j.ok) throw new Error(j?.error||'key_invalid');
       const base = RELAY_BASE;
       const pairing = pairingEncode(j.room, j.code, j.secret, base);
       $('#room-box').hidden=false;
@@ -465,21 +497,16 @@ document.addEventListener('DOMContentLoaded', async ()=>{
       drawQR($('#qr'), pairing);
       await kvSet('roomInfo', {room:j.room, code:j.code, secret:j.secret, base});
       await kvSet('role','main'); ROLE='main';
+      try{ localStorage.setItem('of_licenseValidated','1'); localStorage.setItem('of_licenseKey', license); }catch{}
+      setHint('', false);
       $('#btn-enter-app').onclick=()=> enterApp({room:j.room, code:j.code, secret:j.secret, base});
     }catch(e){
-      alert('Could not open room: '+ (String(e).includes('plan') ? 'License not on cloud plan — using offline-only room. Stations can still join on same Wi-Fi via copy? For web, internet relay is required — use a trial key or ask Jathol to enable cloud on your key.' : String(e)));
-      // offline fallback room
-      const room = 'offline-'+Math.random().toString(36).slice(2,10);
-      const secret = Math.random().toString(36).slice(2,18);
-      const code = Math.random().toString(36).slice(2,8).toUpperCase();
-      const pairing = pairingEncode(room, code, secret, RELAY_BASE);
-      $('#room-box').hidden=false;
-      $('#join-code').textContent=code + ' · offline';
-      $('#pairing-text').textContent=pairing;
-      drawQR($('#qr'), pairing);
-      await kvSet('roomInfo', {room, code, secret, base:RELAY_BASE});
-      await kvSet('role','main'); ROLE='main';
-      $('#btn-enter-app').onclick=()=> enterApp({room, code, secret, base:RELAY_BASE});
+      const msg=String(e).replace('Error:','').trim();
+      const map={key_invalid:'License key is not valid. Double-check and try again.', invalid_key:'License key is not valid.', not_found:'Key not found — check with Jathol.', expired:'Key expired — contact support.', bound_other:'Key is already bound to another device.', plan:'Key has no cloud plan enabled — contact Jathol.', no_license:'License required.'};
+      const friendly=map[msg]||('Could not open room: '+msg+' — valid license required. No offline fallback.');
+      setHint(friendly, true);
+      // also inline gate error
+      const ge=document.getElementById('license-error'); if(ge){ ge.textContent=friendly; ge.hidden=false; }
     } finally { btn.disabled=false; btn.textContent='Open room & show QR'; }
   });
   $('#btn-copy-pair')?.addEventListener('click', async ()=>{ const t=$('#pairing-text').textContent; await navigator.clipboard.writeText(t).catch(()=>{}); const b=$('#btn-copy-pair'); const old=b.textContent; b.textContent='Copied!'; setTimeout(()=> b.textContent=old, 1500); });

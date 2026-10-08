@@ -210,9 +210,59 @@ nav.pillgrid{ display:none }
   .prod{ background:#18221D; border-color:#24352E }
 }
 
+/* ——— APK Splash — exact replica of gate_screens.dart SplashScreen ——— */
+.splash{ position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse 120% 120% at 50% 45%, #0D2420 0%, #050A08 55%, #020404 100%); overflow:hidden; padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) }
+.splash[hidden]{ display:none !important }
+.splash__rings{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:none }
+.splash__ring{ position:absolute; border-radius:50%; border:1px solid rgba(47,255,160,.18); width:480px; height:480px; animation:splashPulse 3s ease-in-out infinite }
+.splash__ring--2{ width:660px; height:660px; border-color:rgba(47,255,160,.08); animation-delay:.45s }
+@keyframes splashPulse{ 0%,100%{ transform:scale(1); opacity:1 } 50%{ transform:scale(1.03); opacity:.9 } }
+.splash__logo{ width:clamp(100px, 22vw, 150px); height:clamp(100px, 22vw, 150px); object-fit:contain; filter:drop-shadow(0 0 24px rgba(47,255,160,.6)) drop-shadow(0 0 40px rgba(0,229,255,.22)); animation:logoEntrance .9s cubic-bezier(.34,1.56,.64,1) .2s both, logoGlow 3s ease-in-out 1.4s infinite }
+@keyframes logoEntrance{ 0%{ transform:scale(.4) rotate(-8deg); opacity:0 } 60%{ transform:scale(1.08) rotate(2deg); opacity:1 } 80%{ transform:scale(.96) rotate(0) } 100%{ transform:scale(1) rotate(0); opacity:1 } }
+@keyframes logoGlow{ 0%,100%{ filter:drop-shadow(0 0 24px rgba(47,255,160,.6)) drop-shadow(0 0 40px rgba(0,229,255,.22)) } 50%{ filter:drop-shadow(0 0 52px rgba(47,255,160,.85)) drop-shadow(0 0 68px rgba(0,229,255,.44)) } }
+.splash__word{ display:flex; align-items:center; justify-content:center; gap:6px; height:72px; margin-top:32px }
+.splash__typed{ color:#2FFFA0; font-weight:900; font-size:56px; letter-spacing:-1.2px; line-height:1 }
+.splash__cursor{ width:3px; height:36px; background:#2FFFA0; border-radius:2px; animation:blink .7s ease-in-out infinite }
+@keyframes blink{ 0%,100%{ opacity:1 } 50%{ opacity:0 } }
+.splash__tagline{ color:rgba(47,255,160,.55); font-weight:300; font-size:13px; letter-spacing:5.5px; margin-top:8px; opacity:0; transform:translateY(8px); transition:opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1) }
+.splash__tagline.is-in{ opacity:1; transform:none }
+.splash.is-out{ animation:splashOut .6s ease-in forwards }
+@keyframes splashOut{ to{ opacity:0; visibility:hidden } }
+
+/* ——— APK License gate — exact replica of LicenseScreen ——— */
+.license-gate{ position:fixed; inset:0; z-index:80; display:flex; flex-direction:column; background:#051912; overflow:auto; -webkit-overflow-scrolling:touch }
+.license-gate[hidden]{ display:none !important }
+.license-gate::before{ content:""; position:fixed; inset:0; background:url('/media/bolt.png') center/420px no-repeat; opacity:.12; pointer-events:none }
+.license-gate__inner{ position:relative; width:min(420px, 100%); margin:0 auto; padding:36px 28px 28px; flex:1; display:flex; flex-direction:column; gap:0; padding-top:calc(36px + env(safe-area-inset-top)); padding-bottom:calc(28px + env(safe-area-inset-bottom)) }
+.license-gate__logo{ width:72px; height:72px; border-radius:18px; overflow:hidden; margin:0 auto; display:block; box-shadow:0 8px 24px rgba(0,0,0,.28) }
+.license-gate__title{ text-align:center; color:#fff; font-weight:800; font-size:30px; letter-spacing:-.6px; margin:16px 0 0 }
+.license-gate__sub{ text-align:center; color:#9BB5A8; font-size:15px; line-height:1.35; margin:8px 0 0 }
+.license-gate__label{ color:#9BB5A8; font-size:13px; margin:28px 0 8px }
+.license-gate__input{ width:100%; text-align:center; color:#fff; letter-spacing:2.2px; font-weight:700; font-size:16px; background:rgba(0,0,0,.22); border:1.4px solid rgba(61,220,151,.33); border-radius:14px; padding:14px 14px; outline:0; text-transform:uppercase }
+.license-gate__input::placeholder{ color:rgba(255,255,255,.28); letter-spacing:2.2px }
+.license-gate__input:focus{ border-color:#2EA771; box-shadow:0 0 0 3px rgba(46,167,113,.18) }
+.license-gate__input.is-error{ border-color:var(--danger); box-shadow:0 0 0 3px rgba(217,72,56,.16) }
+.license-gate__err{ text-align:center; color:var(--danger); font-weight:700; margin-top:12px; font-size:13px }
+.license-gate__btn{ width:100%; min-height:54px; border-radius:28px; border:0; font-weight:800; font-size:16px; cursor:pointer; margin-top:18px; display:inline-flex; align-items:center; justify-content:center; transition:transform .12s, opacity .12s }
+.license-gate__btn:active{ transform:scale(.98) }
+.license-gate__btn--mint{ background:var(--mint); color:#042016; box-shadow:0 8px 18px rgba(46,167,113,.22) }
+.license-gate__btn--outline{ background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.72); margin-top:12px }
+.license-gate__btn--wa{ background:#25D366; color:#fff; margin-top:12px }
+.license-gate__foot{ text-align:center; color:var(--muted); font-size:12px; margin-top:10px }
+.license-gate__wa{ text-align:center; color:var(--mint); font-weight:800; margin-top:6px }
+.license-gate__chips{ display:flex; justify-content:center; gap:10px; margin-top:14px }
+.license-gate__brand{ text-align:center; color:var(--mint); font-weight:800; letter-spacing:.8px; margin-top:36px }
+
+/* app hidden behind gate */
+.gate-hidden{ visibility:hidden; pointer-events:none }
+
+/* floor bistro: make Table Map hero — subtle grid floor */
+#tab-tables.of-card{ background:linear-gradient(180deg, var(--creamSurf) 0%, #FFFEFC 100%); position:relative; overflow:hidden }
+#tab-tables.of-card::before{ content:""; position:absolute; inset:0; background:radial-gradient(1px 1px at 20px 20px, rgba(22,62,46,.07) 1px, transparent 0); background-size:32px 32px; opacity:.6; pointer-events:none }
+
 /* print: receipt */
 @media print{
-  .of-header, .of-nav, .hide-print{ display:none !important }
+  .of-header, .of-nav, .hide-print, .splash, .license-gate{ display:none !important }
   body{ background:#fff }
   .of-main{ padding:0 }
 }
