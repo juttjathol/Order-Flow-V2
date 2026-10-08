@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v36'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v37'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -324,6 +324,8 @@ ok('v34 Privacy row opens the website privacy page', moreJs.includes("window.ope
 ok('v35 same-document print path embeds no auto script (single sheet)', printJs.includes('window.print()') && !printJs.slice(0, printJs.indexOf('function printViaTab')).includes('window.onload=function()'));
 ok('v36 standalone-PWA print escapes to an auto-printing tab', printJs.includes('navigator.standalone') && printJs.includes('OFPrintReceiptInTab') && printJs.includes('printViaTab'));
 ok('v36 printers screen offers a new-tab test print', moreJs.includes('Print in a new tab'));
+ok('v37 standalone prints via shared PDF — iOS share sheet has Print', printJs.includes('application/pdf') && printJs.includes('navigator.share') && printJs.includes('buildReceiptPdf') && printJs.includes("navigator.standalone === true"));
+ok('v37 About shows the deployed build', moreJs.includes('cache of-shell-v37'));
 ok('v34 58mm paper setting honored in print CSS', printJs.includes('58mm') && printJs.includes("=== '58'"));
 ok('v34 pay receipt respects the Auto print switch', readFileSync(join(APP, 'ticket.js'), 'utf8').includes("profile.autoPrint !== false && window.OFPrintReceipt"));
 

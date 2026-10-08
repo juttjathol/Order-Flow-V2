@@ -109,16 +109,11 @@ function receiptText(order) {
 }
 
 function printViaApple(order, opts) {
-  // iOS-reliable printing:
-  //  • window.print() is a silent no-op in HOME-SCREEN (standalone) PWAs —
-  //    navigator.standalone === true — so there we open the receipt as a
-  //    real browser page (about:blank, still inside the user's tap so no
-  //    popup block) whose own script auto-prints it in Safari.
-  //  • in a normal Safari tab we inject the receipt into THIS document,
-  //    flip is-printing, and let @media print show only the receipt
-  //    (hidden-iframe printing is also silently ignored by iOS).
+  // Safari-tab path: inject the receipt into THIS document, flip
+  // is-printing, and let @media print show only the receipt, then
+  // window.print() inside the tap (hidden-iframe printing is silently
+  // ignored by iOS, and standalone gets printViaShare instead).
   const inner = printHtml(order, opts);
-  if (navigator.standalone === true && printViaTab(order, opts)) return;
   let host = document.getElementById('of-print-area');
   if (!host) {
     host = document.createElement('div');
@@ -132,6 +127,58 @@ function printViaApple(order, opts) {
   const done = () => { document.body.classList.remove('is-printing'); host.innerHTML = ''; };
   window.addEventListener('afterprint', done, { once: true });
   setTimeout(done, 8000);
+}
+
+/* ---- minimal one-page receipt PDF (Courier, ASCII) — no library ----
+   Used for the SHARE path below: iOS can print any shared PDF from the
+   native share sheet, which is the ONLY print mechanism that always works
+   inside a home-screen (standalone) web app. */
+function escPdf(s) { return String(s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)').replace(/[^\x20-\x7E]/g, '?'); }
+function buildReceiptPdf(order, opts) {
+  const s = shop();
+  const paper = String(s.paper) === '58' ? 58 : 80;
+  const wPt = Math.round(paper / 25.4 * 72);
+  let text;
+  if (opts && opts.type === 'kitchen') {
+    text = (s.receiptHead || s.name) + '\n' + whereTxt(order) + ' — KITCHEN\n--------------------------------\n'
+      + linesOf(order).map(l => l.qty + ' x ' + l.name + (l.notes ? '  (' + l.notes + ')' : '')).join('\n')
+      + '\n--------------------------------\nKITCHEN COPY';
+  } else {
+    text = receiptText(order);
+  }
+  const lines = text.split('\n');
+  const fontSize = 9, lead = 11, pad = 14;
+  const hPt = pad * 2 + lines.length * lead + 6;
+  let content = 'BT /F1 ' + fontSize + ' Tf ' + pad + ' ' + (hPt - pad - fontSize) + ' Td ' + lead + ' TL\n';
+  for (const ln of lines) content += '(' + escPdf(ln) + ') Tj T*\n';
+  content += 'ET';
+  const objs = [];
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2] = '<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
+  objs[3] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + wPt + ' ' + hPt + '] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>';
+  objs[4] = '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream';
+  objs[5] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>';
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (let i = 1; i <= 5; i++) { offsets[i] = pdf.length; pdf += i + ' 0 obj\n' + objs[i] + '\nendobj\n'; }
+  const xref = pdf.length;
+  pdf += 'xref\n0 6\n0000000000 65535 f \n';
+  for (let i = 1; i <= 5; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+  pdf += 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF';
+  return new TextEncoder().encode(pdf);
+}
+/* Standalone-PWA printing: share the PDF — iOS share sheet has Print built in */
+async function printViaShare(order, opts) {
+  try {
+    const bytes = buildReceiptPdf(order, opts);
+    const file = new File([bytes], 'receipt-' + ((opts && opts.type) || 'r') + '-' + (order.ticketNo || order.id || 'order') + '.pdf', { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Order Flow — receipt' });
+      return true;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return true; }
+  if (!printViaTab(order, opts)) printViaApple(order, opts);
+  return false;
 }
 
 /* The every-environment escape hatch: receipt as a real browser page whose
@@ -184,8 +231,10 @@ function buildEscPos(order) {
 window.OFPrintReceipt = function (order, opts) {
   opts = opts || {};
   if (opts.via === 'bluetooth') { printViaBluetooth(order, opts).catch(() => printViaApple(order, opts)); return; }
+  if (navigator.standalone === true) { printViaShare(order, opts); return; } // home-screen PWA: share sheet → Print
   printViaApple(order, opts);
 };
+window.OFShareReceiptPdf = printViaShare;
 window.OFReceiptText = receiptText;
 window.OFPrintViaBluetooth = printViaBluetooth;
 window.OFPrintReceiptInTab = printViaTab;
