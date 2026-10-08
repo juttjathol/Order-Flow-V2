@@ -228,7 +228,10 @@ nav.pillgrid{ display:none }
 @keyframes blink{ 0%,100%{ opacity:1 } 50%{ opacity:0 } }
 .splash__tagline{ color:rgba(47,255,160,.55); font-weight:300; font-size:13px; letter-spacing:5.5px; margin-top:8px; opacity:0; transform:translateY(8px); transition:opacity .7s cubic-bezier(.22,1,.36,1), transform .7s cubic-bezier(.22,1,.36,1) }
 .splash__tagline.is-in{ opacity:1; transform:none }
-.splash.is-out{ animation:splashOut .6s ease-in forwards }
+/* failsafe: auto-hide even if JS stalls (stuck splash) */
+.splash{ animation: splashAutoHide 0.6s ease-in forwards 5.9s }
+@keyframes splashAutoHide{ to{ opacity:0; visibility:hidden; pointer-events:none } }
+.splash.is-out{ animation: splashOut 0.6s ease-in forwards !important }
 @keyframes splashOut{ to{ opacity:0; visibility:hidden } }
 
 /* ——— APK License gate — exact replica of LicenseScreen ——— */

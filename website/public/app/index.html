@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="/media/logo.png" sizes="192x192"/>
   <link rel="mask-icon" href="/media/logo.png" color="#163E2E"/>
   <link rel="manifest" href="/manifest.json"/>
-  <link rel="stylesheet" href="./styles.css?v=12"/>
+  <link rel="stylesheet" href="./styles.css?v=13"/>
   <!-- preconnect for relay -->
   <link rel="preconnect" href="https://of-relay.jathol.workers.dev"/>
 
@@ -343,9 +343,9 @@
   </div>
 </div>
 
-  <script src="./db.js?v=12"></script>
-  <script src="./print.js?v=12"></script>
-  <script src="./app.js?v=12"></script>
+  <script src="./db.js?v=13"></script>
+  <script src="./print.js?v=13"></script>
+  <script src="./app.js?v=13"></script>
   <script>
     // —— Splash: exact APK replica (typing Jathol → ORDER FLOW) ——
     (function(){
@@ -374,6 +374,8 @@
       // auto fade at 4800ms like APK, then reveal gate/app
       setTimeout(()=>{ splash.classList.add('is-out'); setTimeout(()=> splash.hidden=true, 700); window.dispatchEvent(new CustomEvent('of:splashDone')); },4800);
     })();
+    // failsafe: stuck splash (e.g. JS error, cached old) — CSS hides at 5.9s, JS ensures hidden+event at 6.5s
+    setTimeout(()=>{ try{ const s=document.getElementById('splash'); if(!s||s.hidden) return; const cs=getComputedStyle(s); const faded=cs.visibility==='hidden'||parseFloat(cs.opacity)===0; if(faded){ s.hidden=true; window.dispatchEvent(new CustomEvent('of:splashDone')); } else { s.classList.add('is-out'); setTimeout(()=>{ s.hidden=true; try{window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} },700); try{window.dispatchEvent(new CustomEvent('of:splashDone'))}catch{} } }catch{} }, 6500);
     // —— License gate: blocks POS until valid XXXX-XXXX-XXXX-XXXX ——
     (function(){
       const gate=document.getElementById('view-license');
