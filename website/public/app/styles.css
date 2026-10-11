@@ -354,6 +354,15 @@ html[data-theme="dark"] .of-toast{ background:var(--mint); color:#07130D; }
 .divider{ height:1.2px; background:var(--border); margin:14px 0; }
 .sect{ margin-top:20px; }
 .sect__t{ font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); margin:0 4px 8px; }
+/* More tab — collapsible section dropdowns */
+.accs{ margin-top:10px; }
+.accs > summary.accs__t{ list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); padding:12px 8px 10px; border-bottom:1.2px solid var(--border); user-select:none; -webkit-user-select:none; margin:0 2px; }
+.accs > summary.accs__t::-webkit-details-marker{ display:none; }
+.accs__chev{ font-size:16px; font-weight:900; color:var(--muted); transition:transform .18s ease; }
+.accs[open] > summary.accs__t{ color:var(--ink); }
+.accs[open] > summary.accs__t .accs__chev{ transform:rotate(90deg); }
+[dir="rtl"] .accs[open] > summary.accs__t .accs__chev{ transform:rotate(-90deg); }
+.accs__b{ padding:10px 0 2px; }
 .mrow{ display:flex; align-items:center; gap:12px; padding:13px 14px; background:var(--surface); border:1.2px solid var(--border); border-radius:16px; cursor:pointer; text-decoration:none; color:inherit; width:100%; text-align:left; }
 .mrow + .mrow, .card .mrow + .mrow{ margin-top:8px; }
 .mrow .ic, .mrow .lrow__ic{ flex:0 0 40px; width:40px; height:40px; border-radius:12px; background:var(--surface2); display:grid; place-items:center; font-size:18px; }

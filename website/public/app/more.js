@@ -37,12 +37,24 @@ window.OFMoreRender = async function () {
   headCard.innerHTML = '<div class="row"><div class="grow"><div style="font-weight:900;font-size:17px;letter-spacing:-.3px">' + esc(p.name) + '</div><div class="small" style="opacity:.8;font-weight:600;margin-top:2px">' + esc(p.address || 'Add your address in Bill profile') + '</div></div><span class="chip">' + C.FEATURE_CATALOG.length + ' features</span></div>';
   host.appendChild(headCard);
 
-  const section = (t) => { const el = ce('div', 'sect'); el.appendChild(ce('div', 'sect__t', t)); host.appendChild(el); return host; };
+  // Sections are dropdowns: every section is collapsed until tapped,
+  // then its sub-rows unfold. Open state survives re-renders this session.
+  const openSects = (window.__ofOpenSects = window.__ofOpenSects || new Set());
+  let cur = host;
+  const section = (t) => {
+    const det = ce('details', 'accs');
+    if (openSects.has(t)) det.open = true;
+    det.addEventListener('toggle', () => { if (det.open) openSects.add(t); else openSects.delete(t); });
+    const sum = ce('summary', 'accs__t', '<span class="accs__lbl">' + esc(t) + '</span><span class="accs__chev">›</span>');
+    const body = ce('div', 'accs__b');
+    det.appendChild(sum); det.appendChild(body); host.appendChild(det);
+    cur = body;
+  };
   const mrow = (ic, title, subTxt, act, locked) => {
     const el = ce('button', 'mrow'); el.type = 'button';
     el.innerHTML = '<span class="lrow__ic">' + ic + '</span><span class="ttl">' + esc(title) + '<span class="sub">' + esc(subTxt || '') + '</span></span>' + (locked ? '<span class="lock">🔒</span>' : '') + '<span class="go">›</span>';
     el.onclick = () => { if (locked) return toast(L.t('locked_row'), 'Not in your plan — tap “Refresh my plan” after upgrading'); A[act] && A[act](); };
-    const wrap = ce('div', 'tilewrap'); wrap.appendChild(el); host.appendChild(wrap);
+    const wrap = ce('div', 'tilewrap'); wrap.appendChild(el); cur.appendChild(wrap);
   };
 
   section('🏪 My shop');
@@ -55,7 +67,7 @@ window.OFMoreRender = async function () {
   const leave = ce('button', 'btn btn--danger', L.t('leave_shop'));
   leave.style.cssText = 'width:100%;margin:12px 0 4px;border-radius:14px';
   leave.onclick = () => leaveShop();
-  host.appendChild(leave);
+  cur.appendChild(leave);
 
   section('📡 Devices & QR');
   mrow('🧑‍🤝‍🧑', L.t('multi_terminal'), 'Stations join by QR — no key needed', 'more.cloud', !canF('multi_terminal'));
@@ -302,8 +314,7 @@ async function scrReport(isZ) {
     const row = ce('div', 'grid'); row.style.marginTop = '12px';
     const print = ce('button', 'btn btn--primary btn--full', '🖨️ ' + L.t('print_now'));
     print.onclick = () => {
-      const demo = { id: 'XZ', ticketNo: isZ ? 'Z' : 'X', createdAt: Date.now(), type: 'retail', lines: rep.top.map(t => ({ name: t[0], qty: t[1], priceCents: 0, mods: [], notes: '' })), note: 'X/Z' };
-      OFPrintReceipt({ ...demo, lines: [], xz: true }, { type: 'bill' });
+      if (window.OFPrintReport) window.OFPrintReport(rep, isZ);
       toast('Report sent to printer', 'Totals: ' + money(rep.taken));
     };
     row.appendChild(print);
@@ -780,7 +791,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v37</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v38</div></div>'));
   });
 }
 

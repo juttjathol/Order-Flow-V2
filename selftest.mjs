@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v37'"));
+ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v38'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -325,7 +325,12 @@ ok('v35 same-document print path embeds no auto script (single sheet)', printJs.
 ok('v36 standalone-PWA print escapes to an auto-printing tab', printJs.includes('navigator.standalone') && printJs.includes('OFPrintReceiptInTab') && printJs.includes('printViaTab'));
 ok('v36 printers screen offers a new-tab test print', moreJs.includes('Print in a new tab'));
 ok('v37 standalone prints via shared PDF — iOS share sheet has Print', printJs.includes('application/pdf') && printJs.includes('navigator.share') && printJs.includes('buildReceiptPdf') && printJs.includes("navigator.standalone === true"));
-ok('v37 About shows the deployed build', moreJs.includes('cache of-shell-v37'));
+ok('v37 About shows the deployed build', moreJs.includes('cache of-shell-v38'));
+// v38 — X/Z reports print the full day picture; More sections are dropdowns
+ok('v38 report receipts render the full day picture', printJs.includes("type === 'report'") && printJs.includes('X REPORT — MIDDAY') && printJs.includes('Z REPORT — DAY CLOSED') && printJs.includes('TAKEN') && printJs.includes('TOP ITEMS'));
+ok('v38 report prints via all engines', printJs.includes('function reportText') && printJs.includes("order.type === 'report'") && printJs.includes('window.OFPrintReport'));
+ok('v38 X/Z screen sends the report (no empty demo bill)', moreJs.includes('OFPrintReport(rep, isZ)') && !moreJs.includes('lines: [], xz: true'));
+ok('v38 More sections are collapsible dropdowns', moreJs.includes("ce('details', 'accs')") && moreJs.includes("ce('summary', 'accs__t'") && css.includes('.accs[open]') && css.includes('.accs__chev'));
 ok('v34 58mm paper setting honored in print CSS', printJs.includes('58mm') && printJs.includes("=== '58'"));
 ok('v34 pay receipt respects the Auto print switch', readFileSync(join(APP, 'ticket.js'), 'utf8').includes("profile.autoPrint !== false && window.OFPrintReceipt"));
 

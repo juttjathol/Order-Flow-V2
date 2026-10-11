@@ -38,6 +38,7 @@ function linesOf(order) { return order.lines || (order.items || []).map(i => ({ 
 function whereTxt(order) { return order.tableName ? 'Table ' + order.tableName : (order.type === 'delivery' ? 'DELIVERY' : order.type === 'takeaway' ? 'TAKEAWAY' : order.type === 'retail' ? 'RETAIL' : order.channel === 'qr' ? '>>> QR ' + (order.tableName || '') + ' <<<' : 'Ticket #' + (order.ticketNo || '')); }
 
 function receiptOne(order, opts) {
+  if (opts.type === 'report' || order.type === 'report') return reportOne(order);
   const s = shop(), cur = s.currency || 'RM';
   const b = C.billOf(order, s);
   const lines = linesOf(order);
@@ -86,6 +87,45 @@ function receiptOne(order, opts) {
   return head + sub + body + rows + foot + `<div class="r-foot">${esc(s.receiptFoot || '')}${s.tagline ? ' · ' + esc(s.tagline) : ''}</div>`;
 }
 
+/* X/Z day report — full picture, never an empty bill */
+function reportOne(order) {
+  const s = shop(), cur = s.currency || 'RM';
+  const r = order.report || {};
+  const isZ = !!order.isZ;
+  const head = `<div class="r-head"><b>${esc(s.receiptHead || s.name)}</b><div class="r-meta">${esc(s.address || '')} ${esc(s.phone || '')}</div><div class="r-meta">${new Date(order.createdAt || Date.now()).toLocaleString()}</div></div>`;
+  const title = `<div class="r-big" style="text-align:center">${isZ ? 'Z REPORT — DAY CLOSED' : 'X REPORT — MIDDAY'}</div>`;
+  let rows = `<div class="r-total"><span>TAKEN</span><span>${fmt(r.taken || 0, cur)}</span></div>`;
+  rows += `<div class="r-row"><span>Waiting (${r.unpaidCount || 0})</span><span>${fmt(r.waiting || 0, cur)}</span></div>`;
+  rows += `<div class="r-row"><span>Sales</span><span>${r.paidCount || 0}</span></div>`;
+  rows += `<div class="r-row"><span>Average sale</span><span>${fmt(r.avg || 0, cur)}</span></div>`;
+  for (const m of Object.entries(r.byMethod || {})) rows += `<div class="r-row"><span>${esc(m[0])}</span><span>${fmt(m[1], cur)}</span></div>`;
+  for (const ch of Object.entries(r.byChannel || {})) rows += `<div class="r-row"><span>Channel ${esc(ch[0])}</span><span>${fmt(ch[1], cur)}</span></div>`;
+  let topHtml = '';
+  const top = (r.top || []).slice(0, 5);
+  if (top.length) {
+    topHtml = `<div class="r-big" style="text-align:center;margin-top:8px">TOP ITEMS</div>`;
+    for (const t of top) topHtml += `<div class="r-line"><span>${esc(t[0])}</span><span>× ${t[1]}</span></div>`;
+  }
+  return head + title + rows + topHtml + `<div class="r-paid">${isZ ? 'DAY CLOSED ✓' : 'DAY STILL OPEN'}</div><div class="r-foot">${esc(s.receiptFoot || '')}</div>`;
+}
+
+function reportText(order) {
+  const s = shop(), cur = s.currency || 'RM';
+  const r = order.report || {};
+  const isZ = !!order.isZ;
+  const col = (l, v) => String(l).slice(0, 20).padEnd(20) + String(v).padStart(12);
+  const out = [s.receiptHead || s.name, isZ ? 'Z REPORT — DAY CLOSED' : 'X REPORT — MIDDAY',
+    new Date(order.createdAt || Date.now()).toLocaleString(), '--------------------------------',
+    col('TAKEN', fmt(r.taken || 0, cur)), col('Waiting (' + (r.unpaidCount || 0) + ')', fmt(r.waiting || 0, cur)),
+    col('Sales', r.paidCount || 0), col('Average sale', fmt(r.avg || 0, cur))];
+  for (const m of Object.entries(r.byMethod || {})) out.push(col(m[0], fmt(m[1], cur)));
+  for (const ch of Object.entries(r.byChannel || {})) out.push(col('Channel ' + ch[0], fmt(ch[1], cur)));
+  const top = (r.top || []).slice(0, 5);
+  if (top.length) { out.push('--------------------------------', 'TOP ITEMS'); for (const t of top) out.push(col(t[0], 'x' + t[1])); }
+  out.push('--------------------------------', isZ ? 'DAY CLOSED' : 'DAY STILL OPEN', s.receiptFoot || 'Thank you');
+  return out.join('\n');
+}
+
 function printHtml(order, opts) {
   // honor the 58/80mm paper picker (the CSS ships 80mm by default)
   const paper = String(shop().paper) === '58' ? 58 : 80;
@@ -98,6 +138,7 @@ function printHtml(order, opts) {
 
 /* plain-text for share / WhatsApp */
 function receiptText(order) {
+  if (order.type === 'report') return reportText(order);
   const s = shop(), cur = s.currency || 'RM';
   const b = C.billOf(order, s);
   const out = [s.receiptHead || s.name, whereTxt(order) + ' · #' + (order.ticketNo || ''), '--------------------------------'];
@@ -209,7 +250,7 @@ async function printViaBluetooth(order, opts) {
     if (writable) break;
   }
   if (!writable) throw new Error('Printer connected but no writable characteristic found.');
-  const bytes = buildEscPos(order);
+  const bytes = buildEscPos(order, opts);
   for (let i = 0; i < bytes.length; i += 180) {
     const chunk = bytes.slice(i, i + 180);
     try { await writable.writeValueWithoutResponse(chunk); } catch { await writable.writeValue(chunk); }
@@ -217,7 +258,8 @@ async function printViaBluetooth(order, opts) {
   }
   try { device.gatt.disconnect(); } catch {}
 }
-function buildEscPos(order) {
+function buildEscPos(order, opts) {
+  if ((opts && opts.type === 'report') || order.type === 'report') return new TextEncoder().encode('\x1B@' + reportText(order) + '\n\n\n' + '\x1DV\x42\x00');
   const s = shop(), cur = s.currency || 'RM';
   const b = C.billOf(order, s);
   const enc = new TextEncoder();
@@ -233,6 +275,10 @@ window.OFPrintReceipt = function (order, opts) {
   if (opts.via === 'bluetooth') { printViaBluetooth(order, opts).catch(() => printViaApple(order, opts)); return; }
   if (navigator.standalone === true) { printViaShare(order, opts); return; } // home-screen PWA: share sheet → Print
   printViaApple(order, opts);
+};
+/* X/Z report printing — used by More → Reports (midday X, close-of-day Z) */
+window.OFPrintReport = function (rep, isZ) {
+  window.OFPrintReceipt({ id: 'XZ', ticketNo: isZ ? 'Z-REPORT' : 'X-REPORT', createdAt: Date.now(), type: 'report', isZ: !!isZ, report: rep }, { type: 'report' });
 };
 window.OFShareReceiptPdf = printViaShare;
 window.OFReceiptText = receiptText;
