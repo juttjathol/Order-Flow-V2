@@ -51,7 +51,17 @@
   <span id="main" tabindex="-1" style="outline:none"></span>
     <section class="hero">
       <div class="hero-bg"></div>
-      <div class="hero-anim" aria-hidden="true"><iframe src="/hero-anim.html" title="Order Flow in action" loading="lazy" tabindex="-1"></iframe></div>
+      <div class="hero-anim" aria-hidden="true"><iframe title="Order Flow in action" tabindex="-1"></iframe></div>
+      <script>
+      /* Hero anim: fetch the page, then WRITE it into the frame as a same-origin
+         document — never served as a framed response, so the site's strict
+         wildcard frame rules (frame-ancestors 'none') can't block it. */
+      fetch('/hero-anim.html').then(r => r.text()).then(h => {
+        const f = document.querySelector('.hero-anim iframe'); if (!f) return;
+        const d = f.contentWindow.document;
+        d.open(); d.write(h.replace('<head>', '<head><base href="/">')); d.close();
+      }).catch(() => {});
+      </script>
       <div class="bolt-stage" data-par="0.14"><img class="float-bolt" src="./media/bolt.png" alt=""/></div>
       <div class="wrap hero-copy">
         <p class="kicker reveal">Jathol · Order Flow</p>
