@@ -129,5 +129,8 @@ html,body{overflow:hidden;background:transparent}body{display:block;margin:0}.st
    distorts: content composes on a tall canvas instead of a 16:9 strip. */
 @media (max-width:760px){
   .stage{top:0;height:100%;aspect-ratio:auto;transform:none}
-  .frost{-webkit-mask:linear-gradient(180deg,transparent 0%,transparent 28%,#000 38%,#000 60%,transparent 74%);mask:linear-gradient(180deg,transparent 0%,transparent 28%,#000 38%,#000 60%,transparent 74%)}
 }
+
+/* frost retired per owner feedback: the animation plays 100% sharp;
+   text readability is handled by a per-glyph dark aura in styles.css */
+.frost{display:none}
