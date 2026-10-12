@@ -114,6 +114,6 @@ body{display:flex;justify-content:center;align-items:center}
 
 
 
-html,body{overflow:hidden;background:transparent}body{display:block}.stage{width:100%;height:auto;aspect-ratio:16/9}
+html,body{overflow:hidden;background:transparent;height:100%}body{display:grid;place-items:center}.stage{width:100%;height:auto;aspect-ratio:16/9;flex:none}
 
 @media (prefers-reduced-motion:reduce){.bg,.bg i,.bg b{animation:none}}
