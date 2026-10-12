@@ -123,3 +123,11 @@ html,body{overflow:hidden;background:transparent}body{display:block;margin:0}.st
    iframe that has any backdrop-filtered sibling sitting on top of it. */
 .frost{position:absolute;inset:0;z-index:5;pointer-events:none;-webkit-backdrop-filter:blur(10px) brightness(.9);backdrop-filter:blur(10px) brightness(.9);-webkit-mask:linear-gradient(180deg,#000 0%,#000 46%,rgba(0,0,0,.45) 72%,transparent 92%);mask:linear-gradient(180deg,#000 0%,#000 46%,rgba(0,0,0,.45) 72%,transparent 92%)}
 @media (min-width:761px){.frost{-webkit-mask:linear-gradient(96deg,#000 0%,#000 46%,transparent 72%);mask:linear-gradient(96deg,#000 0%,#000 46%,transparent 72%)}}
+
+/* phones: portrait stage — the stage fills the WHOLE hero section. Every
+   scene size/position inside is width-based (cqw), so nothing crops or
+   distorts: content composes on a tall canvas instead of a 16:9 strip. */
+@media (max-width:760px){
+  .stage{top:0;height:100%;aspect-ratio:auto;transform:none}
+  .frost{-webkit-mask:linear-gradient(180deg,transparent 0%,transparent 28%,#000 38%,#000 60%,transparent 74%);mask:linear-gradient(180deg,transparent 0%,transparent 28%,#000 38%,#000 60%,transparent 74%)}
+}

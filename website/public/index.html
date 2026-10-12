@@ -56,7 +56,7 @@
       /* Hero anim: fetch the page, then WRITE it into the frame as a same-origin
          document — never served as a framed response, so the site's strict
          wildcard frame rules (frame-ancestors 'none') can't block it. */
-      fetch('/hero-anim.html?v=4').then(r => r.text()).then(h => {
+      fetch('/hero-anim.html?v=5').then(r => r.text()).then(h => {
         const f = document.querySelector('.hero-anim iframe'); if (!f) return;
         const d = f.contentWindow.document;
         d.open(); d.write(h.replace('<head>', '<head><base href="/">')); d.close();
