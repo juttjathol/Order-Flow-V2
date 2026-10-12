@@ -124,10 +124,12 @@ a { color: inherit; text-decoration: none; }
 .hero-copy {
   position: relative; z-index: 2;
   padding: 26px 18px; margin: 64px auto 46px;
-  background: rgba(10,24,17,.3); border-radius: 26px;
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  backdrop-filter: blur(14px) saturate(1.15);
+  background: rgba(10,24,17,.26); border-radius: 26px;
 }
+/* the decrypt effect wraps the title in .rbits spans with a hardcoded ink
+   color for the italic line (fine on the old cream hero) — re-point it here */
+.rbits .hero h1 em { color: #E8C36A; }
+.rbits .hero h1 .rb-ch.rb-s { color: #E8C36A; }
 .kicker {
   color: var(--muted); letter-spacing: .24em; text-transform: uppercase; font-size: 12px; font-weight: 800;
 }
@@ -519,7 +521,7 @@ section { padding: clamp(62px, 9vw, 92px) 0; }
 @media (max-width:640px) {
   .wrap { width:calc(100% - 28px); }
   [id] { scroll-margin-top:74px; }
-  .hero-copy { padding:64px 0 52px; }
+  .hero-copy { padding:30px 16px 28px; }
   .lede { font-size:16px; }
   .meta-row { gap:18px; flex-wrap:wrap; }
   .meta-row > div { flex:1 1 104px; }

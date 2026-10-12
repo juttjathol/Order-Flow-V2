@@ -117,3 +117,9 @@ body{display:flex;justify-content:center;align-items:center}
 html,body{overflow:hidden;background:transparent;height:100%}body{display:grid;place-items:center}.stage{width:100%;height:auto;aspect-ratio:16/9;flex:none}
 
 @media (prefers-reduced-motion:reduce){.bg,.bg i,.bg b{animation:none}}
+
+/* frost: blurs the scenes ONLY where the site's hero copy overlaps the stage.
+   Lives INSIDE the anim document because WebKit on iOS refuses to paint an
+   iframe that has any backdrop-filtered sibling sitting on top of it. */
+.frost{position:absolute;inset:0;z-index:5;pointer-events:none;-webkit-backdrop-filter:blur(10px) brightness(.9);backdrop-filter:blur(10px) brightness(.9);-webkit-mask:linear-gradient(180deg,#000 0%,#000 46%,rgba(0,0,0,.45) 72%,transparent 92%);mask:linear-gradient(180deg,#000 0%,#000 46%,rgba(0,0,0,.45) 72%,transparent 92%)}
+@media (min-width:761px){.frost{-webkit-mask:linear-gradient(96deg,#000 0%,#000 46%,transparent 72%);mask:linear-gradient(96deg,#000 0%,#000 46%,transparent 72%)}}
