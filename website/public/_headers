@@ -19,3 +19,12 @@
   Cache-Control: public, max-age=0, must-revalidate
 /manifest.json
   Cache-Control: public, max-age=3600
+# Hero product animation — allows SELF-framing only (wildcard rules stay as-is)
+/hero-anim.html
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'self'; base-uri 'self'; form-action 'none'
+  X-Frame-Options: SAMEORIGIN
+  Cache-Control: public, max-age=3600
+/hero-anim.css
+  Cache-Control: public, max-age=3600
+/hero-anim.js
+  Cache-Control: public, max-age=3600
