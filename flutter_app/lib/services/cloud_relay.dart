@@ -171,14 +171,20 @@ class CloudRelay {
 
   static List<String>? parsePairing(String raw) {
     final parts = raw.trim().split(':');
-    if (parts.length != 5 || parts[0] != 'OF1') return null;
-    try {
-      final url = utf8.decode(base64Url.decode(base64Url.normalize(parts[4])));
-      if (!url.startsWith('https://')) return null;
-      return [parts[1], parts[2], parts[3], url];
-    } catch (_) {
-      return null;
+    if (parts.length < 4 || parts[0] != 'OF1') return null;
+    // OF1:room:code:secret (web-app room QR — no base field; the relay store
+    // is shared via the jathol.org forwarder, so the default base is correct)
+    // or OF1:room:code:secret:base64url(baseUrl) as the Flutter Main emits.
+    var url = kCloudRelayBase;
+    if (parts.length >= 5) {
+      try {
+        url = utf8.decode(base64Url.decode(base64Url.normalize(parts[4])));
+        if (!url.startsWith('https://')) return null;
+      } catch (_) {
+        return null;
+      }
     }
+    return [parts[1], parts[2], parts[3], url];
   }
 
   // ── Runtime ──────────────────────────────────────────────────────────

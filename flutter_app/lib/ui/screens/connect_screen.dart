@@ -56,6 +56,21 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
     if (mounted) context.push('/role');
   }
 
+  // Scanned/typed an OF1: room pairing? That's the cloud room (works on
+  // mobile data too — same Wi-Fi NOT required), so take the cloud join path
+  // instead of the LAN host path.
+  Future<void> _goCloud(String pairing) async {
+    final s = L10n(ref.read(appControllerProvider).session.locale);
+    final err = await ref.ctrl.joinCloudSync(pairing.trim());
+    if (err.isNotEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('cloud_err_$err'))));
+      return;
+    }
+    if (mounted) context.push('/role');
+  }
+
+  static bool _isCloudPairing(String raw) => raw.trim().toUpperCase().startsWith('OF1:');
+
   @override
   Widget build(BuildContext context) {
     final s = ref.s;
@@ -109,6 +124,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                       onPressed: () async {
                         final value = await scanBarcode(context, title: s.t('scan_now'), hint: s.t('manual_ip'));
                         if (!context.mounted || value == null) return;
+                        if (_isCloudPairing(value)) { await _goCloud(value); return; }
                         final host = _hostFrom(value);
                         if (host == null || host.isEmpty) return;
                         ip.text = host;
@@ -123,6 +139,7 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
+                        if (_isCloudPairing(ip.text)) { _goCloud(ip.text.trim()); return; }
                         final host = _hostFrom(ip.text);
                         if (host == null || host.isEmpty) return;
                         _go(host);
