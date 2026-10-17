@@ -1,0 +1,155 @@
+/* ============================================================
+   ORDER FLOW — MOTION & POLISH LAYER v39 (additive, token-only)
+   ----------------------------------------------------------------
+   • Adds choreography, kinetics & micro-motion. Adds no colours:
+     every colour referenced is an existing token (or that token
+     at alpha). Layout geometry is untouched; logic is untouched.
+   • All rules are tier-scoped: html[data-motion="full"|"low"].
+     html[data-motion="off"] (default) => this file does nothing,
+     so it can never hurt a weak/old device.
+   ============================================================ */
+
+/* ---------- motion tuning tokens ---------- */
+html[data-motion="full"]{
+  --mo-ease: cubic-bezier(.22,.9,.28,1);
+  --mo-spring: cubic-bezier(.22,1.35,.34,1);
+  --mo-vin: .46s;        /* view entrance */
+  --mo-tab: .34s;        /* tab switch   */
+  --mo-press: .16s;      /* press-in     */
+  --mo-release: .5s;     /* press release spring */
+  --mo-stagger: 38ms;    /* list cascade */
+}
+
+/* ================= FULL TIER : everything ================= */
+@media (prefers-reduced-motion: no-preference){
+html[data-motion="full"]{
+
+  /* ——— View (route) entrance ——— */
+  .view.mo-in{ animation: moViewIn var(--mo-vin) var(--mo-ease) both; }
+  .gate.mo-in{ animation: moViewIn var(--mo-vin) var(--mo-ease) both; }
+  @keyframes moViewIn{
+    from{ opacity:0; transform:translateY(14px) scale(.992); filter:blur(8px) saturate(.9); }
+    to  { opacity:1; transform:none; filter:blur(0) saturate(1); }
+  }
+
+  /* ——— Tab switch: directional slide, spring settle ——— */
+  .mo-tabin{ animation: moTabIn var(--mo-tab) var(--mo-ease) var(--mo-tab-delay,0ms) both; }
+  @keyframes moTabIn{
+    from{ opacity:0; transform:translateX(calc(var(--mo-dir,1) * 16px)); }
+    60% { opacity:1; }
+    to  { opacity:1; transform:none; }
+  }
+
+  /* ——— Staggered content cascade (JS sets --i on ≤12 children) ——— */
+  .mo-stack > *[style*="--i"]{ animation: moUp .44s var(--mo-ease) both; animation-delay: calc(var(--i) * var(--mo-stagger)); }
+  @keyframes moUp{
+    from{ opacity:0; transform:translateY(12px) scale(.985); }
+    to  { opacity:1; transform:none; }
+  }
+
+  /* ——— Press physics: fast in, springy out ——— */
+  .btn,.tile,.tcard,.mcard,.fchip,.mrow,.lrow,.iconbtn,.modelcard,.numpad button,.mcard__add,.readyline button,.qtyctl button,.switch,.chip,.typechips button{
+    transition: transform var(--mo-release) var(--mo-spring), box-shadow var(--mo-release) var(--mo-spring), background .2s ease, border-color .2s ease, opacity .2s ease;
+  }
+  .mo-press, .mo-press:active{ transform:scale(.93) !important; transition-duration:var(--mo-press) !important; transition-timing-function:cubic-bezier(.3,.7,.4,1) !important; }
+  .tcard.mo-press, .mcard.mo-press, .tile.mo-press{ transform:scale(.95) translateY(1px) !important; }
+
+  /* ——— Hover lift (fine pointers only) ——— */
+  @media (hover:hover) and (pointer:fine){
+    .tile:hover, .mcard:hover, .tcard:hover, .mrow:hover, .lrow:hover{ transform:translateY(-2px); box-shadow:var(--shadow), 0 12px 26px rgba(16,40,23,.09); }
+    .mrow:hover .arrow, .mrow:hover .go{ transform:translateX(3px); }
+    .mrow .arrow, .mrow .go{ transition:transform .28s var(--mo-spring); }
+  }
+
+  /* ——— Bottom nav / rail: kinetic destinations ——— */
+  .bnav__dest svg, .bnav__dest span{ transition: transform .3s var(--mo-spring), color .2s ease; }
+  .bnav__dest.is-on svg{ animation: moIcon .42s var(--mo-spring); }
+  .bnav__dest.is-on span{ animation: moLabel .3s var(--mo-ease); }
+  .bnav__dest::before{ transition: all .34s var(--mo-spring); width:0; opacity:0; }
+  .bnav__dest.is-on::before{ width:26px; opacity:1; }
+  @keyframes moIcon{ 0%{ transform:scale(.6) translateY(3px); } 70%{ transform:scale(1.18) translateY(-1px); } 100%{ transform:scale(1); } }
+  @keyframes moLabel{ from{ letter-spacing:.3px; opacity:.5; transform:translateY(2px); } to{ letter-spacing:0; opacity:1; transform:none; } }
+  .rail__dest{ transition: background .22s ease, color .22s ease, transform .3s var(--mo-spring); position:relative; }
+  .rail__dest.is-on{ animation: moRailOn .3s var(--mo-ease); }
+  .rail__dest.is-on::before{ content:''; position:absolute; left:-10px; top:50%; translate:0 -50%; width:4px; height:22px; border-radius:99px; background:var(--mint); animation: moBar .34s var(--mo-spring); }
+  @keyframes moRailOn{ from{ transform:translateX(-4px); } to{ transform:none; } }
+  @keyframes moBar{ from{ height:0; opacity:0; } to{ height:22px; opacity:1; } }
+
+  /* ——— Kinetic numbers: totals & stats tick when they change ——— */
+  .mo-tick{ animation: moTick .36s var(--mo-spring); display:inline-block; }
+  @keyframes moTick{
+    0%  { opacity:.4; transform:translateY(28%) scale(.92); filter:blur(3px); }
+    55% { opacity:1;  transform:translateY(-3%)  scale(1.035); filter:blur(0); }
+    100%{ transform:none; }
+  }
+
+  /* ——— Kinetic header text (shop name / role swap) ——— */
+  .mo-hfade{ animation: moHFade .32s var(--mo-ease) both; }
+  @keyframes moHFade{ from{ opacity:0; transform:translateY(7px); filter:blur(5px); } to{ opacity:1; transform:none; filter:blur(0); } }
+
+  /* ——— Live pulses (existing token colours, alpha only) ——— */
+  .chip--live{ position:relative; }
+  .chip--live::after{ content:''; position:absolute; inset:-3px; border-radius:999px; border:1.6px solid var(--mint); opacity:0; animation: moPing 2.6s var(--mo-ease) infinite; pointer-events:none; }
+  @keyframes moPing{ 0%{ opacity:.55; transform:scale(.86);} 70%,100%{ opacity:0; transform:scale(1.14);} }
+  .readyline{ animation: moReadyGlow 2.4s ease-in-out infinite; }
+  @keyframes moReadyGlow{ 0%,100%{ box-shadow:0 0 0 0 rgba(212,158,53,0);} 50%{ box-shadow:0 0 0 4px rgba(212,158,53,.16);} }
+
+  /* ——— Sheets & dialogs: spring entrances ——— */
+  .sheet.is-open{ animation: moFadeIn .24s ease both; }
+  .sheet.is-open .sheet__panel{ animation: moSheetUp .5s var(--mo-spring) both; }
+  @keyframes moSheetUp{ from{ transform:translateY(46%) scale(.985); border-radius:28px 28px 0 0; } to{ transform:none; } }
+  @keyframes moFadeIn{ from{ opacity:0; } to{ opacity:1; } }
+  #dlg.is-open{ animation: moFadeIn .2s ease both; }
+  #dlg.is-open .dlg__card, #dlg.is-open > *:not(script):not(style){ animation: moDlgIn .38s var(--mo-spring) both; }
+  @keyframes moDlgIn{ from{ opacity:0; transform:scale(.9) translateY(10px); } to{ opacity:1; transform:none; } }
+
+  /* ——— Toasts: springier arrival ——— */
+  .of-toast{ transition: opacity .28s ease, transform .44s var(--mo-spring); }
+  .of-toast:not(.is-in){ transform:translateY(-14px) scale(.95); }
+  .of-toast.is-in{ animation: moToastTick 2.8s ease-in-out .3s; }
+  @keyframes moToastTick{ 0%,92%{ box-shadow:0 14px 32px rgba(0,0,0,.32);} 96%{ box-shadow:0 14px 32px rgba(0,0,0,.32), 0 0 0 4px rgba(46,167,113,.28);} 100%{ box-shadow:0 14px 32px rgba(0,0,0,.32);} }
+
+  /* ——— Ambient micro-life: splash & qr shimmer ——— */
+  .splash__ring{ animation: ringPulse 3s ease-in-out infinite, moSpin 26s linear infinite; }
+  .qrbox{ position:relative; overflow:hidden; }
+  .qrbox::after{ content:''; position:absolute; inset:-40%; background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.16) 50%, transparent 58%); animation: moSheen 4.5s ease-in-out infinite; pointer-events:none; }
+  @keyframes moSheen{ 0%,18%{ transform:translateX(-65%);} 62%,100%{ transform:translateX(65%);} }
+  @keyframes moSpin{ to{ rotate:360deg; } }
+
+  /* ——— Focus ring with motion ——— */
+  *:focus-visible{ outline:2.5px solid var(--mint); outline-offset:2px; border-radius:6px; animation: moFocusIn .22s var(--mo-ease); }
+  @keyframes moFocusIn{ from{ outline-offset:6px; outline-color:transparent; } }
+
+  /* ——— Inputs: kinetic labelling feel on focus ——— */
+  input:focus, select:focus, textarea:focus{ transition:border-color .2s ease, box-shadow .28s var(--mo-ease); }
+}
+}
+
+/* ================= LOW TIER : cheap wins only ================= */
+/* Pure opacity/transform fades — no blur, no staggers, no ambient loops. */
+html[data-motion="low"]{
+  --mo-ease: cubic-bezier(.22,.9,.28,1);
+}
+html[data-motion="low"] .view.mo-in, html[data-motion="low"] .gate.mo-in{ animation: moLowIn .2s ease-out both; }
+html[data-motion="low"] .mo-tabin{ animation: moLowIn .16s ease-out both; }
+@keyframes moLowIn{ from{ opacity:0; } to{ opacity:1; } }
+html[data-motion="low"] .sheet.is-open .sheet__panel{ animation: moLowSheet .22s ease-out both; }
+@keyframes moLowSheet{ from{ transform:translateY(18%); } to{ transform:none; } }
+html[data-motion="low"] .mo-tick{ animation: moLowIn .18s ease-out; }
+html[data-motion="low"] .mo-press{ transform:scale(.96) !important; }
+
+/* ================= OFF TIER ================= */
+/* Intentionally empty: base styles.css :active states only.            */
+
+/* ================= Tier-independent polish (no colour changes) ========= */
+/* These are always on: pure refinements in shape/comfort, zero motion. */
+.bnav__dest{ min-height:52px; }                                  /* easier thumb */
+button{ overscroll-behavior:contain; }
+.view-main__body{ scroll-behavior:smooth; }
+html[data-motion="off"] .view-main__body{ scroll-behavior:auto; }
+::selection{ background:rgba(212,158,53,.24); }
+*::-webkit-scrollbar{ width:9px; height:9px; }
+*::-webkit-scrollbar-thumb{ background:var(--surface2); border:2.5px solid var(--canvas); border-radius:99px; }
+*::-webkit-scrollbar-thumb:hover{ background:var(--border); }
+*::-webkit-scrollbar-corner, *::-webkit-scrollbar-track{ background:transparent; }
+.filters, .tkt__cat{ scroll-snap-type:x proximity; }
