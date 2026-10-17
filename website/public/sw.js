@@ -2,7 +2,7 @@
    v25 • additive only; never caches /api/* or /download
    /app/*.{html,js,css} + /order.html are network-first
    so the freshest shell always wins and old builds die. */
-const CACHE_SHELL = 'of-shell-v38';
+const CACHE_SHELL = 'of-shell-v39';
 const SHELL = [
   '/app/',
   '/app/index.html',
@@ -14,6 +14,8 @@ const SHELL = [
   '/app/ticket.js',
   '/app/more.js',
   '/app/styles.css',
+  '/app/motion.css',
+  '/app/motion.js',
   '/order.html',
   '/order.js',
   '/media/logo.png',
@@ -39,7 +41,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.mode === 'navigate' || NETWORK_FIRST(url.pathname)) {
     e.respondWith((async () => {
       const c = await caches.open(CACHE_SHELL);
-      try { const r = await fetch(e.request); if (r && r.ok) c.put(e.request, r.clone()); return r; }
+      try { const r = await fetch(e.request, { cache: 'reload' }); if (r && r.ok) c.put(e.request, r.clone()); return r; }
       catch {
         if (e.request.mode === 'navigate') return (await c.match(e.request)) || (await c.match('/app/index.html')) || (await c.match('/app/')) || Response.error();
         return (await c.match(e.request)) || Response.error();

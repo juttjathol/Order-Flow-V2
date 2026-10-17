@@ -14,7 +14,7 @@
 /site.js
   Cache-Control: public, max-age=3600
 /app/*
-  Cache-Control: public, max-age=3600
+  Cache-Control: max-age=0, must-revalidate
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
 /manifest.json
