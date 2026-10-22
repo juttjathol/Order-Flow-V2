@@ -73,6 +73,7 @@
         kids[i].style.setProperty('--i', String(i));
       }
       list.classList.add('mo-stack');
+      if (window.__moTrackStagger) window.__moTrackStagger(list);
       (function (l, k, c) {
         setTimeout(function () {
           l.classList.remove('mo-stack');
@@ -124,23 +125,86 @@
       visObs.observe(el, { attributes: true, attributeFilter: ['hidden'], subtree: false });
     });
 
-    /* 2 — kinetic text: totals, stats, header labels */
+    /* 2 — kinetic text: totals count UP, headers fade, nodes arrive */
     var lastTxt = new WeakMap();
+    var grace = new WeakMap(); /* container -> ms: skip node-anim just after stagger */
     var NUM_SEL = '.hero__amt,.stat__v,.cdisp__total,[data-kinetic]';
     var HDR_SEL = '.hdr__title,.hdr__sub,#hdr-shop,#hdr-role';
+    var NEW_SEL = '.tkt__line,.readyline,.lrow,.mrow,.mcard,.tcard,.tile,.stat,.modelcard';
+    var countAnim = new WeakMap();
+
+    function parseNum(s) { var m = String(s).match(/-?\d[\d,]*(\.\d+)?/); return m ? parseFloat(m[0].replace(/,/g, '')) : null; }
+    function fmtLike(n, sample) {
+      var dec = /\.\d+/.test(sample) ? (sample.match(/\.(\d+)/)[1].length) : 0;
+      var parts = n.toFixed(dec).split('.');
+      var neg = n < 0 ? '-' : '';
+      var i = parts[0].replace('-', '');
+      var grouped = i.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return neg + grouped + (dec ? '.' + parts[1] : '');
+    }
+    function countUp(el, fromS, toS) {
+      var a = parseNum(fromS), b = parseNum(toS);
+      if (a === null || b === null || a === b) { kick(el, 'mo-tick', 420); return; }
+      var m = String(toS).match(/-?\d[\d,]*(\.\d+)?/);
+      var pre = toS.slice(0, m.index), post = toS.slice(m.index + m[0].length);
+      var raf = countAnim.get(el); if (raf) cancelAnimationFrame(raf);
+      var t0 = performance.now(), dur = 300;
+      el.classList.add('mo-counting');
+      function frame(now) {
+        var p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+        var v = a + (b - a) * e;
+        if (p >= 1) { el.textContent = pre + m[0] + post; el.classList.remove('mo-counting'); countAnim.delete(el); return; }
+        el.textContent = pre + fmtLike(v, m[0]) + post;
+        countAnim.set(el, requestAnimationFrame(frame));
+      }
+      countAnim.set(el, requestAnimationFrame(frame));
+      /* draw the hero sparkline too */
+      var spark = el.closest('.hero') && el.closest('.hero').querySelector('.hero__spark svg path');
+      if (spark) { spark.classList.remove('mo-draw'); void spark.getBoundingClientRect(); spark.classList.add('mo-draw'); }
+    }
+
     var txtObs = new MutationObserver(function (ms) {
       if (TIER !== 'full') return;
       for (var i = 0; i < ms.length; i++) {
-        var el = nodeEl(ms[i]);
+        var m2 = ms[i], el = nodeEl(m2);
         if (!el || el.closest('input,textarea,[contenteditable]')) continue;
         try {
-          var t = el.closest(NUM_SEL);
-          if (t && lastTxt.get(t) !== t.textContent) { lastTxt.set(t, t.textContent); kick(t, 'mo-tick', 420); continue; }
-          var h = el.closest(HDR_SEL);
-          if (h && lastTxt.get(h) !== h.textContent) { lastTxt.set(h, h.textContent); kick(h, 'mo-hfade', 380); }
+          /* value kinetics */
+          var t = el.closest && el.closest(NUM_SEL);
+          if (t && lastTxt.get(t) !== t.textContent) { var prev = lastTxt.get(t); lastTxt.set(t, t.textContent); countUp(t, prev || '', t.textContent); continue; }
+          var h = el.closest && el.closest(HDR_SEL);
+          if (h && lastTxt.get(h) !== h.textContent) { lastTxt.set(h, h.textContent); kick(h, 'mo-hfade', 380); continue; }
+          /* node arrivals (kitchen lines, ready strips, menu cards…) */
+          if (m2.type === 'childList' && m2.addedNodes.length) {
+            var par = m2.target;
+            var g = grace.get(par) || 0;
+            if (performance.now() - g < 1150) continue;
+            for (var k2 = 0; k2 < m2.addedNodes.length; k2++) {
+              var nd = m2.addedNodes[k2];
+              if (nd.nodeType !== 1) continue;
+              var hit = nd.matches && nd.matches(NEW_SEL) ? nd : null;
+              if (hit) kick(hit, hit.classList.contains('tkt__line') ? 'mo-new--pop' : 'mo-new', 620);
+            }
+          }
         } catch (e) {}
       }
     });
+
+    /* 3 — table status flips get an eye-grabbing pulse */
+    var clsObs = new MutationObserver(function (ms) {
+      if (TIER !== 'full') return;
+      for (var i = 0; i < ms.length; i++) {
+        var el2 = ms[i].target;
+        try {
+          if (!el2.classList.contains('tcard')) continue;
+          kick(el2, el2.classList.contains('tcard--ready') ? 'mo-glow-gold' : 'mo-glow-mint', 1150);
+        } catch (e) {}
+      }
+    });
+    document.querySelectorAll('.tmap').forEach(function (tm) {
+      clsObs.observe(tm, { attributes: true, subtree: true, attributeFilter: ['class'] });
+    });
+    window.__moTrackStagger = function (c) { grace.set(c, performance.now()); };
     txtObs.observe(document.body, { characterData: true, childList: true, subtree: true });
   }
 

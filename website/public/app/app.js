@@ -522,9 +522,10 @@ async function refreshBoard() {
     const where = o.tableName ? 'Table ' + o.tableName : (o.type === 'delivery' ? 'Delivery' : o.type === 'takeaway' ? 'Takeaway' : 'Ticket');
     if (prev === undefined && (o.status === 'open' || o.status === 'sent')) {
       if (memo.seeded) { if (SHOP.profile.kitchenSound) chime('ticket'); buzz([120, 60, 160]); toast('New ticket — ' + where, (o.channel === 'qr' ? 'Guest ordered by QR · ' : '') + (o.lines || []).length + ' item(s)'); }
+      if (memo.seeded && window.OFNotify) window.OFNotify.notify('ticket', 'New ticket — ' + where, ((o.lines || []).length) + ' item(s)' + (o.channel === 'qr' ? ' · guest QR' : ''));
     }
-    if (prev !== undefined && prev !== 'ready' && o.status === 'ready') { if (SHOP.profile.kitchenSound) chime('ready'); buzz([80, 40, 120]); toast(where + ' — ready ✓', 'Please serve the guest'); }
-    if (prev !== undefined && !['paid', 'refunded', 'cancelled'].includes(prev) && o.status === 'paid') { if (SHOP.profile.kitchenSound) chime('paid'); toast(where + ' — paid ✓', 'Sale recorded'); }
+    if (prev !== undefined && prev !== 'ready' && o.status === 'ready') { if (SHOP.profile.kitchenSound) chime('ready'); buzz([80, 40, 120]); toast(where + ' — ready ✓', 'Please serve the guest'); if (window.OFNotify) window.OFNotify.notify('ready', where + ' — ready ✓', 'Please serve the guest'); }
+    if (prev !== undefined && !['paid', 'refunded', 'cancelled'].includes(prev) && o.status === 'paid') { if (SHOP.profile.kitchenSound) chime('paid'); toast(where + ' — paid ✓', 'Sale recorded'); if (window.OFNotify) window.OFNotify.notify('paid', where + ' — paid ✓', 'Sale recorded'); }
     memo.map.set(o.id, o.status);
   }
   if (memo.map.size > 400) memo.map.clear();

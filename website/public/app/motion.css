@@ -153,3 +153,53 @@ html[data-motion="off"] .view-main__body{ scroll-behavior:auto; }
 *::-webkit-scrollbar-thumb:hover{ background:var(--border); }
 *::-webkit-scrollbar-corner, *::-webkit-scrollbar-track{ background:transparent; }
 .filters, .tkt__cat{ scroll-snap-type:x proximity; }
+
+/* ================= v40 FRESHNESS PACK (full tier) ================ */
+@media (prefers-reduced-motion: no-preference){
+html[data-motion="full"]{
+
+  /* ——— Real count-up figures get a soft mask while tweening ——— */
+  .mo-counting{ position:relative; }
+  .mo-counting::after{ content:''; position:absolute; inset:-2px -4px; border-radius:8px;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.14) 45%, transparent 65%);
+    background-size:220% 100%; animation:moCountSheen .34s linear infinite; }
+  @keyframes moCountSheen{ from{ background-position:120% 0; } to{ background-position:-120% 0; } }
+
+  /* ——— Sparkline draws itself in when the hero refreshes ——— */
+  .mo-draw{ stroke-dasharray:420; stroke-dashoffset:420; animation:moDrawOn 1s var(--mo-ease) forwards; }
+  @keyframes moDrawOn{ to{ stroke-dashoffset:0; } }
+
+  /* ——— New content arriving anywhere animates in, never snaps ——— */
+  .mo-new{ animation:moUp .42s var(--mo-ease) both; }
+  .mo-new--pop{ animation:moPopIn .5s var(--mo-spring) both; }
+  @keyframes moPopIn{ 0%{ opacity:0; transform:scale(.7) translateY(8px); } 62%{ opacity:1; transform:scale(1.04) translateY(-2px); } 100%{ transform:none; } }
+
+  /* ——— Table card changed status? Pulse it so staff's eye lands there ——— */
+  .mo-glow-mint{ animation:moGlowMint 1.1s ease-out; }
+  @keyframes moGlowMint{ 0%{ box-shadow:0 0 0 0 rgba(46,167,113,.55); } 70%{ box-shadow:0 0 0 12px rgba(46,167,113,0); } 100%{ box-shadow:0 0 0 0 rgba(46,167,113,0); } }
+  .mo-glow-gold{ animation:moGlowGold 1.1s ease-out; }
+  @keyframes moGlowGold{ 0%{ box-shadow:0 0 0 0 rgba(212,158,53,.55); } 70%{ box-shadow:0 0 0 12px rgba(212,158,53,0); } 100%{ box-shadow:0 0 0 0 rgba(212,158,53,0); } }
+
+  /* ——— Progress & chips come alive ——— */
+  .prog b{ transition:width .8s var(--mo-ease); }
+  .chip{ transition:background .25s ease, color .25s ease, border-color .25s ease, transform .3s var(--mo-spring); }
+
+  /* ——— Menu cards: photo breathes on hover, whole card preloads a lift ——— */
+  .mcard__img img{ transition:transform .5s var(--mo-ease); }
+  @media (hover:hover){
+    .mcard:hover .mcard__img img{ transform:scale(1.08); }
+  }
+
+  /* ——— Header: sub line is kinetic on any change ——— */
+  #hdr-role, #hdr-shop{ display:inline-block; will-change:transform,opacity,filter; }
+
+  /* ——— Guest-facing giant display: amount stretches like elastic ——— */
+  .cdisp__total{ display:inline-block; transform-origin:center bottom; }
+  .cdisp__total.mo-tick{ animation:moTotalElastic .55s var(--mo-spring); }
+  @keyframes moTotalElastic{ 0%{ transform:scaleY(.82) scaleX(.94); opacity:.35; } 45%{ transform:scaleY(1.08) scaleX(1.03); opacity:1; } 100%{ transform:none; } }
+
+  /* ——— Splash word: each letter lands once (extra polish, cheap) ——— */
+  .splash__tag{ transition:opacity .7s .1s, transform .7s var(--mo-ease) .1s; }
+}
+}
+html[data-motion="low"] .mo-new{ animation:moLowIn .18s ease-out both; }
