@@ -1,5 +1,7 @@
 const EMAIL = "contact@jathol.org";
 const CONSENT_KEY = "of-consent";
+// Play Store listing — Android hands https play.google.com links to the Play Store app automatically
+const PLAY_URL = "https://play.google.com/store/apps/details?id=com.jathol.orderflow";
 
 // Store badges + PWA install — nav/hero/dl all open the same modals
 function hasConsent(){ try{ const v=localStorage.getItem(CONSENT_KEY)||sessionStorage.getItem(CONSENT_KEY); return v==='yes'; }catch(_){ return false; } }
@@ -18,7 +20,11 @@ function initStoreBadges(){
       if(el) el.addEventListener('click', (e)=>{ e.preventDefault(); open(m); });
     });
   }
-  bind(['nav-play','hero-play','dl-play'], play);
+  // Google Play buttons → straight to the Play Store listing (opens the Play app on Android)
+  ['nav-play','hero-play','dl-play'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('click', (e)=>{ e.preventDefault(); window.open(PLAY_URL, '_blank', 'noopener'); });
+  });
   bind(['nav-app','hero-app','dl-app'], app);
   play.addEventListener('click', (e)=>{ if(e.target===play) close(play); });
   app.addEventListener('click', (e)=>{ if(e.target===app) close(app); });
