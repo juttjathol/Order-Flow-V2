@@ -36,10 +36,19 @@ class ShopKeepAliveService : Service() {
             .setContentIntent(open)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(NOTIF_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(NOTIF_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NOTIF_ID, notification)
+            }
+        } catch (e: Exception) {
+            // Android 12+: starting a foreground service is denied when the app is
+            // in the background (ForegroundServiceStartNotAllowedException
+            // / SecurityException). Never crash the shop — just stop quietly;
+            // the next foreground start will bring the keep-alive back.
+            stopSelf()
+            return START_NOT_STICKY
         }
         acquireWake()
         return START_STICKY
@@ -86,7 +95,12 @@ class ShopKeepAliveService : Service() {
             val intent = Intent(context, ShopKeepAliveService::class.java)
                 .putExtra(EXTRA_TITLE, title)
                 .putExtra(EXTRA_TEXT, text)
-            ContextCompat.startForegroundService(context, intent)
+            try {
+                ContextCompat.startForegroundService(context, intent)
+            } catch (e: Exception) {
+                // IllegalStateException when called from the background on
+                // Android 12+ — a keep-alive is optional, a crash is not.
+            }
         }
 
         fun stop(context: Context) {

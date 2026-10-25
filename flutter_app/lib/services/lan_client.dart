@@ -194,6 +194,26 @@ class LanClient {
     throw Exception('Bad driver response');
   }
 
+  // Phase-2: server-side PIN verify — hash never leaves Main
+  Future<bool> verifyPin(String pin) async {
+    await _waitToken();
+    final res = await http
+        .post(
+          Uri.parse('$base/verify-pin'),
+          headers: _authHeaders,
+          body: jsonEncode({'pin': pin}),
+        )
+        .timeout(const Duration(seconds: 6));
+    final body = jsonDecode(res.body);
+    if (body is Map) {
+      final map = Map<String, dynamic>.from(body);
+      if (map['ok'] == true && map['valid'] == true) return true;
+      if (map['error'] == 'locked') throw Exception('locked');
+      return false;
+    }
+    throw Exception('Bad pin response');
+  }
+
   Future<void> close() async {
     _closed = true;
     _ping?.cancel();

@@ -25,6 +25,34 @@ void main() {
     expect(corsOriginOk('https://10.0.0.1:8787', '10.0.0.1:8787'), isFalse);
   });
 
+  test('corsOriginOk blocks DNS rebinding (v1.1.83)', () {
+    // A rebinding page makes Origin and Host agree with each other while the
+    // authority is a hostname that resolves to the shop's LAN IP. That must
+    // never be treated as same-origin.
+    expect(corsOriginOk('http://shop.evil:8787', 'shop.evil:8787'), isFalse);
+    expect(corsOriginOk('http://10.0.0.1.evil', '10.0.0.1.evil'), isFalse);
+    expect(corsOriginOk('http://orderflow.local:8787', 'orderflow.local:8787'), isFalse);
+    // Real guests and the owner console always arrive by IP literal.
+    expect(corsOriginOk('http://192.168.1.50:8787', '192.168.1.50:8787'), isTrue);
+    expect(corsOriginOk('http://10.0.0.1:8787', '10.0.0.1:8787'), isTrue);
+    expect(corsOriginOk('http://localhost:8787', 'localhost:8787'), isTrue);
+    expect(corsOriginOk('http://[::1]:8787', '[::1]:8787'), isTrue);
+    // Native apps send no Origin at all and stay unaffected.
+    expect(corsOriginOk(null, 'shop.evil:8787'), isTrue);
+  });
+
+  test('authorityIsIpLiteral only accepts IP-shaped authorities', () {
+    expect(authorityIsIpLiteral('192.168.0.7'), isTrue);
+    expect(authorityIsIpLiteral('192.168.0.7:8787'), isTrue);
+    expect(authorityIsIpLiteral('localhost:8787'), isTrue);
+    expect(authorityIsIpLiteral('[fe80::1]:8787'), isTrue);
+    expect(authorityIsIpLiteral('main.local'), isFalse);
+    expect(authorityIsIpLiteral('shop.evil:8787'), isFalse);
+    expect(authorityIsIpLiteral('10.0.0'), isFalse);
+    expect(authorityIsIpLiteral('10.0.0.1x'), isFalse);
+    expect(authorityIsIpLiteral(''), isFalse);
+  });
+
   test('web RoleAccess cannot replaceState or setEntitlements', () {
     expect(RoleAccess.allow('web', NetCommand(name: 'createOrder')), isTrue);
     expect(RoleAccess.allow('web', NetCommand(name: 'setModel')), isTrue);

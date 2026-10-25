@@ -263,47 +263,139 @@ Future<void> showSalesReports(BuildContext context, WidgetRef ref, {required boo
   final now = DateTime.now();
   final today = store.orders.where((o) =>
       o.updatedAt.year == now.year && o.updatedAt.month == now.month && o.updatedAt.day == now.day);
-  final paid = today.where((o) => o.status == OrderStatus.paid);
+  final paid = today.where((o) => o.status == OrderStatus.paid).toList();
   final voids = today.where((o) => o.status == OrderStatus.cancelled && o.voidReason != 'refund').toList();
   final refunds = today.where((o) => o.status == OrderStatus.cancelled && o.voidReason == 'refund').toList();
+  final total = store.salesOn(now);
+  final cash = paid.where((o) => o.payment == PaymentMethod.cash).fold<double>(0, (a, o) => a + o.total);
+  final card = paid.where((o) => o.payment == PaymentMethod.card).fold<double>(0, (a, o) => a + o.total);
   final hours = List.generate(24, (h) {
     final sum = paid.where((o) => o.updatedAt.hour == h).fold<double>(0, (a, o) => a + o.total);
     return MapEntry(h, sum);
   }).where((e) => e.value > 0).toList();
+  final maxHour = hours.isEmpty ? 1.0 : hours.map((e) => e.value).reduce((a, b) => a > b ? a : b);
   await showModalBottomSheet<void>(
     context: context,
-    builder: (ctx) => Padding(
-      padding: const EdgeInsets.all(20),
-      child: SingleChildScrollView(
+    isScrollControlled: true,
+    builder: (ctx) => DraggableScrollableSheet(
+      initialChildSize: 0.88,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
+      expand: false,
+      builder: (_, ctrl) => SingleChildScrollView(
+        controller: ctrl,
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(zReport ? s.t('z_report') : s.t('x_report'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
-            if (store.shiftCashier.isNotEmpty) Text('${s.t('shift')}: ${store.shiftCashier}'),
-            ListTile(title: Text(s.t('today_sales')), trailing: Text(moneyOf(ref.snap, store.salesOn(now)))),
-            const SizedBox(height: 4),
-            Text(s.t('payment_breakdown'), style: const TextStyle(fontWeight: FontWeight.w800)),
-            for (final m in PaymentMethod.values)
-              ListTile(
-                dense: true,
-                title: Text(s.t(m.name)),
-                trailing: Text(moneyOf(ref.snap, paid.fold<double>(0, (a, o) => a + o.paidBy(m)))),
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: OfColors.muted.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 12),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: (zReport ? OfColors.danger : OfColors.emerald).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
+                child: Icon(zReport ? Icons.summarize : Icons.receipt_long, color: zReport ? OfColors.danger : OfColors.emerald),
               ),
-            const SizedBox(height: 4),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(zReport ? s.t('z_report') : s.t('x_report'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                Text(zReport ? s.t('z_report_sub') : s.t('x_report_sub'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+              ])),
+              if (zReport) StatusChip('Z — closing', color: OfColors.danger) else StatusChip('X — safe', color: OfColors.emerald),
+            ]),
+            if (store.shiftCashier.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('${s.t('shift')}: ${store.shiftCashier}', style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+            ],
+            const SizedBox(height: 16),
+            OfCard(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(s.t('today_sales'), style: const TextStyle(color: OfColors.muted, fontSize: 12, fontWeight: FontWeight.w700)),
+                Text(moneyOf(ref.snap, total), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 28, color: OfColors.forest)),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(child: _miniStat('Cash', moneyOf(ref.snap, cash), Icons.payments, OfColors.emerald)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _miniStat('Card', moneyOf(ref.snap, card), Icons.credit_card, OfColors.info)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _miniStat('Tickets', '${paid.length}', Icons.receipt, OfColors.forest)),
+                ]),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Text(s.t('payment_breakdown'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final m in PaymentMethod.values)
+                Chip(
+                  label: Text('${s.t(m.name)} · ${moneyOf(ref.snap, paid.fold<double>(0, (a, o) => a + o.paidBy(m)))}'),
+                  backgroundColor: OfColors.creamSurface,
+                  side: const BorderSide(color: OfColors.creamBorder),
+                ),
+            ]),
+            const SizedBox(height: 16),
             Text(s.t('hourly_sales'), style: const TextStyle(fontWeight: FontWeight.w800)),
-            ...hours.map((e) => Text('${e.key.toString().padLeft(2, '0')}:00  ${moneyOf(ref.snap, e.value)}')),
-            const SizedBox(height: 10),
-            Text(s.t('void_report'), style: const TextStyle(fontWeight: FontWeight.w800)),
-            if (voids.isEmpty) Text(s.t('none'), style: const TextStyle(color: OfColors.muted)),
-            ...voids.map((o) => Text('${o.ticketNo}  ${o.voidReason.isEmpty ? o.notes : o.voidReason}')),
-            const SizedBox(height: 10),
-            Text(s.t('refunds'), style: const TextStyle(fontWeight: FontWeight.w800)),
-            if (refunds.isEmpty) Text(s.t('none'), style: const TextStyle(color: OfColors.muted)),
-            ...refunds.map((o) => Text('${o.ticketNo}  ${moneyOf(ref.snap, o.total)}')),
+            const SizedBox(height: 8),
+            if (hours.isEmpty)
+              const Text('No sales yet today', style: TextStyle(color: OfColors.muted))
+            else
+              ...hours.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(children: [
+                      SizedBox(width: 52, child: Text('${e.key.toString().padLeft(2, '0')}:00', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                      Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(6), child: LinearProgressIndicator(value: (e.value / maxHour).clamp(0.0, 1.0), minHeight: 10, backgroundColor: OfColors.creamBorder, color: OfColors.emerald))),
+                      const SizedBox(width: 8),
+                      Text(moneyOf(ref.snap, e.value), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    ]),
+                  )),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: OfCard(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(s.t('void_report'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                const SizedBox(height: 6),
+                if (voids.isEmpty) const Text('None — clean day', style: TextStyle(color: OfColors.muted, fontSize: 12)),
+                ...voids.take(6).map((o) => Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('${o.ticketNo}  ${o.voidReason.isEmpty ? o.notes : o.voidReason}', style: const TextStyle(fontSize: 12)))),
+                if (voids.length > 6) Text('+${voids.length - 6} more', style: const TextStyle(color: OfColors.muted, fontSize: 11)),
+              ]))),
+              const SizedBox(width: 12),
+              Expanded(child: OfCard(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(s.t('refunds'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                const SizedBox(height: 6),
+                if (refunds.isEmpty) const Text('None', style: TextStyle(color: OfColors.muted, fontSize: 12)),
+                ...refunds.take(6).map((o) => Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('${o.ticketNo}  ${moneyOf(ref.snap, o.total)}', style: const TextStyle(fontSize: 12)))),
+                if (refunds.length > 6) Text('+${refunds.length - 6} more', style: const TextStyle(color: OfColors.muted, fontSize: 11)),
+              ]))),
+            ]),
+            const SizedBox(height: 20),
+            if (zReport) ...[
+              SizedBox(width: double.infinity, child: FilledButton.icon(icon: const Icon(Icons.lock_clock), style: FilledButton.styleFrom(backgroundColor: OfColors.danger), label: Text(s.t('day_close')), onPressed: () async {
+                    Navigator.pop(ctx);
+                    await closeShopShift(context, ref);
+                  })),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(icon: const Icon(Icons.print), label: const Text('Print Z Report'), onPressed: () => Navigator.pop(ctx))),
+            ] else ...[
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(icon: const Icon(Icons.print), label: const Text('Print X Report'), onPressed: () => Navigator.pop(ctx))),
+              const SizedBox(height: 6),
+              const Center(child: Text('X does not close the day — check anytime', style: TextStyle(color: OfColors.muted, fontSize: 11))),
+            ],
           ],
         ),
       ),
     ),
+  );
+}
+
+Widget _miniStat(String label, String value, IconData icon, Color color) {
+  return Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: 0.18))),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 18, color: color),
+      const SizedBox(height: 4),
+      Text(value, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: color)),
+      Text(label, style: const TextStyle(color: OfColors.muted, fontSize: 11)),
+    ]),
   );
 }
 

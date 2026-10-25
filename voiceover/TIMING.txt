@@ -1,0 +1,33 @@
+ORDER FLOW AD — VOICEOVER PACK (voice-05 · warm feminine conversational · ALL scenes)
+======================================================================================
+All 11 scenes covered by 10 files. Every clip machine-measured.
+
+Scene  File             Slot   Actual  Emotion  Final spoken script
+-----  ---------------  -----  ------  -------  ------------------------------------------
+1      line-01.wav      5.0s   5.0s    tense    "Rush hour. Orders pouring in — Wi-Fi just died."
+2      line-02.wav      6.0s   5.0s    excited  "Meet Order Flow. The point of sale that keeps selling, no matter what."
+3      line-03.wav      7.0s   6.3s    warm     "Run it on Android, Windows, or right in your browser. Even an iPhone can be your Main."
+4      line-04.wav      8.0s   7.4s    warm     "One device is your Main. Every other phone joins over Wi-Fi with a QR scan. No keys needed."
+5      line-05.wav      6.0s   6.5s    excited  "Orders hit the kitchen instantly. Tickets turn amber, then red. Nothing forgotten."   * +0.5s — trim-ready
+6      line-06.wav      10.0s  8.8s    excited  "Guests scan the table QR, pick their food, and the order flies straight to the kitchen. English or Urdu, with your own branding."
+7      line-07.wav      6.5s   5.8s    calm     "Snap your menu to import it. Track costs, wastage, and real profit."
+8      line-08.wav      6.5s   6.9s    warm     "Split bills, refunds with a PIN, loyalty points, receipts on almost any printer."   * +0.4s — trim-ready
+9      line-09.wav      8.0s   7.8s    warm     "Wi-Fi gone? On custom plans, an encrypted cloud keeps stations talking. PINs and backups keep it safe."
+10+11  line-10-11.wav  11.5s  10.8s   w→exc    ONE FILE, both scenes. SPLIT at 5.04s (dead-silent gap 4.77–5.31s):
+                [0.00–5.04] "Starter is just seventy-nine ringgit a month. Try it free for three days."
+                [5.04–end ] "Order Flow, by Jathol. The floor never waits. jathol dot org."
+                                       TOTAL: 70.2s / 74.5s
+
+* Lines 5 & 8 run ~0.4–0.5s long (usable as-is if the scenes breathe; say
+  "fix 5 and 8" and I'll re-take them with these exact trims:
+  L5: "Orders hit the kitchen instantly. Amber, then red — nothing forgotten."
+  L8: "Split bills, refunds with a PIN, loyalty points, receipts on any printer."
+
+Assembly (CapCut, ~2 min):
+1. Tap the video track -> Volume -> 0   (kills the original VO)
+2. Audio -> add line-01..09, each starting at its scene's first frame.
+3. For the last two scenes: add line-10-11.wav at scene 10's first frame,
+   tap it, SPLIT at 5.04s, and nudge the second half to scene 11's start.
+4. Export 1080p.
+
+Re-takes: line number + mood (slower / hungrier / softer) = one new clip.

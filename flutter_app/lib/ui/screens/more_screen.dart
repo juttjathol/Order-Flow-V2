@@ -56,14 +56,15 @@ class MoreScreen extends ConsumerWidget {
     final reports = <Widget>[
       _row(Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
       _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
-      _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false)),
-      _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true)),
+      _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false), subtitle: s.t('x_report_sub')),
+      _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true), subtitle: s.t('z_report_sub')),
       planAwareRow(
         ref: ref,
         context: context,
         feature: 'eighty_six',
         icon: Icons.block,
         title: s.t('eighty_six_board'),
+        subtitle: s.t('eighty_six_board_sub'),
         onTap: () => _eightySixBoard(context, ref),
       ),
       _row(Icons.hourglass_bottom, s.t('unpaid_tabs'), () => _unpaidTabs(context, ref)),
@@ -126,6 +127,15 @@ class MoreScreen extends ConsumerWidget {
         title: s.t('purchasing'),
         subtitle: s.t('purchasing_sub'),
         onTap: () => showPurchasing(context, ref),
+      ),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'third_party',
+        icon: Icons.delivery_dining,
+        title: s.t('third_party'),
+        subtitle: s.t('third_party_sub'),
+        onTap: () => _thirdPartySheet(context, ref),
       ),
     ];
     final data = <Widget>[
@@ -269,10 +279,11 @@ class MoreScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(IconData icon, String title, VoidCallback onTap) {
+  Widget _row(IconData icon, String title, VoidCallback onTap, {String? subtitle}) {
     return ListTile(
       leading: Icon(icon, color: OfColors.emerald),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: subtitle == null ? null : Text(subtitle, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
@@ -540,17 +551,80 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     const SizedBox(height: 8),
                     TextField(controller: phone, decoration: InputDecoration(labelText: s.t('phone')), onChanged: (_) => setSt(() {})),
                     const SizedBox(height: 8),
-                    TextField(controller: taxId, decoration: InputDecoration(labelText: s.t('tax_id'))),
+                    // ── Flexible multi-tax editor (Oct 2026) ──
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: OfColors.creamSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: OfColors.creamBorder)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          const Icon(Icons.receipt_long, size: 18, color: OfColors.forest),
+                          const SizedBox(width: 8),
+                          Text(s.t('taxes_title'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                          const Spacer(),
+                          FilledButton.tonalIcon(
+                            icon: const Icon(Icons.add, size: 16),
+                            label: Text(s.t('tax_add')),
+                            onPressed: () => setSt(() => p.taxes.add(TaxConfig(name: 'GST', rate: 0))),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Text(s.t('taxes_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 11)),
+                        const SizedBox(height: 8),
+                        if (p.taxes.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: OfColors.creamBorder)),
+                            child: const Text('No tax — add GST/SST/VAT if your shop charges it.', style: TextStyle(color: OfColors.muted, fontSize: 12)),
+                          ),
+                        for (var i = 0; i < p.taxes.length; i++)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: OfColors.creamBorder)),
+                              child: Column(children: [
+                                Row(children: [
+                                  Expanded(child: TextField(
+                                    decoration: InputDecoration(labelText: s.t('tax_name'), isDense: true),
+                                    controller: TextEditingController(text: p.taxes[i].name)..selection = TextSelection.collapsed(offset: p.taxes[i].name.length),
+                                    onChanged: (v) => p.taxes[i].name = v,
+                                  )),
+                                  const SizedBox(width: 8),
+                                  SizedBox(width: 90, child: TextField(
+                                    decoration: const InputDecoration(labelText: 'Rate %', isDense: true),
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    controller: TextEditingController(text: p.taxes[i].rate == 0 ? '' : p.taxes[i].rate.toString())..selection = TextSelection.collapsed(offset: (p.taxes[i].rate == 0 ? '' : p.taxes[i].rate.toString()).length),
+                                    onChanged: (v) => p.taxes[i].rate = double.tryParse(v) ?? 0,
+                                  )),
+                                  IconButton(icon: const Icon(Icons.delete_outline, color: OfColors.danger, size: 20), onPressed: () => setSt(() => p.taxes.removeAt(i))),
+                                ]),
+                                const SizedBox(height: 6),
+                                Row(children: [
+                                  Expanded(child: TextField(
+                                    decoration: InputDecoration(labelText: s.t('tax_reg_no_short'), isDense: true),
+                                    controller: TextEditingController(text: p.taxes[i].regNo)..selection = TextSelection.collapsed(offset: p.taxes[i].regNo.length),
+                                    onChanged: (v) => p.taxes[i].regNo = v,
+                                  )),
+                                  const SizedBox(width: 8),
+                                  ChoiceChip(
+                                    label: Text(p.taxes[i].enabled ? 'On' : 'Off'),
+                                    selected: p.taxes[i].enabled,
+                                    onSelected: (v) => setSt(() => p.taxes[i].enabled = v),
+                                    selectedColor: OfColors.emerald.withValues(alpha: 0.18),
+                                  ),
+                                ]),
+                              ]),
+                            ),
+                          ),
+                      ]),
+                    ),
                     const SizedBox(height: 8),
                     TextField(controller: invoiceLabel, decoration: InputDecoration(labelText: s.t('invoice_label')), onChanged: (_) => setSt(() {})),
-                    const SizedBox(height: 8),
-                    TextField(controller: taxReg, decoration: InputDecoration(labelText: s.t('tax_reg_no')), onChanged: (_) => setSt(() {})),
                     const SizedBox(height: 8),
                     TextField(controller: footer, decoration: InputDecoration(labelText: s.t('footer')), onChanged: (_) => setSt(() {})),
                     const SizedBox(height: 8),
                     TextField(controller: cur, decoration: InputDecoration(labelText: s.t('currency_symbol'))),
-                    const SizedBox(height: 8),
-                    TextField(controller: tax, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('tax_rate'))),
                     const SizedBox(height: 8),
                     TextField(controller: svc, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: s.t('service_rate'))),
                     const SizedBox(height: 8),
@@ -586,6 +660,9 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
               ),
               FilledButton(
                 onPressed: () async {
+                  // Migrate legacy single-tax fields into flexible list when user left list empty
+                  final taxesToSave = p.taxes.where((tc) => tc.name.trim().isNotEmpty || tc.rate != 0 || tc.regNo.trim().isNotEmpty).toList();
+                  // If list empty but legacy fields were filled, keep them as fallback (model will migrate on next load)
                   final next = BillProfile(
                     businessName: name.text.trim().isEmpty ? 'My Shop' : name.text.trim(),
                     address: address.text.trim(),
@@ -594,7 +671,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                     footer: footer.text.trim().isEmpty ? 'THANK YOU!' : footer.text.trim(),
                     currencySymbol: cur.text.trim().isEmpty ? kDefaultCurrency : cur.text.trim(),
                     currencyPrefix: prefix,
-                    taxRate: double.tryParse(tax.text) ?? 0,
+                    taxRate: double.tryParse(tax.text) ?? p.effectiveTaxRate,
                     serviceRate: double.tryParse(svc.text) ?? 0,
                     logoBase64: p.logoBase64,
                     payQrBase64: p.payQrBase64,
@@ -604,6 +681,7 @@ Future<void> _bill(BuildContext context, WidgetRef ref) async {
                         : p.managerPin,
                     invoiceLabel: invoiceLabel.text.trim(),
                     taxRegNo: taxReg.text.trim(),
+                    taxes: taxesToSave,
                     kitchenSlip: p.kitchenSlip,
                     counterSlip: p.counterSlip,
                     takeawaySlip: p.takeawaySlip,
@@ -1510,20 +1588,30 @@ Future<void> _eightySixBoard(BuildContext context, WidgetRef ref) async {
           height: MediaQuery.sizeOf(ctx).height * 0.62,
           child: Column(
             children: [
-              ListTile(title: Text(s.t('eighty_six_board'), style: const TextStyle(fontWeight: FontWeight.w800))),
+              ListTile(
+                leading: const Icon(Icons.block, color: OfColors.danger),
+                title: Text(s.t('eighty_six_board'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(s.t('eighty_six_board_sub'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+              ),
+              const Divider(height: 1),
               Expanded(
                 child: off.isEmpty
-                    ? EmptyState(icon: Icons.check_circle, message: s.t('empty'))
-                    : ListView(
-                        children: off
-                            .map((p) => ListTile(
-                                  title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  trailing: TextButton(
-                                    onPressed: () => eightySix(ctx, ref, p),
-                                    child: Text(s.t('available')),
-                                  ),
-                                ))
-                            .toList(),
+                    ? EmptyState(icon: Icons.check_circle, message: 'All items are available — kitchen can cook everything.')
+                    : ListView.separated(
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemCount: off.length,
+                        itemBuilder: (_, i) {
+                          final p = off[i];
+                          return ListTile(
+                            leading: const Icon(Icons.no_meals, color: OfColors.warn),
+                            title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            subtitle: const Text('86 — out of stock / kitchen cannot make', style: TextStyle(color: OfColors.muted, fontSize: 12)),
+                            trailing: FilledButton.tonal(
+                              onPressed: () => eightySix(ctx, ref, p),
+                              child: Text(s.t('available')),
+                            ),
+                          );
+                        },
                       ),
               ),
             ],
@@ -1571,6 +1659,91 @@ Future<void> _unpaidTabs(BuildContext context, WidgetRef ref) async {
         );
       },
     ),
+  );
+}
+
+Future<void> _thirdPartySheet(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final channels = ['foodpanda', 'grab', 'shopee', 'other'];
+  var sel = 'foodpanda';
+  final amount = TextEditingController();
+  final name = TextEditingController();
+  final notes = TextEditingController();
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) {
+      final total = double.tryParse(amount.text) ?? 0;
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.viewInsetsOf(ctx).bottom),
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: OfColors.forest.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delivery_dining, color: OfColors.forest)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(s.t('third_party_title'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                Text(s.t('third_party_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+              ])),
+            ]),
+            const SizedBox(height: 12),
+            Text(s.t('third_party'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, children: [
+              for (final c in channels)
+                ChoiceChip(
+                  label: Text(s.t('channel_' + c)),
+                  selected: sel == c,
+                  onSelected: (_) => setSt(() => sel = c),
+                  selectedColor: OfColors.emerald.withValues(alpha: 0.18),
+                ),
+            ]),
+            const SizedBox(height: 12),
+            TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Amount from tablet', prefixText: 'Rs '), onChanged: (_) => setSt(() {})),
+            const SizedBox(height: 8),
+            TextField(controller: name, decoration: InputDecoration(labelText: s.t('customer_name'), hintText: 'e.g. Foodpanda #1234')),
+            const SizedBox(height: 8),
+            TextField(controller: notes, decoration: InputDecoration(labelText: s.t('notes'), hintText: 'Optional — delivery time, rider, etc.')),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.save),
+                label: Text(total > 0 ? 'Save ${sel.toUpperCase()} · Rs ${total.toStringAsFixed(2)}' : s.t('save')),
+                onPressed: total <= 0 ? null : () async {
+                  Navigator.pop(ctx);
+                  final order = PosOrder(
+                    id: newId(),
+                    ticketNo: '',
+                    type: OrderType.delivery,
+                    channel: sel,
+                    customerName: name.text.trim().isEmpty ? s.t('channel_' + sel) : name.text.trim(),
+                    address: notes.text.trim(),
+                    taxRate: ref.snap.store.profile.effectiveTaxRate,
+                    taxes: ref.snap.store.profile.taxes.where((tc) => tc.enabled && tc.rate > 0).map((tc) => OrderTax(name: tc.name, rate: tc.rate)).toList(),
+                    serviceRate: ref.snap.store.profile.serviceRate,
+                    createdBy: ref.snap.session.displayName,
+                    lines: [OrderLine(id: newId(), productId: 'third_party_${sel}', name: '${s.t('channel_' + sel)} Order', unitPrice: total, qty: 1)],
+                    notes: notes.text.trim().isEmpty ? 'Manual third-party: $sel' : notes.text.trim(),
+                  );
+                  // Fill taxes amounts live via getter, but also ensure channel is preserved
+                  await ref.ctrl.dispatch(NetCommand(name: 'createOrder', payload: {'order': order.toJson()}));
+                  // Immediately mark as paid (cash) — third-party is already paid on their platform
+                  // Keep it as 'paid' via setOrderStatus so stock deducts and it appears in reports
+                  final created = ref.snap.store.orders.firstWhere((o) => o.id == order.id, orElse: () => order);
+                  await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {'id': created.id, 'status': 'paid', 'payment': 'cash'}));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${s.t('channel_' + sel)} order saved — ${total.toStringAsFixed(2)}')));
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Center(child: Text('Manual first — API sync later (Customize)', style: TextStyle(color: OfColors.muted, fontSize: 11))),
+          ]),
+        ),
+      );
+    }),
   );
 }
 

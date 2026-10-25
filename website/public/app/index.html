@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Order Flow"/>
+<meta name="theme-color" id="theme-meta" content="#FAF7F2"/>
+<title>Order Flow</title>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="icon" href="/media/logo.png"/>
+<link rel="apple-touch-icon" href="/media/logo.png"/>
+<link rel="stylesheet" href="styles.css?v=42"/>
+<link rel="stylesheet" href="motion.css?v=42"/>
+</head>
+<body>
+
+<!-- ================= SPLASH (typed Jathol, failsafe auto-hide) ================= -->
+<div class="splash" id="splash">
+  <div class="splash__ring r1"></div>
+  <div class="splash__ring r2"></div>
+  <img class="splash__logo" src="/media/logo.png" alt=""/>
+  <div class="splash__word"><span class="splash__typed" id="splash-typed"></span><span class="splash__cur"></span></div>
+  <div class="splash__tag" id="splash-tag">ORDER FLOW</div>
+</div>
+
+<!-- ================= LICENSE GATE / LOCKED ================= -->
+<div class="gate" id="view-license" hidden>
+  <div class="gate__in">
+    <img class="gate__logo" src="/media/logo.png" alt=""/>
+    <div class="gate__ttl">Order Flow</div>
+    <div class="gate__sub" data-t="enter_key">Enter your license key to continue.</div>
+    <div class="gate__lbl" data-t="license">License</div>
+    <input id="lic-key" class="gate__key" autocomplete="off" spellcheck="false" placeholder="OF-XXXX-XXXX-XXXX-XXXX" maxlength="26"/>
+    <div class="gate__err" id="lic-err"></div>
+    <button class="btn btn--mint" id="lic-btn" data-act="license.activate"><span data-t="activate">Activate</span></button>
+    <button class="gate__link" data-act="license.station" data-t="connect_as_station">Join as station (no key needed)</button>
+    <a class="gate__link" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="text-decoration:none">💬 <span data-t="support">WhatsApp support</span></a>
+    <div class="gate__foot" id="gate-foot">Order Flow Web · @Jathol_Jutt</div>
+  </div>
+</div>
+<div class="gate" id="view-locked" hidden>
+  <div class="gate__in" style="margin:auto 0;justify-content:center">
+    <div style="text-align:center;font-size:56px">🔒</div>
+    <div class="gate__ttl" data-t="locked_title">This license is locked</div>
+    <div class="gate__sub" data-t="locked_body" style="margin-top:10px">The key was removed, blocked, or expired. Talk to Jathol to get back in.</div>
+    <a class="btn btn--mint" href="https://wa.me/Jathol_Jutt" target="_blank" rel="noopener" style="margin-top:22px">💬 WhatsApp @Jathol_Jutt</a>
+    <button class="gate__link" data-act="license.reset" style="margin-top:14px">Use a different key</button>
+  </div>
+</div>
+
+<!-- ================= CONNECT (station, no key) ================= -->
+<div class="view" id="view-connect" hidden>
+  <div class="hdr">
+    <img class="hdr__logo" src="/media/logo.png" alt=""/>
+    <div><div class="hdr__title">Join as station</div><div class="hdr__sub">Scan Main's QR code — no license key needed</div></div>
+  </div>
+  <div class="scroll-pad grid" style="padding-top:18px">
+    <div class="card card--pad grid">
+      <label class="small muted" style="font-weight:700" >OF1 pairing text from Main</label>
+      <textarea id="connect-paste" rows="4" placeholder="OF1:room:code:secret" style="resize:none"></textarea>
+      <div class="gate__err" id="connect-err" style="text-align:left"></div>
+      <button class="btn btn--primary btn--full" data-act="connect.join">Join this shop</button>
+      <button class="gate__link" data-act="license.back" style="margin-top:10px">I have a license key instead</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ROLE SCREEN (station picks role + optional PIN) ================= -->
+<div class="view" id="view-role" hidden>
+  <div class="hdr">
+    <img class="hdr__logo" src="/media/logo.png" alt=""/>
+    <div><div class="hdr__title" data-t="selecting_station">Pick your role</div><div class="hdr__sub" id="role-shop">—</div></div>
+  </div>
+  <div class="scroll-pad" style="padding-top:18px">
+    <div class="grid" id="role-grid" style="grid-template-columns:repeat(auto-fill, minmax(150px,1fr))"></div>
+    <div class="card card--pad" id="role-pin-card" style="margin-top:14px" hidden>
+      <label class="small muted" style="font-weight:700" data-t="staff_pin_ask">Enter your PIN</label>
+      <input id="role-pin" inputmode="numeric" maxlength="6" type="password" style="margin-top:8px"/>
+      <div class="gate__err" id="role-pin-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SETUP ================= -->
+<div class="view" id="view-setup" hidden>
+  <div class="hdr">
+    <img class="hdr__logo" src="/media/logo.png" alt=""/>
+    <div><div class="hdr__title" data-t="setup_title">Set up your shop</div><div class="hdr__sub" data-t="setup_body">Pick what you run, then a few shop details.</div></div>
+  </div>
+  <div class="scroll-pad" style="padding-top:18px">
+    <div class="sect__t" data-t="business_model">Business model</div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr)" id="setup-models"></div>
+    <div class="sect"><div class="sect__t">Shop</div></div>
+    <div class="grid">
+      <input id="setup-name" data-ph="shop_name" placeholder="Shop name"/>
+      <input id="setup-phone" data-ph="phone" placeholder="Phone" inputmode="tel"/>
+      <input id="setup-addr" data-ph="address" placeholder="Address (for receipts and the guest page)"/>
+      <input id="setup-currency" data-ph="currency" placeholder="Currency (e.g. RM, Rs)" value="RM"/>
+    </div>
+    <button class="btn btn--primary btn--full" style="margin-top:18px" data-act="setup.done"><span data-t="open_shop">Open my shop</span></button>
+  </div>
+</div>
+
+<!-- ================= MAIN SHELL (main + manager) ================= -->
+<div class="view view-main" id="view-main" hidden>
+  <div class="rail" id="rail"></div>
+  <div class="view-main__col">
+    <div class="hdr">
+      <img class="hdr__logo" src="/media/logo.png" alt=""/>
+      <div class="grow" style="min-width:0">
+        <div class="hdr__title" id="hdr-shop">Order Flow</div>
+        <div class="hdr__sub" id="hdr-role">Main (server)</div>
+      </div>
+      <div class="hdr__icons">
+        <span class="chip chip--live" id="hdr-status">Room live</span>
+        <button class="iconbtn" data-act="shell.cover" title="Cover station" aria-label="Cover station">
+          <svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a5 5 0 0 1 5-5h13"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a5 5 0 0 1-5 5H3"/></svg>
+        </button>
+        <button class="iconbtn" data-act="more.open" title="More" aria-label="More">
+          <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="view-main__body" id="main-body">
+      <div id="tab-home" class="scroll-pad"></div>
+      <div id="tab-floor" class="scroll-pad" hidden></div>
+      <div id="tab-menu" class="scroll-pad" hidden></div>
+      <div id="tab-stock" class="scroll-pad" hidden></div>
+      <div id="tab-more" class="scroll-pad" hidden></div>
+    </div>
+  </div>
+  <nav class="bnav" id="bnav"></nav>
+</div>
+
+<!-- ================= ROLE SCREENS (station) ================= -->
+<div class="view view-main" id="view-rolehome" hidden>
+  <div class="view-main__col">
+    <div class="hdr">
+      <button class="iconbtn" data-act="role.leave" title="Log out of role" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="grow" style="min-width:0">
+        <div class="hdr__title" id="rolehdr-title">Kitchen</div>
+        <div class="hdr__sub" id="rolehdr-sub">—</div>
+      </div>
+      <div class="hdr__icons"><span class="chip chip--live" id="role-status">Room live</span></div>
+    </div>
+    <div class="view-main__body scroll-pad" id="role-body"></div>
+  </div>
+</div>
+
+<!-- ================= TICKET (full-screen route, bottom nav hides) ================= -->
+<div class="view" id="view-ticket" hidden>
+  <div class="hdr">
+    <button class="iconbtn" data-act="ticket.back" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="grow" style="min-width:0">
+      <div class="hdr__title" id="tkt-title">Ticket</div>
+      <div class="hdr__sub" id="tkt-sub">—</div>
+    </div>
+    <div class="hdr__icons" id="tkt-badges"></div>
+  </div>
+  <div class="scroll-pad" style="padding-top:12px">
+    <div class="typechips" id="tkt-types"></div>
+    <div class="grid" id="tkt-meta" style="margin-top:10px"></div>
+    <div class="grid" id="tkt-lines" style="margin-top:4px"></div>
+    <div class="sect__t" style="margin-top:18px" data-t="menu">Menu</div>
+    <div class="tkt__cat" id="tkt-cats"></div>
+    <div class="mgrid" id="tkt-mgrid" style="padding-bottom:8px"></div>
+  </div>
+  <div class="tkt__strip">
+    <div id="tkt-totals"></div>
+    <div class="row" style="margin-top:10px;gap:8px">
+      <button class="btn btn--gold grow" style="flex:1.4" data-act="ticket.pay" data-t="pay">Pay</button>
+      <button class="btn btn--primary grow" data-act="ticket.send" data-t="send_kitchen">Send to kitchen</button>
+      <button class="btn btn--ghost" data-act="ticket.ops" aria-label="More actions">⋯</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SUB SCREEN (generic — every More row lands here) ================= -->
+<div class="view" id="view-sub" hidden>
+  <div class="hdr">
+    <button class="iconbtn" data-act="sub.back" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="grow" style="min-width:0"><div class="hdr__title" id="sub-title">—</div><div class="hdr__sub" id="sub-sub"></div></div>
+  </div>
+  <div class="view-main__body scroll-pad" style="flex:1 1 auto" id="sub-body"></div>
+</div>
+
+<!-- ================= CUSTOMER DISPLAY ================= -->
+<div class="cdisp" id="view-display" hidden>
+  <div style="font-size:16px;font-weight:700;opacity:.75" id="cdisp-shop">Order Flow</div>
+  <div style="font-weight:800;font-size:20px;margin-top:10px;opacity:.85" id="cdisp-name"></div>
+  <div class="cdisp__total" id="cdisp-amt">RM 0.00</div>
+  <button class="btn btn--gold" data-act="display.close" style="margin-top:34px;min-width:180px">Close display</button>
+</div>
+
+<!-- ================= PAY SHEET ================= -->
+<div class="sheet" id="sheet-pay" aria-hidden="true">
+  <div class="sheet__panel">
+    <div class="sheet__head"><div class="sheet__title" data-t="payment">Payment</div><button class="iconbtn" data-act="pay.close" aria-label="Close">✕</button></div>
+    <div id="pay-breakdown"></div>
+    <p class="sect__t" style="margin:14px 0 6px" data-t="pay">Pay with</p>
+    <div class="pay-chips" id="pay-methods"></div>
+    <label class="switch" id="pay-split-row" style="margin-top:12px"><span data-t="split_bill">Split bill (two methods)</span><input type="checkbox" id="pay-split-on"/></label>
+    <div id="pay-split-box" hidden style="margin-top:8px">
+      <div class="pay-chips" id="pay-methods2"></div>
+      <input type="number" inputmode="decimal" id="pay-split-amount" placeholder="Amount on the second method" style="margin-top:8px"/>
+    </div>
+    <label class="switch" style="margin-top:6px"><span>Tip</span><input id="pay-tip" type="number" inputmode="decimal" style="width:110px;text-align:right" placeholder="0"/></label>
+    <p class="sect__t" style="margin:12px 0 2px" data-t="tendered">Cash received</p>
+    <div class="pay-tender" id="pay-tender">0</div>
+    <div class="pay-change" id="pay-change"></div>
+    <div class="numpad" id="pay-pad" style="margin-top:10px"></div>
+    <button class="btn btn--mint btn--full" id="pay-confirm" data-act="pay.confirm" style="margin-top:14px;font-size:16.5px">Confirm payment</button>
+    <p class="muted small" style="text-align:center;font-weight:600;margin:8px 0 0">Receipt prints right away · table frees · sale syncs to every device</p>
+  </div>
+</div>
+
+<!-- ================= GENERIC DIALOG ================= -->
+<div class="dlg" id="dlg" aria-hidden="true">
+  <div class="dlg__box" role="dialog" aria-modal="true">
+    <div class="dlg__title" id="dlg-title"></div>
+    <div id="dlg-body"></div>
+    <div class="dlg__btns" id="dlg-btns"></div>
+  </div>
+</div>
+
+<!-- ================= INSTALL SHEET (Add to Home, from More only) ================= -->
+<div class="sheet" id="sheet-install" aria-hidden="true">
+  <div class="sheet__panel">
+    <div class="sheet__head"><div class="sheet__title" data-t="install">Add to Home Screen</div><button class="iconbtn" data-act="install.close" aria-label="Close">✕</button></div>
+    <div class="card card--pad">
+      <p class="small muted" style="font-weight:600;line-height:1.6">iPhone: open in <b>Safari</b> → tap <b>Share</b> → <b>Add to Home Screen</b>. Android: Chrome menu → <b>Install app</b>. Then it runs full screen, no browser bar, offline after the first load.</p>
+    </div>
+  </div>
+</div>
+
+<div class="of-toasts" id="toast-root" aria-live="polite"></div>
+<div id="print-root" aria-hidden="true"></div>
+
+<script src="core.js?v=42"></script>
+<script src="lang.js?v=42"></script>
+<script src="db.js?v=42"></script>
+<script src="print.js?v=42"></script>
+<script src="app.js?v=42"></script>
+<script src="ticket.js?v=42"></script>
+<script src="more.js?v=42"></script>
+<script>window.OF_BUILD = '42';</script>
+<script src="notify.js?v=42"></script>
+<script src="motion.js?v=42"></script>
+</body>
+</html>

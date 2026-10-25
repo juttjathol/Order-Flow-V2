@@ -6,7 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/constants.dart';
 import '../models/models.dart';
+import 'database_service.dart' show DatabaseService;
 
 class StorageService {
   StorageService(this.prefs, this._docs);
@@ -70,14 +72,35 @@ class StorageService {
   }
 
   Future<AppStore> loadStore() async {
+    AppStore? jsonStore;
     try {
       if (await _stateFile.exists()) {
         final raw = await _stateFile.readAsString();
         if (raw.isNotEmpty) {
-          return AppStore.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+          jsonStore = AppStore.fromJson(jsonDecode(raw) as Map<String, dynamic>);
         }
       }
     } catch (_) {}
+    // Phase-3: SQLite hot path for 10k shops — try DB first, backfill once
+    if (kUseSqliteOrders) {
+      try {
+        final already = prefs.getBool('sqlite_backfilled') ?? false;
+        final db = await DatabaseService.instance();
+        if (jsonStore != null && !already) {
+          final n = await db.backfillFromStore(jsonStore);
+          if (n > 0) await prefs.setBool('sqlite_backfilled', true);
+          final dbOrders = await db.loadOrders(limit: 2000);
+          if (dbOrders.isNotEmpty) jsonStore.orders = dbOrders;
+        } else if (jsonStore != null && already) {
+          final dbOrders = await db.loadOrders(limit: 2000);
+          if (dbOrders.isNotEmpty) jsonStore.orders = dbOrders;
+        }
+        if (jsonStore != null) return jsonStore;
+      } catch (_) {
+        // Fall back to JSON if SQLite unavailable (e.g. tests)
+      }
+    }
+    if (jsonStore != null) return jsonStore;
     // Main file missing or corrupt — fall back to the last good copy, then
     // heal it back into place so a crash mid-write never wipes the shop.
     try {
@@ -139,7 +162,54 @@ class StorageService {
     await prefs.setString(_seenKey, jsonEncode(ids.toList()));
   }
 
+  File get _archiveFile => File(p.join(_docs.path, 'app_state_archive.json'));
+
+  Future<void> _appendArchive(List<Map<String, dynamic>> archivedJson) async {
+    if (archivedJson.isEmpty) return;
+    try {
+      List<dynamic> existing = [];
+      if (await _archiveFile.exists()) {
+        final raw = await _archiveFile.readAsString();
+        if (raw.isNotEmpty) {
+          final decoded = jsonDecode(raw);
+          if (decoded is List) existing = decoded;
+        }
+      }
+      existing.addAll(archivedJson);
+      // Safety cap: keep archive under 20k rows (oldest drop). 10k shops
+      // never hit this per-device, but a single Main that never wipes would.
+      if (existing.length > 20000) {
+        existing = existing.sublist(existing.length - 20000);
+      }
+      await _archiveFile.writeAsString(jsonEncode(existing), flush: true);
+    } catch (_) {}
+  }
+
   Future<void> saveStore(AppStore store) async {
+    // Phase-3: sync orders to SQLite when enabled (non-blocking, best-effort)
+    if (kUseSqliteOrders) {
+      try {
+        final db = await DatabaseService.instance();
+        // Upsert hot orders (open + recent) — archived ones are already pruned
+        for (final o in store.orders.take(100)) {
+          // ignore: unawaited_futures
+          db.upsertOrder(o);
+        }
+        // Archive in SQLite as well (keeps DB <2000 rows)
+        db.archiveBefore(DateTime.now().subtract(const Duration(days: 90)));
+      } catch (_) {}
+    }
+    // Phase-1: hot/cold split — keep app_state.json under ~500KB at 10k shops
+    List<Map<String, dynamic>> toArchiveJson = const [];
+    try {
+      final archived = store.archiveOldOrders();
+      if (archived.isNotEmpty) {
+        toArchiveJson = archived.map((o) => o.toJson()).toList();
+      }
+    } catch (_) {}
+    if (toArchiveJson.isNotEmpty) {
+      await _appendArchive(toArchiveJson);
+    }
     final encoded = jsonEncode(store.toJson());
     // Crash-safe write: keep the previous good state in .bak, write a temp
     // file, then rename over — an atomic replace on Android. A kill in the
@@ -155,6 +225,25 @@ class StorageService {
     // Mirror a compact revision stamp in SharedPreferences.
     await prefs.setInt('of_store_rev', store.revision);
     await prefs.setString('of_store_saved_at', DateTime.now().toIso8601String());
+    await prefs.setInt('of_archive_count', toArchiveJson.length);
+  }
+
+  /// For `advanced_reports` when the user explicitly wants 90d+ history.
+  /// Not loaded on boot — keeps launch at 0.02s even at 50k orders.
+  Future<List<PosOrder>> loadArchive() async {
+    try {
+      if (!await _archiveFile.exists()) return const [];
+      final raw = await _archiveFile.readAsString();
+      if (raw.isEmpty) return const [];
+      final list = jsonDecode(raw);
+      if (list is! List) return const [];
+      return list
+          .whereType<Map>()
+          .map((e) => PosOrder.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<String> exportPath(AppStore store) async {

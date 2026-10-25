@@ -34,6 +34,26 @@ jobs:
       - name: Force compileSdk 36 and minSdk 23
         run: python3 scripts/patch_android.py
 
+      - name: Verify version lockstep (pubspec + kAppVersion + FALLBACK_TAG)
+        shell: bash
+        run: |
+          set -e
+          echo "Checking pubspec vs kAppVersion..."
+          python3 scripts/version_sync_check.py flutter_app
+          TAG="${GITHUB_REF_NAME:-}"
+          PUB=$(grep -oP '^version:\s*\K[0-9.]+' flutter_app/pubspec.yaml | head -1)
+          APP=$(grep -oP "kAppVersion\s*=\s*'\K[0-9.]+" flutter_app/lib/core/constants.dart | head -1)
+          FB=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' functions/download.js | head -1)
+          FB2=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' website/functions/download.js | head -1)
+          FB3=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' cloudflare_dashboard/functions/download.js | head -1)
+          echo "pubspec=$PUB kAppVersion=$APP FALLBACK=$FB / $FB2 / $FB3 TAG=$TAG"
+          if [ "$PUB" != "$APP" ]; then echo "::error ::pubspec $PUB != kAppVersion $APP"; exit 1; fi
+          if [ "$FB" != "v$PUB" ] || [ "$FB2" != "v$PUB" ] || [ "$FB3" != "v$PUB" ]; then echo "::error ::FALLBACK_TAG must be v$PUB (got $FB $FB2 $FB3) — bump all 3 download.js"; exit 1; fi
+          if [ -n "$TAG" ] && [ "$TAG" != "v$PUB" ]; then echo "::error ::tag $TAG != v$PUB — tag must match pubspec version"; exit 1; fi
+          grep -q "$PUB" README.md || echo "::warning ::README.md doesn't mention $PUB"
+          grep -q "$PUB" website/public/guide.html || echo "::warning ::guide.html doesn't mention $PUB"
+          echo "Version lockstep OK ($PUB)"
+
       - name: Flutter pub get
         working-directory: flutter_app
         run: flutter pub get
@@ -46,16 +66,37 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          flutter build apk --release --no-tree-shake-icons 2>&1 | tee build-apk.log
+          flutter build apk --release --no-tree-shake-icons --obfuscate --split-debug-info=build/symbols-apk 2>&1 | tee build-apk.log
 
       - name: Surface build errors (diagnostics)
         if: failure()
         shell: bash
         run: |
-          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-apk.log 2>/dev/null | head -40; } | while IFS= read -r line; do
+          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-apk.log 2>/dev/null | head -80; } | while IFS= read -r line; do
             esc=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
             echo "::error ::$esc"
           done
+          echo "--- tail 200 ---"
+          tail -n 200 flutter_app/build-apk.log || true
+
+      - name: Post APK log as commit comment on failure
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LOG=$(tail -n 500 flutter_app/build-apk.log 2>/dev/null | head -c 50000 || echo "no log")
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -f body="APK build failure on ${{ github.sha }}:
+          \`\`\`
+          $LOG
+          \`\`\`" || echo "comment failed"
+
+      - name: Upload APK build log (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-apk-log
+          path: flutter_app/build-apk.log
+          if-no-files-found: warn
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -63,6 +104,46 @@ jobs:
           name: app-apk
           path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      - name: Upload obfuscation symbols (APK)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-apk
+          path: flutter_app/build/symbols-apk
+          if-no-files-found: warn
+          retention-days: 400
+
+      - name: Build release AAB (Play Store)
+        working-directory: flutter_app
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build appbundle --release --no-tree-shake-icons --obfuscate --split-debug-info=build/symbols-aab 2>&1 | tee build-aab.log
+
+      - name: Upload AAB build log (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-aab-log
+          path: flutter_app/build-aab.log
+          if-no-files-found: warn
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-aab
+          path: flutter_app/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: warn
+
+      - name: Upload obfuscation symbols (AAB)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-aab
+          path: flutter_app/build/symbols-aab
+          if-no-files-found: warn
+          retention-days: 400
 
   build-windows:
     runs-on: windows-latest
@@ -101,10 +182,18 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-windows.log 2>/dev/null | head -40; } | while IFS= read -r line; do
+          { grep -E '(^|[[:space:]])error:|Error:|error detected|Unhandled exception|Exception:|FAILURE:' flutter_app/build-windows.log 2>/dev/null | head -80; } | while IFS= read -r line; do
             esc=$(printf '%s' "$line" | sed -e 's/%/%25/g' -e 's/\r/%0D/g')
             echo "::error ::$esc"
           done
+
+      - name: Upload Windows build log (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-windows-log
+          path: flutter_app/build-windows.log
+          if-no-files-found: warn
 
       - name: Zip Windows build
         working-directory: flutter_app/build/windows/x64/runner/Release
@@ -128,6 +217,13 @@ jobs:
           name: app-apk
           path: dist
 
+      - name: Download AAB artifact (Play Store)
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: app-aab
+          path: dist
+
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
@@ -140,6 +236,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             dist/app-release.apk
+            dist/app-release.aab
             dist/order-flow-windows.zip
           generate_release_notes: true
         env:

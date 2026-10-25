@@ -10,15 +10,45 @@ const CORE_FEATURE_KEYS = new Set([
   "purchases", "advanced_reports", "eighty_six",
 ]);
 // v1.1.60: extras that belong to the custom plan only. Must match
-// kFeatureCatalog in the app (kFeatureCatalog lists ALL fifteen).
-const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding"]);
+// kFeatureCatalog in the app (kFeatureCatalog lists ALL sixteen).
+const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding", "third_party"]);
 const MODEL_KEYS = new Set(["restaurant", "retail", "fastfood", "services"]);
 const PLAN_PRESETS = {
-  starter: [],
-  growth: [...CORE_FEATURE_KEYS],
+  starter: [...CORE_FEATURE_KEYS].filter((k) => k !== "qr_ordering"),
+  growth: [...CORE_FEATURE_KEYS].filter((k) => k !== "qr_ordering"),
   custom: [...FEATURE_KEYS],
+  customize: [...FEATURE_KEYS],
   full: [...FEATURE_KEYS],
 };
+
+// Phase-1 10k-shop: in-memory row cache for license validate (isolate-level).
+// kRevalidateMinutes=5 → 10k shops = 33 rps. 2 min TTL cuts D1 selects ~40%
+// without risking stale revoke (writes clear the entry immediately).
+const validateRowCache = new Map();
+const VALIDATE_ROW_TTL_MS = 120_000;
+function cacheGetValidateRow(licenseKey) {
+  const hit = validateRowCache.get(licenseKey);
+  if (!hit) return null;
+  if (Date.now() - hit.at > VALIDATE_ROW_TTL_MS) {
+    validateRowCache.delete(licenseKey);
+    return null;
+  }
+  return hit.row;
+}
+function cacheSetValidateRow(licenseKey, row) {
+  validateRowCache.set(licenseKey, { at: Date.now(), row });
+  if (validateRowCache.size > 4000) {
+    const now = Date.now();
+    for (const [k, v] of validateRowCache) {
+      if (now - v.at > VALIDATE_ROW_TTL_MS * 2) validateRowCache.delete(k);
+    }
+  }
+}
+function cacheDelValidateRow(licenseKey) {
+  if (!licenseKey) return;
+  validateRowCache.delete(licenseKey.toUpperCase().trim());
+  validateRowCache.delete(licenseKey);
+}
 
 // Add plan columns to databases created before v1.1.59 (idempotent, once per isolate).
 let planSchemaChecked = false;
@@ -76,7 +106,9 @@ function accessOf(row) {
 }
 
 function normalizeAccess(body) {
-  const plan = ["starter", "growth", "custom", "full"].includes(body.plan) ? body.plan : "full";
+  const rawPlan = String(body.plan || "").trim().toLowerCase();
+  const planAlias = rawPlan === "customize" ? "custom" : rawPlan;
+  const plan = ["starter", "growth", "custom", "full"].includes(planAlias) ? planAlias : "full";
   const models = Array.isArray(body.allowedModels)
     ? body.allowedModels.filter((m) => MODEL_KEYS.has(m))
     : [...MODEL_KEYS];
@@ -192,6 +224,8 @@ async function verifyToken(env, header) {
 }
 
 let eventsSchemaChecked = false;
+let lastEventPrune = 0;
+const EVENT_PRUNE_EVERY_MS = 6 * 60 * 60 * 1000;
 async function ensureLicenseEvents(db) {
   if (eventsSchemaChecked) return;
   try {
@@ -224,6 +258,32 @@ async function logLicenseEvent(db, { licenseId, licenseKey, event, deviceId, det
       .bind(licenseId || "", licenseKey || "", event, deviceId || "", detail || "", nowIso())
       .run();
   } catch {}
+}
+
+let appEventsSchemaChecked = false;
+async function ensureAppEventsTable(db) {
+  if (appEventsSchemaChecked) return;
+  try {
+    await db.prepare("SELECT 1 FROM app_events LIMIT 1").first();
+    appEventsSchemaChecked = true;
+  } catch {
+    try {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS app_events (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          device_id TEXT,
+          license_key TEXT,
+          route TEXT,
+          detail TEXT,
+          created_at TEXT NOT NULL
+        )`,
+      ).run();
+      try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_app_events_kind ON app_events(kind, created_at DESC)").run(); } catch {}
+      try { await db.prepare("CREATE INDEX IF NOT EXISTS idx_app_events_license ON app_events(license_key, created_at DESC)").run(); } catch {}
+      appEventsSchemaChecked = true;
+    } catch {}
+  }
 }
 
 let broadcastSchemaChecked = false;
@@ -268,6 +328,21 @@ async function verifyAdminPassword(env, given) {
   return await safeEqual(given, legacy); // constant-time fallback for plaintext secret
 }
 
+// Broadcasts are rendered inside every shop's Main app and can carry a link
+// the app opens. Only http(s) is ever acceptable — a javascript:/file:/content:/
+// intent: URL here would be an injection primitive into installed clients.
+function safeBroadcastUrl(raw) {
+  const u = String(raw || "").trim().slice(0, 500);
+  if (!u) return "";
+  if (!/^https:\/\/[^\s]+$/i.test(u)) return "";
+  return u;
+}
+
+function clip(raw, max) {
+  // Strip C0/C1 control characters, then cap the length.
+  return String(raw || "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "").trim().slice(0, max);
+}
+
 async function customerById(db, id) {
   return db.prepare("SELECT * FROM customers WHERE id = ?").bind(id).first();
 }
@@ -277,6 +352,7 @@ async function licenseById(db, id) {
 }
 
 function publicLicense(row, customer) {
+  const access = accessOf(row);
   return {
     id: row.id,
     customerId: row.customer_id,
@@ -289,8 +365,8 @@ function publicLicense(row, customer) {
     createdAt: row.created_at,
     binding: row.bound_device_id ? "bound" : "unbound",
     plan: row.plan || "full",
-    allowedModels: accessOf(row)?.allowedModels ?? null,
-    allowedFeatures: accessOf(row)?.allowedFeatures ?? null,
+    allowedModels: access?.allowedModels ?? null,
+    allowedFeatures: access?.allowedFeatures ?? null,
     customer: customer
       ? {
           id: customer.id,
@@ -324,24 +400,78 @@ export async function onRequest(context) {
   await ensurePlanColumns(env.DB);
   await ensureLicenseEvents(env.DB);
   await ensureBroadcastTable(env.DB);
+  await ensureAppEventsTable(env.DB);
 
   const path = pathOf(context);
   const method = request.method.toUpperCase();
 
   try {
     if (path === "v1/health" && method === "GET") {
-      return json({ ok: true, app: "order-flow-saas", version: "1.0.0" });
+      const t0 = Date.now();
+      let d1ok = true, d1ms = 0;
+      try {
+        const q0 = Date.now();
+        await env.DB.prepare("SELECT 1 AS x").first();
+        d1ms = Date.now() - q0;
+      } catch { d1ok = false; }
+      return json({
+        ok: true,
+        app: "order-flow-saas",
+        version: "1.0.0",
+        d1: d1ok ? "ok" : "down",
+        d1Ms: d1ms,
+        uptimeMs: Date.now() - t0,
+        cache: { validateRows: validateRowCache.size },
+        time: nowIso(),
+      });
     }
 
     if (path === "v1/broadcasts" && method === "GET") {
+      // Unauthenticated by design (Mains poll it before they hold a session),
+      // so it is throttled and defensively filtered: a link stored before the
+      // https-only rule is never handed to a client.
+      if (throttle(`broadcasts|${ipOf(request)}`, 60, 60000)) {
+        return json({ ok: false, error: "slow_down" }, 429, { "Retry-After": "60" });
+      }
       try {
         const { results } = await env.DB.prepare(
           "SELECT id, title, message, tag, url, created_at FROM broadcast_notifications ORDER BY created_at DESC LIMIT 25",
         ).all();
-        return json({ ok: true, broadcasts: results || [] });
+        const broadcasts = (results || []).map((b) => ({ ...b, url: safeBroadcastUrl(b.url) }));
+        return json({ ok: true, broadcasts });
       } catch (e) {
         return json({ ok: true, broadcasts: [] });
       }
+    }
+
+    if (path === "v1/events" && method === "POST") {
+      if (throttle(`events|${ipOf(request)}`, 120, 60000) || await d1Limit(env.DB, `events|${ipOf(request)}`, 120, 60000)) {
+        return json({ ok: false, error: "slow_down" }, 429, { "Retry-After": "60" });
+      }
+      const body = await readJson(request);
+      const kind = ["crash","perf","funnel","error"].includes(String(body.kind || "").trim()) ? String(body.kind).trim() : "error";
+      const route = clip(String(body.route || ""), 200);
+      const detail = clip(String(body.detail || body.message || ""), 2000);
+      const deviceId = clip(String(body.deviceId || ""), 80);
+      const licenseKey = clip(String(body.licenseKey || ""), 40).toUpperCase();
+      try {
+        await env.DB.prepare(
+          `INSERT INTO app_events (id, kind, device_id, license_key, route, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(crypto.randomUUID(), kind, deviceId, licenseKey, route, detail, nowIso()).run();
+      } catch {}
+      return json({ ok: true });
+    }
+
+    if (path === "admin/events" && method === "GET") {
+      const authed2 = await verifyToken(env, request.headers.get("Authorization") || "");
+      if (!authed2) return json({ ok: false, error: "unauthorized" }, 401);
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT kind, route, detail, device_id, license_key, created_at FROM app_events ORDER BY created_at DESC LIMIT 100",
+        ).all();
+        const crashes = await env.DB.prepare("SELECT COUNT(*) as n FROM app_events WHERE kind='crash' AND created_at > datetime('now','-7 days')").first();
+        return json({ ok: true, events: results || [], crashes7d: crashes?.n || 0 });
+      } catch { return json({ ok: true, events: [] }); }
     }
 
     if (path === "v1/license/validate" && method === "POST") {
@@ -502,6 +632,7 @@ export async function onRequest(context) {
         )
           .bind(id)
           .run();
+        cacheDelValidateRow(row.license_key);
         await logLicenseEvent(env.DB, {
           licenseId: id,
           licenseKey: row.license_key,
@@ -516,6 +647,7 @@ export async function onRequest(context) {
         await env.DB.prepare("UPDATE licenses SET expires_at = ? WHERE id = ?")
           .bind(nextExp, id)
           .run();
+        cacheDelValidateRow(row.license_key);
         await logLicenseEvent(env.DB, {
           licenseId: id,
           licenseKey: row.license_key,
@@ -527,6 +659,7 @@ export async function onRequest(context) {
       }
       if (method === "POST" && action === "revoke") {
         await env.DB.prepare("UPDATE licenses SET status = 'revoked' WHERE id = ?").bind(id).run();
+        cacheDelValidateRow(row.license_key);
         await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "revoke" });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
@@ -539,6 +672,7 @@ export async function onRequest(context) {
         )
           .bind(access.plan, JSON.stringify(access.models), JSON.stringify(access.features), id)
           .run();
+        cacheDelValidateRow(row.license_key);
         const next = await licenseById(env.DB, id);
         const cust = await customerById(env.DB, next.customer_id);
         return json({ ok: true, license: publicLicense(next, cust) });
@@ -554,12 +688,18 @@ export async function onRequest(context) {
 
     if (path === "admin/broadcasts" && method === "POST") {
       const body = await readJson(request);
-      const title = String(body.title || "").trim();
-      const message = String(body.message || "").trim();
-      const tag = String(body.tag || "feature").trim();
-      const url = String(body.url || "").trim();
+      const title = clip(body.title, 160);
+      const message = clip(body.message, 2000);
+      const tag = ["feature", "plan", "alert", "maintenance"].includes(String(body.tag || "").trim())
+        ? String(body.tag).trim()
+        : "feature";
+      const rawUrl = String(body.url || "").trim();
+      const url = safeBroadcastUrl(rawUrl);
       if (!title || !message) {
         return json({ ok: false, error: "missing_fields", message: "Title and message are required." }, 400);
+      }
+      if (rawUrl && !url) {
+        return json({ ok: false, error: "bad_url", message: "Links must start with https:// (or be left empty)." }, 400);
       }
       const id = crypto.randomUUID();
       const now = nowIso();
@@ -606,7 +746,12 @@ async function signLicensePayload(env, canonical) {
   }
 }
 
+// Retention prune. It used to run inside every validate call — a full-table
+// DELETE scan per device check (every ~5 min per shop). Once per isolate per
+// 6h gives identical retention for a tiny fraction of the D1 quota.
 async function pruneLicenseEvents(db) {
+  if (Date.now() - lastEventPrune < EVENT_PRUNE_EVERY_MS) return;
+  lastEventPrune = Date.now();
   try {
     await db.prepare("DELETE FROM license_events WHERE created_at < datetime('now', '-90 days')").run();
   } catch {}
@@ -622,9 +767,23 @@ async function handleValidate(env, body, json) {
   if (licenseKey.length > 40 || deviceId.length > 80 || appVersion.length > 32) {
     return json({ ok: false, valid: false, error: "invalid_input" }, 400);
   }
-  const row = await env.DB.prepare("SELECT * FROM licenses WHERE license_key = ?")
-    .bind(licenseKey)
-    .first();
+  // Phase-1 cache: hot path for 10k shops polling every 5 min.
+  let row = cacheGetValidateRow(licenseKey);
+  if (!row) {
+    row = await env.DB.prepare("SELECT * FROM licenses WHERE license_key = ?")
+      .bind(licenseKey)
+      .first();
+    if (row && row.status === "active") {
+      cacheSetValidateRow(licenseKey, row);
+    }
+  } else {
+    if (row.expires_at && new Date(row.expires_at) < new Date()) {
+      cacheDelValidateRow(licenseKey);
+      row = await env.DB.prepare("SELECT * FROM licenses WHERE license_key = ?")
+        .bind(licenseKey)
+        .first();
+    }
+  }
   if (!row) {
     if (!throttle(`nf|${licenseKey.slice(0, 8)}`, 20, 60 * 60 * 1000)) {
       await logLicenseEvent(env.DB, { licenseKey, event: "not_found", deviceId });
@@ -674,6 +833,11 @@ async function handleValidate(env, body, json) {
   )
     .bind(deviceId, bindNow ? nowIso() : row.bound_at, nowIso(), row.id)
     .run();
+  // Keep cache warm for next poll — 10k shops poll every 5 min
+  try {
+    const fresh = await env.DB.prepare("SELECT * FROM licenses WHERE id = ?").bind(row.id).first();
+    if (fresh) cacheSetValidateRow(licenseKey, fresh);
+  } catch {}
   await logLicenseEvent(env.DB, {
     licenseId: row.id,
     licenseKey,

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#FAF7F2"/>
+<title>Order here</title>
+<link rel="stylesheet" href="/app/styles.css?v=38"/>
+<style>
+  /* guest page chrome — light, fast, no app shell needed */
+  body{background:#FAF7F2}
+  .g-hero{border-radius:0 0 26px 26px;padding:calc(14px + env(safe-area-inset-top)) 16px 18px;color:#fff;background:linear-gradient(135deg,#0F4231,#16302A)}
+  .g-hero__ic{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.15);display:grid;place-items:center;font-size:22px;flex:none}
+  .g-hero h1{margin:0;font-size:20px;font-weight:900;letter-spacing:-.3px}
+  .g-hero p{margin:4px 0 0;font-size:12.5px;font-weight:600;opacity:.85}
+  .g-chip{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.16);font-size:12px;font-weight:700}
+  .g-wrap{max-width:560px;margin:0 auto;padding:0 14px calc(150px + env(safe-area-inset-bottom))}
+  .g-cat{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:10px 0;background:#FAF7F2;scrollbar-width:none}
+  .g-cat::-webkit-scrollbar{display:none}
+  .g-cat button{flex:none;padding:8px 14px;border-radius:999px;border:1px solid #D8D0C5;background:#fff;font-weight:700;font-size:13px;color:#2C3732;cursor:pointer;font-family:inherit}
+  .g-cat button.is-on{background:#1B4436;border-color:#1B4436;color:#fff}
+  .g-item{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:#fff;border:1px solid #E7E0D6;margin-bottom:10px;box-shadow:0 1px 2px rgba(27,58,45,.05)}
+  .g-item__img{width:52px;height:52px;border-radius:12px;object-fit:cover;background:#EFE9E0;display:grid;place-items:center;font-size:22px;flex:none;overflow:hidden}
+  .g-item__img img{width:100%;height:100%;object-fit:cover}
+  .g-item b{font-size:14.5px;display:block}
+  .g-item small{color:#6E7A74;font-size:12px;font-weight:600}
+  .g-item .prc{font-weight:800;font-size:14px;white-space:nowrap}
+  .g-add{width:34px;height:34px;border-radius:50%;border:0;background:#2EA771;color:#fff;font-size:18px;font-weight:800;cursor:pointer}
+  .g-qty{display:flex;align-items:center;gap:10px}
+  .g-qty button{width:30px;height:30px;border-radius:50%;border:1px solid #D8D0C5;background:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+  .g-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:rgba(250,247,242,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid rgba(27,58,45,.08);padding:10px 14px calc(12px + env(safe-area-inset-bottom))}
+  .g-bar__in{max-width:560px;margin:0 auto}
+  .g-tkt{position:sticky;bottom:0;text-align:center}
+  .g-live{display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:#EAF6EE;border:1px solid #BCE4C8;margin:10px 0;font-size:13px;font-weight:700;color:#176B49}
+  .g-live.is-prep{background:#FBF3DA;border-color:#E8D8A4;color:#8A6B14}
+  .g-live.is-paid{background:#EDE9E2;border-color:#DDD5C7;color:#6E7A74}
+  .g-err{max-width:420px;margin:20vh auto 0;padding:24px;text-align:center}
+  .g-note{font-size:12px;color:#6E7A74;font-weight:600;text-align:center;padding:12px 0}
+</style>
+</head>
+<body>
+<div class="g-hero" id="g-hero">
+  <div style="display:flex;gap:12px;align-items:center;max-width:560px;margin:0 auto">
+    <div class="g-hero__ic">🍽️</div>
+    <div><h1 id="g-shop">Order here</h1><p id="g-sub">Loading the menu…</p></div>
+  </div>
+</div>
+<div class="g-wrap">
+  <div id="g-live" hidden></div>
+  <div id="g-status" hidden></div>
+  <div class="g-cat" id="g-cats"></div>
+  <div id="g-menu"></div>
+  <div class="g-note" id="g-note">Encrypted table ordering · pay at the counter</div>
+</div>
+<div class="g-bar" id="g-bar" hidden>
+  <div class="g-bar__in">
+    <div id="g-cartlines"></div>
+    <button class="btn btn--mint btn--full" id="g-send" style="margin-top:10px" disabled>Send order</button>
+  </div>
+</div>
+<div class="g-err" id="g-err" hidden>
+  <div style="font-size:40px">🤔</div>
+  <h2 id="g-err-t" style="font-weight:900">This QR looks out of date</h2>
+  <p id="g-err-b" style="color:#6E7A74;font-weight:600">Ask the staff for a fresh code — we renew them when the room reopens.</p>
+</div>
+<script src="/app/core.js?v=38"></script>
+<script src="/order.js?v=38"></script>
+</body>
+</html>

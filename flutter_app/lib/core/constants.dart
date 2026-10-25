@@ -26,14 +26,18 @@ String kLicenseWhatsAppUrl({
   return 'https://wa.me/Jathol_Jutt?text=${Uri.encodeComponent(body)}';
 }
 const String kDefaultApiBase = 'https://order-flow-v2.pages.dev';
-const String kPrivacyUrl = 'https://jathol.pages.dev/privacy';
-const String kGuideUrl = 'https://jathol.pages.dev/guide';
+const String kPrivacyUrl = 'https://jathol.org/privacy';
+const String kGuideUrl = 'https://jathol.org/guide';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.1.82';
+const String kAppVersion = '1.1.91';
 /// SPKI (base64) Ed25519 public key matching LICENSE_SIGNING_KEY. Empty sigs
 /// are accepted until kLicenseRequireSig is flipped.
 const String kLicensePubKey = 'MCowBQYDK2VwAyEAzeJ0BlqBL6FVgYPYPtOOn4YL6liQTGW8vS1zhP6N5HY=';
 const bool kLicenseRequireSig = false;
 const String kJoinScheme = 'orderflow';
 const String kDefaultCurrency = 'Rs';
+// Phase-3 10k: SQLite hot path for orders (orders table, 5 indexes). Keep true for 10k shops.
+const bool kUseSqliteOrders = true;
+// Sentry DSN is injected via --dart-define=SENTRY_DSN=... (Cloudflare env for web, dart-define for mobile)
+const String kSentryDsn = String.fromEnvironment('SENTRY_DSN', defaultValue: '');

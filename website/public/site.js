@@ -1,4 +1,58 @@
 const EMAIL = "contact@jathol.org";
+const CONSENT_KEY = "of-consent";
+// Play Store listing — Android hands https play.google.com links to the Play Store app automatically
+const PLAY_URL = "https://play.google.com/store/apps/details?id=com.jathol.orderflow";
+
+// Store badges + PWA install — nav/hero/dl all open the same modals
+function hasConsent(){ try{ const v=localStorage.getItem(CONSENT_KEY)||sessionStorage.getItem(CONSENT_KEY); return v==='yes'; }catch(_){ return false; } }
+function initStoreBadges(){
+  try{
+  const play = document.getElementById('store-play-modal');
+  const app = document.getElementById('store-app-modal');
+  if(!play || !app) return;
+  function lock(){ document.body.style.overflow='hidden'; document.documentElement.classList.add('modal-open'); }
+  function unlock(){ const mail=document.getElementById('mail-draft'); const stillOpen = (!play.hidden || !app.hidden || (mail && !mail.hidden)); if(!stillOpen){ document.body.style.overflow=''; document.documentElement.classList.remove('modal-open'); } }
+  function open(m){ m.hidden=false; lock(); }
+  function close(m){ m.hidden=true; unlock(); }
+  function bind(ids, m){
+    ids.forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.addEventListener('click', (e)=>{ e.preventDefault(); open(m); });
+    });
+  }
+  // Google Play buttons → straight to the Play Store listing (opens the Play app on Android)
+  ['nav-play','hero-play','dl-play'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('click', (e)=>{ e.preventDefault(); window.open(PLAY_URL, '_blank', 'noopener'); });
+  });
+  bind(['nav-app','hero-app','dl-app'], app);
+  play.addEventListener('click', (e)=>{ if(e.target===play) close(play); });
+  app.addEventListener('click', (e)=>{ if(e.target===app) close(app); });
+  document.querySelector('[data-close-play]')?.addEventListener('click', ()=> close(play));
+  document.querySelector('[data-close-app]')?.addEventListener('click', ()=> close(app));
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ close(play); close(app); }});
+  // App Store → Add to Home Screen button: Android prompts, iOS shows Share hint
+  let deferredPrompt=null;
+  const hint=document.getElementById('app-install-hint');
+  const btn=document.getElementById('app-install-btn');
+  window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt=e; if(btn) btn.textContent='Install app'; if(hint) hint.textContent='Tap Install to add to Home Screen.'; });
+  btn?.addEventListener('click', async()=>{
+    if(deferredPrompt){
+      deferredPrompt.prompt(); const ch=await deferredPrompt.userChoice; deferredPrompt=null;
+      if(hint) hint.textContent = ch.outcome==='accepted' ? 'Installed ✓ — open from your Home Screen' : 'You can still add via Share → Add to Home Screen';
+      close(app);
+    } else {
+      // iOS path — pulse the instruction
+      if(hint) hint.textContent = 'iPhone: tap Share at the bottom of Safari → Add to Home Screen → Add. Then open from the new icon.';
+      btn.animate?.([{transform:'scale(1)'},{transform:'scale(1.04)'},{transform:'scale(1)'}], {duration:300});
+      // also navigate to /app/ so user can do it there
+      setTimeout(()=> location.href='/app/', 900);
+    }
+  });
+  window.addEventListener('appinstalled', ()=>{ if(hint) hint.textContent='App installed ✓ — launch from Home Screen.'; });
+  }catch(e){ console.error('storeBadges', e); }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initStoreBadges); else initStoreBadges();
 function mailto(subject, lines) {
   return "mailto:" + EMAIL +
     "?subject=" + encodeURIComponent(subject) +
@@ -125,6 +179,7 @@ function openMailDraft(subject, body) {
   root._setStatus("");
   root.hidden = false;
   document.body.style.overflow = "hidden";
+  document.documentElement.classList.add('modal-open');
   const ta = root.querySelector("[data-md-body]");
   ta.focus();
   try { ta.setSelectionRange(0, 0); } catch (_) {}
@@ -134,7 +189,9 @@ function closeMailDraft() {
   const root = document.getElementById("mail-draft");
   if (!root || root.hidden) return;
   root.hidden = true;
-  document.body.style.overflow = "";
+  const play=document.getElementById('store-play-modal'), app=document.getElementById('store-app-modal');
+  const stillOpen = (play && !play.hidden) || (app && !app.hidden);
+  if(!stillOpen){ document.body.style.overflow = ""; document.documentElement.classList.remove('modal-open'); }
   if (mailDraftLastFocus && typeof mailDraftLastFocus.focus === "function") {
     try { mailDraftLastFocus.focus(); } catch (_) {}
   }
@@ -181,27 +238,31 @@ async function apkMeta() {
 apkMeta();
 
 const statusEl = document.getElementById("dl-status");
-async function startDownload(ev) {
+function startDownload(ev) {
   if (ev) ev.preventDefault();
-  if (statusEl) statusEl.textContent = "Preparing your download…";
+  if (statusEl) statusEl.textContent = "Starting download…";
+  // Instant start: navigate straight to /download which 302-redirects to
+  // GitHub's CDN. The old flow fetched the entire APK into a blob before
+  // clicking, so the browser showed no progress for 3-15 seconds.
   try {
-    const res = await fetch("/download");
-    if (!res.ok) throw new Error("busy");
-    const blob = await res.blob();
-    if (blob.size < 10000) throw new Error("empty");
-    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "Order-Flow.apk";
+    a.href = "/download";
+    a.setAttribute("download", "Order-Flow.apk");
+    a.style.display = "none";
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
-    if (statusEl) statusEl.textContent = "Download started on this device.";
+    setTimeout(() => {
+      if (document.visibilityState === "visible") {
+        try { window.location.assign("/download"); } catch (_) {}
+      }
+    }, 400);
   } catch (_) {
-    if (statusEl) statusEl.textContent = "Starting download…";
     window.location.assign("/download");
   }
+  setTimeout(() => {
+    if (statusEl) statusEl.textContent = "Download started — check your browser's downloads bar. If blocked, allow downloads from this site.";
+  }, 900);
 }
 
 document.getElementById("trial-form")?.addEventListener("submit", (e) => {
@@ -234,7 +295,7 @@ document.querySelectorAll("[data-apk]").forEach((el) => {
 });
 
 // ── v1.1.59: scroll reveals, price count-up, plan CTAs, hero parallax ──
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reduceMotion = (typeof matchMedia !== 'undefined' && matchMedia("(prefers-reduced-motion: reduce)").matches) || false;
 
 // Scroll reveal (additive; hero .reveal animations above stay untouched)
 try {

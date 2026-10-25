@@ -7,8 +7,12 @@ import 'common.dart';
 
 Future<bool> confirmManagerPin(BuildContext context, WidgetRef ref, {bool requiredForCashier = false}) async {
   final ctrlApp = ref.read(appControllerProvider.notifier);
-  final pin = ref.read(appControllerProvider).store.profile.managerPin;
-  if (pin.isEmpty) return true;
+  final app = ref.read(appControllerProvider);
+  final pin = app.store.profile.managerPin;
+  // v1.1.91: only Main may shortcut an empty PIN — stations talk to a store
+  // whose managerPin was stripped for transport (LAN) or which belongs to a
+  // web Main, so "looks empty on my device" ≠ "no PIN configured".
+  if (app.isMain && pin.isEmpty) return true;
   final s = ref.s;
   if (ctrlApp.managerPinLocked()) {
     if (context.mounted) {
@@ -38,7 +42,10 @@ Future<bool> confirmManagerPin(BuildContext context, WidgetRef ref, {bool requir
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
         FilledButton(
-          onPressed: () => Navigator.pop(ctx, ctrlApp.checkManagerPin(field.text.trim())),
+          onPressed: () async {
+            final ok = await ctrlApp.verifyManagerPin(field.text.trim());
+            if (ctx.mounted) Navigator.pop(ctx, ok);
+          },
           child: Text(s.t('continue')),
         ),
       ],

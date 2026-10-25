@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/platform_check.dart';
+import 'services/error_reporter.dart';
 import 'services/storage_service.dart';
 import 'state/app_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ErrorReporter.init();
   final storage = await StorageService.open();
   // Desktop only: guarantee the process really dies with the window —
   // a ghost order_flow.exe in Task Manager holds the LAN port and makes

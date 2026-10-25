@@ -14,6 +14,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/constants.dart';
 import '../core/lan_policy.dart';
 import '../core/role_access.dart';
+import '../core/pin_crypto.dart';
 import '../core/sanitize.dart';
 import '../models/models.dart';
 import '../models/reducer.dart';
@@ -56,7 +57,19 @@ class LanServer {
   final _socketDevice = <WebSocketChannel, String>{};
   final _lanSecret = const Uuid().v4();
   final _qrByTable = <String, List<int>>{};
-  final _qrByIp = <String, List<int>>{};
+  final _qrShop = <String, List<int>>{};
+  // Phase-2 PIN verify rate limit per device (server-side, Main only)
+  final _pinFails = <String, int>{};
+  final _pinLockUntil = <String, int>{};
+  // Phase-1 QR double-tap guard: same table + same payload hash within 5s returns same ticket
+  final _qrLastSubmit = <String, _QrDedup>{};
+
+  // v1.1.83 hardening: hard ceilings so a single LAN client cannot exhaust
+  // Main's memory or spam the owner with device-approval prompts. A real shop
+  // never comes close (16 paired stations + the owner's browser console).
+  static const int _maxSockets = 64;
+  static const int _maxWaiting = 24;
+  static const int _maxWsFrameBytes = 64 * 1024;
 
   String _tokenFor(String deviceId, [String? role]) {
     final r = role ?? clients[deviceId]?.role ?? (deviceId == 'web-console' ? 'web' : '');
@@ -74,7 +87,9 @@ class LanServer {
     final device = (req.headers['x-of-device'] ?? req.headers['X-OF-Device'] ?? '').trim();
     final tok = _bearer(req);
     if (device.isEmpty || tok == null || tok.isEmpty) return null;
-    if (tok != _tokenFor(device)) return null;
+    // safeEq: constant-time, so a LAN attacker cannot nibble a token byte by
+    // byte off the comparison's timing.
+    if (!safeEq(tok, _tokenFor(device))) return null;
     if (device == 'web-console') {
       return clients[device] ??
           ClientInfo(deviceId: 'web-console', name: 'Web', role: 'web');
@@ -108,6 +123,29 @@ class LanServer {
     return cmd;
   }
 
+  /// Store JSON for one specific audience.
+  ///
+  /// v1.1.83 security: the browser console at `http://<main-ip>:8787/` is
+  /// served — token included — to ANYONE on the shop Wi-Fi, so it must never
+  /// receive the manager PIN hash. (A 4-digit PIN behind a single round of
+  /// SHA-256 is a few milliseconds of offline brute force, and a legacy
+  /// plaintext PIN would be handed over verbatim.) Paired stations still
+  /// receive it: their local PIN gate verifies against that hash, and removing
+  /// it there would silently disable void/refund/close-day prompts on stations
+  /// until server-side PIN verification ships.
+  // Phase-2 10k: hash never leaves Main. All LAN clients (stations + web-console)
+  // receive store without managerPin — verification is server-side via /verify-pin.
+  Map<String, dynamic> _storeJsonFor(String deviceId) {
+    final json = readStore().toJson();
+    final profile = json['profile'];
+    if (profile is Map) {
+      final copy = Map<String, dynamic>.from(profile);
+      copy['managerPin'] = '';
+      json['profile'] = copy;
+    }
+    return json;
+  }
+
   bool get running => _server != null;
   int get port => _server?.port ?? kLanPort;
 
@@ -120,6 +158,7 @@ class LanServer {
       ..get('/join', _join)
       ..get('/state', _state)
       ..post('/command', _command)
+      ..post('/verify-pin', _verifyPin)
       ..post('/driver/status', _driverStatus)
       ..get('/order', _qrPage)
       ..get('/order.html', _qrPage)
@@ -150,13 +189,26 @@ class LanServer {
   }
 
   void broadcastState() {
-    final msg = jsonEncode({
-      'type': 'state',
-      'store': readStore().toJson(),
-    });
+    // Two audiences, two payloads: paired stations get the full store, the
+    // browser console gets the same store minus profile.managerPin.
+    String? stations;
+    String? console;
     for (final s in _sockets.toList()) {
       try {
-        s.sink.add(msg);
+        final dev = _socketDevice[s] ?? '';
+        if (dev == 'web-console') {
+          console ??= jsonEncode({
+            'type': 'state',
+            'store': _storeJsonFor('web-console'),
+          });
+          s.sink.add(console);
+        } else {
+          stations ??= jsonEncode({
+            'type': 'state',
+            'store': _storeJsonFor(dev),
+          });
+          s.sink.add(stations);
+        }
       } catch (_) {
         _sockets.remove(s);
       }
@@ -250,10 +302,11 @@ class LanServer {
   Response _join(Request req) => _health(req);
 
   Response _state(Request req) {
-    if (_clientFromReq(req) == null) {
+    final who = _clientFromReq(req);
+    if (who == null) {
       return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
     }
-    return _json({'ok': true, 'store': readStore().toJson()});
+    return _json({'ok': true, 'store': _storeJsonFor(who.deviceId)});
   }
 
   Future<Response> _command(Request req) async {
@@ -307,6 +360,40 @@ class LanServer {
     }
   }
 
+  // Phase-2: server-side PIN verification — hash never leaves Main
+  Future<Response> _verifyPin(Request req) async {
+    final who = _clientFromReq(req);
+    if (who == null) return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
+    final deviceId = who.deviceId;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final lockedUntil = _pinLockUntil[deviceId] ?? 0;
+    if (nowMs < lockedUntil) {
+      return _json({'ok': false, 'error': 'locked', 'until': lockedUntil}, status: 403);
+    }
+    try {
+      final body = jsonDecode(await req.readAsString());
+      final pin = (body is Map ? (body['pin'] ?? '').toString() : '').trim();
+      final stored = readStore().profile.managerPin;
+      if (stored.isEmpty) return _json({'ok': true, 'valid': true});
+      final valid = PinCrypto.verify(stored, pin);
+      if (!valid) {
+        final fails = (_pinFails[deviceId] ?? 0) + 1;
+        _pinFails[deviceId] = fails;
+        if (fails >= 5) {
+          _pinFails[deviceId] = 0;
+          _pinLockUntil[deviceId] = nowMs + 5 * 60 * 1000;
+          return _json({'ok': false, 'error': 'locked', 'until': _pinLockUntil[deviceId]}, status: 403);
+        }
+        return _json({'ok': false, 'error': 'invalid', 'fails': fails}, status: 403);
+      }
+      _pinFails.remove(deviceId);
+      _pinLockUntil.remove(deviceId);
+      return _json({'ok': true, 'valid': true});
+    } catch (_) {
+      return _json({'ok': false, 'error': 'server_error'}, status: 500);
+    }
+  }
+
   Future<Response> _driverStatus(Request req) async {
     try {
       final body = jsonDecode(await req.readAsString());
@@ -318,15 +405,24 @@ class LanServer {
       if (who == null) {
         return _json({'ok': false, 'error': 'unauthorized'}, status: 401);
       }
-      if (map['name'] == 'pairDriver' &&
-          !readStore().entitlements.allowsFeature('multi_terminal')) {
-        return _json({'ok': false, 'error': 'plan_stations'}, status: 403);
-      }
-      if (map['name'] != 'pairDriver') {
+      final callerRole = clients[who.deviceId]?.role ?? '';
+      if (map['name'] == 'pairDriver') {
+        if (!readStore().entitlements.allowsFeature('multi_terminal')) {
+          return _json({'ok': false, 'error': 'plan_stations'}, status: 403);
+        }
+        // v1.1.83: pairing a driver used to be open to any authenticated
+        // client — a kitchen or cashier station could mint driver records.
+        if (callerRole != 'main' && callerRole != 'manager') {
+          return _json({'ok': false, 'error': 'forbidden'}, status: 403);
+        }
+      } else {
         final paired = readStore().drivers.any((d) => d.deviceId == who.deviceId);
         if (!paired) {
           return _json({'ok': false, 'error': 'unpaired'}, status: 403);
         }
+        // A driver may only flip its OWN status: deviceId came from the
+        // request body, so driver A could set driver B free/busy/offline.
+        map['deviceId'] = who.deviceId;
       }
       final cmd = NetCommand(
         name: map['name'] == 'pairDriver' ? 'pairDriver' : 'setDriverStatus',
@@ -446,18 +542,41 @@ class LanServer {
     });
   }
 
-  bool _qrLimited(String tableId, String ip) {
+  /// QR self-order flood control.
+  ///
+  /// v1.1.83 fix — this used to be broken in two directions:
+  ///  * the "per IP" bucket keyed on the `x-real-ip` header, which the guest's
+  ///    browser controls, so any script could rotate it and bypass the limit;
+  ///  * when that header was absent it fell back to `req.requestedUri.host`,
+  ///    which is *this server's* address — so every guest in the shop shared a
+  ///    single 60-orders-per-hour bucket and QR ordering locked the whole shop
+  ///    out mid-service. Takeaway-only shops were worse: with no table id the
+  ///    table bucket collapsed to one shared 12-per-hour key.
+  /// Now: a per-table limit for seated service, no per-table limit for
+  /// takeaway/queue shops, and one generous shop-wide flood cap.
+  static const int _qrPerTableHour = 24;
+  static const int _qrShopHour = 900;
+
+  bool _qrLimited(String tableId) {
     final now = DateTime.now().millisecondsSinceEpoch;
     List<int> bucket(Map<String, List<int>> map, String key) {
       final a = map.putIfAbsent(key, () => <int>[]);
       a.removeWhere((t) => now - t > 3600000);
       return a;
     }
-    final t = bucket(_qrByTable, tableId.isEmpty ? '_' : tableId);
-    final i = bucket(_qrByIp, ip.isEmpty ? '_' : ip);
-    if (t.length >= 12 || i.length >= 60) return true;
-    t.add(now);
-    i.add(now);
+
+    // Memory guard: keys are attacker-chosen strings, so never let the maps
+    // grow without bound.
+    if (_qrByTable.length > 400) {
+      _qrByTable.removeWhere((_, v) => v.isEmpty);
+    }
+    final shop = bucket(_qrShop, 'shop');
+    final table =
+        tableId.isEmpty ? null : bucket(_qrByTable, tableId);
+    if (shop.length >= _qrShopHour) return true;
+    if (table != null && table.length >= _qrPerTableHour) return true;
+    table?.add(now);
+    shop.add(now);
     return false;
   }
 
@@ -479,8 +598,8 @@ class LanServer {
         return _json({'ok': false, 'error': 'shift_closed'}, status: 403);
       }
       FloorTable? table;
-      final tableId = sanitizeText((body['tableId'] ?? body['table'] ?? '').toString());
-      final ip = (req.headers['x-real-ip'] ?? req.requestedUri.host);
+      final tableId =
+          sanitizeText((body['tableId'] ?? body['table'] ?? '').toString());
       if (tableId.isNotEmpty) {
         table = store.tableByRef(tableId);
         if (table == null) {
@@ -490,8 +609,23 @@ class LanServer {
         // Floor map is live — never silently default a guest order to TAKEAWAY.
         return _json({'ok': false, 'error': 'need_table'}, status: 400);
       }
-      if (_qrLimited(table?.id ?? tableId, ip)) {
+      if (_qrLimited(table?.id ?? tableId)) {
         return _json({'ok': false, 'error': 'rate_limited'}, status: 429);
+      }
+      // Idempotency: same QR payload within 5s (double-tap) returns previous ticket
+      final dedupKey = '${table?.id ?? tableId}|${rawBody.hashCode}';
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final last = _qrLastSubmit[dedupKey];
+      if (last != null && nowMs - last.at < 5000 && last.hash == rawBody.hashCode.toString()) {
+        return _json({
+          'ok': true,
+          'ticket': last.ticket,
+          'total': 0,
+          'fireOn': readStore().qrFireOn,
+          'status': 'received',
+          'table': table?.name ?? '',
+          'dedup': true,
+        });
       }
       final lines = <Map<String, dynamic>>[];
       for (final raw in rawItems.take(40)) {
@@ -586,6 +720,11 @@ class LanServer {
       }
       broadcastState();
       if (notice != null) broadcastNotice(notice);
+      _qrLastSubmit[dedupKey] = _QrDedup(rawBody.hashCode.toString(), placed.ticketNo, nowMs);
+      // prune map
+      if (_qrLastSubmit.length > 200) {
+        _qrLastSubmit.removeWhere((_, v) => nowMs - v.at > 30000);
+      }
       return _json({
         'ok': true,
         'ticket': placed.ticketNo,
@@ -651,6 +790,13 @@ class LanServer {
       gate.onAutoApprove(deviceId);
       return true;
     }
+    // v1.1.83: cap the approval queue. Every unknown hello used to add a
+    // pending entry AND fire a notification on Main, so a laptop looping
+    // fresh device ids on the shop Wi-Fi could spam the owner endlessly and
+    // grow two unbounded maps.
+    if (pending.length >= _maxWaiting || _waiting.length >= _maxWaiting) {
+      return false;
+    }
     final info = ClientInfo(deviceId: deviceId, name: name, role: role);
     pending[deviceId] = info;
     gate.onPending?.call(info);
@@ -700,7 +846,7 @@ class LanServer {
       socket.sink.add(jsonEncode({
         'type': 'hello',
         'token': _tokenFor(info.deviceId, info.role),
-        'store': readStore().toJson(),
+        'store': _storeJsonFor(info.deviceId),
         'name': shopName,
         'model': modelName,
       }));
@@ -708,10 +854,25 @@ class LanServer {
   }
 
   void _onWs(WebSocketChannel socket, String? _) {
+    // v1.1.83: refuse connections past the ceiling instead of accepting them
+    // all — an unbounded socket set is a memory-exhaustion DoS on the device
+    // that runs the whole shop.
+    if (_sockets.length >= _maxSockets) {
+      try {
+        socket.sink.add(jsonEncode({'type': 'error', 'error': 'server_full'}));
+        unawaited(socket.sink.close());
+      } catch (_) {}
+      return;
+    }
     socket.stream.listen(
       (event) {
         try {
-          final data = jsonDecode(event.toString());
+          // Frame cap: /command already rejects bodies over 32KB, but the
+          // websocket path had no limit at all, so one client could push an
+          // arbitrarily large frame into memory before JSON parsing.
+          final raw = event.toString();
+          if (raw.length > _maxWsFrameBytes) return;
+          final data = jsonDecode(raw);
           if (data is! Map) return;
           final type = data['type'];
           if (type == 'hello') {
@@ -780,4 +941,12 @@ class LanServer {
       cancelOnError: true,
     );
   }
+
+}
+
+class _QrDedup {
+  _QrDedup(this.hash, this.ticket, this.at);
+  final String hash;
+  final String ticket;
+  final int at;
 }

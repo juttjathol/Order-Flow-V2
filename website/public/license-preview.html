@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>License screen preview — hero motion port (v1.1.91+)</title>
+<style>
+/* ================= EXACT hero ambient laws (from hero-anim.css) ========== */
+html,body{margin:0;height:100%;background:#020404;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+.stage{position:fixed;inset:0;container-type:size;overflow:hidden;background:#051912}
+.bg{position:absolute;inset:0;z-index:0;
+  background:linear-gradient(#ffffff07 1px,transparent 1px) 0 0/4cqw 4cqw,
+             linear-gradient(90deg,#ffffff07 1px,transparent 1px) 0 0/4cqw 4cqw,
+             radial-gradient(135% 120% at 50% -10%, #0E2A21 0%, #071711 55%, #04100C 100%);
+  animation:gp 20s linear infinite}
+@keyframes gp{to{background-position:0 4cqw,4cqw 0}}
+.bg i{position:absolute;bottom:-2cqw;left:var(--x);width:var(--z);height:var(--z);border-radius:50%;background:#5BE3AE;opacity:0;animation:fl var(--du) linear infinite var(--dl)}
+@keyframes fl{10%{opacity:.18}100%{opacity:0;transform:translate(var(--dx),-62cqw)}}
+.bg b{position:absolute;width:42cqw;height:42cqw;border-radius:50%;filter:blur(9cqw);opacity:.2;animation:bl 14s ease-in-out infinite alternate}
+@keyframes bl{to{transform:translate(18cqw,10cqw) scale(1.3)}}
+.wipe{position:absolute;top:0;bottom:0;left:0;width:34cqw;z-index:4;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(91,227,174,.27),rgba(255,255,255,.2),rgba(91,227,174,.27),transparent);
+  transform:translateX(-40cqw) skewX(-12deg)}
+.wipe.go{animation:wp .9s ease-in-out}
+@keyframes wp{to{transform:translateX(140cqw) skewX(-12deg)}}
+.vg{position:absolute;inset:0;z-index:5;pointer-events:none;background:radial-gradient(120% 100% at 50% 50%,transparent 55%,rgba(0,0,0,.65) 100%)}
+
+/* ================= The license screen body (mirrors gate_screens.dart) === */
+.body{position:relative;z-index:6;height:100cqh;overflow-y:auto;display:flex;justify-content:center}
+.panel{width:min(420px,100%);padding:36px 28px 28px;display:flex;flex-direction:column;align-items:center}
+
+.logo{width:72px;height:72px;border-radius:18px;object-fit:cover;background:#163E2E;
+  box-shadow:0 0 24px rgba(47,255,160,.53),0 0 68px rgba(244,185,66,.1);
+  animation:logoPop 1s cubic-bezier(.34,1.56,.64,1) .2s both}
+@keyframes logoPop{0%{transform:scale(.4) rotate(-8deg);opacity:0}60%{transform:scale(1.07) rotate(1.5deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+
+.word{margin-top:16px;display:flex}
+.word b{display:inline-block;color:#fff;font-weight:800;font-size:30px;letter-spacing:-.6px;
+  opacity:0;animation:chr .6s cubic-bezier(.2,.9,.3,1.3) both;animation-delay:calc(.26s + var(--i)*55ms);
+  --wI:var(--i)}
+@keyframes chr{from{opacity:0;transform:translateY(60%) rotate(-6deg) scale(.7)}to{opacity:1;transform:none}}
+.word b::after{content:""}
+/* gentle idle wave — the Flutter port keeps the letters breathing */
+.word b{animation-name:chr,idle;animation-duration:.6s,3s;animation-timing-function:cubic-bezier(.2,.9,.3,1.3),ease-in-out;
+  animation-delay:calc(.26s + var(--i)*55ms),calc(1s + var(--i)*80ms);animation-fill-mode:both,none;animation-iteration-count:1,infinite}
+@keyframes idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.8px)}}
+
+.tag{margin-top:8px;color:#9BB5A8;font-size:14px;font-weight:600;opacity:0;transform:translateY(14px);animation:tagUp .5s ease-out 1.15s both}
+@keyframes tagUp{to{opacity:1;transform:none}}
+.sub{width:100%;margin-top:26px;color:#9BB5A8;font-size:13px;font-weight:600;text-align:left}
+.box{width:100%;margin-top:8px}
+.box input{width:100%;box-sizing:border-box;text-align:center;letter-spacing:2.2px;font-weight:700;font-size:16px;color:#fff;
+  background:rgba(0,0,0,.13);border:1.4px solid rgba(61,220,151,.33);border-radius:14px;padding:14px;outline:none;text-transform:uppercase}
+.box input:focus{border-color:#2EA771;border-width:1.6px}
+.box input::placeholder{color:rgba(255,255,255,.28)}
+.btn{width:100%;margin-top:18px;min-height:54px;border:0;border-radius:28px;font-weight:800;font-size:15px;cursor:pointer;
+  transition:transform .38s cubic-bezier(.22,1.35,.34,1),opacity .2s}
+.btn:active{transform:scale(.96)}
+.mint{background:#2EA771;color:#042016}
+.ghost{background:transparent;color:#fff;border:1.2px solid rgba(255,255,255,.7)}
+.note{margin-top:10px;color:#5E7166;font-size:12px;font-weight:600}
+.wa{background:#25D366;color:#fff;min-height:50px;margin-top:14px;display:flex;align-items:center;justify-content:center;gap:8px}
+.handle{margin-top:6px;color:#2EA771;font-weight:800;font-size:14px}
+.langs{margin-top:28px;display:flex;gap:10px}
+.chip{border:1.2px solid rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:8px 18px;font-size:13px;font-weight:700;background:rgba(255,255,255,.06)}
+.chip.on{background:#2EA771;color:#042016;border-color:transparent}
+.foot{margin-top:auto;padding-top:36px;color:#2EA771;font-weight:800;letter-spacing:.8px;font-size:13px;text-align:center}
+@media (prefers-reduced-motion:reduce){.bg,.bg i,.bg b,.word b,.logo,.wipe{animation:none!important;opacity:1}.word b{animation:none;opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="bg" id="bg"></div>
+  <div class="wipe" id="wp"></div>
+  <div class="vg"></div>
+  <div class="body">
+    <div class="panel">
+      <img class="logo" src="/media/logo.png" alt="">
+      <div class="word" id="word"></div>
+      <div class="tag">The shop that keeps selling.</div>
+
+      <div class="sub">License key</div>
+      <div class="box"><input placeholder="OF-XXXX-XXXX-XXXX" autocomplete="off"></div>
+
+      <button class="btn mint">✅ Activate</button>
+      <button class="btn ghost" style="margin-top:12px">🔗 Connect to Main</button>
+      <div class="note">Stations join free — no key needed</div>
+      <button class="btn wa">💬 WhatsApp support</button>
+      <div class="handle">@Jathol_Jutt</div>
+      <div class="langs"><span class="chip on">English</span><span class="chip">اردو</span></div>
+      <div class="foot">Jathol</div>
+    </div>
+  </div>
+</div>
+<script>
+var bg=document.getElementById('bg');
+for(var i=0;i<22;i++){var p=document.createElement('i');p.style.cssText=
+ '--x:'+(Math.random()*100)+'%;--z:'+(.3+Math.random()*.7)+'cqw;--du:'+(9+Math.random()*10)+'s;--dl:-'+(Math.random()*14)+'s;--dx:'+((Math.random()*8-4))+'cqw';bg.appendChild(p)}
+[['#5BE3AE','-8cqw','-10cqw'],['#F4B942','60cqw','25cqw']].forEach(function(c){var o=document.createElement('b');o.style.cssText='background:'+c[0]+';left:'+c[1]+';top:'+c[2];bg.appendChild(o)});
+var w=document.getElementById('word');
+'Order Flow'.split('').forEach(function(ch,i){var b=document.createElement('b');b.style.setProperty('--i',i);b.textContent=ch==' '?'\u00A0':ch;w.appendChild(b)});
+function wipe(){var wp=document.getElementById('wp');wp.classList.remove('go');void wp.offsetWidth;wp.classList.add('go')}
+setInterval(wipe,6000);setTimeout(wipe,400);
+</script>
+</body>
+</html>

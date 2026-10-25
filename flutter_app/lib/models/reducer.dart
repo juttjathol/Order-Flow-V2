@@ -176,7 +176,21 @@ class StoreReducer {
         if (store.shiftClosed) break;
         final order = PosOrder.fromJson(mapOf(p['order']));
         order.ticketNo = store.nextTicket();
-        order.taxRate = store.profile.taxRate;
+        // Flexible multi-tax (Oct 2026): snapshot profile taxes into the order.
+        if (store.profile.taxes.isNotEmpty) {
+          order.taxes = store.profile.taxes
+              .where((tc) => tc.enabled && tc.rate > 0)
+              .map((tc) => OrderTax(name: tc.name.isEmpty ? 'Tax' : tc.name, rate: tc.rate))
+              .toList();
+          order.taxRate = order.taxes.fold<double>(0, (s, e) => s + e.rate);
+        } else {
+          order.taxRate = store.profile.taxRate;
+          order.taxes = <OrderTax>[];
+          if (order.taxRate > 0) {
+            final nm = store.profile.taxId.trim().isEmpty ? 'Tax' : store.profile.taxId.trim();
+            order.taxes = [OrderTax(name: nm, rate: order.taxRate)];
+          }
+        }
         order.serviceRate = store.profile.serviceRate;
         order.shiftNo = store.shiftNo;
         // v1.1.59: attribute the sale to a staff member when we can —

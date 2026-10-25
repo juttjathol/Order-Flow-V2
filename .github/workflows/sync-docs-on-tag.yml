@@ -1,0 +1,52 @@
+name: Sync Docs & Guide on Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: ver
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "Tag $TAG"
+
+      - name: Checkout main & sync version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          TAGV="${{ steps.ver.outputs.version }}"
+          echo "Syncing $TAGV onto main..."
+          python3 scripts/sync_docs_version.py "$TAGV"
+          sed -i "s|jathol.pages.dev|jathol.org|g" docs/PLAY_STORE.md docs/APP_STORE.md website/public/guide.html README.md || true
+          cat flutter_app/pubspec.yaml | grep version
+          grep kAppVersion flutter_app/lib/core/constants.dart
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to sync"
+            exit 0
+          fi
+          git commit -m "docs: sync version $TAGV — guide + PLAY/STORE + README + privacy URL"
+          git push origin HEAD:main
+          echo "Sync complete"
+
+      - name: Update README architecture diagram (keep mermaid fresh)
+        run: |
+          echo "Architecture diagram is mermaid in README — version-agnostic, no auto-change needed."
+          echo "If you add a new system component, update the mermaid manually and this job will carry it forward."
