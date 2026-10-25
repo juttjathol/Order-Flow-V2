@@ -116,9 +116,9 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    // Responsive logo size: clamp(100, 22vw, 150) — use 22% of screen width
+    // Responsive logo size: motion logo (square 400x400, content ~70%) — use 34% of screen width
     final w = MediaQuery.of(context).size.width;
-    final logoSize = (w * 0.22).clamp(100.0, 150.0);
+    final logoSize = (w * 0.34).clamp(150.0, 260.0);
     return FadeTransition(
       opacity: Tween<double>(begin: 1, end: 0).animate(
         CurvedAnimation(parent: _fadeOut, curve: Curves.easeIn),
@@ -207,14 +207,18 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                         ),
                       );
                     },
-                    child: Image.asset(
-                      'assets/brand/logo.png',
-                      width: logoSize,
-                      height: logoSize,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                      isAntiAlias: true,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(logoSize * 0.22),
+                      child: Image.asset(
+                        'assets/animations/jathol_motion_logo.gif',
+                        width: logoSize,
+                        height: logoSize,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                        isAntiAlias: true,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 32),
