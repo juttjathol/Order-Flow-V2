@@ -190,20 +190,19 @@
       }
     });
 
-    /* 3 — table status flips get an eye-grabbing pulse */
+    /* 3 — table status flips get an eye-grabbing pulse
+           (observe the whole body: .tmap is rendered dynamically on Floor) */
     var clsObs = new MutationObserver(function (ms) {
       if (TIER !== 'full') return;
       for (var i = 0; i < ms.length; i++) {
         var el2 = ms[i].target;
         try {
-          if (!el2.classList.contains('tcard')) continue;
+          if (!el2.classList || !el2.classList.contains('tcard')) continue;
           kick(el2, el2.classList.contains('tcard--ready') ? 'mo-glow-gold' : 'mo-glow-mint', 1150);
         } catch (e) {}
       }
     });
-    document.querySelectorAll('.tmap').forEach(function (tm) {
-      clsObs.observe(tm, { attributes: true, subtree: true, attributeFilter: ['class'] });
-    });
+    clsObs.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     window.__moTrackStagger = function (c) { grace.set(c, performance.now()); };
     txtObs.observe(document.body, { characterData: true, childList: true, subtree: true });
   }

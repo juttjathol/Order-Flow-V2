@@ -6,3 +6,12 @@
 -keep class androidx.camera.core.** { *; }
 -dontwarn com.google.mlkit.**
 -dontwarn com.google.android.gms.internal.mlkit_vision_barcode.**
+
+# Flutter engine + plugin registry must stay reflective
+-keep class io.flutter.** { *; }
+-keep class io.flutter.plugins.** { *; }
+-keep class io.flutter.plugin.** { *; }
+-keep class io.flutter.embedding.** { *; }
+-dontwarn io.flutter.**
+# Play Console crash traces for our own service keep readable names
+-keep class com.jathol.orderflow.** { *; }
