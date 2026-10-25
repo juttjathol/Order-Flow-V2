@@ -64,23 +64,35 @@ class OfRadii {
 }
 
 /// Shadow presets — layered soft shadows instead of hard elevation.
+/// Directive: sprawling ambient layers + crisp 1px internal border.
 class OfShadows {
   static List<BoxShadow> soft(BuildContext context) => OfColors.isDark(context)
-      ? const [BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, 8))]
+      ? const [
+          BoxShadow(color: Color(0x38000000), blurRadius: 26, offset: Offset(0, 10), spreadRadius: -2),
+          BoxShadow(color: Color(0x22000000), blurRadius: 56, offset: Offset(0, 26), spreadRadius: -6),
+        ]
       : const [
-          BoxShadow(color: Color(0x14000000), blurRadius: 24, offset: Offset(0, 10)),
-          BoxShadow(color: Color(0x0A163E2E), blurRadius: 40, offset: Offset(0, 20)),
+          BoxShadow(color: Color(0x12163E2E), blurRadius: 30, offset: Offset(0, 12), spreadRadius: -2),
+          BoxShadow(color: Color(0x0A163E2E), blurRadius: 64, offset: Offset(0, 28), spreadRadius: -12),
         ];
   static List<BoxShadow> card(BuildContext context) => OfColors.isDark(context)
-      ? const [BoxShadow(color: Color(0x40000000), blurRadius: 18, offset: Offset(0, 6))]
+      ? const [
+          BoxShadow(color: Color(0x42000000), blurRadius: 22, offset: Offset(0, 8), spreadRadius: -1),
+          BoxShadow(color: Color(0x26000000), blurRadius: 48, offset: Offset(0, 22), spreadRadius: -6),
+        ]
       : const [
-          BoxShadow(color: Color(0x0F163E2E), blurRadius: 22, offset: Offset(0, 8)),
-          BoxShadow(color: Color(0x07163E2E), blurRadius: 36, offset: Offset(0, 18)),
+          BoxShadow(color: Color(0x0E163E2E), blurRadius: 26, offset: Offset(0, 10), spreadRadius: -1),
+          BoxShadow(color: Color(0x08163E2E), blurRadius: 52, offset: Offset(0, 24), spreadRadius: -6),
         ];
-  static List<BoxShadow> floating(BuildContext context) => const [
-        BoxShadow(color: Color(0x1A000000), blurRadius: 28, offset: Offset(0, 16)),
-        BoxShadow(color: Color(0x0D163E2E), blurRadius: 6, offset: Offset(0, 2)),
-      ];
+  static List<BoxShadow> floating(BuildContext context) => OfColors.isDark(context)
+      ? const [
+          BoxShadow(color: Color(0x55000000), blurRadius: 34, offset: Offset(0, 16), spreadRadius: -2),
+          BoxShadow(color: Color(0x2A000000), blurRadius: 72, offset: Offset(0, 40), spreadRadius: -8),
+        ]
+      : const [
+          BoxShadow(color: Color(0x18163E2E), blurRadius: 32, offset: Offset(0, 16), spreadRadius: -2),
+          BoxShadow(color: Color(0x0D163E2E), blurRadius: 70, offset: Offset(0, 38), spreadRadius: -8),
+        ];
 }
 
 class OfTheme {
@@ -139,19 +151,19 @@ class OfTheme {
     );
 
     final text = TextTheme(
-      displaySmall: TextStyle(fontWeight: FontWeight.w900, fontSize: 30, letterSpacing: -0.9, height: 1.08, color: ink),
-      headlineLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 34, letterSpacing: -0.9, height: 1.08, color: ink),
-      headlineMedium: TextStyle(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.7, height: 1.12, color: ink),
-      headlineSmall: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, letterSpacing: -0.45, height: 1.2, color: ink),
-      titleLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: -0.35, height: 1.25, color: ink),
+      displaySmall: TextStyle(fontWeight: FontWeight.w900, fontSize: 30, letterSpacing: -0.6, height: 1.08, color: ink),
+      headlineLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 34, letterSpacing: -0.7, height: 1.08, color: ink),
+      headlineMedium: TextStyle(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.55, height: 1.12, color: ink),
+      headlineSmall: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, letterSpacing: -0.44, height: 1.2, color: ink),
+      titleLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: -0.4, height: 1.25, color: ink),
       titleMedium: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, letterSpacing: -0.15, height: 1.3, color: ink),
       bodyLarge: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, height: 1.5, color: ink),
       bodyMedium: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, height: 1.5, color: quiet),
-      bodySmall: TextStyle(fontWeight: FontWeight.w500, fontSize: 12, height: 1.45, color: quiet),
+      bodySmall: TextStyle(fontWeight: FontWeight.w500, fontSize: 12, height: 1.45, letterSpacing: 0.12, color: quiet.withValues(alpha: 0.88)),
       titleSmall: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: -0.1, color: ink),
       labelLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: -0.1, color: ink),
-      labelMedium: TextStyle(fontWeight: FontWeight.w600, fontSize: 11, letterSpacing: 0.15, color: quiet),
-      labelSmall: TextStyle(fontWeight: FontWeight.w600, fontSize: 10.5, letterSpacing: 0.25, color: quiet),
+      labelMedium: TextStyle(fontWeight: FontWeight.w600, fontSize: 11, letterSpacing: 0.22, color: quiet),
+      labelSmall: TextStyle(fontWeight: FontWeight.w600, fontSize: 10.5, letterSpacing: 0.3, color: quiet.withValues(alpha: 0.85)),
     );
     return ThemeData(
       useMaterial3: true,
@@ -167,7 +179,7 @@ class OfTheme {
       focusColor: accent.withValues(alpha: 0.10),
       scaffoldBackgroundColor: isDark ? OfColors.deep : OfColors.cream,
       dividerColor: border,
-      dividerTheme: DividerThemeData(color: border, thickness: 1, space: 24, indent: 4, endIndent: 4),
+      dividerTheme: DividerThemeData(color: border, thickness: 1, space: 28, indent: 4, endIndent: 4),
       iconTheme: IconThemeData(color: quiet, size: 22),
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
         TargetPlatform.android: OfPageTransitionsBuilder(),
@@ -229,7 +241,7 @@ class OfTheme {
       ),
       listTileTheme: ListTileThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
         iconColor: quiet,
         textColor: ink,
         titleTextStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, letterSpacing: -0.2, color: ink),
@@ -281,6 +293,8 @@ class OfTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 8,
         shadowColor: scheme.shadow,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         titleTextStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 19, letterSpacing: -0.3, color: ink),
         contentTextStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, height: 1.5, color: quiet),
@@ -324,7 +338,7 @@ class OfTheme {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: OfColors.danger, width: 1.8),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -394,7 +408,7 @@ class OfPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack, reverseCurve: Curves.easeInCubic);
     return FadeTransition(
       opacity: curved,
       child: SlideTransition(
