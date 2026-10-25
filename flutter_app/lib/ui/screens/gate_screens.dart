@@ -6,10 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
+import '../../core/pin_crypto.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/hero_ambient.dart';
 import '../widgets/pin_gate.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -115,9 +117,9 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    // Responsive logo size: clamp(100, 22vw, 150) — use 22% of screen width
+    // Responsive logo size: motion logo (square 400x400, content ~70%) — use 34% of screen width
     final w = MediaQuery.of(context).size.width;
-    final logoSize = (w * 0.22).clamp(100.0, 150.0);
+    final logoSize = (w * 0.34).clamp(150.0, 260.0);
     return FadeTransition(
       opacity: Tween<double>(begin: 1, end: 0).animate(
         CurvedAnimation(parent: _fadeOut, curve: Curves.easeIn),
@@ -206,14 +208,18 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                         ),
                       );
                     },
-                    child: Image.asset(
-                      'assets/brand/logo.png',
-                      width: logoSize,
-                      height: logoSize,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                      isAntiAlias: true,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(logoSize * 0.22),
+                      child: Image.asset(
+                        'assets/animations/jathol_motion_logo.gif',
+                        width: logoSize,
+                        height: logoSize,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                        isAntiAlias: true,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -317,11 +323,9 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            IgnorePointer(
-              child: Opacity(
-                opacity: 0.12,
-                child: Center(child: Image.asset('assets/brand/bolt.png', width: 420, height: 420, fit: BoxFit.contain)),
-              ),
+            // jathol.org hero motion — living ambient layer (fills any screen)
+            const Positioned.fill(
+              child: IgnorePointer(child: RepaintBoundary(child: OfHeroAmbient())),
             ),
             SafeArea(
               child: Center(
@@ -330,17 +334,8 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(28, 36, 28, 28),
                     children: [
-                      Center(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: Image.asset('assets/brand/logo.png', width: 72, height: 72, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.storefront, size: 56, color: OfColors.mint)),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(s.t('app'), textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 30, letterSpacing: -0.6)),
-                      const SizedBox(height: 8),
+                      const Center(child: OfHeroBrandBlock()),
+                      const SizedBox(height: 18),
                       Text(s.t('license_enter_key'), textAlign: TextAlign.center,
                         style: const TextStyle(color: Color(0xFF9BB5A8), fontSize: 15, height: 1.35)),
                       const SizedBox(height: 28),
@@ -517,7 +512,13 @@ class _RoleScreenState extends ConsumerState<RoleScreen> {
                     }
                     StaffMember? match;
                     for (final st in ref.snap.store.staff) {
-                      if (st.active && st.name.toLowerCase() == n.toLowerCase() && st.pin == p) {
+                      if (st.active &&
+                          st.name.toLowerCase() == n.toLowerCase() &&
+                          staffPinMatches(
+                              plaintextPin: st.pin,
+                              pinHash: st.pinHash,
+                              salt: st.salt,
+                              entered: p)) {
                         match = st;
                         break;
                       }

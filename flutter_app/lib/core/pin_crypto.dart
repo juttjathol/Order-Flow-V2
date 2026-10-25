@@ -93,3 +93,23 @@ class PinCrypto {
     return false;
   }
 }
+
+/// Staff PIN matcher — v1.1.91 mixed-format.
+///
+/// A staff member created on the web app carries {pinHash, salt} with
+/// `sha256(salt + ':' + pin)`; one created on this app carries plaintext
+/// `pin`; deeply old installs could carry a PinCrypto-managed hash string in
+/// `pin` itself. All three must unlock any station on either platform.
+bool staffPinMatches({String? plaintextPin, String? pinHash, String? salt, required String entered}) {
+  if (entered.isEmpty) return false;
+  final p = plaintextPin ?? '';
+  final h = pinHash ?? '';
+  final s = salt ?? '';
+  if (p.isNotEmpty && p == entered) return true;
+  if (h.isNotEmpty && s.isNotEmpty) {
+    final calc = sha256.convert(utf8.encode('$s:$entered')).toString();
+    if (safeEq(calc, h.toLowerCase())) return true;
+  }
+  if (PinCrypto.isHashed(p)) return PinCrypto.verify(p, entered);
+  return false;
+}

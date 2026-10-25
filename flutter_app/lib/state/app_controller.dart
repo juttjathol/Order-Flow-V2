@@ -19,6 +19,7 @@ import '../models/seed.dart';
 import '../services/backup_service.dart';
 import '../services/error_reporter.dart';
 import '../services/cloud_relay.dart';
+import '../services/cloud_xlate.dart';
 import '../services/lan_client.dart';
 import '../services/lan_server.dart';
 import '../services/license_service.dart';
@@ -800,30 +801,34 @@ class AppController extends Notifier<AppSnapshot> {
   }
 
   // Phase-2: server-side PIN for stations — hash never leaves Main.
-  // Main still verifies locally; stations call POST /verify-pin on Main.
+  // Main still verifies locally; stations chain: local hash → LAN
+  // POST /verify-pin → cloud-room pin_verify/pin_reply round-trip. (v1.1.91)
   Future<bool> verifyManagerPin(String pin) async {
     final s = state.session;
     if (s.pinLockedUntilMs > DateTime.now().millisecondsSinceEpoch) return false;
     final stored = state.store.profile.managerPin;
-    if (stored.isEmpty) return true;
-    if (state.isMain) return checkManagerPin(pin);
-    // Station → ask Main. If unreachable, deny (never fall back to empty hash).
-    if (state.connected && _client != null) {
+    if (state.isMain) {
+      if (stored.isEmpty) return true;
+      return checkManagerPin(pin);
+    }
+    // Station paths — whichever transport works, in order of cheapness.
+    bool? verdict;
+    // 1. Cloud snapshots carry the real hash (unstripped) — verify offline.
+    if (PinCrypto.isHashed(stored)) {
+      verdict = PinCrypto.verify(stored, pin);
+      if (verdict == false && PinCrypto.isHashed(stored)) {
+        // Fall through to a server round-trip too — the snapshot could be
+        // stale relative to a PIN the manager just rotated.
+        verdict = null;
+      }
+    } else if (stored.isNotEmpty) {
+      // Legacy plaintext hash survived transport: exact match is the hint.
+      if (stored == pin) verdict = true;
+    }
+    // 2. LAN: server-side check (Main strips the hash from LAN payloads).
+    if (verdict == null && state.connected && _client != null) {
       try {
-        final ok = await _client!.verifyPin(pin);
-        if (ok) {
-          s.pinFails = 0;
-          s.pinLockedUntilMs = 0;
-          _schedulePersist();
-          return true;
-        }
-        s.pinFails += 1;
-        if (s.pinFails >= 5) {
-          s.pinFails = 0;
-          s.pinLockedUntilMs = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
-        }
-        _schedulePersist();
-        return false;
+        verdict = await _client!.verifyPin(pin);
       } catch (e) {
         if (e.toString().contains('locked')) {
           s.pinFails = 0;
@@ -831,11 +836,29 @@ class AppController extends Notifier<AppSnapshot> {
           _schedulePersist();
           return false;
         }
-        // Network error: deny privileged action offline (security)
-        return false;
+        verdict = null;
       }
     }
-    // Offline station with stripped hash cannot verify — deny
+    // 3. Cloud room: pin_verify / pin_reply round-trip across the relay.
+    if (verdict == null && _relay != null) {
+      verdict = await verifyManagerPinOverRelay(pin);
+    }
+    if (verdict == true) {
+      s.pinFails = 0;
+      s.pinLockedUntilMs = 0;
+      _schedulePersist();
+      return true;
+    }
+    if (verdict == false) {
+      s.pinFails += 1;
+      if (s.pinFails >= 5) {
+        s.pinFails = 0;
+        s.pinLockedUntilMs = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
+      }
+      _schedulePersist();
+      return false;
+    }
+    // Unreachable everywhere: deny privileged action offline (security).
     return false;
   }
 
@@ -1058,6 +1081,29 @@ class AppController extends Notifier<AppSnapshot> {
     );
     _relay = relay;
     unawaited(relay.start());
+    // Web-Main rooms show a stations panel fed by `{type:'hello'}` pings —
+    // announce ourselves so an APK/Windows station is visible there too.
+    // (v1.1.91)
+    if (!state.isMain) unawaited(_helloOverRelay(relay));
+  }
+
+  Future<void> _helloOverRelay(CloudRelay relay) async {
+    // Wait for pairing/pull to spin up before announcing, then re-announce
+    // periodically — the web stations panel forgets a device after 12 min.
+    // Bail if this relay instance was replaced/stopped (no stacked loops).
+    while (true) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (_relay == null || !identical(_relay, relay) || state.isMain) return;
+      await relay.sendCommand(<String, dynamic>{
+        'type': 'hello',
+        'device': state.session.deviceId,
+        'role': state.session.role == AppRole.none
+            ? 'station'
+            : state.session.role.name,
+        'at': DateTime.now().millisecondsSinceEpoch,
+      });
+      await Future<void>.delayed(const Duration(minutes: 2));
+    }
   }
 
   /// Tier-1 surfacing of a flaky relay: the Cloud sheet says so honestly
@@ -1068,10 +1114,20 @@ class AppController extends Notifier<AppSnapshot> {
     state = state.copyWith(cloudDegraded: v);
   }
 
-  /// Main side: a station command arrived over the cloud — the same guarded
-  /// path as LAN commands, then fanned out to Wi-Fi peers and to disk.
+  /// A message arrived over the cloud room — two dialects coexist (v1.1.91):
+  ///
+  ///   * Flutter stations send NetCommand envelopes `{id, name, payload, ...}`
+  ///     → `_localApply` (the same guarded path as LAN commands, fanned out
+  ///     to Wi-Fi peers and to disk).
+  ///   * Web stations send typed messages `{type:'hello'|'menu_request'|
+  ///     'order'|'pin_verify'|'pin_reply', ...}` → handled here directly.
   void _applyCloudCommand(Map<String, dynamic> j) {
     try {
+      if (j['type'] is String) {
+        _applyTypedCloudMessage(j);
+        return;
+      }
+      if (!state.isMain) return; // NetCommands are Main-side; replies ride `type`
       final cmd = NetCommand.fromJson(j);
       _localApply(cmd);
       _server?.broadcastState();
@@ -1079,11 +1135,173 @@ class AppController extends Notifier<AppSnapshot> {
     } catch (_) {}
   }
 
+  void _applyTypedCloudMessage(Map<String, dynamic> j) {
+    switch ('${j['type']}') {
+      case 'hello':
+      case 'menu_request':
+        // A web station/guest just entered the room and wants fresh state.
+        if (state.isMain) unawaited(_relay?.pushNow());
+        break;
+      case 'order':
+        // Web guest QR order. Price from OUR catalogue, never from the wire
+        // — same trust level as the LAN /order/submit path. (v1.1.91)
+        if (!state.isMain) break;
+        final linesRaw = j['lines'];
+        if (linesRaw is! List || linesRaw.isEmpty) break;
+        final storeNow = state.store;
+        if (storeNow.shiftClosed) break;
+        final tableId = '${j['tableId'] ?? ''}';
+        final table = tableId.isEmpty ? null : storeNow.tableById(tableId);
+        final lines = <Map<String, dynamic>>[];
+        for (final raw in linesRaw.take(40)) {
+          if (raw is! Map) continue;
+          final product = storeNow.productById('${raw['productId'] ?? ''}');
+          if (product == null || !product.available) continue;
+          var qty = double.tryParse('${raw['qty']}') ?? 1;
+          if (qty < 1) qty = 1;
+          if (qty > 99) qty = 99;
+          lines.add(OrderLine(
+            id: newId(),
+            productId: product.id,
+            name: product.name,
+            unitPrice: product.price,
+            qty: qty,
+            notes: (raw['notes'] ?? raw['note'] ?? '').toString(),
+            inventoryId: product.inventoryId,
+            deductQty: product.deductQty,
+            course: product.course,
+          ).toJson());
+        }
+        if (lines.isEmpty) break;
+        final order = PosOrder(
+          id: newId(),
+          ticketNo: '',
+          type: table != null ? OrderType.dineIn : OrderType.takeaway,
+          tableId: table?.id,
+          tableName: table?.name,
+          notes: 'QR self-order',
+          channel: 'qr',
+        );
+        _localApply(NetCommand(
+          name: 'createOrder',
+          role: 'web',
+          actor: 'QR',
+          payload: {'order': {...order.toJson(), 'lines': lines}},
+        ));
+        _server?.broadcastState();
+        _schedulePersist();
+        break;
+      case 'pin_verify':
+        // A station (web or LAN-less Flutter) asks Main to check a manager
+        // PIN over the room — the hash never leaves this device. (v1.1.91)
+        if (!state.isMain) break;
+        final reqId = '${j['reqId'] ?? ''}';
+        final pin = '${j['pin'] ?? ''}';
+        if (reqId.isEmpty) break;
+        // Brute-force dampener: a room member could otherwise spray guesses
+        // at network speed. 8 per device per minute is plenty for humans.
+        final dev = '${j['device'] ?? '?'}';
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
+        final rl = _pinVerifyLog.putIfAbsent(dev, () => <int>[]);
+        rl.removeWhere((t) => nowMs - t > 60000);
+        if (rl.length >= 8) {
+          unawaited(_relay?.sendCommand(<String, dynamic>{
+            'type': 'pin_reply',
+            'reqId': reqId,
+            'ok': false,
+            'busy': true,
+            'to': dev,
+            'at': nowMs,
+          }));
+          break;
+        }
+        rl.add(nowMs);
+        final ok = state.store.profile.managerPin.isEmpty ||
+            checkManagerPin(pin);
+        unawaited(_relay?.sendCommand(<String, dynamic>{
+          'type': 'pin_reply',
+          'reqId': reqId,
+          'ok': ok,
+          'to': '${j['device'] ?? ''}',
+          'at': DateTime.now().millisecondsSinceEpoch,
+        }));
+        break;
+      case 'pin_reply':
+        // Station side: a pending pin_verify round-trip just resolved.
+        final reqId = '${j['reqId'] ?? ''}';
+        final cb = _pinReplyWaiters.remove(reqId);
+        if (cb != null) cb(j['ok'] == true);
+        break;
+      default:
+        break;
+    }
+  }
+
+  final Map<String, void Function(bool ok)> _pinReplyWaiters =
+      <String, void Function(bool ok)>{};
+
+  /// DeviceId → recent pin_verify timestamps (Main-side rate limit). (v1.1.91)
+  final Map<String, List<int>> _pinVerifyLog = <String, List<int>>{};
+
+  /// Station → Main manager-PIN check over the cloud room. Completes with
+  /// null on timeout / offline so the caller can fall back to "deny".
+  Future<bool?> verifyManagerPinOverRelay(String pin,
+      {String reqId = '', Duration timeout = const Duration(seconds: 8)}) async {
+    final relay = _relay;
+    if (relay == null) return null;
+    final id = reqId.isEmpty
+        ? 'pv-${DateTime.now().microsecondsSinceEpoch}'
+        : reqId;
+    final done = Completer<bool?>();
+    // Track our own device id so the reply (or `to:` filter) matches.
+    _pinReplyWaiters[id] = (ok) {
+      if (!done.isCompleted) done.complete(ok);
+    };
+    final sent = await relay.sendCommand(<String, dynamic>{
+      'type': 'pin_verify',
+      'reqId': id,
+      'pin': pin,
+      'device': state.session.deviceId,
+      'to': 'main',
+      'at': DateTime.now().millisecondsSinceEpoch,
+    });
+    if (!sent) {
+      _pinReplyWaiters.remove(id);
+      return null;
+    }
+    unawaited(Future.delayed(timeout, () {
+      _pinReplyWaiters.remove(id);
+      if (!done.isCompleted) done.complete(null);
+    }));
+    return done.future;
+  }
+
   /// Station side: Main's snapshot landed — treat it like a LAN store, but
   /// never overwrite a device that still has commands queued to send.
   void _applyCloudState(Map<String, dynamic> storeJson) {
     try {
-      final store = AppStore.fromJson(storeJson);
+      // v1.1.91: Main is the source of truth — web stations gossip their own
+      // snapshots into the room, so without this guard a Flutter Main would
+      // clobber its store with a station's copy.
+      if (state.isMain) return;
+      var json = storeJson;
+      // Cross-shape bridge: the room's Main may be the web app (jathol.org),
+      // whose backup uses kv/priceCents instead of profile/price. (v1.1.91)
+      if (looksLikeWebBackup(json)) {
+        json = webBackupToAppStoreJson(json);
+        // Revision-era interop: web revisions are Date.now() millis — if we
+        // stored that verbatim, every later Flutter-Main snapshot (small
+        // integer counters) would read "stale" forever on this station.
+        // Keep the era consistent with our local clock instead: a foreign
+        // millis-stamp only advances the local counter by one.
+        final inRev = json['revision'];
+        final localRev = state.store.revision;
+        const era = 1000000000000; // 1e12 (~Sep 2001 in millis)
+        if (inRev is num && inRev >= era && localRev < era) {
+          json['revision'] = localRev + 1;
+        }
+      }
+      final store = AppStore.fromJson(json);
       if (_queue.isNotEmpty) {
         unawaited(flushQueue());
         return;

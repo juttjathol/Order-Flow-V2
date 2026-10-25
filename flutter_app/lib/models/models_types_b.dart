@@ -340,6 +340,8 @@ class StaffMember {
     required this.name,
     this.roleLabel = '',
     this.pin = '',
+    this.pinHash,
+    this.salt,
     this.duty = StaffDuty.offline,
     this.active = true,
     this.lastSeen,
@@ -349,6 +351,11 @@ class StaffMember {
   String name;
   String roleLabel;
   String pin;
+  /// Web-app staff PINs are stored hashed (`sha256(salt + ':' + pin)`) and
+  /// arrive with the cloud snapshot; both fields survive round-trips so staff
+  /// created on the web can unlock Flutter stations. (v1.1.91) Additive.
+  String? pinHash;
+  String? salt;
   StaffDuty duty;
   bool active;
   DateTime? lastSeen;
@@ -358,6 +365,8 @@ class StaffMember {
         'name': name,
         'roleLabel': roleLabel,
         'pin': pin,
+        if (pinHash != null && pinHash!.isNotEmpty) 'pinHash': pinHash,
+        if (salt != null && salt!.isNotEmpty) 'salt': salt,
         'duty': duty.name,
         'active': active,
         'lastSeen': lastSeen?.toIso8601String(),
@@ -368,6 +377,8 @@ class StaffMember {
         name: parseStr(j['name']) ?? '',
         roleLabel: parseStr(j['roleLabel']) ?? '',
         pin: parseStr(j['pin']) ?? '',
+        pinHash: parseStr(j['pinHash']),
+        salt: parseStr(j['salt']),
         duty: enumParse(StaffDuty.values, j['duty'], StaffDuty.offline),
         active: parseBool(j['active'], true),
         lastSeen: j['lastSeen'] == null ? null : parseTime(j['lastSeen']),

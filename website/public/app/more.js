@@ -194,6 +194,23 @@ async function scrPrinters() {
 async function scrStaff() {
   OFShowSub(L.t('staff'), 'Add people, set PINs — 5 wrong tries locks 5 minutes', async (body) => {
     body.innerHTML = '';
+    // Manager PIN (v1.1.91): same pbkdf2-sha256$ format the Flutter app uses,
+    // so this one setting gates APK/Windows stations AND web stations alike.
+    const mgr = ce('div', 'lrow');
+    const hasMgr = !!((SHOP.profile || {}).managerPin || '');
+    mgr.innerHTML = '<span class="lrow__ic">🔐</span><div class="hd grow"><b>' + (L.t('manager_pin') || 'Manager PIN')
+      + (hasMgr ? '' : ' <span class="tag tag--gold">' + (L.t('staff_no_pin') || 'no pin') + '</span>')
+      + '</b><small>' + (hasMgr ? (L.t('mgr_pin_set_sub') || 'Manager actions on every station ask for it') : (L.t('mgr_pin_none_sub') || 'Set one to lock manager-only actions')) + '</small></div>'
+      + '<button class="btn btn--sm" data-x="mset">' + (hasMgr ? (L.t('change_pin') || 'Change PIN') : (L.t('set_pin') || 'Set PIN')) + '</button>'
+      + (hasMgr ? '<button class="btn btn--sm btn--danger" data-x="mclear">' + (L.t('remove') || 'Remove') + '</button>' : '');
+    mgr.querySelector('[data-x=mset]').onclick = () => mgrPinFlow();
+    const mc = mgr.querySelector('[data-x=mclear]');
+    if (mc) mc.onclick = async () => {
+      SHOP.profile.managerPin = '';
+      await saveShop(); await kvSet('rev', Date.now()); OFSyncNow();
+      toast(L.t('removed') || 'Removed'); scrStaff();
+    };
+    body.appendChild(mgr);
     const staff = await idbGetAll('staff', []);
     for (const s of staff) {
       const el = ce('div', 'lrow');
@@ -226,6 +243,33 @@ async function scrStaff() {
     };
     body.appendChild(add);
   });
+}
+/* Manager PIN on the web — writes the same PBKDF2 hash string the Flutter
+   app verifies (pbkdf2-sha256$iters$saltHex$hashHex). Stations on any
+   platform verify against it (relay pin_verify round-trip or LAN). */
+async function mgrPinFlow() {
+  OFDialog({ title: (L.t('manager_pin') || 'Manager PIN') });
+  const has = !!((SHOP.profile || {}).managerPin || '');
+  $('dlg-body').innerHTML = '<div class="grid">'
+    + (has ? '<input id="mp-old" type="password" inputmode="numeric" maxlength="8" placeholder="' + (L.t('current_pin') || 'Current PIN') + '"/>' : '')
+    + '<input id="mp-new" type="password" inputmode="numeric" maxlength="8" placeholder="' + (L.t('new_pin') || 'New PIN (4-8 digits)') + '"/>'
+    + '<input id="mp-new2" type="password" inputmode="numeric" maxlength="8" placeholder="' + (L.t('repeat_pin') || 'Repeat PIN') + '"/></div>';
+  $('dlg-btns').innerHTML = '';
+  const ok = ce('button', 'btn btn--mint', L.t('save') || 'Save');
+  ok.onclick = async () => {
+    const n1 = $('mp-new').value.trim(), n2 = $('mp-new2').value.trim();
+    if (!/^\d{4,8}$/.test(n1)) return toast(L.t('pin_fmt') || 'PIN is 4-8 digits');
+    if (n1 !== n2) return toast(L.t('pin_mismatch') || 'PINs do not match');
+    if (has) {
+      const cur = $('mp-old').value.trim();
+      const okc = await OFMgrPin.verify(SHOP.profile.managerPin, cur);
+      if (!okc) return toast(L.t('staff_pin_wrong') || 'Wrong PIN');
+    }
+    SHOP.profile.managerPin = await OFMgrPin.make(n1);
+    await saveShop(); await kvSet('rev', Date.now()); OFSyncNow();
+    OFCloseDlg(); toast(L.t('pin_set') || 'PIN set ✓'); scrStaff();
+  };
+  $('dlg-btns').appendChild(ok);
 }
 function setPinFlow(s) {
   OFDialog({ title: s.name + ' — PIN' });
@@ -791,7 +835,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v41</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v42</div></div>'));
   });
 }
 

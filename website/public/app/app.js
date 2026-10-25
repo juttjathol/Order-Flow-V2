@@ -311,10 +311,19 @@ async function relayKey(secret) {
   const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|' + secret));
   return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
+function b64StdEncode(buf) {
+  const b = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
+  let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 async function encStr(key, plain) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const enc = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain));
-  return C.b64uEncode(iv) + '.' + C.b64uEncode(enc);
+  // v1.1.91 — the ciphertext segment is STANDARD base64 now: the Flutter
+  // relay decodes it with a strict standard-alphabet parser and dropped
+  // every web payload when this was base64url. The IV stays base64url —
+  // both decoders (ours and Flutter's) already tolerate both alphabets.
+  return C.b64uEncode(iv) + '.' + b64StdEncode(enc);
 }
 async function decStr(key, blob) {
   const dot = String(blob || '').indexOf('.'); if (dot <= 0) return null;
@@ -438,8 +447,107 @@ async function handleMsg(env) {
   }
   if (env.t === 'cmd') return onCmd(env.c || {});
 }
+/* ---- Flutter ↔ web store translation (v1.1.91) ----
+   Flutter AppStore json carries schemaVersion + profile; a web backup carries
+   kv.shop. Money units differ: web cents (priceCents) ↔ Flutter doubles
+   (price/unitPrice). Convert exactly once, here. */
+function appStoreToBackup(s) {
+  const centsOf = (v) => Math.round((Number(v) || 0) * 100);
+  const msOf = (iso) => { const t = Date.parse(iso || ''); return isNaN(t) ? null : t; };
+  const rows = (a) => Array.isArray(a) ? a.filter(r => r && typeof r === 'object') : [];
+  const prof = s.profile || {};
+  const out = {};
+  const catNames = {};
+  for (const c of rows(s.categories)) catNames[c.id] = c.name || c.id;
+  out.products = rows(s.products).map(p => ({
+    id: p.id, cat: catNames[p.categoryId] || p.categoryId || '', categoryId: p.categoryId || '',
+    name: p.name || '', nameUr: p.nameUr || '', description: p.description || '',
+    price: Number(p.price) || 0, priceCents: centsOf(p.price),
+    imageBase64: p.imageBase64 || null, available: p.available !== false, avail: p.available !== false,
+    sku: p.sku || '', inventoryId: p.inventoryId || null,
+    deductQty: Number(p.deductQty) || 1, course: p.course || 'main',
+    mods: Array.isArray(p.mods) ? p.mods : [], recipe: Array.isArray(p.recipe) ? p.recipe : [],
+  }));
+  out.tables = rows(s.tables).map(t => ({
+    id: t.id, label: t.name || t.label || 'T', name: t.name || t.label || 'T',
+    seats: Number(t.seats) || 4,
+    state: t.status === 'free' ? 'free' : 'busy',
+    since: msOf(t.occupiedAt), orderId: t.currentOrderId || null,
+  }));
+  out.orders = rows(s.orders).map(o => ({
+    id: o.id, ticketNo: String(o.ticketNo || ''),
+    type: ['dineIn', 'takeaway', 'delivery', 'retail', 'service'].includes(o.type) ? o.type : (o.tableId ? 'dineIn' : 'takeaway'),
+    status: ['open', 'preparing', 'ready', 'served', 'paid', 'cancelled'].includes(o.status) ? o.status : 'open',
+    tableId: o.tableId || null, tableName: o.tableName || '',
+    customerName: o.customerName || '', customerPhone: o.customerPhone || '', address: o.address || '',
+    driverId: o.driverId || null, staffId: o.staffId || null,
+    lines: rows(o.lines).map(l => ({
+      id: l.id, productId: l.productId || '', name: l.name || '',
+      qty: Number(l.qty) || 1, priceCents: centsOf(l.unitPrice != null ? l.unitPrice : l.price),
+      mods: Array.isArray(l.mods) ? l.mods : [], notes: l.notes || '',
+      course: l.course || 'main', fired: !!l.fired,
+    })),
+    discount: Number(o.discount) || 0, discountCents: centsOf(o.discount),
+    taxRate: Number(o.taxRate) || 0, serviceRate: Number(o.serviceRate) || 0,
+    tip: Number(o.tip) || 0, tipCents: centsOf(o.tip),
+    payment: o.payment ? { method: o.payment, at: msOf(o.updatedAt) || Date.now() } : null,
+    splitPayment: o.splitPayment || null, splitAmount: Number(o.splitAmount) || 0, payments: [],
+    notes: o.notes || '', createdBy: o.createdBy || '',
+    createdAt: msOf(o.createdAt) || Date.now(), updatedAt: msOf(o.updatedAt) || Date.now(),
+    stockDeducted: !!o.stockDeducted, held: !!o.held, voidReason: o.voidReason || '',
+    sentAt: msOf(o.sentAt), channel: o.channel || '', shiftNo: Number(o.shiftNo) || 0,
+  }));
+  out.stock = rows(s.stock).map(x => ({
+    id: x.id, name: x.name || '', sku: x.sku || '', qty: Number(x.quantity != null ? x.quantity : x.qty) || 0,
+    lowStockAt: x.lowStockAt != null ? x.lowStockAt : 5, unit: x.unit || 'pcs',
+    costCents: centsOf(x.cost),
+  }));
+  out.customers = rows(s.customers).map(c => ({
+    id: c.id, name: c.name || '', phone: c.phone || '', address: c.address || '',
+    notes: c.notes || '', points: Number(c.points) || 0, creditCents: centsOf(c.credit),
+  }));
+  out.staff = rows(s.staff).map(e => ({
+    id: e.id, name: e.name || '',
+    roles: e.roleLabel ? String(e.roleLabel).split('·').map(x => x.trim()).filter(Boolean) : [],
+    pin: e.pin || '',
+    pinHash: e.pinHash || null, salt: e.salt || null,
+    active: e.active !== false,
+  }));
+  out.drivers = rows(s.drivers).map(d => ({
+    id: d.id, name: d.name || '', phone: d.phone || '',
+    status: d.status === 'busy' || d.status === 'offline' ? d.status : 'free',
+  }));
+  out.suppliers = rows(s.suppliers).map(x => ({ id: x.id, name: x.name || '', phone: x.phone || '', notes: x.notes || '' }));
+  out.purchases = rows(s.purchases);
+  out.wastage = rows(s.waste).map(e => ({ id: e.id, stockId: e.stockId || '', name: e.name || '', qty: Number(e.quantity != null ? e.quantity : e.qty) || 0, costCents: centsOf(e.cost), reason: e.reason || '', actor: e.actor || '', at: msOf(e.at) || Date.now() }));
+  out.kv = {
+    shop: {
+      profile: {
+        ...SHOP.profile,
+        name: prof.businessName || SHOP.profile.name,
+        address: prof.address ?? SHOP.profile.address,
+        phone: prof.phone ?? SHOP.profile.phone,
+        receiptFoot: prof.footer ?? SHOP.profile.receiptFoot,
+        currency: prof.currencySymbol || SHOP.profile.currency,
+        tax: Number(prof.taxRate) || 0, svc: Number(prof.serviceRate) || 0,
+        managerPin: prof.managerPin ?? SHOP.profile.managerPin,
+        payQr: prof.payQrBase64 || SHOP.profile.payQr,
+        model: ['restaurant', 'retail', 'fastfood', 'services'].includes(s.model) ? s.model : SHOP.profile.model,
+      },
+      entitlements: s.entitlements || SHOP.entitlements,
+      brand: SHOP.brand,
+    },
+    rev: Number(s.revision) || Date.now(),
+  };
+  return out;
+}
 async function applyState(json) {
   let obj; try { obj = JSON.parse(json); } catch { return; }
+  // Cross-shape bridge: Flutter AppStore snapshots carry profile/schemaVersion
+  // instead of kv.shop — translate before restoreBackup. (v1.1.91)
+  if (obj && obj.kv == null && (obj.profile != null || obj.schemaVersion != null)) {
+    obj = appStoreToBackup(obj);
+  }
   await restoreBackup(obj);
   await renderActiveTab(true);
   if (ROLE !== 'main' && STATION_ROLE) renderRoleHome(STATION_ROLE).catch(() => {});
@@ -481,7 +589,239 @@ async function onCmd(cmd) {
     if (isGateway && cmd.order) { try { printReceipt(cmd.order, {}); } catch {} }
     return;
   }
+  if (cmd.type === 'pin_verify') {
+    // A station asks (web) Main to check a manager PIN inside the room — the
+    // PBKDF2 hash lives in SHOP.profile.managerPin and never leaves here.
+    if (!cmd.reqId) return;
+    // Brute-force dampener: max 8 guesses per device per minute.
+    const dev = String(cmd.device || '?');
+    const now = Date.now();
+    const log = (window.__pinVerifyLog = window.__pinVerifyLog || {});
+    (log[dev] = (log[dev] || []).filter(t => now - t < 60000));
+    if (log[dev].length >= 8) {
+      await sendCmd({ type: 'pin_reply', reqId: cmd.reqId, ok: false, busy: true, to: dev });
+      return;
+    }
+    log[dev].push(now);
+    const pin = String(cmd.pin || '');
+    const stored = SHOP.profile.managerPin || '';
+    const ok = !stored || await verifyManagerPinLocal(stored, pin);
+    await sendCmd({ type: 'pin_reply', reqId: cmd.reqId, ok, to: dev });
+    return;
+  }
+  if (cmd.type === 'pin_reply' && window.__pinReplyResolve) {
+    // Station side of the round-trip (defensive — stations normally resolve
+    // via their own waiter; kept for future tools).
+    try { window.__pinReplyResolve(cmd); } catch {}
+    return;
+  }
   if (cmd.orders) { for (const o of cmd.orders) await idbPut('orders', normOrder(o)); await kvSet('rev', Date.now()); await refreshBoard(); await renderActiveTab(true); }
+  // ---- Flutter NetCommand bridge (v1.1.91) ---------------------------------
+  // APK/Windows stations speak {id,name,payload,actor,role,at}. Only Main
+  // applies them, then the normal state-gossip carries the result back.
+  if (cmd.name && typeof cmd.payload === 'object' && cmd.payload !== null) {
+    await applyNetCommand(String(cmd.name), cmd.payload).catch(() => {});
+  }
+}
+const ORDER_STATUS_OK = ['open', 'preparing', 'ready', 'served', 'paid', 'cancelled'];
+const ORDER_TYPE_OK = ['dineIn', 'takeaway', 'delivery', 'retail', 'service'];
+async function applyNetCommand(name, p) {
+  if (ROLE !== 'main') return; // stations don't apply peer commands (Flutter does the same)
+  const centsOf = (v) => Math.round((Number(v) || 0) * 100);
+  let touched = false;
+  switch (name) {
+    case 'createOrder': {
+      const src = p.order && typeof p.order === 'object' ? p.order : p;
+      const o = normOrder(appStoreToBackup({ profile: {}, orders: [src], tables: [], stock: [] }).orders[0]);
+      if (!o.id) o.id = C.uuid();
+      // Flutter reducer assigns ticketNo on LAN routes; replicate here or the
+      // kitchen board shows a blank ticket for station-created orders.
+      if (!o.ticketNo) {
+        const all = await idbGetAll('orders', []);
+        let max = 1000;
+        for (const r of all) { const n = parseInt(r.ticketNo, 10); if (n >= max) max = n; }
+        o.ticketNo = String(max + 1);
+      }
+      // Keep the sender's status — the web "New" column shows open/sent, and
+      // the Flutter station's follow-up fireCourse moves it 'preparing'.
+      if (!ORDER_STATUS_OK.includes(o.status)) o.status = 'open';
+      await idbPut('orders', o); touched = true;
+      if ((SHOP.profile.fireMode || 'auto') === 'auto' && SHOP.profile.autoPrint && canF('station_printers')) {
+        try { ofPrintKitchen(o); } catch {}
+      }
+      break;
+    }
+    case 'setOrderStatus': {
+      const id = p.id || p.orderId;
+      const o = id ? await idbGet('orders', String(id), null) : null;
+      if (!o) break;
+      const st = ORDER_STATUS_OK.includes(p.status) ? p.status : o.status;
+      o.status = st; o.updatedAt = Date.now();
+      if (st === 'preparing' && !o.sentAt) o.sentAt = Date.now();
+      if (p.voidReason != null) o.voidReason = String(p.voidReason);
+      if (p.payment && typeof p.payment === 'string') o.payment = { method: p.payment, at: Date.now() };
+      if (st === 'paid' && !o.payment) o.payment = { method: 'cash', at: Date.now() };
+      await idbPut('orders', o); touched = true;
+      if (o.tableId && (st === 'paid' || st === 'cancelled')) {
+        const t = await idbGet('tables', o.tableId, null);
+        if (t) { t.state = 'free'; t.since = null; t.busySince = null; t.orderId = null; await idbPut('tables', t); }
+      }
+      break;
+    }
+    case 'addLine': {
+      const o = p.orderId ? await idbGet('orders', String(p.orderId), null) : null;
+      const l = p.line && typeof p.line === 'object' ? p.line : null;
+      if (!o || !l) break;
+      o.lines.push(normLine(l));
+      o.updatedAt = Date.now();
+      if (o.status === 'ready' || o.status === 'served') o.status = 'preparing';
+      await idbPut('orders', o); touched = true;
+      break;
+    }
+    case 'updateLine': {
+      const o = p.orderId ? await idbGet('orders', String(p.orderId), null) : null;
+      const l = p.line && typeof p.line === 'object' ? p.line : null;
+      if (!o || !l) break;
+      const q = normLine(l);
+      const i = o.lines.findIndex(x => x.id === q.id);
+      if (i >= 0) o.lines[i] = q;
+      o.updatedAt = Date.now();
+      await idbPut('orders', o); touched = true;
+      break;
+    }
+    case 'removeLine': {
+      const o = p.orderId ? await idbGet('orders', String(p.orderId), null) : null;
+      if (!o) break;
+      o.lines = o.lines.filter(x => x.id !== p.lineId);
+      o.updatedAt = Date.now();
+      await idbPut('orders', o); touched = true;
+      break;
+    }
+    case 'moveOrder': {
+      const o = p.orderId ? await idbGet('orders', String(p.orderId), null) : null;
+      if (!o) break;
+      const t = p.tableId ? await idbGet('tables', String(p.tableId), null) : null;
+      o.tableId = p.tableId || null; o.tableName = t ? (t.label || t.name) : '';
+      if (t) { t.state = 'busy'; t.orderId = o.id; await idbPut('tables', t); }
+      o.updatedAt = Date.now();
+      await idbPut('orders', o); touched = true;
+      break;
+    }
+    case 'mergeOrders': {
+      const keep = p.keepId ? await idbGet('orders', String(p.keepId), null) : null;
+      const drop = p.dropId ? await idbGet('orders', String(p.dropId), null) : null;
+      if (!keep || !drop || keep.id === drop.id) break;
+      keep.lines = keep.lines.concat(drop.lines);
+      drop.status = 'cancelled'; drop.voidReason = 'merged into ' + keep.ticketNo;
+      await idbPut('orders', keep); await idbPut('orders', drop); touched = true;
+      break;
+    }
+    case 'deleteOrder': {
+      const id = p.id || p.orderId;
+      if (id) { await idbDel('orders', String(id)); touched = true; }
+      break;
+    }
+    case 'fireCourse': {
+      const o = p.orderId ? await idbGet('orders', String(p.orderId), null) : null;
+      if (!o) break;
+      const course = String(p.course || '');
+      for (const l of o.lines) if (!course || (l.course || 'main') === course) l.fired = true;
+      if (!o.sentAt) o.sentAt = Date.now();
+      if (o.status === 'open') o.status = 'preparing';
+      await idbPut('orders', o); touched = true;
+      break;
+    }
+    case 'upsertTable': {
+      const t = p.table && typeof p.table === 'object' ? p.table : null;
+      if (!t || !t.id) break;
+      const prev = await idbGet('tables', String(t.id), null) || {};
+      await idbPut('tables', {
+        id: String(t.id), label: t.name || t.label || prev.label || 'T',
+        name: t.name || t.label || prev.name || 'T',
+        seats: Number(t.seats) || prev.seats || 4,
+        state: t.status === 'free' ? 'free' : (t.status ? 'busy' : (prev.state || 'free')),
+        since: prev.since || null, orderId: t.currentOrderId || prev.orderId || null,
+      });
+      touched = true;
+      break;
+    }
+    case 'deleteTable': if (p.id) { await idbDel('tables', String(p.id)); touched = true; } break;
+    case 'upsertProduct': {
+      const pr = p.product && typeof p.product === 'object' ? p.product : null;
+      if (!pr || !pr.id) break;
+      await idbPut('products', {
+        id: String(pr.id), cat: pr.categoryName || pr.categoryId || '', categoryId: pr.categoryId || '',
+        name: pr.name || '', nameUr: pr.nameUr || '', description: pr.description || '',
+        price: Number(pr.price) || 0, priceCents: centsOf(pr.priceCents != null ? pr.priceCents / 100 : pr.price),
+        imageBase64: pr.imageBase64 || null, available: pr.available !== false, avail: pr.available !== false,
+        sku: pr.sku || '', inventoryId: pr.inventoryId || null,
+        deductQty: Number(pr.deductQty) || 1, course: pr.course || 'main',
+        mods: Array.isArray(pr.mods) ? pr.mods : [], recipe: Array.isArray(pr.recipe) ? pr.recipe : [],
+      });
+      touched = true;
+      break;
+    }
+    case 'deleteProduct': if (p.id) { await idbDel('products', String(p.id)); touched = true; } break;
+    case 'upsertStock': {
+      const x = p.stock && typeof p.stock === 'object' ? p.stock : (p.item && typeof p.item === 'object' ? p.item : null);
+      if (!x || !x.id) break;
+      await idbPut('stock', {
+        id: String(x.id), name: x.name || '', sku: x.sku || '',
+        qty: Number(x.quantity != null ? x.quantity : x.qty) || 0,
+        lowStockAt: x.lowStockAt != null ? x.lowStockAt : 5, unit: x.unit || 'pcs',
+        costCents: centsOf(x.costCents != null ? x.costCents / 100 : x.cost),
+      });
+      touched = true;
+      break;
+    }
+    case 'deleteStock': if (p.id) { await idbDel('stock', String(p.id)); touched = true; } break;
+    case 'upsertCustomer': {
+      const c = p.customer && typeof p.customer === 'object' ? p.customer : null;
+      if (!c || !c.id) break;
+      await idbPut('customers', {
+        id: String(c.id), name: c.name || '', phone: c.phone || '', address: c.address || '',
+        notes: c.notes || '', points: Number(c.points) || 0, creditCents: centsOf(c.creditCents != null ? c.creditCents / 100 : c.credit),
+      });
+      touched = true;
+      break;
+    }
+    case 'deleteCustomer': if (p.id) { await idbDel('customers', String(p.id)); touched = true; } break;
+    case 'upsertStaff': {
+      const e = p.staff && typeof p.staff === 'object' ? p.staff : null;
+      if (!e || !e.id) break;
+      const prev = await idbGet('staff', String(e.id), null) || {};
+      await idbPut('staff', {
+        id: String(e.id), name: e.name || '',
+        roles: Array.isArray(e.roles) ? e.roles : (e.roleLabel ? String(e.roleLabel).split('·').map(x => x.trim()).filter(Boolean) : (prev.roles || [])),
+        pin: e.pin != null ? String(e.pin) : (prev.pin || ''),
+        pinHash: e.pinHash || (e.pin != null && e.pin !== '' ? null : prev.pinHash || null),
+        salt: e.salt || (e.pin != null && e.pin !== '' ? null : prev.salt || null),
+        active: e.active !== false,
+      });
+      touched = true;
+      break;
+    }
+    case 'deleteStaff': if (p.id) { await idbDel('staff', String(p.id)); touched = true; } break;
+    // closeDay/openShift/startShift/endShift: web tracks day-close by report,
+    // not by a persisted gate — nothing to mirror on the web side. Ignored.
+    default: break; // unknown Flutter vocabulary → ignore quietly
+  }
+  if (touched) {
+    await kvSet('rev', Date.now());
+    await refreshBoard(); await renderActiveTab(true);
+    // Main is source of truth: after applying a station command push fresh
+    // state so every device converges (same as LAN broadcastState).
+    pushStateNow();
+  }
+}
+function normLine(l) {
+  return {
+    id: l.id || C.uuid(), productId: l.productId || '', name: l.name || '',
+    qty: Number(l.qty) || 1,
+    priceCents: Number(l.priceCents != null ? l.priceCents : Math.round((Number(l.unitPrice) || 0) * 100)) | 0,
+    mods: Array.isArray(l.mods) ? l.mods : [], notes: l.notes || '',
+    course: l.course || 'main', fired: !!l.fired,
+  };
 }
 async function qrCapCheck(tableId) {
   const win = Date.now() - 3600 * 1000;
@@ -1325,7 +1665,9 @@ function renderRoleScreen() {
 }
 async function rolePickWithPin(role) {
   const staff = await idbGetAll('staff', []);
-  const pinOn = staff.some(s => s.pinHash);
+  // v1.1.91: a PIN can live as web {pinHash+salt}, Flutter plaintext `pin`,
+  // or a PinCrypto hash-string in `pin` — all of them must gate the role.
+  const pinOn = staff.some(s => s.pinHash || s.pin);
   if (!pinOn) { await kvSet('stationRole', role); STATION_ROLE = role; roleHome(role); heartbeat(); return; }
   const pick = staff.filter(s => staffCanRole(s, role));
   const list = pick.length ? pick : staff;
@@ -1343,8 +1685,17 @@ async function rolePickWithPin(role) {
         const lock = await kvGet(failsKey + ':lock', 0);
         if (Date.now() < lock) { toast(L.t('staff_pin_lock')); resolve(false); closeDlg(); return; }
         const entered = $('pin-in').value.trim();
-        const hash = await sha256(st.salt + ':' + entered);
-        if (hash === st.pinHash) { await kvSet(failsKey, 0); closeDlg(); resolve(true); }
+        let okPass = false;
+        if (st.pinHash && st.salt) {
+          okPass = (await sha256(st.salt + ':' + entered)) === st.pinHash;
+        }
+        // Flutter staff: plaintext pin, or a PinCrypto hash-string hosted in
+        // `pin` (pbkdf2-sha256$… / sha256$…). v1.1.91 cross-platform.
+        if (!okPass && st.pin) {
+          if (st.pin.indexOf('$') > 0) okPass = await verifyManagerPinLocal(st.pin, entered);
+          else okPass = st.pin === entered;
+        }
+        if (okPass) { await kvSet(failsKey, 0); closeDlg(); resolve(true); }
         else {
           const fails = (await kvGet(failsKey, 0)) + 1;
           await kvSet(failsKey, fails);
@@ -1361,6 +1712,39 @@ async function sha256(s) {
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 window.OFSha256 = sha256;
+
+/* ---- PBKDF2 (Flutter-compatible) manager-PIN helpers (v1.1.91) ----
+   Stored format shared with the Flutter app:
+     pbkdf2-sha256$<iters>$<saltHex>$<hashHex>   (HMAC-SHA-256, 32-byte block)
+   Legacy formats still verified: `sha256$<saltHex>$<hex(sha256(salt|pin))>`
+   and plaintext. New writes always use pbkdf2-sha256$50000$…. */
+async function pbkdf2Hex(pin, saltHex, iters) {
+  const salt = new Uint8Array(saltHex.match(/.{1,2}/g).map(h => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: Math.max(1000, Math.min(100000, iters | 0)) },
+    key, 256);
+  return [...new Uint8Array(bits)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function makeManagerPinHash(pin) {
+  const salt = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, '0')).join('');
+  return 'pbkdf2-sha256$50000$' + salt + '$' + await pbkdf2Hex(pin, salt, 50000);
+}
+async function verifyManagerPinLocal(stored, pin) {
+  stored = String(stored || ''); pin = String(pin || '');
+  if (!pin || !stored) return false;
+  const parts = stored.split('$');
+  try {
+    if (parts[0] === 'pbkdf2-sha256' && parts.length === 4) {
+      return (await pbkdf2Hex(pin, parts[2], parseInt(parts[1], 10) || 50000)) === parts[3].toLowerCase();
+    }
+    if (parts[0] === 'sha256' && parts.length === 3) {
+      return (await sha256(parts[1] + '|' + pin)) === parts[2].toLowerCase();
+    }
+    return stored === pin; // plaintext legacy
+  } catch { return false; }
+}
+window.OFMgrPin = { make: makeManagerPinHash, verify: verifyManagerPinLocal };
 
 /* ================= COVER STATION (main jumps into a role) ================= */
 async function OFCoverMenu() {

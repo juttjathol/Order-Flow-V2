@@ -171,14 +171,20 @@ class CloudRelay {
 
   static List<String>? parsePairing(String raw) {
     final parts = raw.trim().split(':');
-    if (parts.length != 5 || parts[0] != 'OF1') return null;
-    try {
-      final url = utf8.decode(base64Url.decode(base64Url.normalize(parts[4])));
-      if (!url.startsWith('https://')) return null;
-      return [parts[1], parts[2], parts[3], url];
-    } catch (_) {
-      return null;
+    if (parts.length < 4 || parts[0].toUpperCase() != 'OF1') return null;
+    // OF1:room:code:secret (web-app room QR — no base field; the relay store
+    // is shared via the jathol.org forwarder, so the default base is correct)
+    // or OF1:room:code:secret:base64url(baseUrl) as the Flutter Main emits.
+    var url = kCloudRelayBase;
+    if (parts.length >= 5) {
+      try {
+        url = utf8.decode(base64Url.decode(base64Url.normalize(parts[4])));
+        if (!url.startsWith('https://')) return null;
+      } catch (_) {
+        return null;
+      }
     }
+    return [parts[1], parts[2], parts[3], url];
   }
 
   // ── Runtime ──────────────────────────────────────────────────────────
@@ -234,6 +240,22 @@ class CloudRelay {
   /// the command in its offline queue.
   Future<bool> sendCommand(Map<String, dynamic> cmdJson) async {
     return _sendEnvelope({'t': 'cmd', 'c': cmdJson});
+  }
+
+  /// Main-side immediate re-share (web-style `hello` / `menu_request`
+  /// commands from stations ask for exactly this). (v1.1.91)
+  Future<void> pushNow() async {
+    if (!isMain || _pushing) return;
+    final rev = revision();
+    _pushing = true;
+    try {
+      if (await _pushState()) {
+        _lastPushedRev = rev;
+        _lastPushAt = DateTime.now();
+      }
+    } finally {
+      _pushing = false;
+    }
   }
 
   Future<bool> _sendEnvelope(Map<String, dynamic> env) async {
@@ -305,7 +327,17 @@ class CloudRelay {
       final dot = blob.indexOf('.');
       if (dot <= 0) return null;
       final iv = IV(base64Url.decode(base64Url.normalize(blob.substring(0, dot))));
-      final enc = Encrypted.fromBase64(blob.substring(dot + 1));
+      // Web senders may emit base64url (+ padding omitted) for the
+      // ciphertext; Encrypted.fromBase64 is strictly standard-alphabet, so
+      // normalise first. (v1.1.91)
+      var ct = blob
+          .substring(dot + 1)
+          .replaceAll('-', '+')
+          .replaceAll('_', '/');
+      while (ct.length % 4 != 0) {
+        ct += '=';
+      }
+      final enc = Encrypted.fromBase64(ct);
       return _aes.decrypt(enc, iv: iv);
     } catch (_) {
       return null;
@@ -347,9 +379,19 @@ class CloudRelay {
         }
       } else if (t == 'state') {
         _applyState('${env['s']}');
-      } else if (t == 'cmd' && isMain) {
+      } else if (t == 'cmd') {
+        // Commands are Main-only for business commands, but reply-style
+        // envelopes (pin_reply, or anything addressed to this device via
+        // `to`) must reach stations too. (v1.1.91)
         final c = env['c'];
-        if (c is Map) onPeerCommand?.call(Map<String, dynamic>.from(c));
+        if (c is! Map) continue;
+        final cmd = Map<String, dynamic>.from(c);
+        if (isMain ||
+            cmd['to'] == deviceId ||
+            cmd['type'] == 'pin_reply') {
+          // Batch outside the hot loop — this is just a one-line call.
+          onPeerCommand?.call(cmd);
+        }
       }
     }
   }
