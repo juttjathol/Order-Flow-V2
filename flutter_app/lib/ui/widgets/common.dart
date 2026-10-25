@@ -721,10 +721,15 @@ class _TapScaleState extends State<_TapScale> {
       },
       onLongPress: widget.onLongPress,
       child: AnimatedScale(
-        scale: _down ? 0.955 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOut,
-        child: widget.child,
+        scale: _down ? 0.94 : 1.0,
+        duration: _down ? const Duration(milliseconds: 90) : const Duration(milliseconds: 380),
+        curve: _down ? Curves.easeOut : Curves.easeOutBack,
+        child: AnimatedOpacity(
+          opacity: _down ? 0.92 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: widget.child,
+        ),
       ),
     );
   }

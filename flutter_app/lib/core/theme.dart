@@ -112,33 +112,65 @@ class OfTheme {
     final isDark = brightness == Brightness.dark;
     final ink = isDark ? const Color(0xFFF3F7F2) : OfColors.ink;
     final quiet = isDark ? const Color(0xFFA9C6B7) : OfColors.muted;
+    final border = isDark ? const Color(0x1E3DDC97) : OfColors.creamBorder;
+    final accent = isDark ? OfColors.mint : OfColors.forest;
+    final cardSurface = isDark ? OfColors.cardDark : OfColors.creamSurface;
+
+    // Kill Material's default purple-shifted neutral scale + surface tint —
+    // generic "out of the box" look. Every surface token is OURS.
+    scheme = scheme.copyWith(
+      surfaceTint: Colors.transparent,
+      outline: border,
+      outlineVariant: (isDark ? const Color(0xFF24352E) : OfColors.line),
+      onPrimary: isDark ? const Color(0xFF042016) : OfColors.cream,
+      primaryContainer: accent.withValues(alpha: 0.14),
+      onPrimaryContainer: accent,
+      secondaryContainer: (isDark ? OfColors.cardDarkAlt : OfColors.creamMuted),
+      onSecondaryContainer: ink,
+      surfaceContainerLowest: isDark ? const Color(0xFF0B100D) : Colors.white,
+      surfaceContainerLow: cardSurface,
+      surfaceContainer: cardSurface,
+      surfaceContainerHigh: isDark ? const Color(0xFF1E2A24) : const Color(0xFFEFE7D8),
+      surfaceContainerHighest: isDark ? const Color(0xFF26332C) : const Color(0xFFE8DECC),
+      inverseSurface: isDark ? OfColors.creamSurface : OfColors.ink,
+      onInverseSurface: isDark ? OfColors.ink : const Color(0xFFF6FAF7),
+      inversePrimary: isDark ? OfColors.forest : OfColors.mint,
+      shadow: isDark ? const Color(0x66000000) : const Color(0x1A163E2E),
+    );
+
     final text = TextTheme(
-      headlineLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 34, letterSpacing: -0.8, height: 1.1, color: ink),
-      headlineMedium: TextStyle(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.6, height: 1.15, color: ink),
-      headlineSmall: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, letterSpacing: -0.4, color: ink),
-      titleLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: -0.3, color: ink),
-      titleMedium: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: ink),
-      bodyLarge: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, height: 1.45, color: ink),
-      bodyMedium: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, height: 1.45, color: quiet),
-      bodySmall: TextStyle(fontWeight: FontWeight.w500, fontSize: 12, height: 1.4, color: quiet),
-      titleSmall: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: ink),
-      labelLarge: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: ink),
-      labelMedium: TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: quiet),
-      labelSmall: TextStyle(fontWeight: FontWeight.w600, fontSize: 10, color: quiet),
+      displaySmall: TextStyle(fontWeight: FontWeight.w900, fontSize: 30, letterSpacing: -0.9, height: 1.08, color: ink),
+      headlineLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 34, letterSpacing: -0.9, height: 1.08, color: ink),
+      headlineMedium: TextStyle(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -0.7, height: 1.12, color: ink),
+      headlineSmall: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, letterSpacing: -0.45, height: 1.2, color: ink),
+      titleLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: -0.35, height: 1.25, color: ink),
+      titleMedium: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, letterSpacing: -0.15, height: 1.3, color: ink),
+      bodyLarge: TextStyle(fontWeight: FontWeight.w500, fontSize: 16, height: 1.5, color: ink),
+      bodyMedium: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, height: 1.5, color: quiet),
+      bodySmall: TextStyle(fontWeight: FontWeight.w500, fontSize: 12, height: 1.45, color: quiet),
+      titleSmall: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: -0.1, color: ink),
+      labelLarge: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: -0.1, color: ink),
+      labelMedium: TextStyle(fontWeight: FontWeight.w600, fontSize: 11, letterSpacing: 0.15, color: quiet),
+      labelSmall: TextStyle(fontWeight: FontWeight.w600, fontSize: 10.5, letterSpacing: 0.25, color: quiet),
     );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
+      applyElevationOverlayColor: false,
       visualDensity: VisualDensity.standard,
       textTheme: text,
-      splashFactory: InkRipple.splashFactory,
-      splashColor: (isDark ? OfColors.mint : OfColors.forest).withValues(alpha: 0.14),
-      highlightColor: (isDark ? OfColors.mint : OfColors.forest).withValues(alpha: 0.06),
+      splashFactory: InkSparkle.constantTurbulenceSeedSplashFactory,
+      splashColor: accent.withValues(alpha: 0.10),
+      highlightColor: accent.withValues(alpha: 0.05),
+      hoverColor: accent.withValues(alpha: 0.04),
+      focusColor: accent.withValues(alpha: 0.10),
       scaffoldBackgroundColor: isDark ? OfColors.deep : OfColors.cream,
-      dividerColor: isDark ? OfColors.line : OfColors.creamBorder,
+      dividerColor: border,
+      dividerTheme: DividerThemeData(color: border, thickness: 1, space: 24, indent: 4, endIndent: 4),
+      iconTheme: IconThemeData(color: quiet, size: 22),
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
-        TargetPlatform.android: FadeThroughPageTransitionsBuilder(),
+        TargetPlatform.android: OfPageTransitionsBuilder(),
         TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
       }),
       appBarTheme: AppBarTheme(
@@ -170,75 +202,171 @@ class OfTheme {
         margin: EdgeInsets.zero,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 72,
-        backgroundColor: isDark ? OfColors.cardDark : OfColors.creamSurface,
-        indicatorColor: isDark
-            ? OfColors.mint.withValues(alpha: 0.22)
-            : OfColors.forest.withValues(alpha: 0.12),
-        labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-            color: isDark ? OfColors.mint : OfColors.forest,
-          ),
-        ),
+        height: 74,
+        elevation: 0,
+        backgroundColor: cardSurface,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: accent.withValues(alpha: isDark ? 0.20 : 0.12),
+        iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
+              size: 23,
+              color: states.contains(WidgetState.selected) ? accent : quiet,
+            )),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+              fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
+              fontSize: 12,
+              letterSpacing: 0.1,
+              color: states.contains(WidgetState.selected) ? accent : quiet,
+            )),
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: accent,
+        unselectedLabelColor: quiet,
+        indicatorColor: accent,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: -0.1),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        iconColor: quiet,
+        textColor: ink,
+        titleTextStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, letterSpacing: -0.2, color: ink),
+        subtitleTextStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: quiet),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 22),
           elevation: 0,
-          backgroundColor: isDark ? OfColors.mint : OfColors.forest,
+          backgroundColor: accent,
           foregroundColor: isDark ? const Color(0xFF042016) : OfColors.cream,
+          disabledBackgroundColor: border,
+          disabledForegroundColor: quiet,
+          overlayColor: isDark ? Colors.white.withValues(alpha: 0.10) : Colors.white.withValues(alpha: 0.14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: -0.1),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(48, 52),
-          foregroundColor: isDark ? OfColors.mint : OfColors.forest,
-          side: BorderSide(color: isDark ? OfColors.mint : OfColors.forest, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          foregroundColor: accent,
+          side: BorderSide(color: accent, width: 1.4),
+          disabledForegroundColor: quiet,
+          disabledBorder: BorderSide(color: border, width: 1.2),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: -0.1),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: isDark ? OfColors.mint : OfColors.forest,
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          foregroundColor: accent,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          disabledForegroundColor: quiet,
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: -0.05),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: isDark ? OfColors.mint : OfColors.forest,
+        backgroundColor: accent,
         foregroundColor: isDark ? const Color(0xFF042016) : Colors.white,
-        elevation: 2,
+        elevation: 0,
+        highlightElevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: cardSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shadowColor: scheme.shadow,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        titleTextStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 19, letterSpacing: -0.3, color: ink),
+        contentTextStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 14, height: 1.5, color: quiet),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         showDragHandle: true,
-        backgroundColor: isDark ? OfColors.cardDark : OfColors.creamSurface,
+        dragHandleColor: border,
+        elevation: 10,
+        shadowColor: scheme.shadow,
+        backgroundColor: cardSurface,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: OfRadii.sheet),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: isDark ? const Color(0x22000000) : OfColors.creamSurface,
+        labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, color: quiet),
+        floatingLabelStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, letterSpacing: 0.1, color: accent),
+        hintStyle: TextStyle(fontWeight: FontWeight.w500, color: quiet.withValues(alpha: 0.65)),
+        errorStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: OfColors.danger),
+        prefixIconColor: quiet,
+        suffixIconColor: quiet,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? OfColors.line : OfColors.creamBorder),
+          borderSide: BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? OfColors.line : OfColors.creamBorder, width: 1.2),
+          borderSide: BorderSide(color: border, width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? OfColors.mint : OfColors.forest, width: 1.8),
+          borderSide: BorderSide(color: accent, width: 1.8),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: OfColors.danger, width: 1.2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: OfColors.danger, width: 1.8),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        side: BorderSide(color: border, width: 1.1),
+        backgroundColor: cardSurface,
+        selectedColor: accent.withValues(alpha: 0.14),
+        checkmarkColor: accent,
+        labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5, color: ink),
       ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent : (isDark ? const Color(0xFF8FA79A) : const Color(0xFF9BB5A8))),
+        trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent.withValues(alpha: 0.30) : border),
+        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+        trackOutlineWidth: const WidgetStatePropertyAll(0),
+        overlayColor: WidgetStatePropertyAll(accent.withValues(alpha: 0.12)),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent : Colors.transparent),
+        checkColor: WidgetStatePropertyAll(isDark ? const Color(0xFF042016) : Colors.white),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        side: BorderSide(color: quiet, width: 1.6),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: accent,
+        linearTrackColor: border,
+        circularTrackColor: border,
+        linearMinHeight: 8,
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(color: ink, borderRadius: BorderRadius.circular(10)),
+        textStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: isDark ? OfColors.ink : OfColors.cream),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: cardSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shadowColor: scheme.shadow,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      badgeTheme: const BadgeThemeData(backgroundColor: OfColors.danger, textColor: Colors.white),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         elevation: 6,
@@ -248,6 +376,33 @@ class OfTheme {
           fontWeight: FontWeight.w600,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+}
+
+/// Shared-axis "breath" transition: new page rises 3.5% + settles from 98.5% scale
+/// while fading — the Android default fade-through feels flat and systemy.
+class OfPageTransitionsBuilder extends PageTransitionsBuilder {
+  const OfPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, 0.035), end: Offset.zero).animate(curved),
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.985, end: 1.0).animate(curved),
+          child: child,
+        ),
       ),
     );
   }
