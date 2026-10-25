@@ -2,7 +2,7 @@
    v25 • additive only; never caches /api/* or /download
    /app/*.{html,js,css} + /order.html are network-first
    so the freshest shell always wins and old builds die. */
-const CACHE_SHELL = 'of-shell-v42';
+const CACHE_SHELL = 'of-shell-v43';
 const SHELL = [
   '/app/',
   '/app/index.html',
@@ -17,6 +17,7 @@ const SHELL = [
   '/app/motion.css',
   '/app/motion.js',
   '/app/notify.js',
+  '/app/vendor/jsQR.js',
   '/order.html',
   '/order.js',
   '/media/logo.png',

@@ -1463,6 +1463,8 @@ Object.assign(window.OFAct, {
   'license.reset': async () => { show('view-license'); },
   'license.back': () => show('view-license'),
   'connect.join': async () => OFConnectJoin(),
+  'connect.scan': async () => OFScanStart(),
+  'connect.scanstop': () => OFScanStop(),
   'setup.done': () => setupDone(),
   'shell.cover': () => OFCoverMenu(),
   'shell.tab.home': () => setTab('home'), 'shell.tab.floor': () => setTab('floor'),
@@ -1472,7 +1474,9 @@ Object.assign(window.OFAct, {
   'ticket.new': () => newTicket({}),
   'role.leave': async () => { await kvSet('role', null); location.reload(); },
   'rolecover.kitchen': () => roleHome('kitchen'),
-  'home.roomqr': () => OFAct['home.tableqr']?.(null, null),
+  // Room card QR = pairing QR for stations (OF1:…) — NOT the guest-order URL;
+  // web stations scan this one to join. Guest order QRs live on the tables tab.
+  'home.roomqr': () => OFShowPairingQR(),
   'home.tableqr': (el, t) => OFShowTableQR(t),
   'kd.prep': async (b) => { const o = await idbGet('orders', b.dataset.id); if (o) { o.status = 'preparing'; await idbPut('orders', o); await kvSet('rev', Date.now()); await sendCmd({ orders: [o] }); refreshBoard(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
   'kd.back': async (b) => { const o = await idbGet('orders', b.dataset.id); if (o && o.status === 'ready') { o.status = 'preparing'; await idbPut('orders', o); await kvSet('rev', Date.now()); await sendCmd({ orders: [o] }); refreshBoard(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
@@ -1627,6 +1631,82 @@ function pickAction(title, sub, entries) {
 }
 window.OFPick = pickAction;
 
+/* ================= CONNECT SCANNER (camera → OF1 pairing text, v1.1.92) ================= */
+const SCAN = { stream: null, raf: 0, done: false, closeT: 0 };
+function scanResetTracks() {
+  cancelAnimationFrame(SCAN.raf);
+  clearTimeout(SCAN.closeT);
+  if (SCAN.stream) { SCAN.stream.getTracks().forEach(t => t.stop()); SCAN.stream = null; }
+}
+async function OFScanStart() {
+  const dlg = $('scan-dlg'); if (!dlg) return;
+  $('connect-err').textContent = '';
+  scanResetTracks(); // stop any older session before reopening
+  SCAN.done = false;
+  dlg.hidden = false; dlg.classList.add('is-open');
+  const hint = $('scan-hint');
+  const box = document.querySelector('#scan-dlg .scanbox');
+  box && box.classList.remove('is-fail');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+    return scanFail('No camera on this device — paste the OF1 text instead.');
+  try {
+    SCAN.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) {
+    return scanFail('Camera refused — allow camera access, or paste the OF1 text instead.');
+  }
+  const v = $('scan-video');
+  v.srcObject = SCAN.stream;
+  try { await v.play(); } catch { }
+  hint.textContent = 'Ask Main to open More → Cloud room and show the QR';
+  const cv = $('scan-canvas'); const cx = cv.getContext('2d', { willReadFrequently: true });
+  const useBD = ('BarcodeDetector' in window);
+  let detector = null;
+  if (useBD) { try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch { detector = null; } }
+  const step = async () => {
+    if (SCAN.done || !SCAN.stream) return;
+    SCAN.raf = requestAnimationFrame(step);
+    if (v.readyState < 2) return;
+    if (cv.width !== v.videoWidth) { cv.width = v.videoWidth; cv.height = v.videoHeight; }
+    cx.drawImage(v, 0, 0, cv.width, cv.height);
+    let text = null;
+    try {
+      if (detector) {
+        const codes = await detector.detect(cv);
+        if (codes && codes.length) text = codes[0].rawValue;
+      } else if (typeof jsQR === 'function') {
+        const img = cx.getImageData(0, 0, cv.width, cv.height);
+        const q = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (q && q.data) text = q.data;
+      }
+    } catch { }
+    if (text && /OF1\s*:/i.test(text)) return scanHit(text);
+  };
+  SCAN.raf = requestAnimationFrame(step);
+  function scanHit(text) {
+    SCAN.done = true;
+    try { navigator.vibrate && navigator.vibrate(60); } catch { }
+    const m = text.match(/OF1\s*:[^\s"'<>]+/i);
+    $('connect-paste').value = m ? m[0].trim() : text.trim();
+    OFScanStop();
+    toast('QR found — pairing…');
+    OFConnectJoin();
+  }
+  function scanFail(msg) {
+    SCAN.done = true;
+    box && box.classList.add('is-fail');
+    hint.textContent = msg;
+    OFScanStop(true);
+    const p = $('connect-paste'); if (p) { try { p.focus(); } catch { } }
+  }
+}
+function OFScanStop(keepOpen) {
+  scanResetTracks();
+  const dlg = $('scan-dlg');
+  if (!dlg) return;
+  if (!keepOpen) { dlg.classList.remove('is-open'); dlg.hidden = true; }
+  else SCAN.closeT = setTimeout(() => { dlg.classList.remove('is-open'); dlg.hidden = true; }, 1600);
+}
+
 /* ================= CONNECT (join station) ================= */
 async function OFConnectJoin() {
   const err = $('connect-err'); err.textContent = '';
@@ -1752,6 +1832,20 @@ async function OFCoverMenu() {
   if (SHOP.profile.model === 'services') roles.push('frontDesk', 'specialist');
   roles.push('driver');
   pickAction(L.t('cover_role'), 'Main covers a station — full-screen like the APK', roles.map(r => ({ label: ROLE_META[r].ic + '  ' + L.t(ROLE_META[r].label), act: async () => { ROLE === 'main' && (window.__covering = true); roleHome(r); } })).concat([{ label: '🔙 ' + L.t('cover_home'), kind: 'ghost', act: async () => { enterMain(); } }]));
+}
+
+/* ================= ROOM PAIRING QR (stations scan this to join) ================= */
+function OFShowPairingQR() {
+  if (!RELAY) { toast('Open the room first', 'More → Cloud room'); return; }
+  const pair = C.pairingEncode(RELAY.info);
+  const body = ce('div', 'grid');
+  body.innerHTML = '<div class="qrbox" style="display:grid;place-items:center;padding:8px"><img width="216" height="216" src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=' + encodeURIComponent(pair) + '" alt="Pairing QR"/></div>'
+    + '<p class="small muted" style="font-weight:600;text-align:center">Stations: open the app → "Join as station" → scan this. ' + L.t('join_code') + ': <b class="mono">' + esc(RELAY.info.code || '') + '</b></p>';
+  const copy = ce('button', 'btn btn--ghost', 'Copy pairing text (OF1:…)');
+  copy.onclick = async () => { await navigator.clipboard.writeText(pair).catch(() => {}); toast('Copied'); };
+  body.appendChild(copy);
+  OFDialog({ title: 'Room QR — stations scan this' });
+  $('dlg-body').appendChild(body);
 }
 
 /* ================= TABLE TILE OPS ================= */
