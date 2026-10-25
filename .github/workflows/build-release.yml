@@ -105,6 +105,15 @@ jobs:
           path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
+      - name: Upload obfuscation symbols (APK)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-apk
+          path: flutter_app/build/symbols-apk
+          if-no-files-found: warn
+          retention-days: 400
+
       - name: Build release AAB (Play Store)
         working-directory: flutter_app
         shell: bash
@@ -126,6 +135,15 @@ jobs:
           name: app-aab
           path: flutter_app/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: warn
+
+      - name: Upload obfuscation symbols (AAB)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-aab
+          path: flutter_app/build/symbols-aab
+          if-no-files-found: warn
+          retention-days: 400
 
   build-windows:
     runs-on: windows-latest
