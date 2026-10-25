@@ -353,7 +353,7 @@ class OfTheme {
         thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent : (isDark ? const Color(0xFF8FA79A) : const Color(0xFF9BB5A8))),
         trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? accent.withValues(alpha: 0.30) : border),
         trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-        trackOutlineWidth: const WidgetStatePropertyAll(0),
+        trackOutlineWidth: const WidgetStatePropertyAll(0.0),
         overlayColor: WidgetStatePropertyAll(accent.withValues(alpha: 0.12)),
       ),
       checkboxTheme: CheckboxThemeData(
