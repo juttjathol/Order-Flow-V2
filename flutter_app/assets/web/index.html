@@ -216,7 +216,7 @@
       return true;
     }
     const $ = (id) => document.getElementById(id);
-    // v1.1.83 security: EVERY store value that reaches innerHTML goes through
+    // v1.1.89 security: EVERY store value that reaches innerHTML goes through
     // esc(). Product/category/staff/driver/table names, ticket numbers and the
     // currency symbol are all editable text — one unescaped `<img onerror=…>`
     // in a dish name used to run script inside the owner's console, which

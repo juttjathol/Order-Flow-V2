@@ -16,7 +16,7 @@ Offline-first multi-device POS for restaurants, retail, fast food, and services,
 - **APK + Windows ZIP** — create a GitHub Release tag `v1.1.89` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.89+87**. The web app deploys continuously from `main` (current shell cache `of-shell-v37`).
+Version **1.1.89+89**. The web app deploys continuously from `main` (current shell cache `of-shell-v40`).
 
 You only need two things after this repo is on GitHub:
 
