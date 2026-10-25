@@ -12,10 +12,12 @@ import android.provider.MediaStore
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.ActivityCompat
+import androidx.core.view.WindowCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import io.flutter.embedding.android.FlutterActivity
@@ -24,6 +26,15 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var cameraWait: MethodChannel.Result? = null
+
+    // Play review advisory (edge-to-edge, SDK 35/36): opt in explicitly with the
+    // androidx.core API — FlutterActivity is a plain Activity, so the console's
+    // suggested enableEdgeToEdge() helper does not exist here. The Flutter engine
+    // still manages insets; this only removes the mismatch warning.
+    override fun onCreate(savedInstanceState: Bundle?) {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
