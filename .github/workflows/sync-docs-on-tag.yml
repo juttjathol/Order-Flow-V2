@@ -43,7 +43,9 @@ jobs:
             exit 0
           fi
           git commit -m "docs: sync version $TAGV — guide + PLAY/STORE + README + privacy URL"
-          git push origin HEAD:main
+          # Bare `main` is ambiguous when a tag named `main` exists or the
+          # default refspec collides — address the branch ref explicitly.
+          git push origin HEAD:refs/heads/main
           echo "Sync complete"
 
       - name: Update README architecture diagram (keep mermaid fresh)
