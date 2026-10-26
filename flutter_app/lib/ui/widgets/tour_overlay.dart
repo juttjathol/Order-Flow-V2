@@ -48,7 +48,7 @@ class TourOverlay {
       pageBuilder: (dialogCtx, _, __) => _TourDialog(steps: steps, locale: s),
     );
 
-    await ref.ctrl.markTourSeen();
+    await ref.read(appControllerProvider.notifier).markTourSeen();
     _running = false;
   }
 }
