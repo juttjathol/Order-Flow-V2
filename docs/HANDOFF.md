@@ -6,6 +6,7 @@ Paste this at the start of a new Arena chat to continue work:
 
 ## ⏩ START HERE — owner directives (read before anything else)
 
+- **2026-10-26 — v1.1.92 released from arena branch.** Named stations (friend-set device names ride in cloud/LAN hello), h:mm:ss live timers on APK+web, and a 6-step bubble tour on both shells. The release ritual on this session runs entirely on `arena/01a0e268-order-flow-v2` (single release ref) — main receives docs sync via `sync-docs-on-tag.yml`. See CHANGELOG.md §1.1.92 and the release notes on the tag.
 - The "Current state / Open PR #7 / Next version 1.1.60" block below is STALE (kept for history) — v1.1.84 shipped 2026-09-29 (tag green, release Latest, jathol.org/download serving it). Next version: 1.1.85+85 when the owner asks.
 - Owner briefs: verbatim specs are law — implement their exact code; per-mission overrides beat standing rules ("fast forward to main" = `git push HEAD:refs/heads/main`, never the merge button).
 - NEVER merge a PR until the owner says so — and never leave a PR open whose head main is about to pass (v1.1.82: FF onto PR #8's head auto-merged it and instantly killed that session's GitHub access).

@@ -6,6 +6,21 @@ carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering 
 log — including root causes and the mistakes each release was built to avoid repeating —
 is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
+## 1.1.92 — 2026-10-26
+
+### Devices & team
+* **Named stations** — APK connect screen and the web join page now ask "This device's name" (Danial, Ali, Kitchen phone…). It rides in the hello message on both LAN and the cloud room, so Main's Stations panel shows names instead of raw binding ids. Web Main can rename any station in place (✏️ pen); the device itself re-announces the new name on the next hello.
+
+### Orders & timing
+* Prepared/ready/served timers everywhere now read **h:mm:ss live** (1 Hz) — APK kitchen cards, floor map, home tickets and web live board, kitchen column, and pay list.
+* **Ready-alert latency fixed for web-Main rooms**: a cloud-only Android station was going quiet because its LAN-reconnect cadence throttled the room relay to 30 s polling; now a pure-cloud station keeps the relay hot. And when the web app presses "ready", the snapshot-diff detects the ready transition and phones flash a banner + phone alert even with no LAN.
+
+### First run
+* **Bubble coachmark tour** — six cards walk Home → Room QR (pairing) → Floor → Menu → More on both the APK and the web PWA; runs once per device and replays from More → Guided tour. EN + اردو.
+
+### Visual overhaul (brand hexes untouched)
+* Hairline card borders, softer shadows, tinted state bands on table tiles (gold = busy, mint = ready), tabular-numeral amounts on stats/hero, uppercase micro-labels for section headers, hover lift on menu cards, friendlier form focus states, scheme-matched scrollbars.
+
 ## 1.1.84 — 2026-09-29
 
 ### Splash
