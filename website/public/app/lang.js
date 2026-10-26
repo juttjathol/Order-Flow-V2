@@ -6,6 +6,20 @@
 (function () {
   'use strict';
   const STR = {
+    // ——— v1.1.92 App tour coachmarks ———
+    tour_skip: ['Skip', 'چھوڑیں'], tour_next: ['Next', 'آگے بڑھیں'], tour_end: ['Finish', 'سمجھوتہ ختم'],
+    tour_home_t: ['Welcome — this is Home', 'خوش آمدید — یہ ہوم ہے'],
+    tour_home_b: ['Live totals for today, ready-to-serve alerts, unpaid bills. Everything refreshes itself.', 'آج کی لائیو رقمیں، تیار آرڈرز کی اطلاع اور غیر ادا شدہ بل۔ سب خودکار تازہ ہوتا ہے۔'],
+    tour_room_t: ['Pair other devices from here', 'دوسرے ڈیوائسز یہاں سے جوڑیں'],
+    tour_room_b: ['“Room QR” shows a real pairing code — your team scans it and names their device (Danial, Ali…). No key needed.', '“روم QR” حقیقی پیرنگ کوڈ دیتا ہے — ٹیم اسے سکین کر کے اپنا ڈیوائس نام لکھتی ہے۔ کلید نہیں چاہیے۔'],
+    tour_floor_t: ['The shop, live', 'دکان — براہِ راست'],
+    tour_floor_b: ['Tables light up live: free, ordering, preparing (with a counter) or ready to serve. Tap any table for its ticket.', 'میزیں لائیو بتلاتی ہیں: خالی، آرڈر ہو رہا، تیاری (ادھم کے ساتھ) یا تیار۔ ٹپ کریں تو ٹکٹ کل جائے۔'],
+    tour_menu_t: ['Your menu, one tap to add', 'مینو — ایک ٹپ میں شامل'],
+    tour_menu_b: ['Left: choose a table / take-away in 2 taps. Right: tap items to add. Sold-out items grey out.', 'بائیں: دو ٹپ میں میز یا ٹیک آوے منتخب کریں۔ دائیں: اشیاء پر ٹپ کریں۔ ختم شدہ اشیاء خود بظاہر بند ہو جاتے ہیں۔'],
+    tour_more_t: ['More is where everything else lives', 'باقی سب یہاں “مزید” میں'],
+    tour_more_b: ['Reports, printers, guests (QR menu), staff, cloud, backup — each section opens one tab. Hidden away, but one tap deep.', 'رپورٹس، پرنٹرز، مہمان (QR مینو)، عملہ، کلاؤڈ، بیک اپ — ہر سیکشن ایک ٹپ میں کھلتا ہے۔'],
+    tour_done_t: ['All set — welcome to Order Flow', 'تمام — آپ تیار ہیں'],
+    tour_done_b: ['Bottom rail switches it all. Big moments (Guest pay, station joins) make toast pop-ups — nothing gets buried.', 'نیچے والے بٹن سے سب بدل جاتا ہے۔ بڑی اطلاعیں ٹوسٹ میں ظاہر ہوتی ہیں — کچھ بھی پس نہیں رہتا۔'],
     home: ['Home', 'ہوم'], tables: ['Tables', 'میزیں'], register: ['Register', 'رجسٹر'],
     queue: ['Queue', 'قطار'], appointments: ['Appointments', 'ملاقاتیں'], services: ['Services', 'سروسز'],
     menu: ['Menu', 'مینو'], stock: ['Stock', 'اسٹاک'], more: ['More', 'مزید'],
@@ -119,6 +133,19 @@
     no_staff: ['No staff yet — add your team in More → Staff', 'ابھی عملہ نہیں — مزید → عملہ میں شامل کریں'],
     staff_pin_ask: ['Enter your PIN', 'اپنا پن لکھیں'],
     staff_pin_lock: ['Too many wrong PINs — wait 5 minutes', 'غلط پن زیادہ — 5 منٹ انتظار'],
+    staff_pin_wrong: ['Wrong PIN', 'غلط پن'],
+    manager_pin: ['Manager PIN', 'مینیجر پن'],
+    mgr_pin_none_sub: ['Not set — manager actions are open', 'سیٹ نہیں — مینیجر اقدامات کھلے ہیں'],
+    mgr_pin_set_sub: ['Set — stations ask for it', 'سیٹ ہے — اسٹیشن پوچھتے ہیں'],
+    set_pin: ['Set PIN', 'پن سیٹ کریں'],
+    change_pin: ['Change', 'تبدیل کریں'],
+    remove: ['Remove', 'ہٹائیں'],
+    removed: ['Removed', 'ہٹا دیا گیا'],
+    pin_set: ['PIN saved', 'پن محفوظ ہوگیا'],
+    current_pin: ['Current PIN', 'موجودہ پن'],
+    new_pin: ['New PIN (4 digits)', 'نیا پن (4 ہندسے)'],
+    repeat_pin: ['Repeat new PIN', 'نیا پن دوبارہ لکھیں'],
+    pin_fmt: ['PIN must be exactly 4 digits', 'پن بالکل 4 ہندسوں کا ہو'],
     points: ['points', 'پوائنٹس'],
   };
   let LANG = 'en';

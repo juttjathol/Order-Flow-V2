@@ -477,6 +477,14 @@ class AppController extends Notifier<AppSnapshot> {
     _emit(state.copyWith(session: state.session));
   }
 
+  /// v1.1.92 — the first-run coachmark tour was shown; don't auto-show again.
+  Future<void> markTourSeen() async {
+    if (state.session.tourSeen) return;
+    state.session.tourSeen = true;
+    _emit(state.copyWith(session: state.session));
+    await persist();
+  }
+
   Future<String?> activateLicense(String key) async {
     state = state.copyWith(busy: true, clearError: true, error: null);
     state.session.license.key = key.trim();
@@ -1097,6 +1105,9 @@ class AppController extends Notifier<AppSnapshot> {
       await relay.sendCommand(<String, dynamic>{
         'type': 'hello',
         'device': state.session.deviceId,
+        'name': state.session.displayName.isEmpty
+            ? 'Station'
+            : state.session.displayName,
         'role': state.session.role == AppRole.none
             ? 'station'
             : state.session.role.name,
@@ -1307,8 +1318,42 @@ class AppController extends Notifier<AppSnapshot> {
         return;
       }
       if (store.revision < state.store.revision) return; // stale snapshot
-      state = state.copyWith(store: store, connected: true, error: null, pendingSync: 0);
+      // v1.1.92: web-Main rooms push full snapshots with no NetCommand
+      // envelope, so the reducer's "ready" notice path never fires. Diff the
+      // previous orders against the incoming snapshot: anything that just
+      // became ready/paid rings the bell here the same as over LAN.
+      final prevById = {for (final o in state.store.orders) o.id: o.status};
+      final readyNow = <AppNotice>[];
+      for (final o in store.orders) {
+        final prev = prevById[o.id];
+        if (prev == null || prev == OrderStatus.ready) continue;
+        if (o.status != OrderStatus.ready) continue;
+        final label = (o.tableName?.isNotEmpty == true)
+            ? 'Table ${o.tableName}'
+            : 'Ticket ${o.ticketNo}';
+        readyNow.add(AppNotice(
+          id: newId(),
+          title: 'Ready to serve',
+          body: '$label is ready ✓',
+          tableId: o.tableId,
+          orderId: o.id,
+          kind: 'ready',
+        ));
+      }
+      // Keep memory small: only the freshest two transitions matter live.
+      final merged =
+          [...readyNow.take(2), ...state.notices].take(20).toList();
+      state = state.copyWith(
+        store: store,
+        connected: true,
+        error: null,
+        pendingSync: 0,
+        notices: merged,
+      );
       unawaited(_storage.saveStore(store));
+      for (final n in readyNow) {
+        unawaited(ShopKeepAlive.alert(title: n.title, text: n.body));
+      }
     } catch (_) {}
   }
 
@@ -1360,7 +1405,12 @@ class AppController extends Notifier<AppSnapshot> {
     if (relay == null) return;
     relay.hot = state.isMain
         ? (_server?.clients.isEmpty ?? true)
-        : (!state.connected || _queue.isNotEmpty);
+        // A station whose ONLY lifeline is the cloud (web-Main room — no LAN
+        // host) must never settle into the 30s economy cadence; `connected`
+        // there just means "relay answered once", not "LAN is healthy".
+        : (state.session.mainHost.isEmpty ||
+            !state.connected ||
+            _queue.isNotEmpty);
   }
 
   Future<void> _keepStationSynced() async {

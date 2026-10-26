@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../widgets/common.dart';
 import '../widgets/station_shell.dart';
+import '../widgets/tour_overlay.dart';
 import 'floor_screen.dart';
 import 'home_screen.dart';
 import 'menu_screen.dart';
@@ -20,6 +21,17 @@ class MainShell extends ConsumerStatefulWidget {
 
 class _MainShellState extends ConsumerState<MainShell> {
   int index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // v1.1.92 — first-run bubble tour (once per device; replay from More).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) TourOverlay.maybeShow(context, ref);
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

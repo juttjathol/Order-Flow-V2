@@ -12,8 +12,9 @@
 <link rel="manifest" href="/manifest.json"/>
 <link rel="icon" href="/media/logo.png"/>
 <link rel="apple-touch-icon" href="/media/logo.png"/>
-<link rel="stylesheet" href="styles.css?v=42"/>
-<link rel="stylesheet" href="motion.css?v=42"/>
+<link rel="stylesheet" href="styles.css?v=44"/>
+<link rel="stylesheet" href="polish.css?v=44"/>
+<link rel="stylesheet" href="motion.css?v=44"/>
 </head>
 <body>
 
@@ -59,11 +60,30 @@
   </div>
   <div class="scroll-pad grid" style="padding-top:18px">
     <div class="card card--pad grid">
+      <label class="small muted" style="font-weight:700">This device's name — Main sees it (e.g. Danial · cashier)</label>
+      <input id="connect-name" autocomplete="off" maxlength="32" placeholder="Cashier phone, Kitchen phone…"/>
+      <button class="btn btn--mint btn--full" data-act="connect.scan" id="connect-scan-btn">📷 Scan Main's QR with camera</button>
+      <div class="row" style="align-items:center;gap:12px;margin-top:8px"><span style="flex:1;height:1.4px;background:var(--border)"></span><span class="muted small" style="font-weight:800">or paste pairing text</span><span style="flex:1;height:1.4px;background:var(--border)"></span></div>
       <label class="small muted" style="font-weight:700" >OF1 pairing text from Main</label>
       <textarea id="connect-paste" rows="4" placeholder="OF1:room:code:secret" style="resize:none"></textarea>
       <div class="gate__err" id="connect-err" style="text-align:left"></div>
       <button class="btn btn--primary btn--full" data-act="connect.join">Join this shop</button>
       <button class="gate__link" data-act="license.back" style="margin-top:10px">I have a license key instead</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= CONNECT SCANNER (camera → pairing text) ================= -->
+<div class="dlg" id="scan-dlg" aria-hidden="true">
+  <div class="dlg__box" role="dialog" aria-modal="true" style="max-width:520px">
+    <div class="dlg__title" style="display:flex;align-items:center;justify-content:space-between;gap:10px">Point at Main's pairing QR <button class="btn btn--sm btn--ghost" data-act="connect.scanstop" style="flex:0 0 auto">✕</button></div>
+    <div>
+      <div class="scanbox">
+        <video id="scan-video" playsinline muted autoplay></video>
+        <canvas id="scan-canvas" hidden></canvas>
+        <div class="scanbox__frame"></div>
+        <div class="scanbox__hint" id="scan-hint">Ask Main to open More → Cloud room and show the QR</div>
+      </div>
     </div>
   </div>
 </div>
@@ -245,15 +265,17 @@
 <div class="of-toasts" id="toast-root" aria-live="polite"></div>
 <div id="print-root" aria-hidden="true"></div>
 
-<script src="core.js?v=42"></script>
-<script src="lang.js?v=42"></script>
-<script src="db.js?v=42"></script>
-<script src="print.js?v=42"></script>
-<script src="app.js?v=42"></script>
-<script src="ticket.js?v=42"></script>
-<script src="more.js?v=42"></script>
-<script>window.OF_BUILD = '42';</script>
-<script src="notify.js?v=42"></script>
-<script src="motion.js?v=42"></script>
+<script src="core.js?v=44"></script>
+<script src="lang.js?v=44"></script>
+<script src="vendor/jsQR.js?v=44"></script>
+<script src="db.js?v=44"></script>
+<script src="print.js?v=44"></script>
+<script src="app.js?v=44"></script>
+<script src="ticket.js?v=44"></script>
+<script src="more.js?v=44"></script>
+<script src="tour.js?v=44"></script>
+<script>window.OF_BUILD = '44';</script>
+<script src="notify.js?v=44"></script>
+<script src="motion.js?v=44"></script>
 </body>
 </html>

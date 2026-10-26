@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,17 +19,13 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
-  static const _word = kBrandName; // 'Jathol'
-  static const _typeDelay = Duration(milliseconds: 1100);
-  static const _typeSpeed = Duration(milliseconds: 120);
-
-  String _typed = '';
-  bool _cursorOn = false;
+  // NOTE: the motion logo (jathol_motion_logo.gif) already draws the brand
+  // wordmark — a typewriter "Jathol" under it was a visible duplicate and is
+  // intentionally gone. Tagline + rings stay.
   bool _showTagline = false;
 
   late final AnimationController _entrance;
   late final AnimationController _pulse;
-  late final AnimationController _blink;
   late final AnimationController _tagline;
   late final AnimationController _fadeOut;
 
@@ -39,14 +33,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late final Animation<double> _rotate;
   late final Animation<double> _opacity;
 
-  Timer? _typeTimer;
-
   @override
   void initState() {
     super.initState();
     _entrance = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
     _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000));
-    _blink = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
     _tagline = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
     _fadeOut = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
 
@@ -75,28 +66,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       if (mounted) _pulse.repeat();
     });
 
-    Future.delayed(_typeDelay, () {
+    // Bring the tagline in just after the motion logo's wordmark lands.
+    Future.delayed(const Duration(milliseconds: 2600), () {
       if (!mounted) return;
-      setState(() => _cursorOn = true);
-      _blink.repeat(reverse: true);
-      int idx = 0;
-      _typeTimer = Timer.periodic(_typeSpeed, (t) {
-        if (!mounted) { t.cancel(); return; }
-        idx++;
-        setState(() => _typed = _word.substring(0, idx.clamp(0, _word.length)));
-        if (idx >= _word.length) {
-          t.cancel();
-          Future.delayed(const Duration(milliseconds: 700), () {
-            if (!mounted) return;
-            setState(() {
-              _cursorOn = false;
-              _showTagline = true;
-            });
-            _blink.stop();
-            _tagline.forward();
-          });
-        }
-      });
+      setState(() => _showTagline = true);
+      _tagline.forward();
     });
 
     Future.delayed(const Duration(milliseconds: 4800), () {
@@ -106,10 +80,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   @override
   void dispose() {
-    _typeTimer?.cancel();
     _entrance.dispose();
     _pulse.dispose();
-    _blink.dispose();
     _tagline.dispose();
     _fadeOut.dispose();
     super.dispose();
@@ -222,42 +194,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  // Jathol typed + cursor
-                  SizedBox(
-                    height: 72,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          _typed,
-                          style: const TextStyle(
-                            color: Color(0xFF2FFFA0),
-                            fontWeight: FontWeight.w900,
-                            fontSize: 56,
-                            letterSpacing: -1.2,
-                            height: 1,
-                          ),
-                        ),
-                        if (_cursorOn)
-                          FadeTransition(
-                            opacity: Tween<double>(begin: 1, end: 0).animate(
-                              CurvedAnimation(parent: _blink, curve: Curves.easeInOut),
-                            ),
-                            child: Container(
-                              margin: const EdgeInsets.only(left: 6),
-                              width: 3,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2FFFA0),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(height: 26),
                   // Tagline
                   if (_showTagline)
                     FadeTransition(

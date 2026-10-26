@@ -99,6 +99,7 @@ window.OFMoreRender = async function () {
 
   section('🛠 ' + L.t('tools_head'));
   mrow('💾', L.t('backup_title'), 'Export / import — works with the APK backup too', 'more.backup');
+  mrow('✨', 'Guided tour', '5 bubbles that walk you around the app', 'more.tour');
   mrow('🌐', L.t('language'), 'English / اردو — RTL for Urdu', 'more.language');
   mrow('🌗', L.t('theme'), 'Auto, Light (cream), Dark — phone rules by default', 'more.theme');
   mrow('📲', L.t('install'), 'Full-screen app icon on your iPhone home', 'more.install');
@@ -835,7 +836,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v42</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v44</div></div>'));
   });
 }
 
@@ -852,6 +853,7 @@ Object.assign(A, {
   'more.backup': () => scrBackup(), 'more.language': () => scrLanguage(), 'more.theme': () => scrTheme(),
   'more.refresh': () => scrRefresh(), 'more.install': () => { $('sheet-install').classList.add('is-open'); },
   'more.whatsapp': () => scrWhatsApp(), 'more.privacy': () => window.open('/privacy.html', '_blank'), 'more.about': () => scrAbout(),
+  'more.tour': () => { window.OFTour && window.OFTour.start(); },
   'more.openAt': (what) => { if (what === 'cloud') scrCloud(); },
   'install.close': () => $('sheet-install').classList.remove('is-open'),
 });

@@ -18,6 +18,7 @@ import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
 import '../widgets/plan_extras.dart';
+import '../widgets/tour_overlay.dart';
 import '../widgets/plan_lock.dart';
 import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
@@ -139,6 +140,9 @@ class MoreScreen extends ConsumerWidget {
       ),
     ];
     final data = <Widget>[
+      _row(Icons.tour, s.t('guided_tour'),
+          () => TourOverlay.show(context, ref),
+          subtitle: s.t('guided_tour_sub')),
       _row(Icons.ios_share, s.t('export_backup'), () async {
         await ref.ctrl.backup.exportAndShare(snap.store);
         if (context.mounted) {

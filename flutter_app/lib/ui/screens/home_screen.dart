@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -371,6 +372,22 @@ class _LiveTickets extends ConsumerStatefulWidget {
 
 class _LiveTicketsState extends ConsumerState<_LiveTickets> {
   String q = '';
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1 Hz so the open-for clock (h:mm:ss) visibly ticks on every ticket.
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +401,7 @@ class _LiveTicketsState extends ConsumerState<_LiveTickets> {
           EmptyState(icon: Icons.receipt_long, message: s.t('no_orders'))
         else
           ...list.map((o) {
-            final mins = DateTime.now().difference(o.createdAt).inMinutes;
+            final clock = formatBusyClock(o.createdAt); // h:mm:ss, ticks live
             return Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: OfCard(
@@ -410,7 +427,7 @@ class _LiveTicketsState extends ConsumerState<_LiveTickets> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      '${o.lines.length} ${s.t('items')}  ·  ${s.t('open_for')} ${mins}m',
+                                      '${o.lines.length} ${s.t('items')}  ·  ${s.t('open_for')} $clock',
                                       style: TextStyle(color: OfColors.mute(context), fontSize: 14),
                                     ),
                                   ],

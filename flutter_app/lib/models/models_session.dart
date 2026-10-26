@@ -177,6 +177,7 @@ class SessionPrefs {
     this.lanTrustUntilMs,
     this.pinFails = 0,
     this.pinLockedUntilMs = 0,
+    this.tourSeen = false,
     LicenseRecord? license,
   })  : license = license ?? LicenseRecord(),
         approvedDeviceIds = approvedDeviceIds ?? <String>[];
@@ -217,6 +218,8 @@ class SessionPrefs {
   int? lanTrustUntilMs;
   int pinFails;
   int pinLockedUntilMs;
+  /// v1.1.92 — APK first-run coachmarks ran once (mirrors the web `tourSeen` kv).
+  bool tourSeen;
   LicenseRecord license;
 
   bool get hasLocalBtPrinter =>
@@ -259,6 +262,7 @@ class SessionPrefs {
         'lanTrustUntilMs': lanTrustUntilMs,
         'pinFails': pinFails,
         'pinLockedUntilMs': pinLockedUntilMs,
+        'tourSeen': tourSeen,
         'license': license.toJson(),
       };
 
@@ -295,6 +299,7 @@ class SessionPrefs {
       lanTrustUntilMs: m['lanTrustUntilMs'] == null ? null : parseInt(m['lanTrustUntilMs'], 0),
       pinFails: parseInt(m['pinFails'], 0),
       pinLockedUntilMs: parseInt(m['pinLockedUntilMs'], 0),
+      tourSeen: parseBool(m['tourSeen']),
       license: LicenseRecord.fromJson(
         m['license'] is Map ? Map<String, dynamic>.from(m['license'] as Map) : null,
       ),
