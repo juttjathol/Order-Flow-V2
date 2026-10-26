@@ -18,12 +18,16 @@ class ConnectScreen extends ConsumerStatefulWidget {
 class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   final ip = TextEditingController();
   final driverName = TextEditingController();
+  // v1.1.92: stations set a human device name (e.g. "Danial · cashier phone")
+  // so Main sees NAMES on the devices list instead of anonymous binding ids.
+  final deviceName = TextEditingController();
   bool asDriver = false;
 
   @override
   void dispose() {
     ip.dispose();
     driverName.dispose();
+    deviceName.dispose();
     super.dispose();
   }
 
@@ -48,6 +52,9 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
       }
       return;
     }
+    // Name first: the LAN hello (and web relay hello) read displayName at connect.
+    final nm = deviceName.text.trim();
+    if (nm.isNotEmpty) await ref.ctrl.setDisplayName(nm);
     final err = await ref.ctrl.connectToMain(host);
     if (err != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t(err))));
@@ -61,6 +68,9 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
   // instead of the LAN host path.
   Future<void> _goCloud(String pairing) async {
     final s = L10n(ref.read(appControllerProvider).session.locale);
+    // Name first — the cloud hello whisper reads displayName after join.
+    final nm = deviceName.text.trim();
+    if (nm.isNotEmpty) await ref.ctrl.setDisplayName(nm);
     final err = await ref.ctrl.joinCloudSync(pairing.trim());
     if (err.isNotEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('cloud_err_$err'))));
@@ -161,6 +171,16 @@ class _ConnectScreenState extends ConsumerState<ConnectScreen> {
                 labelText: s.t('enter_ip'),
                 hintText: '192.168.1.10',
                 prefixIcon: const Icon(Icons.lan),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: deviceName,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: s.t('device_name'),
+                hintText: s.t('device_name_hint'),
+                prefixIcon: const Icon(Icons.badge_outlined),
               ),
             ),
             const SizedBox(height: 8),

@@ -374,7 +374,10 @@ async function sendCmd(c) {
 async function heartbeat() {
   try {
     const role = ROLE === 'main' ? 'main' : (STATION_ROLE || 'station');
-    await sendCmd({ type: 'hello', device: await deviceId(), role, at: Date.now() });
+    const name = (ROLE === 'main') ? '' : (await kvGet('deviceName', ''));
+    const hello = { type: 'hello', device: await deviceId(), role, at: Date.now() };
+    if (name) hello.name = name;
+    await sendCmd(hello);
   } catch {}
 }
 function syncNow() { if (RELAY) pushStateNow(); }
@@ -558,7 +561,15 @@ async function onCmd(cmd) {
   if (!cmd) return;
   if (cmd.type === 'hello' && cmd.device) {
     const seen = (await kvGet('stationsSeen', {})) || {};
-    seen[String(cmd.device)] = { role: cmd.role || 'station', at: Number(cmd.at) || Date.now() };
+    const key = String(cmd.device);
+    // v1.1.92: hello carries an optional human name — Main shows it instead
+    // of the binding id. Last-writer-wins so a rename from the station sticks.
+    const prev = seen[key] || {};
+    seen[key] = {
+      role: cmd.role || 'station',
+      at: Number(cmd.at) || Date.now(),
+      name: (typeof cmd.name === 'string' && cmd.name.trim()) ? cmd.name.trim() : (prev.name || ''),
+    };
     const now = Date.now();
     for (const k of Object.keys(seen)) if (now - (seen[k]?.at || 0) > 12 * 60 * 1000) delete seen[k];
     await kvSet('stationsSeen', seen);
@@ -946,6 +957,8 @@ function enterMain() {
   refreshBoard().catch(() => {});
   setInterval(async () => { await renderActiveTab(true); await refreshBoard(); renderStationsMini().catch(() => {}); }, 30000);
   setInterval(tickClocks, 30000);
+  // First-run tour — only once unless re-run from More.
+  setTimeout(() => { window.OFTour && OFTour.maybeStart().catch(() => {}); }, 1500);
 }
 function applyText() {
   document.querySelectorAll('[data-t]').forEach(el => el.textContent = L.t(el.dataset.t));
@@ -976,8 +989,10 @@ async function renderHome() {
   top.style.cssText = 'font-weight:900;letter-spacing:-.5px;font-size:22px';
   host.appendChild(top);
   host.appendChild(ce('p', 'muted small', now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })));
-  // sales hero (dark in both themes)
+  // sales hero (dark in both themes) — first tour anchor
   const hero = ce('div', 'card card--forest hero');
+  hero.dataset.tour = 'hero';
+  hero.setAttribute('tabindex', '-1');
   hero.innerHTML = '<div class="row" style="justify-content:space-between"><span class="small" style="font-weight:700;opacity:.75">' + L.t('reports_today') + '</span><span class="chip">' + openN + ' open · ' + busyClocks + ' on tables</span></div>'
     + '<div class="hero__amt" style="margin-top:8px">' + money(rep.taken) + '</div>'
     + '<span class="chip ' + (delta >= 0 ? '' : 'chip--gold') + '" style="margin-top:10px">' + (delta >= 0 ? '↗ +' : '↘ ') + money(Math.abs(delta)).trim() + ' vs yesterday</span>'
@@ -995,6 +1010,7 @@ async function renderHome() {
   // room card — room live + join code + QR (never a fake Wi-Fi IP)
   const roomInfo = RELAY ? RELAY.info : null;
   const room = ce('div', 'card card--pad'); room.style.marginTop = '14px';
+  room.dataset.tour = 'room';
   if (roomInfo) {
     room.innerHTML = '<div class="row"><span class="chip chip--live">● ' + L.t('room_live') + '</span><span class="muted small grow" style="font-weight:600">' + L.t('join_code') + ': <b class="mono">' + esc(roomInfo.code) + '</b></span><button class="btn btn--sm" data-act="home.roomqr">QR</button></div><p class="small muted" style="margin-top:8px;font-weight:600">Android and iPhone stations meet in this room — scan the code on any station.</p><div id="stations-mini" style="display:grid;gap:6px;margin-top:10px"></div>';
   } else {
@@ -1034,10 +1050,10 @@ function readyLine(o) {
 }
 function whereOf(o) { return o.tableName ? 'Table ' + o.tableName : (o.type === 'delivery' ? 'Delivery' : o.type === 'takeaway' ? 'Takeaway' : 'Ticket #' + o.ticketNo); }
 function boardRow(o) {
-  const age = Math.max(0, Math.round((Date.now() - (o.createdAt || Date.now())) / 60000));
+  const ageS = Math.max(0, Math.round((Date.now() - (o.createdAt || Date.now())) / 1000));
   const b = billOf(o);
   const st = { open: ['New', 'tag--blue'], sent: ['In kitchen', 'tag--blue'], preparing: ['Preparing', 'tag--gold'], ready: ['READY ✓', 'tag--mint'], served: ['Served', 'tag--gold'], out: ['Out for delivery', 'tag--blue'] }[o.status] || [o.status, ''];
-  const el = ce('div', 'lrow', '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + age + ' min · ' + (o.lines || []).length + ' item(s)</small></div><span class="tag ' + st[1] + '">' + st[0] + '</span><span class="lrow__amt">' + money(b.due) + '</span>');
+  const el = ce('div', 'lrow', '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + ageHms(o.createdAt) + ' · ' + (o.lines || []).length + ' item(s)</small></div><span class="tag ' + st[1] + '">' + st[0] + '</span><span class="lrow__amt">' + money(b.due) + '</span>');
   el.onclick = () => openTicket(o.id);
   return el;
 }
@@ -1050,11 +1066,36 @@ async function renderStationsMini() {
   for (const [dev, info] of rows) {
     const age = Math.round((Date.now() - (info.at || 0)) / 1000);
     const live = age < 75;
-    const el = ce('div', 'row', '<span class="dot" style="background:' + (live ? 'var(--mint)' : 'var(--muted)') + '"></span><span class="small grow" style="font-weight:700">' + esc(dev === me ? 'This device' : dev) + '</span><span class="small muted" style="font-weight:600">' + esc(info.role) + (dev === me ? '' : ' · ' + (live ? 'live' : fmtAgo(age))) + '</span>');
+    const label = dev === me ? 'This device' : ((info.name && String(info.name).trim()) || dev);
+    // Binding ids stay reachable but secondary — the tiny subscript, not the headline.
+    const sub = dev === me ? '' : '<div class="small muted" style="opacity:.55;font-size:10px">' + esc(dev) + '</div>';
+    const el = ce('div', 'row', '<span class="dot" style="background:' + (live ? 'var(--mint)' : 'var(--muted)') + '"></span><span class="small grow" style="font-weight:700"><span>' + esc(label) + '</span>' + sub + '</span><span class="small muted" style="font-weight:600">' + esc(info.role) + (dev === me ? '' : ' · ' + (live ? 'live' : fmtAgo(age))) + '</span>');
+    // ✏️ rename: this device rewrites its own hello; Main renames others locally.
+    const pen = ce('button', 'btn btn--sm btn--ghost', '✏️');
+    pen.onclick = async (e) => {
+      e.stopPropagation();
+      const cur = dev === me ? (await kvGet('deviceName', '')) : (info.name || '');
+      const body = ce('div', 'grid');
+      body.innerHTML = '<input id="dn-in" maxlength="32" placeholder="Danial — cashier phone" value="' + esc(cur) + '"/>';
+      const save = ce('button', 'btn btn--mint', L.t('save'));
+      body.appendChild(save);
+      OFDialog({ title: 'Device name' });
+      $('dlg-body').appendChild(body);
+      save.onclick = async () => {
+        const n = $('dn-in').value.trim().slice(0, 32);
+        if (!n) return toast('Name required');
+        if (dev === me) { await kvSet('deviceName', n); await heartbeat(); }
+        else { const seen = (await kvGet('stationsSeen', {})) || {}; seen[dev] = { ...(seen[dev] || {}), name: n }; await kvSet('stationsSeen', seen); }
+        OFCloseDlg(); renderStationsMini();
+      };
+    };
+    el.appendChild(pen);
     host.appendChild(el);
   }
 }
-function fmtAgo(sec) { return sec < 60 ? sec + 's ago' : Math.floor(sec / 60) + 'm ago'; }
+function fmtAgo(sec) { if (sec < 60) return sec + 's ago'; if (sec < 3600) return Math.floor(sec / 60) + 'm ago'; return Math.floor(sec / 3600) + 'h ' + Math.floor((sec % 3600) / 60) + 'm ago'; }
+// v1.1.92: every elapsed clock renders h:mm:ss (mm:ss under an hour).
+function ageHms(ts) { return fmtHms(Math.max(0, Math.floor((Date.now() - (ts || Date.now())) / 1000))); }
 async function renderStationsPanel() { renderStationsMini().catch(() => {}); }
 
 /* ================= TICKETS ================= */
@@ -1121,7 +1162,8 @@ function renderFloorRestaurantTiles() {
   }
   if (!map.children.length) map.appendChild(ce('p', 'muted small', L.t('empty')));
 }
-function clockTxt(since) { const s = Math.max(0, Math.floor((Date.now() - (since || Date.now())) / 1000)); const m = Math.floor(s / 60), r = s % 60; return m + ':' + String(r).padStart(2, '0'); }
+function clockTxt(since) { const s = Math.max(0, Math.floor((Date.now() - (since || Date.now())) / 1000)); return fmtHms(s); }
+function fmtHms(s) { const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, r = s % 60; const two = n => String(n).padStart(2, '0'); return h > 0 ? h + ':' + two(m) + ':' + two(r) : two(m) + ':' + two(r); }
 function tickClocks() {
   document.querySelectorAll('.js-clock').forEach(() => {});
   if (ACTIVE_TAB === 'floor' && SHOP && SHOP.profile.model === 'restaurant') renderFloorRestaurantTiles();
@@ -1385,8 +1427,8 @@ function roleZone_Kitchen(host, os) {
     col.innerHTML = '<div class="row" style="justify-content:space-between"><b>' + name + '</b><span class="tag">' + list.length + '</span></div><div class="divider"></div>';
     for (const o of list.sort((a, b) => (a.sentAt || a.createdAt) - (b.sentAt || b.createdAt))) {
       const el = ce('div', 'card card--pad'); el.style.cssText = 'margin-bottom:8px;border-radius:16px;background:var(--surface2)';
-      const age = Math.max(0, Math.round((Date.now() - (o.sentAt || o.createdAt || Date.now())) / 60000));
-      el.innerHTML = '<div class="row" style="justify-content:space-between"><b>' + esc(whereOf(o)) + '</b><span class="tag ' + (age > 12 ? 'tag--danger' : '') + '">' + age + ' min</span></div>'
+      const ageS = Math.max(0, Math.round((Date.now() - (o.sentAt || o.createdAt || Date.now())) / 1000));
+      el.innerHTML = '<div class="row" style="justify-content:space-between"><b>' + esc(whereOf(o)) + '</b><span class="tag ' + (ageS >= 720 ? 'tag--danger' : '') + '">' + ageHms(o.sentAt || o.createdAt) + '</span></div>'
         + '<div style="margin-top:6px;font-size:13.5px">' + (o.lines || []).map(l => '<div style="display:flex;justify-content:space-between;padding:2px 0;font-weight:600"><span>' + esc(l.name) + (l.notes ? ' · ' + esc(l.notes) : '') + '</span><span>× ' + l.qty + '</span></div>').join('') + '</div>'
         + (o.channel === 'qr' ? '<div class="small muted" style="margin-top:4px;font-weight:700">QR order — ready counts on the guest page too</div>' : '')
         + '<div class="row" style="margin-top:10px">'
@@ -1410,9 +1452,9 @@ function roleZone_Cashier(host, os) {
   card.innerHTML = '<span class="small" style="opacity:.8;font-weight:700">' + unpaid.length + ' unpaid</span><div style="font-size:30px;font-weight:900;letter-spacing:-.5px;margin-top:4px">' + money(total) + '</div>';
   host.appendChild(card);
   for (const o of unpaid.sort((a, b) => a.createdAt - b.createdAt)) {
-    const b = billOf(o); const age = Math.max(0, Math.round((Date.now() - (o.createdAt || 0)) / 60000));
+    const b = billOf(o);
     const el = ce('div', 'lrow');
-    el.innerHTML = '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + age + ' min · ' + (o.lines || []).length + ' item(s)</small></div><span class="lrow__amt">' + money(b.due) + '</span><button class="btn btn--sm btn--gold" data-act="kd.open" data-id="' + o.id + '">' + L.t('pay') + '</button>';
+    el.innerHTML = '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + ageHms(o.createdAt || 0) + ' · ' + (o.lines || []).length + ' item(s)</small></div><span class="lrow__amt">' + money(b.due) + '</span><button class="btn btn--sm btn--gold" data-act="kd.open" data-id="' + o.id + '">' + L.t('pay') + '</button>';
     el.querySelector('button').onclick = (e) => { e.stopPropagation(); OFAct['kd.open'](e.target.closest('button'), e); };
     host.appendChild(el);
   }
@@ -1724,6 +1766,9 @@ async function OFConnectJoin() {
   }
   await kvSet('roomInfo', info);
   await kvSet('role', 'station');
+  // v1.1.92: remembered device name — Main's panel shows names, not binding ids.
+  const nm = (($('connect-name') || {}).value || '').trim();
+  if (nm) await kvSet('deviceName', nm.slice(0, 32));
   ROLE = 'station';
   await evolutionaryAppend(info);
   renderRoleScreen();

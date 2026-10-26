@@ -206,9 +206,12 @@ class OfTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: OfRadii.card,
+          // v1.1.92 polish — hairline borders, one less visual weight.
           side: BorderSide(
-            color: isDark ? const Color(0x1E3DDC97) : OfColors.creamBorder,
-            width: 1.2,
+            color: isDark
+                ? const Color(0x193DDC97)
+                : OfColors.creamBorder.withValues(alpha: 0.68),
+            width: 1,
           ),
         ),
         margin: EdgeInsets.zero,
@@ -322,7 +325,10 @@ class OfTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: border, width: 1.2),
+          borderSide: BorderSide(
+            color: border.withValues(alpha: 0.7),
+            width: 1,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

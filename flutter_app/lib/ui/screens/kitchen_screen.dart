@@ -225,12 +225,8 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen> {
   }
 
   String _age(PosOrder o) {
-    final start = o.sentAt ?? o.createdAt;
-    final d = DateTime.now().difference(start);
-    final m = d.inMinutes;
-    final sec = d.inSeconds % 60;
-    if (m <= 0) return '${sec}s';
-    return '${m}m';
+    // h:mm:ss (mm:ss under an hour) — kitchen needs seconds, not "43m" blur.
+    return formatBusyClock(o.sentAt ?? o.createdAt);
   }
 
   Future<void> _set(WidgetRef ref, PosOrder o, OrderStatus status) {

@@ -1,8 +1,8 @@
 /* Order Flow PWA — offline app shell + runtime cache
-   v25 • additive only; never caches /api/* or /download
+   v44 • additive only; never caches /api/* or /download
    /app/*.{html,js,css} + /order.html are network-first
    so the freshest shell always wins and old builds die. */
-const CACHE_SHELL = 'of-shell-v43';
+const CACHE_SHELL = 'of-shell-v44';
 const SHELL = [
   '/app/',
   '/app/index.html',
@@ -13,6 +13,8 @@ const SHELL = [
   '/app/app.js',
   '/app/ticket.js',
   '/app/more.js',
+  '/app/tour.js',
+  '/app/polish.css',
   '/app/styles.css',
   '/app/motion.css',
   '/app/motion.js',

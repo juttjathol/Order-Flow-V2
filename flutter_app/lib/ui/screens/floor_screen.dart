@@ -654,6 +654,7 @@ class _QueueTicket extends ConsumerWidget {
     final s = ref.s;
     final mins = now.difference(order.createdAt).inMinutes;
     final overdue = mins >= 12;
+    final clock = formatBusyClock(order.createdAt, now); // h:mm:ss live
     final items = order.lines.fold<double>(0, (a, l) => a + l.qty);
     return OfCard(
       onTap: () => context.push('/order/${order.id}'),
@@ -667,7 +668,7 @@ class _QueueTicket extends ConsumerWidget {
                 Text(order.ticketNo, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: -0.5)),
                 const Spacer(),
                 Text(
-                  '$mins min',
+                  clock,
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 13,

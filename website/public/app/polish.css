@@ -1,0 +1,77 @@
+/* ============================================================
+   ORDER FLOW — VISUAL OVERHAUL v1.1.92 (additive polish layer)
+   Patterns pulled from modern open-source POS UIs (Toast/Square/
+   Loyverse-class layouts): softer surfaces, clearer hierarchy,
+   tinted state colours, one dominant accent, generous whitespace.
+   Everything here is TOKEN-ONLY — brand hexes unchanged.
+   ============================================================ */
+
+/* ——— surfaces: lighter borders, softer shadows ——— */
+.card, .mrow, .lrow, .tile, .stat, .tcard, .mcard, .accs{
+  border-width:1px;
+  border-color:color-mix(in srgb, var(--border) 68%, transparent);
+}
+.card{ box-shadow:0 2px 8px rgba(22,62,46,.05), 0 14px 34px rgba(16,40,23,.06); }
+.lrow:hover, .mrow:hover{ border-color:var(--mint); transition:border-color .14s ease; }
+
+/* ——— typography hierarchy — uppercase micro-labels ——— */
+.sect__t{ font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:22px 0 10px; }
+.stat__k{ letter-spacing:.08em; font-weight:700; }
+.hero__amt{ font-size:44px; letter-spacing:-1.4px; font-variant-numeric:tabular-nums; }
+.big{ font-variant-numeric:tabular-nums; }
+
+/* ——— chips: tinted, flatter, friendlier ——— */
+.chip{ border-color:color-mix(in srgb, var(--border) 60%, transparent); }
+.chip--live{ background:color-mix(in srgb, var(--mint) 13%, transparent); }
+
+/* ——— buttons: softer shadows + obvious press ——— */
+.btn{ border-width:1px; }
+.btn--mint{ box-shadow:0 3px 10px rgba(46,167,113,.28); }
+.btn--primary, .btn--gold{ box-shadow:0 3px 10px rgba(22,62,46,.22); }
+.btn:active{ transform:translateY(1px) scale(.985); box-shadow:none; }
+.btn--sm{ box-shadow:none; }
+
+/* ——— nav: floating pill highlight instead of bare text ——— */
+.bnav__dest.is-on span{ font-weight:900; }
+.bnav__dest{ transition:color .12s ease; }
+@media (min-width:720px){
+  .rail__dest.is-on{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent); }
+}
+
+/* ——— floor map cards: state tint bands on the top edge ——— */
+.tcard{ box-shadow:0 1px 4px rgba(22,62,46,.05); border-width:1px; transition:transform .12s ease, box-shadow .12s ease; }
+.tcard--busy{ box-shadow:0 1px 4px rgba(22,62,46,.05), inset 0 3px 0 var(--gold); border-color:color-mix(in srgb, var(--gold) 42%, var(--border)); }
+.tcard--ready{ box-shadow:0 1px 4px rgba(22,62,46,.05), inset 0 3px 0 var(--mint), 0 0 0 3px rgba(46,167,113,.18); }
+.tcard--free{ border-style:dashed; }
+.tcard:hover{ transform:translateY(-1px); }
+
+/* ——— ready strip: warm tint but one accent ——— */
+.readyline{ border-width:1px; background:color-mix(in srgb, var(--gold) 10%, transparent); box-shadow:inset 0 1px 0 rgba(255,255,255,.35); }
+
+/* ——— menu cards: hover lift ——— */
+.mcard{ transition:transform .14s ease, box-shadow .14s ease; }
+.mcard:hover{ transform:translateY(-2px); box-shadow:0 8px 20px rgba(22,62,46,.10); }
+
+/* ——— dialogs & sheets: crisper edges ——— */
+.sheet__panel{ box-shadow:0 -14px 48px rgba(8,18,13,.32), inset 0 1px 0 rgba(255,255,255,.06); }
+.dlg-panel, .dlg__panel{ box-shadow:0 24px 72px rgba(8,18,13,.34); }
+
+/* ——— empty states: calm and centered ——— */
+.empty{ text-align:center; padding:36px 20px; }
+.empty .e-ic{ font-size:42px; opacity:.5; display:block; margin-bottom:8px; }
+
+/* ——— forms: slightly taller, friendlier ——— */
+input, select, textarea{ border-width:1px; transition:border-color .14s ease, box-shadow .14s ease; }
+input:hover, select:hover, textarea:hover{ border-color:color-mix(in srgb, var(--border) 40%, var(--muted)); }
+
+/* ——— accordions (More): open state gets an accent hint ——— */
+.accs__t{ transition:background .12s ease; }
+.accs[open] .accs__t{ background:color-mix(in srgb, var(--mint) 6%, transparent); }
+
+/* ——— scrollbars (desktop) ——— */
+@media (min-width:720px){
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-thumb{ background:color-mix(in srgb, var(--border) 80%, var(--muted)); border-radius:99px; border:2px solid transparent; background-clip:content-box; }
+  ::-webkit-scrollbar-thumb:hover{ background:var(--muted); border:2px solid transparent; background-clip:content-box; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+}
