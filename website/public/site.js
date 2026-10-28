@@ -413,20 +413,20 @@ async function initPlanCurrency() {
   const sel = document.getElementById("cur-select");
   const note = document.getElementById("cur-note");
   if (!bar || !sel || !note) return;
-  if (!hasConsent() || initPlanCurrency.running) return; // no consent → plain RM, zero third-party calls
+  if (!hasConsent() || initPlanCurrency.running) return; // no consent → plain PKR, zero third-party calls
   initPlanCurrency.running = true;
 
   let rates = null;
   try {
-    const cached = JSON.parse(sessionStorage.getItem("of-myr-rates") || "null");
+    const cached = JSON.parse(sessionStorage.getItem("of-pkr-rates") || "null");
     if (cached && Date.now() - cached.t < 12 * 3600 * 1000) {
       rates = cached.r;
     } else {
-      const res = await fetch("https://open.er-api.com/v6/latest/MYR");
+      const res = await fetch("https://open.er-api.com/v6/latest/PKR");
       const j = await res.json();
       if (j && j.result === "success" && j.rates) {
         rates = j.rates;
-        sessionStorage.setItem("of-myr-rates", JSON.stringify({ t: Date.now(), r: rates }));
+        sessionStorage.setItem("of-pkr-rates", JSON.stringify({ t: Date.now(), r: rates }));
       }
     }
   } catch (_) {}
@@ -442,25 +442,25 @@ async function initPlanCurrency() {
   }
 
   function renderPrices(ccy) {
-    const rate = ccy === "MYR" ? 1 : (rates[ccy] || 1);
-    document.querySelectorAll(".plan-price[data-myr]").forEach((el) => {
-      const myr = Number(el.dataset.myr || 0);
+    const rate = ccy === "PKR" ? 1 : (rates[ccy] || 1);
+    document.querySelectorAll(".plan-price[data-pkr]").forEach((el) => {
+      const pkr = Number(el.dataset.pkr || 0);
       const meta = PLAN_CCY[ccy] || { sym: ccy + " ", pre: true };
-      // RM is the billing currency — show it exactly, never snapped.
-      const v = ccy === "MYR" ? myr : snap(myr * rate);
+      // PKR is the billing currency — show it exactly, never snapped.
+      const v = ccy === "PKR" ? pkr : snap(pkr * rate);
       const txt = Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2);
-      const numAttr = (ccy === "MYR" || v >= 100) ? ` data-count="${Math.round(v)}"` : "";
+      const numAttr = (ccy === "PKR" || v >= 100) ? ` data-count="${Math.round(v)}"` : "";
       const b = `<b${numAttr}>${txt}</b>`;
       const sym = meta.pre ? `<span>${meta.sym}</span>` : `<span>${meta.sym.trim()}${meta.sp ? " " : ""}</span>`;
-      const anchor = ccy === "MYR" ? "/month" : `≈ RM ${myr}/mo`;
+      const anchor = ccy === "PKR" ? "/month" : `≈ PKR ${pkr}/mo`;
       el.innerHTML = meta.pre ? sym + b + `<small>${anchor}</small>` : b + sym + `<small>${anchor}</small>`;
     });
     armPriceCounts();
     bar.hidden = false;
     sel.value = ccy;
-    note.textContent = ccy === "MYR"
-      ? "Malaysian Ringgit — the billed currency."
-      : `Indicative at today's market rate · billing is in RM.`;
+    note.textContent = ccy === "PKR"
+      ? "Pakistani Rupee — the billed currency."
+      : `Indicative at today's market rate · billing is in PKR.`;
   }
 
   async function detectCountry() {
@@ -481,9 +481,9 @@ async function initPlanCurrency() {
   async function applyAuto() {
     autoTried = true;
     const cc = await detectCountry();
-    const ccy = cc && PLAN_COUNTRY[cc] && valid(PLAN_COUNTRY[cc]) ? PLAN_COUNTRY[cc] : "MYR";
+    const ccy = cc && PLAN_COUNTRY[cc] && valid(PLAN_COUNTRY[cc]) ? PLAN_COUNTRY[cc] : "PKR";
     renderPrices(ccy);
-    if (cc) note.textContent += ccy === "MYR" ? "" : ` Detected from country ${cc}.`;
+    if (cc) note.textContent += ccy === "PKR" ? "" : ` Detected from country ${cc}.`;
   }
 
   sel.addEventListener("change", () => {
@@ -516,7 +516,7 @@ initPlanCurrency();
   const decide = (v) => {
     try { localStorage.setItem(CONSENT_KEY, v); }
     catch (_) { try { sessionStorage.setItem(CONSENT_KEY, v); } catch (__) {} }
-    if (v === "no") { try { localStorage.removeItem("of-ccy"); sessionStorage.removeItem("of-myr-rates"); } catch (_) {} }
+    if (v === "no") { try { localStorage.removeItem("of-ccy"); sessionStorage.removeItem("of-pkr-rates"); } catch (_) {} }
     cbar.hidden = true;
     if (v === "yes") initPlanCurrency();
   };

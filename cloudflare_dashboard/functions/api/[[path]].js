@@ -13,9 +13,11 @@ const CORE_FEATURE_KEYS = new Set([
 // kFeatureCatalog in the app (kFeatureCatalog lists ALL sixteen).
 const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding", "third_party"]);
 const MODEL_KEYS = new Set(["restaurant", "retail", "fastfood", "services"]);
+// v1.1.94 plan restructure: key "starter" is sold as "Professional" — every
+// gated feature EXCEPT cloud_sync, which is a PKR 500/month add-on on request.
 const PLAN_PRESETS = {
-  starter: [...CORE_FEATURE_KEYS].filter((k) => k !== "qr_ordering"),
-  growth: [...CORE_FEATURE_KEYS].filter((k) => k !== "qr_ordering"),
+  starter: [...FEATURE_KEYS].filter((k) => k !== "cloud_sync"),
+  growth: [...FEATURE_KEYS].filter((k) => k !== "cloud_sync"),
   custom: [...FEATURE_KEYS],
   customize: [...FEATURE_KEYS],
   full: [...FEATURE_KEYS],

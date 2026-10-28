@@ -36,10 +36,10 @@ const BROADCAST_TEMPLATES = {
     message: "Track tickets with busy clocks on the Table Map, route orders to station printers, and use the instant search bar across kitchen & cashier screens to speed up service during peak hours.",
   },
   plan_growth: {
-    title: "💎 Upgrade to Customize: QR Ordering + Cloud Sync",
+    title: "💎 Cloud add-on & Customize",
     tag: "plan",
     url: "https://jathol.org#plans",
-    message: "Starter already has 12 pro features — add QR table ordering, cloud networking and your branded QR page. Contact us to upgrade to Customize today!",
+    message: "Professional (PKR 2,000/mo) already includes 15 pro features — QR ordering too. Cloud networking is a PKR 500/month add-on; want a custom POS built for your business? Ask about Customize!",
   },
   tip_qr: {
     title: "💡 Restaurant Flow Tip: Cut Wait Times with Guest QR",

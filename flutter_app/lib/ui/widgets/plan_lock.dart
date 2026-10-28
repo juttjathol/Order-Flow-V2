@@ -16,10 +16,13 @@ Future<void> showPlanLock(
   required String featureKey,
 }) async {
   final s = ref.s;
+  final isCloud = featureKey == 'cloud_sync';
   final info = kFeatureCatalog.where((f) => f.key == featureKey);
-  final label = info.isEmpty
-      ? featureKey
-      : (s.isUrdu ? info.first.labelUr : info.first.labelEn);
+  final label = isCloud
+      ? s.t('cloud_addon_title')
+      : info.isEmpty
+          ? featureKey
+          : (s.isUrdu ? info.first.labelUr : info.first.labelEn);
   await showModalBottomSheet<void>(
     context: context,
     builder: (ctx) => Padding(
@@ -39,7 +42,7 @@ Future<void> showPlanLock(
             ],
           ),
           const SizedBox(height: 10),
-          Text(s.t('plan_locked_body'),
+          Text(s.t(isCloud ? 'cloud_addon_body' : 'plan_locked_body'),
               style: const TextStyle(color: OfColors.muted, height: 1.45)),
           const SizedBox(height: 18),
           FilledButton.icon(
@@ -58,6 +61,31 @@ Future<void> showPlanLock(
             icon: const Icon(Icons.chat),
             label: Text(s.t('ask_jathol_upgrade')),
           ),
+          if (isCloud) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26)),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                launchUrl(
+                  Uri.parse(kLicenseEmailUrl(
+                    subject: 'Order Flow — Cloud networking add-on (PKR 500/mo)',
+                    body: 'Hello Jathol,\n\n'
+                        'Please switch on the Cloud networking add-on for my license key.\n\n'
+                        'Name:\nBusiness:\nLicense key (if known):\nPhone:\n\n'
+                        'Thank you.',
+                  )),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+              icon: const Icon(Icons.email_outlined),
+              label: Text(s.t('cloud_addon_email')),
+            ),
+          ],
         ],
       ),
     ),
