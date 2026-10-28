@@ -1546,7 +1546,7 @@ Object.assign(window.OFAct, {
   'connect.scanstop': () => OFScanStop(),
   'setup.done': () => setupDone(),
   'shell.cover': () => OFCoverMenu(),
-  'shell.tab.home': () => setTab('home'), 'shell.tab.floor': () => setTab('floor'),
+  'shell.tab.floor': () => setTab('floor'),
   'shell.tab.menu': () => setTab('menu'), 'shell.tab.stock': () => setTab('stock'), 'shell.tab.more': () => setTab('more'),
   'more.open': () => setTab('more'),
   'more.goto.cloud': () => { setTab('more'); OFAct['more.openAt']?.('cloud'); },
@@ -1576,14 +1576,6 @@ Object.assign(window.OFAct, {
   'appt.start': async (b) => { const a = await idbGet('appointments', b.dataset.id, null); if (a) { a.status = 'in_service'; await idbPut('appointments', a); await kvSet('rev', Date.now()); syncNow(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
   'appt.finish': async (b) => { const a = await idbGet('appointments', b.dataset.id, null); if (a) { a.status = 'done'; await idbPut('appointments', a); await kvSet('rev', Date.now()); syncNow(); renderActiveTab(true); renderRoleHome(STATION_ROLE); } },
   'menu.add': () => OFMenuEditor(null),
-  'menu.edit': (b) => OFMenuEditor(b.dataset.id),
-  'menu.soldout': async (b) => {
-    const p = await idbGet('products', b.dataset.id, null); if (!p) return;
-    p.available = !(p.available === false || p.avail === false); p.avail = p.available;
-    await idbPut('products', p); await kvSet('rev', Date.now()); syncNow();
-    toast(p.available ? p.name + ' — ' + L.t('back_on_menu') : p.name + ' — ' + L.t('sold_out_word'));
-    renderActiveTab(true);
-  },
   'menu.scan': () => OFMenuScan(),
   'sub.back': () => goBack(),
   'floor.held': () => OFHeldSales(),
