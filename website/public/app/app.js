@@ -130,7 +130,7 @@ async function validateKey(key) {
     return { state: 'valid', payload: j };
   }
   const reason = String(j.reason || j.error || '').toLowerCase();
-  if (['not_found', 'revoked', 'expired', 'deleted'].includes(reason)) return { state: 'locked', reason };
+  if (['not_found', 'revoked', 'expired', 'deleted', 'paused'].includes(reason)) return { state: 'locked', reason };
   // server busy / html / 5xx / anything else never locks a shop
   return { state: 'server_' + (reason || 'unknown') };
 }
@@ -175,7 +175,7 @@ async function refreshPlan() {
     const n = ent.allOn ? C.FEATURE_KEYS.length : (ent.features || []).length;
     toast(L.t('license') + ': ' + (ent.plan || 'full'), 'Plan synced · ' + n + '/16');
     if (typeof OFMoreRefresh === 'function') OFMoreRefresh();
-  } else if (r && ['not_found', 'revoked', 'expired', 'deleted'].includes(String(r.json.reason || r.json.error || '').toLowerCase())) {
+  } else if (r && ['not_found', 'revoked', 'expired', 'deleted', 'paused'].includes(String(r.json.reason || r.json.error || '').toLowerCase())) {
     show('view-locked');
   } else {
     toast('Could not reach the license server', 'Plan stays as-is — nothing was removed.');

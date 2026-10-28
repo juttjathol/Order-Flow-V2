@@ -537,3 +537,43 @@ document.querySelectorAll(".fx-gallery").forEach((g) => {
     scroller.scrollBy({ left: dir * Math.max(280, scroller.clientWidth * 0.8), behavior: "smooth" });
   });
 });
+// ── v1.1.95 bolder refresh pass: back-to-top + mobile sticky CTA ────────────
+(function toTopFab() {
+  if (document.getElementById("toTop")) return;
+  const b = document.createElement("button");
+  b.id = "toTop";
+  b.type = "button";
+  b.setAttribute("aria-label", "Back to top");
+  b.textContent = "↑";
+  document.body.appendChild(b);
+  const update = () => b.classList.toggle("show", window.scrollY > 700);
+  window.addEventListener("scroll", update, { passive: true });
+  update();
+  b.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+})();
+
+(function stickyCta() {
+  // Home only, and only on small screens (CSS keeps it desktop-hidden).
+  const path = location.pathname;
+  const isHome = path === "/" || path.endsWith("/index.html") || path === "/index";
+  if (!isHome || document.getElementById("sticky-cta")) return;
+  const dl = document.getElementById("download");
+  if (!dl) return;
+  const a = document.createElement("a");
+  a.id = "sticky-cta";
+  a.className = "btn btn-mint";
+  a.href = "#download";
+  a.textContent = "Get Order Flow — from PKR 2,000/mo";
+  document.body.appendChild(a);
+  const dlInView = { v: false };
+  try {
+    new IntersectionObserver((es) => { dlInView.v = es[0].isIntersecting; update(); }).observe(dl);
+  } catch (_) {}
+  function update() {
+    const pastHero = window.scrollY > window.innerHeight * 0.85;
+    a.classList.toggle("show", pastHero && !dlInView.v);
+  }
+  window.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  update();
+})();
