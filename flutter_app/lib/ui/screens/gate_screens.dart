@@ -317,6 +317,14 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(s.t('no_key_needed'), textAlign: TextAlign.center, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                      const SizedBox(height: 16),
+                      // v1.1.93 — no-key demo walkthrough: seeded sample shop,
+                      // license untouched, exit wipes the demo data.
+                      TextButton.icon(
+                        onPressed: () => _maybeDemo(context, ref, s),
+                        icon: const Icon(Icons.play_circle_outline, color: OfColors.mint),
+                        label: Text(s.t('demo_try'), style: const TextStyle(color: OfColors.mint, fontWeight: FontWeight.w800)),
+                      ),
                       const SizedBox(height: 14),
                       FilledButton.icon(
                         style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, minimumSize: const Size.fromHeight(50),
@@ -345,6 +353,30 @@ class _LicenseScreenState extends ConsumerState<LicenseScreen> {
       ),
     );
   }
+}
+
+/// Confirm → seed a sample shop and walk in. Local only; see
+/// [AppController.startDemo] for the license-safety design.
+Future<void> _maybeDemo(BuildContext context, WidgetRef ref, L10n s) async {
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('demo_dialog_t')),
+      content: Text(s.t('demo_dialog_b')),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(s.t('cancel')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: FilledButton.styleFrom(backgroundColor: OfColors.mint, foregroundColor: const Color(0xFF042016)),
+          child: Text(s.t('demo_start')),
+        ),
+      ],
+    ),
+  );
+  if (go == true) await ref.ctrl.startDemo();
 }
 
 class LockedScreen extends ConsumerWidget {

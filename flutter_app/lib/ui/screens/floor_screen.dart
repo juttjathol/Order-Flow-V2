@@ -11,6 +11,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/tour_overlay.dart';
 import '../widgets/offsite_order.dart';
 import '../widgets/plan_extras.dart';
 import '../widgets/pos_ops.dart';
@@ -297,6 +298,7 @@ class _TablesMapState extends ConsumerState<_TablesMap> {
                                   verticalOffset: 24,
                                   child: FadeInAnimation(
                                     child: BistroTableTile(
+                                      key: i == 0 ? TourKeys.floorTile : null,
                                       tableName: t.name,
                                       seats: t.seats,
                                       statusColor: color,

@@ -10,6 +10,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/tour_overlay.dart';
 import '../widgets/menu_import.dart';
 
 class MenuScreen extends ConsumerStatefulWidget {
@@ -125,6 +126,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
                     itemBuilder: (_, i) {
                       final p = products[i];
                       return OfCard(
+                        key: i == 0 ? TourKeys.menuCard : null,
                         padding: EdgeInsets.zero,
                         onTap: () => editProduct(context, ref, existing: p, categoryId: p.categoryId),
                         child: Column(

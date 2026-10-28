@@ -20,6 +20,13 @@
     tour_more_b: ['Reports, printers, guests (QR menu), staff, cloud, backup — each section opens one tab. Hidden away, but one tap deep.', 'رپورٹس، پرنٹرز، مہمان (QR مینو)، عملہ، کلاؤڈ، بیک اپ — ہر سیکشن ایک ٹپ میں کھلتا ہے۔'],
     tour_done_t: ['All set — welcome to Order Flow', 'تمام — آپ تیار ہیں'],
     tour_done_b: ['Bottom rail switches it all. Big moments (Guest pay, station joins) make toast pop-ups — nothing gets buried.', 'نیچے والے بٹن سے سب بدل جاتا ہے۔ بڑی اطلاعیں ٹوسٹ میں ظاہر ہوتی ہیں — کچھ بھی پس نہیں رہتا۔'],
+    // ——— v1.1.93 license-screen demo (seeded sample shop; license untouched) ———
+    demo_try: ['Try the demo', 'ڈیمو آزمائیں'],
+    demo_dialog_t: ['Explore a demo shop?', 'ڈیمو دکان کھولیں؟'],
+    demo_dialog_b: ['A ready-made café with sample tables, menu and tickets opens so you can tap through everything. Fully local — nothing uploads and no license is touched.', 'نمونہ میزیں، مینو اور ٹکٹ تیار کیفے میں آزمائیں — سب مقامی ہے، کچھ اپلوڈ نہیں ہوتا اور لائسنس کو ہاتھ نہیں لگتا۔'],
+    demo_chip: ['DEMO', 'ڈیمو'],
+    demo_exit: ['Exit demo & clear data', 'ڈیمو ختم کریں اور ڈیٹا صاف کریں'],
+    demo_exit_b: ['All demo orders, items and settings are erased and you return to the license screen. Your real data is never part of the demo. Continue?', 'ڈیمو کے تمام آرڈرز، آئٹمز اور ترتیبات مٹ جائیں گی اور آپ لائسنس اسکرین پر واپس آئیں گے۔ آپ کا اصل ڈیٹا ڈیمو میں شامل نہیں ہوتا۔ جاری رکھیں؟'],
     home: ['Home', 'ہوم'], tables: ['Tables', 'میزیں'], register: ['Register', 'رجسٹر'],
     queue: ['Queue', 'قطار'], appointments: ['Appointments', 'ملاقاتیں'], services: ['Services', 'سروسز'],
     menu: ['Menu', 'مینو'], stock: ['Stock', 'اسٹاک'], more: ['More', 'مزید'],

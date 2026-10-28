@@ -179,6 +179,30 @@ class MoreScreen extends ConsumerWidget {
         }),
     ];
     final account = <Widget>[
+      // v1.1.93 — demo mode: pinned exit row (same confirm as the top chip).
+      if (snap.session.demoMode)
+        _row(Icons.stop_circle_outlined, s.t('demo_exit'), () async {
+          final go = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(s.t('demo_exit_t')),
+              content: Text(s.t('demo_exit_b')),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(s.t('demo_keep')),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: OfColors.danger, foregroundColor: Colors.white),
+                  child: Text(s.t('demo_exit')),
+                ),
+              ],
+            ),
+          );
+          if (go == true) await ref.ctrl.endDemo();
+        }),
       if (snap.isMain) _row(Icons.vpn_key, s.t('license'), () => _license(context, ref)),
       _row(Icons.menu_book, s.t('user_guide'), () {
         launchUrl(Uri.parse(kGuideUrl), mode: LaunchMode.externalApplication);
@@ -246,7 +270,8 @@ class MoreScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         if (shop.isNotEmpty) _folder(context, Icons.storefront, s.t('shop_section'), shop),
-        _folder(context, Icons.print, s.t('hardware_section'), [
+        _folder(context, Icons.print, s.t('hardware_section'),
+          key: TourKeys.moreFolder, [
           // Desktop (v1.1.76): the unified sheet offers Windows printers +
           // LAN; phones keep the Bluetooth picker.
           _row(Icons.print, s.t('printers'),
@@ -264,9 +289,11 @@ class MoreScreen extends ConsumerWidget {
     );
   }
 
-  Widget _folder(BuildContext context, IconData icon, String title, List<Widget> children) {
+  Widget _folder(BuildContext context, IconData icon, String title, List<Widget> children, {Key? key}) {
     if (children.isEmpty) return const SizedBox.shrink();
+    // `key` lets the guided tour spotlight this folder (first section only).
     return Padding(
+      key: key,
       padding: const EdgeInsets.only(bottom: 10),
       child: OfCard(
         padding: EdgeInsets.zero,
@@ -795,8 +822,10 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
             }
           } catch (e) {
             if (context.mounted) {
+              // demo guard maps to its own hint instead of a scary raw error (v1.1.93)
+              final k = PrintService.l10nKeyFor(e);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('${s.t('print_fail')}: ${_errCap(e.toString())}')));
+                  content: Text(k != null ? s.t(k) : '${s.t('print_fail')}: ${_errCap(e.toString())}')));
             }
           }
         }

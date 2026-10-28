@@ -275,7 +275,10 @@ class AppController extends Notifier<AppSnapshot> {
     if (session.license.locked) return LicenseGate.locked;
     if (session.role == AppRole.none) return LicenseGate.license;
     if (session.role == AppRole.main) {
-      if (!session.license.valid) return LicenseGate.license;
+      // v1.1.93 — demo mode walks the full app with the license still invalid.
+      if (!session.license.valid && !session.demoMode) {
+        return LicenseGate.license;
+      }
       if (!session.modelPicked) return LicenseGate.setup;
       return LicenseGate.ready;
     }
@@ -300,6 +303,9 @@ class AppController extends Notifier<AppSnapshot> {
 
   void _emit(AppSnapshot next) {
     state = next;
+    // Demo guard (v1.1.93): flip paper blocking with the session flag so the
+    // demo never prints, whatever route the job takes.
+    printer.demoBlock = next.session.demoMode;
     _schedulePersist();
   }
 
@@ -482,6 +488,52 @@ class AppController extends Notifier<AppSnapshot> {
     if (state.session.tourSeen) return;
     state.session.tourSeen = true;
     _emit(state.copyWith(session: state.session));
+    await persist();
+  }
+
+  /// v1.1.93 — "Try the demo" from the license screen. Full app over seeded
+  /// sample data. This is NOT a license bypass: the license record stays
+  /// invalid, so cloud rooms answer no_license, and the plan gates keep
+  /// multi_terminal + cloud_sync locked (demo = single device, fully local).
+  /// Nothing syncs anywhere; [endDemo] wipes every trace.
+  Future<void> startDemo() async {
+    state.session.demoMode = true;
+    state.session.role = AppRole.main;
+    state.session.modelPicked = true;
+    seedFor(BusinessModel.restaurant, state.store);
+    state.store.profile.businessName = 'Demo Bistro';
+    state.store.entitlements.allOn = false;
+    state.store.entitlements.plan = 'demo';
+    state.store.entitlements.models =
+        BusinessModel.values.map((m) => m.name).toList();
+    state.store.entitlements.features = <String>[
+      'station_printers', 'qr_ordering', 'loyalty', 'split_payment', 'refunds',
+      'customer_display', 'reservations', 'recipe_costing', 'wastage',
+      'purchases', 'advanced_reports', 'eighty_six', 'qr_branding',
+      'third_party',
+    ];
+    _emit(state.copyWith(session: state.session, gate: LicenseGate.ready));
+    await persist();
+  }
+
+  /// Exit the demo: fresh session (device id + locale kept) and an empty store,
+  /// so the router walks the user back to the license screen for a real setup.
+  Future<void> endDemo() async {
+    if (!state.session.demoMode) return;
+    final fresh = SessionPrefs(
+      deviceId: state.session.deviceId,
+      locale: state.session.locale,
+      theme: state.session.theme,
+      apiBase: state.session.apiBase,
+    );
+    state = state.copyWith(
+      session: fresh,
+      store: AppStore(),
+      gate: _computeGate(fresh),
+      serverOn: false,
+      pendingSync: 0,
+      clearError: true,
+    );
     await persist();
   }
 
@@ -880,6 +932,14 @@ class AppController extends Notifier<AppSnapshot> {
     // Plan gating (v1.1.59): Main's license limits apply on every device.
     if (StoreGuard.denyReason(state.store, cmd).isNotEmpty) {
       return ReduceResult(state.store);
+    }
+    // Demo guard (v1.1.93): license-screen demo caps live orders so a
+    // look-around shop can never quietly run a real shift unpaid.
+    if (state.session.demoMode) {
+      final demoDeny = DemoGuard.deny(state.store, cmd);
+      if (demoDeny != null) {
+        return ReduceResult(state.store, notice: demoDeny);
+      }
     }
     StoreGuard.sanitize(state.store, cmd);
     if (cmd.id.isNotEmpty && _seenIds.contains(cmd.id)) {

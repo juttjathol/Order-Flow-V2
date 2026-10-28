@@ -18,6 +18,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../state/app_controller.dart';
+import '../widgets/tour_overlay.dart';
 import '../widgets/common.dart';
 import '../widgets/pos_ops.dart';
 import 'stock_screen.dart';
@@ -107,6 +108,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           OfCard(
+            key: TourKeys.homeHero,
             color: OfColors.isDark(context) ? const Color(0xFF12352A) : Colors.white,
             onTap: () => _openStat(context, ref, 'sales'),
             child: Row(
@@ -853,6 +855,7 @@ class _ServerCardState extends State<_ServerCard> {
               ),
             ),
             GestureDetector(
+              key: TourKeys.roomQr,
               onLongPress: () => _joinQrMenu(context, s, join, qrKey),
               child: RepaintBoundary(
                 key: qrKey,
