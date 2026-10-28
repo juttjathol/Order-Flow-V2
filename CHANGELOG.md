@@ -6,6 +6,14 @@ carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering 
 log — including root causes and the mistakes each release was built to avoid repeating —
 is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
+## 1.1.94 — 2026-10-29
+
+### Plans, rebuilt around your shop
+* **Starter is now Professional — PKR 2,000/month** — one plan with every pro feature: 15 gated features on, including QR table ordering, the branded QR page and third-party channels (previously Customize-only).
+* **Cloud networking is now an add-on — +PKR 500/month** — a locked cloud row opens a request sheet in-app (WhatsApp) or by email; once issued, it switches straight on for your key.
+* **Customize = your custom POS** — the let's-talk plan (all 16 features, cloud included) now explicitly builds a tailored POS for your business: workflows, branding and hardware.
+* Billing currency is **PKR** — site price widget, terms, guide, README and the admin dashboard presets all moved in lockstep (internal key name `starter` stays stable for existing licenses).
+
 ## 1.1.93 — 2026-10-28
 
 ### Getting started

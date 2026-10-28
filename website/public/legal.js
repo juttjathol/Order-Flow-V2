@@ -20,7 +20,7 @@
     try {
       localStorage.setItem("of-consent", "no");
       localStorage.removeItem("of-ccy");
-      sessionStorage.removeItem("of-myr-rates");
+      sessionStorage.removeItem("of-pkr-rates");
       say("Cleared. Prices will stay in RM and nothing optional will be stored on this device.");
     } catch (_) {
       say("Nothing to clear — storage is already blocked, which is a full decline.");

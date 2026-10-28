@@ -25,12 +25,23 @@ String kLicenseWhatsAppUrl({
   ].join('\n');
   return 'https://wa.me/Jathol_Jutt?text=${Uri.encodeComponent(body)}';
 }
+
+/// Sales email — plan & add-on requests (v1.1.94 cloud add-on flow).
+const String kSupportEmail = 'contact@jathol.org';
+
+String kLicenseEmailUrl({String subject = '', String body = ''}) {
+  final q = <String>[
+    if (subject.isNotEmpty) 'subject=${Uri.encodeComponent(subject)}',
+    if (body.isNotEmpty) 'body=${Uri.encodeComponent(body)}',
+  ].join('&');
+  return 'mailto:$kSupportEmail${q.isEmpty ? '' : '?$q'}';
+}
 const String kDefaultApiBase = 'https://order-flow-v2.pages.dev';
 const String kPrivacyUrl = 'https://jathol.org/privacy';
 const String kGuideUrl = 'https://jathol.org/guide';
 const String kAppName = 'Order Flow';
 const String kBrandName = 'Jathol';
-const String kAppVersion = '1.1.93';
+const String kAppVersion = '1.1.94';
 /// SPKI (base64) Ed25519 public key matching LICENSE_SIGNING_KEY. Empty sigs
 /// are accepted until kLicenseRequireSig is flipped.
 const String kLicensePubKey = 'MCowBQYDK2VwAyEAzeJ0BlqBL6FVgYPYPtOOn4YL6liQTGW8vS1zhP6N5HY=';

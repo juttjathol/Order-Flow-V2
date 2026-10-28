@@ -42,10 +42,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          # Tag-triggered runs land detached at the tag commit — no local 'main'
-          # branch exists. Materialise one pinned to origin/main (exit 2 otherwise).
-          git checkout -B main FETCH_HEAD
+          # NOTE: a tag literally named "main" exists in this repo, so a bare
+          # `git fetch origin main` resolves to the TAG (FETCH_HEAD = old commit),
+          # which made `git checkout -B main FETCH_HEAD` land on an ancient tree
+          # where scripts/ doesn't exist → python exit 2 on every tag since v1.1.88.
+          # Pin BOTH refs with explicit namespaces so the tag can never shadow the branch:
+          git fetch origin '+refs/heads/main:refs/remotes/origin/main'
+          git checkout -B main origin/main
           TAGV="${{ steps.ver.outputs.version }}"
           echo "Syncing $TAGV onto main..."
           python3 scripts/sync_docs_version.py "$TAGV"

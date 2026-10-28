@@ -16,7 +16,7 @@ Offline-first multi-device POS for restaurants, retail, fast food, and services,
 - **APK + Windows ZIP** — create a GitHub Release tag `v1.1.92` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.93+93**. The web app deploys continuously from `main` (current shell cache `of-shell-v45`).
+Version **1.1.94+94**. The web app deploys continuously from `main` (current shell cache `of-shell-v46`).
 
 You only need two things after this repo is on GitHub:
 
@@ -63,11 +63,12 @@ First success **binds** the device. A second device is rejected until you click 
 
 ### Plans & per-key access (v1.1.92+, hardened v1.1.91)
 
-Every key carries a **plan** — Starter / Customize / Full — plus the **business models** it may run and a **16-extra feature checklist** (QR ordering, station printers, loyalty, refunds, purchases, cloud sync, branded QR page, third-party channels …) editable from the dashboard's **Access…** dialog:
+Every key carries a **plan** — Professional / Customize (legacy keys: Starter / Growth / Full) — plus the **business models** it may run and a **16-extra feature checklist** (QR ordering, station printers, loyalty, refunds, purchases, cloud sync, branded QR page, third-party channels …) editable from the dashboard's **Access…** dialog:
 
-- **Starter — RM 79** — 12 pro features (everything except QR ordering, cloud sync, branded QR page & third-party channels). Add QR & cloud when you need them.
-- **Customize — Let's talk** — all 16 features (QR, cloud, branded QR & third-party included) + bespoke support.
-- **Legacy Growth** — same as Starter (12) for existing keys.
+- **Professional — PKR 2,000/month** — 15 pro features: everything except cloud sync (QR ordering, branded QR page & third-party channels included).
+- **Cloud networking add-on — +PKR 500/month** — `cloud_sync`, requested in-app or by email.
+- **Customize — Let's talk** — all 16 features (cloud included) + a custom POS built for your business + bespoke support.
+- **Legacy Starter/Growth** — 12 features on existing keys until re-issued.
 - **Full** — everything on, always (the contract; `[]` can never lock a full key out).
 
 A Key's plan lands on the shop's Main at the next online check (every ~15 min), or instantly when someone taps **More → License → Refresh plan & features** in the app, then propagates to every station over LAN. The worker heals any empty-feature row written for a paid plan (dashboard bug signature) — saving zero extras on Growth/Custom/Full falls back to the plan preset instead of locking a shop out.
@@ -224,11 +225,11 @@ flowchart TD
 | 11 | `purchases` | Growth+ | Suppliers + purchase orders (`upsertSupplier / Purchase / receivePurchase / cancelPurchase`), stock-in on receive. |
 | 12 | `advanced_reports` | Growth+ | Sales, best/slow movers, profit, staff performance, 86 board, charts — gated reports. |
 | 13 | `eighty_six` | Growth+ | Long-press dish on order screen → 86 (mark unavailable) grey-out everywhere instantly. |
-| 14 | `cloud_sync` | **Customize/Full only** | Encrypted relay at `order-flow-v2.pages.dev/api/cloud` — Main `open` room (256-bit id, 6-char code), stations `join` via mobile data, `send`/`pull` AES-GCM, `200` row cap, `1.2s` hot / `30s` idle, member-only write. Shop data never backed up. |
-| 15 | `qr_branding` | **Customize/Full only** | Brand the guest page (`qr_brand` editor): shop name, tagline, address, phone, WhatsApp, hours, welcome, accent — `QrBrand` in `order.html`. |
-| 16 | `third_party` | **Customize/Full only** | Manual third-party channel log — Foodpanda, GrabFood, ShopeeFood & other. Record the total from the tablet; reports split by channel. |
-| — | *Starter* | — | 12 pro features, gated extras off (QR, cloud, branded QR, third-party are Customize add-ons). |
-| — | *Customize* | — | All 16 extras, hand-picked per key from dashboard **Access…** dialog. |
+| 14 | `cloud_sync` | **Add-on (+PKR 500/mo)** | Encrypted relay at `order-flow-v2.pages.dev/api/cloud` — Main `open` room (256-bit id, 6-char code), stations `join` via mobile data, `send`/`pull` AES-GCM, `200` row cap, `1.2s` hot / `30s` idle, member-only write. Shop data never backed up. |
+| 15 | `qr_branding` | **Professional & Customize** | Brand the guest page (`qr_brand` editor): shop name, tagline, address, phone, WhatsApp, hours, welcome, accent — `QrBrand` in `order.html`. |
+| 16 | `third_party` | **Professional & Customize** | Manual third-party channel log — Foodpanda, GrabFood, ShopeeFood & other. Record the total from the tablet; reports split by channel. |
+| — | *Professional* | PKR 2,000/mo | 15 features — everything except the cloud add-on; QR, branded QR & third-party included. |
+| — | *Customize* | Let's talk | All 16 extras + custom POS build — hand-picked per key from dashboard **Access…** dialog. |
 | — | *Full* | — | Everything on, always (`[]` can never lock it — `healFeatures` + `allOn` contract). |
 
 *Plan lands on Main at next online check (`5 min` `kRevalidateMinutes`) or instantly via **More → License → Refresh plan & features** (`Plan synced · n/15`), then fans out to all stations over LAN.*
