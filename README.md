@@ -10,13 +10,13 @@
 Offline-first multi-device POS for restaurants, retail, fast food, and services, plus a Cloudflare license dashboard.
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
-- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.92+)
+- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.93+)
 - **iPhone / web app** (`website/public/app/`) — the same POS rebuilt as an installable PWA at **jathol.org/app**; guest QR menu at `/order.html`; iOS printing via share-sheet PDF (standalone), AirPrint sheet (Safari tab), or Bluetooth ESC/POS
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke, plans & per-key feature access, push broadcasts
 - **APK + Windows ZIP** — create a GitHub Release tag `v1.1.92` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.92+92**. The web app deploys continuously from `main` (current shell cache `of-shell-v44`).
+Version **1.1.93+93**. The web app deploys continuously from `main` (current shell cache `of-shell-v45`).
 
 You only need two things after this repo is on GitHub:
 
