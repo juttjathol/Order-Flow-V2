@@ -1235,11 +1235,12 @@ async function renderFloorRetail(host) {
   host.appendChild(q);
   const ps = await products();
   const grid = ce('div', 'mgrid'); grid.style.marginTop = '12px';
+  const hot = await hotProductIds();
   for (const p of ps.filter(x => x.available !== false)) grid.appendChild(menuPickCard(p, async () => {
     const open = (await orders()).find(o => o.type === 'retail' && o.status === 'open' && !o.held);
     if (open) { C.addLine(open, p); await idbPut('orders', open); syncNow(); openTicket(open.id); }
     else await newTicketQuickRetail(p);
-  }));
+  }, hot.has(p.id)));
   host.appendChild(grid);
 }
 async function newTicketQuickRetail(p) { const o = C.newOrder(SHOP.profile, { type: 'retail' }); C.addLine(o, p); await idbPut('orders', o); await kvSet('rev', Date.now()); syncNow(); openTicket(o.id); }
@@ -1290,9 +1291,32 @@ function apptRow(a) {
 }
 
 /* ================= MENU PICK CARD (shared) ================= */
-function menuPickCard(p, onAdd) {
+// v1.1.93 — best-seller badge (POS pattern: surfaced "hot" items cut a tap
+// from the most common lookups). Top 3 by qty paid today; recomputed 60s.
+let _hotCache = { at: 0, ids: new Set() };
+async function hotProductIds() {
+  if (Date.now() - _hotCache.at < 60000) return _hotCache.ids;
+  const ids = new Set();
+  try {
+    const counts = {};
+    const today = C.dayStart();
+    for (const o of await orders()) {
+      if (o.status !== 'paid' || C.dayStart(o.updatedAt || o.paidAt || o.createdAt) !== today) continue;
+      for (const l of (o.lines || [])) {
+        const pid = l.productId || '';
+        if (!pid) continue;
+        counts[pid] = (counts[pid] || 0) + (l.qty || 0);
+      }
+    }
+    Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([pid]) => ids.add(pid));
+  } catch { }
+  _hotCache = { at: Date.now(), ids };
+  return ids;
+}
+function menuPickCard(p, onAdd, hot) {
   const el = ce('div', 'mcard');
-  el.innerHTML = '<div class="mcard__img">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️') + '</div>'
+  el.innerHTML = '<div class="mcard__img">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️')
+    + (hot ? '<span class="mcard__hot">🔥</span>' : '') + '</div>'
     + '<div class="mcard__body"><span class="mcard__name">' + esc(p.name) + '</span><span class="mcard__price">' + money(p.priceCents) + '</span><button class="mcard__add" type="button">' + L.t('add') + '</button></div>';
   el.querySelector('button').onclick = (e) => { e.stopPropagation(); onAdd && onAdd(); };
   el.onclick = () => onAdd && onAdd();

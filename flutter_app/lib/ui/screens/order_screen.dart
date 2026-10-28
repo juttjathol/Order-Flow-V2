@@ -225,6 +225,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   }
 
   Widget _catalog(List<MenuProduct> products, PosOrder order, bool locked, {bool hideCats = false}) {
+    // v1.1.93 — best-seller 🔥 badge: top 3 items by qty paid today (POS
+    // pattern, matches the web register grid).
+    final hot = _todayTopProducts(ref.snap.store);
     final s = ref.s;
     final cats = [...ref.snap.store.categories]..sort((a, b) => a.sort.compareTo(b.sort));
     return Column(
@@ -301,6 +304,19 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                                       fit: StackFit.expand,
                                       children: [
                                         Center(child: ProductImage(p.imageBase64, size: 72)),
+                                        if (hot.contains(p.id) && p.available)
+                                          Align(
+                                            alignment: Alignment.topLeft,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withValues(alpha: 0.92),
+                                                borderRadius: BorderRadius.circular(999),
+                                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 5)],
+                                              ),
+                                              child: const Text('🔥', style: TextStyle(fontSize: 10)),
+                                            ),
+                                          ),
                                         if (!p.available)
                                           Container(
                                             decoration: BoxDecoration(
@@ -1456,4 +1472,21 @@ class _PickBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// v1.1.93 — top-[top] products by quantity PAID today, for the 🔥 badge.
+Set<String> _todayTopProducts(AppStore store, {int top = 3}) {
+  final counts = <String, double>{};
+  final now = DateTime.now();
+  for (final o in store.orders) {
+    if (o.status != OrderStatus.paid) continue;
+    final t = o.updatedAt;
+    if (t.year != now.year || t.month != now.month || t.day != now.day) continue;
+    for (final l in o.lines) {
+      if (l.productId.isEmpty) continue;
+      counts[l.productId] = (counts[l.productId] ?? 0) + l.qty;
+    }
+  }
+  final ranked = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  return ranked.take(top).map((e) => e.key).toSet();
 }

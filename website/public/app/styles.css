@@ -210,7 +210,8 @@ html[data-theme="dark"] .bnav__dest.is-on{ color:var(--mint); }
 /* ——— Menu grid / register ——— */
 .mgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(158px, 1fr)); gap:12px; }
 .mcard{ border-radius:18px; background:var(--surface); border:1.2px solid var(--border); overflow:hidden; display:flex; flex-direction:column; cursor:pointer; }
-.mcard__img{ height:92px; background:var(--surface2); display:grid; place-items:center; font-size:34px; overflow:hidden; }
+.mcard__img{ height:92px; background:var(--surface2); display:grid; place-items:center; font-size:34px; overflow:hidden; position:relative; }
+.mcard__hot{ position:absolute; top:7px; right:7px; font-size:12px; background:rgba(255,255,255,.92); border-radius:999px; padding:2px 7px; box-shadow:0 2px 8px rgba(6,14,10,.18); }
 .mcard__img img{ width:100%; height:100%; object-fit:cover; }
 .mcard__body{ padding:10px 12px 12px; display:flex; flex-direction:column; gap:2px; }
 .mcard__name{ font-weight:800; font-size:14px; letter-spacing:-.2px; }
