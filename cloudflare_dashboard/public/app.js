@@ -23,6 +23,8 @@ function writeToken(v) {
 const state = {
   token: readToken(),
   customers: [],
+  licF: { q: "", status: "all", plan: "all", sort: "expiry_asc" },
+  custQ: "",
   licenses: [],
   broadcasts: [],
   theme: localStorage.getItem("of_theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
@@ -145,17 +147,89 @@ function esc(v) {
     .replaceAll('"', "&quot;");
 }
 
+const daysLeftOf = (iso) => {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
+};
+
+function statusBadgeOf(l) {
+  if (l.status === "revoked") return badge("revoked", "Revoked");
+  if (l.status === "paused") return badge("paused", "Paused");
+  return badge("bound", "Active");
+}
+
+function expiryBadge(l) {
+  const d = daysLeftOf(l.expiresAt);
+  if (l.status !== "active" || d === null) return "";
+  if (d < 0) return badge("revoked", `expired ${-d}d ago`);
+  if (d <= 30) return badge("expiring", `${d}d left`);
+  return "";
+}
+
+function licenseActionBtns(l) {
+  const paused = l.status === "paused";
+  const revoked = l.status === "revoked";
+  return `
+    <button class="secondary" data-copy="${esc(l.licenseKey)}">Copy</button>
+    <button class="secondary" data-access="${l.id}">Access…</button>
+    <button class="secondary" data-notice="${esc(l.licenseKey)}">Notify</button>
+    <button class="secondary" data-reset="${l.id}">Reset device</button>
+    <button class="secondary" data-extend="${l.id}">Extend…</button>
+    ${!revoked ? `<button class="secondary" data-${paused ? "resume" : "pause"}="${l.id}">${paused ? "Resume" : "Pause"}</button>` : ""}
+    ${!revoked && !paused ? `<button class="secondary" data-revoke="${l.id}">Revoke</button>` : ""}
+    <button class="danger" data-dell="${l.id}">Delete</button>`;
+}
+
+function filteredLicenses() {
+  let rows = [...state.licenses];
+  const q = (state.licF.q || "").trim().toLowerCase();
+  if (q) {
+    rows = rows.filter((l) =>
+      (l.licenseKey || "").toLowerCase().includes(q) ||
+      (l.customer?.name || "").toLowerCase().includes(q) ||
+      (l.customer?.businessName || "").toLowerCase().includes(q));
+  }
+  if (state.licF.status === "unbound") rows = rows.filter((l) => !l.boundDeviceId && l.status === "active");
+  else if (state.licF.status !== "all") rows = rows.filter((l) => l.status === state.licF.status);
+  if (state.licF.plan !== "all") rows = rows.filter((l) => (l.plan || "full").toLowerCase() === state.licF.plan);
+  const s = state.licF.sort;
+  if (s === "expiry_asc") rows.sort((a, b) => (a.expiresAt || "9").localeCompare(b.expiresAt || "9"));
+  else if (s === "expiry_desc") rows.sort((a, b) => (b.expiresAt || "").localeCompare(a.expiresAt || ""));
+  else if (s === "created_desc") rows.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  else if (s === "name_asc") rows.sort((a, b) => (a.customer?.name || "").localeCompare(b.customer?.name || ""));
+  return rows;
+}
+
+function filteredCustomers() {
+  const q = (state.custQ || "").trim().toLowerCase();
+  if (!q) return state.customers;
+  return state.customers.filter((c) =>
+    (c.name || "").toLowerCase().includes(q) ||
+    (c.business_name || "").toLowerCase().includes(q) ||
+    (c.email || "").toLowerCase().includes(q) ||
+    (c.phone || "").toLowerCase().includes(q));
+}
+
+function keysOf(customerId) {
+  return state.licenses.filter((l) => l.customerId === customerId);
+}
+
 function renderCustomers() {
+  const rows = filteredCustomers();
   // Desktop table
-  $("c-body").innerHTML = state.customers
+  $("c-body").innerHTML = rows.length === 0
+    ? `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No customers match.</td></tr>`
+    : rows
     .map(
       (c) => `<tr>
         <td><strong>${esc(c.name)}</strong></td>
         <td>${esc(c.business_name || "")}</td>
         <td>${esc(c.email || "")}<br/>${esc(c.phone || "")}</td>
+        <td>${keysOf(c.id).length}</td>
         <td class="muted">${esc((c.created_at || "").slice(0, 10))}</td>
         <td class="actions">
           <button class="secondary" data-issue="${c.id}">Issue key</button>
+          <button class="secondary" data-viewkeys="${c.id}">Keys</button>
           <button class="danger" data-delc="${c.id}">Delete</button>
         </td>
       </tr>`,
@@ -165,10 +239,10 @@ function renderCustomers() {
   // Mobile card list
   const cards = $("c-cards");
   if (cards) {
-    if (state.customers.length === 0) {
-      cards.innerHTML = `<p class="muted" style="text-align:center;padding:24px 0">No customers yet.</p>`;
+    if (rows.length === 0) {
+      cards.innerHTML = `<p class="muted" style="text-align:center;padding:24px 0">No customers match.</p>`;
     } else {
-      cards.innerHTML = state.customers
+      cards.innerHTML = rows
         .map(
           (c) => `<div class="m-card">
             <div class="m-card-row">
@@ -178,9 +252,11 @@ function renderCustomers() {
             ${c.business_name ? `<div class="m-card-row"><span class="m-card-label">Business</span><span class="m-card-val">${esc(c.business_name)}</span></div>` : ""}
             ${c.email ? `<div class="m-card-row"><span class="m-card-label">Email</span><span class="m-card-val">${esc(c.email)}</span></div>` : ""}
             ${c.phone ? `<div class="m-card-row"><span class="m-card-label">Phone</span><span class="m-card-val">${esc(c.phone)}</span></div>` : ""}
+            <div class="m-card-row"><span class="m-card-label">Keys</span><span class="m-card-val">${keysOf(c.id).length}</span></div>
             <div class="m-card-row"><span class="m-card-label">Created</span><span class="m-card-val muted">${esc((c.created_at || "").slice(0, 10))}</span></div>
             <div class="m-card-actions">
               <button class="secondary" data-issue="${c.id}">Issue key</button>
+              <button class="secondary" data-viewkeys="${c.id}">Keys</button>
               <button class="danger" data-delc="${c.id}">Delete</button>
             </div>
           </div>`,
@@ -196,28 +272,22 @@ function renderCustomers() {
 }
 
 function renderLicenses() {
+  const rows = filteredLicenses();
   // Desktop table
-  $("l-body").innerHTML = state.licenses
+  $("l-body").innerHTML = rows.length === 0
+    ? `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No license keys match.</td></tr>`
+    : rows
     .map((l) => {
       const bind = l.boundDeviceId
         ? `${badge("bound", "Bound")}<div class="mono">${esc(l.boundDeviceId)}</div>`
         : badge("unbound", "Unbound");
-      const status =
-        l.status === "revoked" ? badge("revoked", "Revoked") : badge("bound", "Active");
       return `<tr>
         <td class="mono">${esc(l.licenseKey)}</td>
         <td>${esc(l.customer?.name || "")}</td>
-        <td>${status}<div class="chips" style="margin-top:4px">${planChips(l)}</div></td>
+        <td>${statusBadgeOf(l)}<div class="chips" style="margin-top:4px">${planChips(l)}</div></td>
         <td>${bind}</td>
-        <td>${esc((l.expiresAt || "").slice(0, 10))}</td>
-        <td class="actions">
-          <button class="secondary" data-copy="${esc(l.licenseKey)}">Copy</button>
-          <button class="secondary" data-access="${l.id}">Access…</button>
-          <button class="secondary" data-reset="${l.id}">Reset device</button>
-          <button class="secondary" data-extend="${l.id}">+30 days</button>
-          <button class="secondary" data-revoke="${l.id}">Revoke</button>
-          <button class="danger" data-dell="${l.id}">Delete</button>
-        </td>
+        <td>${esc((l.expiresAt || "").slice(0, 10))}${expiryBadge(l)}</td>
+        <td class="actions">${licenseActionBtns(l)}</td>
       </tr>`;
     })
     .join("");
@@ -225,13 +295,11 @@ function renderLicenses() {
   // Mobile card list
   const cards = $("l-cards");
   if (cards) {
-    if (state.licenses.length === 0) {
-      cards.innerHTML = `<p class="muted" style="text-align:center;padding:24px 0">No license keys yet.</p>`;
+    if (rows.length === 0) {
+      cards.innerHTML = `<p class="muted" style="text-align:center;padding:24px 0">No license keys match.</p>`;
     } else {
-      cards.innerHTML = state.licenses
+      cards.innerHTML = rows
         .map((l) => {
-          const statusBadge =
-            l.status === "revoked" ? badge("revoked", "Revoked") : badge("bound", "Active");
           const deviceBadge = l.boundDeviceId
             ? `${badge("bound", "Bound")}<div class="mono" style="margin-top:4px;font-size:11px">${esc(l.boundDeviceId)}</div>`
             : badge("unbound", "Unbound");
@@ -246,7 +314,7 @@ function renderLicenses() {
             </div>
             <div class="m-card-row">
               <span class="m-card-label">Status</span>
-              <span>${statusBadge}</span>
+              <span>${statusBadgeOf(l)}</span>
             </div>
             <div class="m-card-row">
               <span class="m-card-label">Plan</span>
@@ -258,16 +326,9 @@ function renderLicenses() {
             </div>
             <div class="m-card-row">
               <span class="m-card-label">Expires</span>
-              <span class="m-card-val muted">${esc((l.expiresAt || "").slice(0, 10))}</span>
+              <span class="m-card-val muted">${esc((l.expiresAt || "").slice(0, 10))} ${expiryBadge(l)}</span>
             </div>
-            <div class="m-card-actions">
-              <button class="secondary" data-copy="${esc(l.licenseKey)}">Copy</button>
-              <button class="secondary" data-access="${l.id}">Access…</button>
-              <button class="secondary" data-reset="${l.id}">Reset device</button>
-              <button class="secondary" data-extend="${l.id}">+30 days</button>
-              <button class="secondary" data-revoke="${l.id}">Revoke</button>
-              <button class="danger" data-dell="${l.id}">Delete</button>
-            </div>
+            <div class="m-card-actions">${licenseActionBtns(l)}</div>
           </div>`;
         })
         .join("");
@@ -285,13 +346,42 @@ async function refresh() {
   $("stat-licenses").textContent = stats.licenses;
   $("stat-bound").textContent = stats.bound;
   $("stat-revoked").textContent = stats.revoked;
+  if ($("stat-expiring")) $("stat-expiring").textContent = stats.expiring30 ?? 0;
+  if ($("stat-paused")) $("stat-paused").textContent = stats.paused ?? 0;
   state.customers = customers.customers || [];
   state.licenses = licenses.licenses || [];
   renderCustomers();
   renderLicenses();
-  if (!$("view-broadcasts").classList.contains("hidden")) {
-    await loadBroadcasts();
+  await populateBroadcastTarget();
+  await loadBroadcasts(); // feeds both the history view and the home panel
+}
+
+// Target picker for broadcasts: Everyone + one row per issued key.
+async function populateBroadcastTarget() {
+  const bT = $("b-target");
+  if (!bT) return;
+  const prev = bT.value;
+  const opts = [`<option value="">📣 Everyone (all Main devices)</option>`].concat(
+    state.licenses.map((l) =>
+      `<option value="${esc(l.licenseKey)}">🎯 ${esc(l.licenseKey)} — ${esc(l.customer?.name || "?")}${l.status === "active" ? "" : ` (${esc(l.status)})`}</option>`,
+    ),
+  );
+  bT.innerHTML = opts.join("");
+  if (prev && [...bT.options].some((o) => o.value === prev)) bT.value = prev;
+}
+
+function renderHomeNotices() {
+  const box = $("home-notices");
+  if (!box) return;
+  if (!state.broadcasts || state.broadcasts.length === 0) {
+    box.innerHTML = `<span class="muted">No notifications sent yet.</span>`;
+    return;
   }
+  box.innerHTML = `<div class="home-notes">` + state.broadcasts.slice(0, 5).map((b) => `
+    <div class="home-note">
+      <b>${esc(b.title)}</b>
+      <span class="muted">${esc((b.created_at || "").slice(0, 16).replace("T", " "))} · ${esc(b.tag || "feature")}${b.target_key ? " · 🎯 " + esc(b.target_key) : " · 📣 everyone"}</span>
+    </div>`).join("") + `</div>`;
 }
 
 async function loadBroadcasts() {
@@ -299,6 +389,7 @@ async function loadBroadcasts() {
     const res = await api("admin/broadcasts");
     state.broadcasts = res.broadcasts || [];
     renderBroadcasts();
+    renderHomeNotices();
   } catch (err) {
     toast(err.message || "Failed to load broadcasts");
   }
@@ -308,7 +399,7 @@ function renderBroadcasts() {
   const tbody = $("b-body");
   if (tbody) {
     if (state.broadcasts.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">No broadcast notifications sent yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No broadcast notifications sent yet.</td></tr>`;
     } else {
       tbody.innerHTML = state.broadcasts
         .map((b) => {
@@ -316,10 +407,12 @@ function renderBroadcasts() {
             b.tag === "plan" ? "bound" : b.tag === "feature" ? "bound" : "unbound",
             esc(b.tag || "feature"),
           );
+          const targetBadge = b.target_key ? badge("target", `🎯 ${esc(b.target_key)}`) : `<span class="muted">📣 all</span>`;
           const date = esc((b.created_at || "").slice(0, 16).replace("T", " "));
           return `<tr>
           <td><span class="mono" style="font-size:12px">${date}</span></td>
           <td>${tagBadge}</td>
+          <td>${targetBadge}</td>
           <td><strong>${esc(b.title)}</strong></td>
           <td style="max-width:320px;white-space:normal;font-size:13px">${esc(b.message)}</td>
           <td class="actions">
@@ -347,6 +440,10 @@ function renderBroadcasts() {
           <div class="m-card-row">
             <span class="m-card-label">Type</span>
             <span class="m-card-val">${tagBadge}</span>
+          </div>
+          <div class="m-card-row">
+            <span class="m-card-label">Target</span>
+            <span class="m-card-val">${b.target_key ? badge("target", `🎯 ${esc(b.target_key)}`) : `<span class="muted">📣 all</span>`}</span>
           </div>
           <div class="m-card-row">
             <span class="m-card-label">Title</span>
@@ -682,25 +779,33 @@ if (bSend) {
     const message = ($("b-message").value || "").trim();
     const tag = ($("b-tag").value || "feature").trim();
     const url = ($("b-url").value || "").trim();
+    const targetKey = (($("b-target") && $("b-target").value) || "").trim();
     if (!title || !message) return toast("Enter both title and message");
+    const activeN = state.licenses.filter((l) => l.status === "active").length;
+    if (!targetKey && !confirm(`Push to ALL Main devices (${activeN} active keys)? Pick a key in Audience for a targeted notice.`)) {
+      return;
+    }
     try {
       bSend.disabled = true;
       bSend.textContent = "Pushing…";
       await api("admin/broadcasts", {
         method: "POST",
-        body: JSON.stringify({ title, message, tag, url }),
+        body: JSON.stringify({ title, message, tag, url, ...(targetKey ? { targetKey } : {}) }),
       });
-      toast("🚀 Broadcast pushed to all Main devices!");
+      toast(targetKey ? `🎯 Notice sent to ${targetKey}` : "🚀 Broadcast pushed to all Main devices!");
       $("b-title").value = "";
       $("b-message").value = "";
       $("b-preset").value = "";
       $("b-url").value = "";
+      if ($("b-target")) $("b-target").value = "";
+      const bc = $("b-count");
+      if (bc) bc.textContent = "0/2000";
       await loadBroadcasts();
     } catch (err) {
       toast(err.message || "Failed to push broadcast");
     } finally {
       bSend.disabled = false;
-      bSend.textContent = "🚀 Push to All Main Devices";
+      bSend.textContent = "🚀 Push Notification";
     }
   });
 }
@@ -730,8 +835,34 @@ document.body.addEventListener("click", async (e) => {
       await api(`admin/licenses/${t.dataset.reset}/reset-device`, { method: "POST" });
       toast("Device binding cleared");
     } else if (t.dataset.extend) {
-      await api(`admin/licenses/${t.dataset.extend}/extend`, { method: "POST" });
-      toast("Extended +30 days");
+      const d = prompt("Extend key by how many days? (1–730)", "30");
+      if (d === null) return;
+      const days = Math.min(730, Math.max(1, Math.round(Number(d) || 30)));
+      await api(`admin/licenses/${t.dataset.extend}/extend`, { method: "POST", body: JSON.stringify({ days }) });
+      toast(`Extended +${days} days`);
+    } else if (t.dataset.pause) {
+      if (!confirm("Pause this key? Its Main device locks on the next license check.")) return;
+      await api(`admin/licenses/${t.dataset.pause}/pause`, { method: "POST" });
+      toast("Key paused");
+    } else if (t.dataset.resume) {
+      await api(`admin/licenses/${t.dataset.resume}/resume`, { method: "POST" });
+      toast("Key resumed");
+    } else if (t.dataset.notice) {
+      setView("broadcasts");
+      const sel = $("b-target");
+      if (sel) sel.value = t.dataset.notice;
+      const ti = $("b-title");
+      if (ti) ti.focus();
+      return;
+    } else if (t.dataset.viewkeys) {
+      const c = state.customers.find((x) => x.id === t.dataset.viewkeys);
+      const ls = $("l-search");
+      if (ls) { ls.value = c ? c.name : ""; state.licF.q = c ? c.name : ""; }
+      setView("licenses");
+      return;
+    } else if (t.dataset.goto) {
+      setView(t.dataset.goto);
+      return;
     } else if (t.dataset.revoke) {
       await api(`admin/licenses/${t.dataset.revoke}/revoke`, { method: "POST" });
       toast("Key revoked");
@@ -755,6 +886,23 @@ document.body.addEventListener("click", async (e) => {
   } catch (err) {
     toast(err.message || "Request failed");
   }
+});
+
+// ── v1.1.95 list controls: search / filter / sort ──────────────────────────
+const lSearch = $("l-search");
+if (lSearch) lSearch.addEventListener("input", () => { state.licF.q = lSearch.value; renderLicenses(); });
+const fStatus = $("l-fstatus");
+if (fStatus) fStatus.addEventListener("change", () => { state.licF.status = fStatus.value; renderLicenses(); });
+const fPlan = $("l-fplan");
+if (fPlan) fPlan.addEventListener("change", () => { state.licF.plan = fPlan.value; renderLicenses(); });
+const fSort = $("l-sort");
+if (fSort) fSort.addEventListener("change", () => { state.licF.sort = fSort.value; renderLicenses(); });
+const cSearch = $("c-search");
+if (cSearch) cSearch.addEventListener("input", () => { state.custQ = cSearch.value; renderCustomers(); });
+const bMsg = $("b-message");
+if (bMsg) bMsg.addEventListener("input", () => {
+  const bc = $("b-count");
+  if (bc) bc.textContent = `${bMsg.value.length}/2000`;
 });
 
 /* keep the "Latest Android APK" + "Plan & access (…)" tags fresh in long admin sessions */

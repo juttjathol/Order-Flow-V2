@@ -23,6 +23,20 @@ const PLAN_PRESETS = {
   full: [...FEATURE_KEYS],
 };
 
+// v1.1.95: targeted broadcasts — older live D1s lack target_key; add it lazily,
+// at most once per isolate (same CREATE-IF pattern as rate_limits).
+let broadcastTargetEnsured = false;
+async function ensureBroadcastTarget(db) {
+  if (broadcastTargetEnsured) return;
+  broadcastTargetEnsured = true;
+  try {
+    await db.prepare("ALTER TABLE broadcast_notifications ADD COLUMN target_key TEXT").run();
+  } catch (e) {
+    const m = String((e && e.message) || "");
+    if (!/duplicate column|already exists/i.test(m)) console.error("target_key alter:", m);
+  }
+}
+
 // Phase-1 10k-shop: in-memory row cache for license validate (isolate-level).
 // kRevalidateMinutes=5 → 10k shops = 33 rps. 2 min TTL cuts D1 selects ~40%
 // without risking stale revoke (writes clear the entry immediately).
@@ -436,10 +450,17 @@ export async function onRequest(context) {
         return json({ ok: false, error: "slow_down" }, 429, { "Retry-After": "60" });
       }
       try {
+        await ensureBroadcastTarget(env.DB);
+        // Devices pass ?key= so key-targeted notices only reach their recipient;
+        // callers without a key only ever see the global notices.
+        const keyParam = clip(String(new URL(request.url).searchParams.get("key") || ""), 40).toUpperCase();
         const { results } = await env.DB.prepare(
-          "SELECT id, title, message, tag, url, created_at FROM broadcast_notifications ORDER BY created_at DESC LIMIT 25",
+          "SELECT id, title, message, tag, url, target_key, created_at FROM broadcast_notifications ORDER BY created_at DESC LIMIT 60",
         ).all();
-        const broadcasts = (results || []).map((b) => ({ ...b, url: safeBroadcastUrl(b.url) }));
+        const broadcasts = (results || [])
+          .filter((b) => !b.target_key || b.target_key === keyParam)
+          .slice(0, 25)
+          .map((b) => ({ id: b.id, title: b.title, message: b.message, tag: b.tag, url: safeBroadcastUrl(b.url), created_at: b.created_at }));
         return json({ ok: true, broadcasts });
       } catch (e) {
         return json({ ok: true, broadcasts: [] });
@@ -515,12 +536,18 @@ export async function onRequest(context) {
       const licenses = await env.DB.prepare("SELECT COUNT(*) AS n FROM licenses").first();
       const bound = await env.DB.prepare("SELECT COUNT(*) AS n FROM licenses WHERE bound_device_id IS NOT NULL").first();
       const revoked = await env.DB.prepare("SELECT COUNT(*) AS n FROM licenses WHERE status = 'revoked'").first();
+      const paused = await env.DB.prepare("SELECT COUNT(*) AS n FROM licenses WHERE status = 'paused'").first();
+      const expiring = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM licenses WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < datetime('now', '+30 days')",
+      ).first();
       return json({
         ok: true,
         customers: customers?.n || 0,
         licenses: licenses?.n || 0,
         bound: bound?.n || 0,
         revoked: revoked?.n || 0,
+        paused: paused?.n || 0,
+        expiring30: expiring?.n || 0,
       });
     }
 
@@ -645,7 +672,14 @@ export async function onRequest(context) {
         return json({ ok: true, license: publicLicense(next) });
       }
       if (method === "POST" && action === "extend") {
-        const nextExp = addDays(row.expires_at, 30);
+        // v1.1.95: dashboard may pass { days } — default 30, clamped 1..730.
+        let days = 30;
+        try {
+          const body = await readJson(request);
+          const n = Number(body && body.days);
+          if (Number.isFinite(n)) days = Math.min(730, Math.max(1, Math.round(n)));
+        } catch {}
+        const nextExp = addDays(row.expires_at, days);
         await env.DB.prepare("UPDATE licenses SET expires_at = ? WHERE id = ?")
           .bind(nextExp, id)
           .run();
@@ -654,8 +688,22 @@ export async function onRequest(context) {
           licenseId: id,
           licenseKey: row.license_key,
           event: "extend",
-          detail: nextExp,
+          detail: `${days}d -> ${nextExp}`,
         });
+        const next = await licenseById(env.DB, id);
+        return json({ ok: true, license: publicLicense(next) });
+      }
+      if (method === "POST" && action === "pause") {
+        await env.DB.prepare("UPDATE licenses SET status = 'paused' WHERE id = ?").bind(id).run();
+        cacheDelValidateRow(row.license_key);
+        await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "pause" });
+        const next = await licenseById(env.DB, id);
+        return json({ ok: true, license: publicLicense(next) });
+      }
+      if (method === "POST" && action === "resume") {
+        await env.DB.prepare("UPDATE licenses SET status = 'active' WHERE id = ?").bind(id).run();
+        cacheDelValidateRow(row.license_key);
+        await logLicenseEvent(env.DB, { licenseId: id, licenseKey: row.license_key, event: "resume" });
         const next = await licenseById(env.DB, id);
         return json({ ok: true, license: publicLicense(next) });
       }
@@ -692,7 +740,7 @@ export async function onRequest(context) {
       const body = await readJson(request);
       const title = clip(body.title, 160);
       const message = clip(body.message, 2000);
-      const tag = ["feature", "plan", "alert", "maintenance"].includes(String(body.tag || "").trim())
+      const tag = ["feature", "plan", "alert", "maintenance", "tip", "announcement"].includes(String(body.tag || "").trim())
         ? String(body.tag).trim()
         : "feature";
       const rawUrl = String(body.url || "").trim();
@@ -703,18 +751,24 @@ export async function onRequest(context) {
       if (rawUrl && !url) {
         return json({ ok: false, error: "bad_url", message: "Links must start with https:// (or be left empty)." }, 400);
       }
+      const rawTarget = clip(String(body.targetKey || body.target_key || ""), 40).toUpperCase();
+      if (rawTarget) {
+        const lic = await env.DB.prepare("SELECT id FROM licenses WHERE license_key = ?").bind(rawTarget).first();
+        if (!lic) return json({ ok: false, error: "target_not_found", message: "No license with that key." }, 404);
+      }
+      await ensureBroadcastTarget(env.DB);
       const id = crypto.randomUUID();
       const now = nowIso();
       await env.DB.prepare(
-        `INSERT INTO broadcast_notifications (id, title, message, tag, url, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO broadcast_notifications (id, title, message, tag, url, created_at, target_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-        .bind(id, title, message, tag, url, now)
+        .bind(id, title, message, tag, url, now, rawTarget || null)
         .run();
       return json(
         {
           ok: true,
-          broadcast: { id, title, message, tag, url, created_at: now },
+          broadcast: { id, title, message, tag, url, created_at: now, target_key: rawTarget || null },
         },
         201,
       );
@@ -804,6 +858,15 @@ async function handleValidate(env, body, json) {
       valid: false,
       error: "revoked",
       message: "License has been revoked.",
+    }, 403);
+  }
+  if (row.status === "paused") {
+    await logLicenseEvent(env.DB, { licenseId: row.id, licenseKey, event: "paused", deviceId });
+    return json({
+      ok: false,
+      valid: false,
+      error: "paused",
+      message: "License is paused — contact Jathol to resume.",
     }, 403);
   }
   if (row.expires_at && new Date(row.expires_at) < new Date()) {

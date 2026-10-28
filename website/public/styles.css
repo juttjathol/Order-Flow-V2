@@ -154,8 +154,8 @@ h1 em { font-style: italic; color: var(--ink-heading); }
 .marquee-track span { color: var(--muted); letter-spacing: .18em; text-transform: uppercase; font-size: 13px; }
 @keyframes slide { to { transform: translateX(-50%); } }
 
-section { padding: 92px 0; }
-.sec-title { font-family: var(--display); font-size: clamp(32px, 4vw, 56px); line-height: 1.05; }
+section { padding: clamp(64px, 9vw, 118px) 0; }
+.sec-title { font-family: var(--display); font-size: clamp(32px, 4vw, 56px); line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; }
 .sec-sub { color: var(--muted); max-width: 52ch; margin-top: 12px; }
 
 .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
@@ -1031,3 +1031,73 @@ html:has(.mail-draft:not([hidden])) #cur-dot, html:has(.mail-draft:not([hidden])
 html:has(.store-modal:not([hidden])) .store-modal, html:has(.mail-draft:not([hidden])) .mail-draft { cursor:auto; }
 html:has(.store-modal:not([hidden])) .store-modal button, html:has(.mail-draft:not([hidden])) .mail-draft button,
 html:has(.store-modal:not([hidden])) .store-modal a, html:has(.mail-draft:not([hidden])) .mail-draft a { cursor:pointer; }
+
+/* ── v1.1.95 bolder refresh pass (palette unchanged) ─────────────────── */
+.kicker { letter-spacing: 0.16em; }
+.sec-sub { max-width: 62ch; }
+
+/* Cloud add-on banner inside the plans grid */
+.addon-banner {
+  grid-column: 1 / -1;
+  display: flex; gap: 18px; align-items: flex-start;
+  padding: 24px 26px; border-radius: 24px;
+  background: linear-gradient(135deg, #163E2E 0%, #0F2A1F 100%);
+  color: #FAF7F2;
+  box-shadow: var(--shadow);
+}
+.addon-banner p { color: rgba(250, 247, 242, 0.82); margin: 6px 0 0; line-height: 1.6; }
+.addon-banner a { color: #F0D9A8; font-weight: 700; }
+.addon-banner a:hover, .addon-banner a:focus-visible { text-decoration: underline; }
+.addon-badge {
+  flex: none; align-self: center;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.14em;
+  color: #163E2E; background: #F0D9A8;
+  padding: 6px 12px; border-radius: 999px;
+}
+
+/* FAQ accordions — clearer affordances */
+.faq details {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.faq details:hover { border-color: rgba(22, 62, 46, 0.45); }
+.faq details[open] { box-shadow: var(--shadow-card); border-left: 3px solid var(--forest); }
+.faq summary { outline: none; }
+.faq summary:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; border-radius: 8px; }
+
+/* Plan cards: stronger lift */
+.plan { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+.plan:hover { box-shadow: var(--shadow); }
+
+/* Back-to-top (injected by site.js on every page) */
+#toTop {
+  position: fixed; right: 18px; bottom: 18px; z-index: 70;
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--cream-surface); color: var(--forest);
+  box-shadow: var(--shadow-card);
+  font-size: 20px; cursor: pointer; line-height: 1;
+  opacity: 0; pointer-events: none; transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#toTop.show { opacity: 1; pointer-events: auto; transform: none; }
+#toTop:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
+
+/* Mobile sticky CTA (home only, injected by site.js) */
+#sticky-cta {
+  position: fixed; left: 14px; right: 14px; bottom: 14px; z-index: 69;
+  display: none;
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+#sticky-cta.show { opacity: 1; transform: none; pointer-events: auto; }
+
+@media (max-width: 860px) {
+  #sticky-cta { display: inline-flex; }
+  #toTop { bottom: 74px; }
+}
+@media (min-width: 861px) {
+  #sticky-cta { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #toTop, #sticky-cta { transition: none; }
+}

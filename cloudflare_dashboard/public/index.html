@@ -64,6 +64,8 @@
           <div class="stat"><span class="muted">Keys</span><b id="stat-licenses">0</b></div>
           <div class="stat"><span class="muted">Bound devices</span><b id="stat-bound">0</b></div>
           <div class="stat"><span class="muted">Revoked</span><b id="stat-revoked">0</b></div>
+          <div class="stat warn-tile"><span class="muted">Expiring ≤30 days</span><b id="stat-expiring">0</b></div>
+          <div class="stat"><span class="muted">Paused</span><b id="stat-paused">0</b></div>
         </div>
         <div class="panel" style="padding:18px;margin-bottom:16px">
           <h3>Latest Android APK</h3>
@@ -76,6 +78,13 @@
           <div class="actions" style="margin-top:10px">
             <a class="btn" id="apk-download" href="https://order-flow-v2.pages.dev/download">Download APK</a>
             <button class="secondary" id="apk-copy" type="button">Copy download link</button>
+          </div>
+        </div>
+        <div class="panel" style="padding:18px;margin-bottom:16px">
+          <h3>Recent push notifications</h3>
+          <div id="home-notices">Loading…</div>
+          <div class="actions" style="margin-top:10px">
+            <button class="secondary" data-goto="broadcasts" type="button">Open Push Notifications</button>
           </div>
         </div>
         <div class="panel" style="padding:18px">
@@ -99,9 +108,12 @@
             <button id="c-save" type="button">Create customer</button>
           </div>
         </div>
+        <div class="panel ctbar">
+          <input id="c-search" type="search" placeholder="🔍 Search customers…" aria-label="Search customers"/>
+        </div>
         <!-- Desktop table -->
         <table class="mobile-hide">
-          <thead><tr><th>Name</th><th>Business</th><th>Contact</th><th>Created</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Business</th><th>Contact</th><th>Keys</th><th>Created</th><th></th></tr></thead>
           <tbody id="c-body"></tbody>
         </table>
         <!-- Mobile card list (populated by app.js alongside the table) -->
@@ -154,6 +166,29 @@
             <button id="a-cancel" class="secondary hidden" type="button">Cancel edit</button>
           </div>
         </div>
+        <div class="panel ltbar">
+          <input id="l-search" type="search" placeholder="🔍 Search key, customer or business…" aria-label="Search licenses"/>
+          <select id="l-fstatus" aria-label="Status filter">
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="revoked">Revoked</option>
+            <option value="unbound">Unbound (no device)</option>
+          </select>
+          <select id="l-fplan" aria-label="Plan filter">
+            <option value="all">All plans</option>
+            <option value="starter">Professional</option>
+            <option value="growth">Growth (legacy)</option>
+            <option value="custom">Customize</option>
+            <option value="full">Full</option>
+          </select>
+          <select id="l-sort" aria-label="Sort">
+            <option value="expiry_asc">Expires soonest</option>
+            <option value="expiry_desc">Expires latest</option>
+            <option value="created_desc">Newest keys</option>
+            <option value="name_asc">Customer A–Z</option>
+          </select>
+        </div>
         <!-- Desktop table -->
         <table class="mobile-hide">
           <thead>
@@ -188,7 +223,7 @@
           <div class="row">
             <div>
               <label for="b-title">Notification Title</label>
-              <input id="b-title" placeholder="e.g. ✨ New: Live Busy Clock on Floor Map"/>
+              <input id="b-title" maxlength="160" placeholder="e.g. ✨ New: Live Busy Clock on Floor Map"/>
             </div>
             <div>
               <label for="b-tag">Category / Tag</label>
@@ -203,7 +238,7 @@
 
           <div style="margin:12px 0">
             <label for="b-message">Notification Message</label>
-            <textarea id="b-message" rows="3" style="width:100%;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:inherit;font-size:14px;resize:vertical" placeholder="Enter message to display on Main shop devices..."></textarea>
+            <textarea id="b-message" maxlength="2000" rows="3" style="width:100%;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:inherit;font-size:14px;resize:vertical" placeholder="Enter message to display on Main shop devices..."></textarea>
           </div>
 
           <div class="row">
@@ -211,11 +246,15 @@
               <label for="b-url">Target / Action (optional)</label>
               <input id="b-url" placeholder="e.g. guide, plans, floor, or https://jathol.org/guide"/>
             </div>
+            <div>
+              <label for="b-target">Audience</label>
+              <select id="b-target"></select>
+            </div>
           </div>
 
           <div class="toolbar" style="margin-top:14px">
-            <span class="muted">Main devices receive this as an instant alert &amp; in-app notification.</span>
-            <button id="b-send" type="button" style="background:var(--forest);color:#fff">🚀 Push to All Main Devices</button>
+            <span class="muted">Main devices receive this as an instant alert &amp; in-app notification. <span class="counter mono" id="b-count">0/2000</span></span>
+            <button id="b-send" type="button" style="background:var(--forest);color:#fff">🚀 Push Notification</button>
           </div>
         </div>
 
@@ -224,7 +263,7 @@
         <table class="mobile-hide">
           <thead>
             <tr>
-              <th>Date</th><th>Type</th><th>Title</th><th>Message</th><th></th>
+              <th>Date</th><th>Type</th><th>Target</th><th>Title</th><th>Message</th><th></th>
             </tr>
           </thead>
           <tbody id="b-body"></tbody>

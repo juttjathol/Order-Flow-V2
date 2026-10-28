@@ -77,7 +77,10 @@ CREATE TABLE IF NOT EXISTS broadcast_notifications (
   message TEXT NOT NULL,
   tag TEXT NOT NULL DEFAULT 'feature',
   url TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  -- v1.1.95: per-key targeting. NULL = everyone; existing DBs get this column
+  -- via a lazy ALTER TABLE in the API (same pattern as rate_limits).
+  target_key TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_broadcast_created ON broadcast_notifications(created_at DESC);
 
