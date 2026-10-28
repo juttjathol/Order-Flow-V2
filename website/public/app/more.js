@@ -32,9 +32,10 @@ window.OFMoreRender = async function () {
   const host = $('tab-more'); if (!host) return;
   host.innerHTML = '';
   const p = shop().profile;
+  const demo = await kvGet('demoMode', false);
   const headCard = ce('div', 'card card--forest', '');
   headCard.style.cssText = 'padding:16px';
-  headCard.innerHTML = '<div class="row"><div class="grow"><div style="font-weight:900;font-size:17px;letter-spacing:-.3px">' + esc(p.name) + '</div><div class="small" style="opacity:.8;font-weight:600;margin-top:2px">' + esc(p.address || 'Add your address in Bill profile') + '</div></div><span class="chip">' + C.FEATURE_CATALOG.length + ' features</span></div>';
+  headCard.innerHTML = '<div class="row"><div class="grow"><div style="font-weight:900;font-size:17px;letter-spacing:-.3px">' + esc(p.name) + '</div><div class="small" style="opacity:.8;font-weight:600;margin-top:2px">' + esc(p.address || 'Add your address in Bill profile') + '</div></div><span class="chip">' + (demo ? L.t('demo_chip') : C.FEATURE_CATALOG.length + ' features') + '</span></div>';
   host.appendChild(headCard);
 
   // Sections are dropdowns: every section is collapsed until tapped,
@@ -99,6 +100,7 @@ window.OFMoreRender = async function () {
   mrow('🚚', L.t('suppliers') + ' & ' + L.t('purchases'), 'Buy, receive, stock rises', 'more.suppliers', !canF('suppliers'));
 
   section('🛠 ' + L.t('tools_head'));
+  if (demo) mrow('🧪', L.t('demo_exit'), 'Sample shop wiped, back to the license screen', 'demo.exit');
   mrow('💾', L.t('backup_title'), 'Export / import — works with the APK backup too', 'more.backup');
   mrow('✨', 'Guided tour', '5 bubbles that walk you around the app', 'more.tour');
   mrow('🌐', L.t('language'), 'English / اردو — RTL for Urdu', 'more.language');

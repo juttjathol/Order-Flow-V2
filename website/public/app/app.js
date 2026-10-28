@@ -217,6 +217,11 @@ async function licenseBoot() {
     if (setup) { enterMain(); startRelayBoot(room); return; }
     show('view-setup'); renderSetup(); return;
   }
+  // v1.1.93 — demo mode: the license stays absent; the app just opens with the
+  // seeded sample shop. A real license key always wins over a stale demo flag.
+  if (await kvGet('demoMode', false)) {
+    ROLE = 'main'; enterMain(); return;
+  }
   show('view-license');
 }
 async function afterRole(role, roomInfo) {
@@ -273,6 +278,36 @@ async function setupDone() {
   startRelayBoot();
   toast('Welcome to ' + name + ' 🎉', 'Add your tables and menu, then invite stations from More → Cloud room');
 }
+/* ================= DEMO MODE (v1.1.93) =================
+   "Try the demo" on the license screen: full app over a seeded sample shop.
+   NOT a license bypass — no license kv is written, so cloud rooms (which key
+   by license) stay closed, entitlements keep multi_terminal + cloud_sync out,
+   and exiting wipes every demo trace. The guided tour re-runs inside it. */
+const DEMO_FEATURES = () => C.FEATURE_KEYS.filter(k => k !== 'multi_terminal' && k !== 'cloud_sync');
+
+async function startDemoWeb() {
+  if (!confirm(L.t('demo_dialog_b'))) return;
+  await kvSet('demoMode', true);
+  await kvSet('role', 'main'); ROLE = 'main';
+  await kvSet('setupDone', true);
+  await kvSet('tourSeen', false);
+  SHOP.profile = { ...SHOP.profile, name: 'Demo Bistro', model: 'restaurant' };
+  SHOP.entitlements = { allOn: false, plan: 'demo', models: [], features: DEMO_FEATURES() };
+  await saveShop();
+  await seedIfEmpty();
+  enterMain();
+  if (window.OFTour) OFTour.restart();
+}
+
+async function exitDemoWeb() {
+  if (!(await kvGet('demoMode', false))) return;
+  if (!confirm(L.t('demo_exit_b'))) return;
+  const data = ['products', 'tables', 'orders', 'stock', 'customers', 'staff', 'drivers', 'suppliers', 'purchases', 'wastage', 'reservations', 'channelsThird', 'refunds', 'appointments', 'printQueue'];
+  for (const s of data) { try { await idbClear(s); } catch { } }
+  for (const k of ['demoMode', 'role', 'setupDone', 'shop', 'stationRole']) { try { await idbDel('kv', k); } catch { } }
+  location.reload();
+}
+
 async function seedIfEmpty() {
   const ps = await idbGetAll('products', []);
   if (!ps.length) {
@@ -1501,6 +1536,8 @@ function printReceipt(o, opts) { if (window.OFPrintReceipt) window.OFPrintReceip
 window.OFAct = window.OFAct || {};
 Object.assign(window.OFAct, {
   'license.activate': () => activateLicense(),
+  'license.demo': () => startDemoWeb(),
+  'demo.exit': () => exitDemoWeb(),
   'license.station': () => show('view-connect'),
   'license.reset': async () => { show('view-license'); },
   'license.back': () => show('view-license'),

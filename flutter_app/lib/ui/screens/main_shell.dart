@@ -73,6 +73,13 @@ class _MainShellState extends ConsumerState<MainShell> {
         if (mainTabIndex.value != i) mainTabIndex.value = i;
       },
       actions: [
+        // v1.1.93 — pinned amber pill while the license-screen demo is on;
+        // tapping it offers "exit & wipe" (demo data never becomes real data).
+        if (ref.snap.session.demoMode)
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: _DemoChip(onTap: () => _confirmEndDemo(context, ref)),
+          ),
         if (ref.snap.isMain || ref.snap.isManager)
           PopupMenuButton<String>(
             tooltip: s.t('cover_role'),
@@ -162,4 +169,66 @@ class _ServerRestartChipState extends State<_ServerRestartChip> {
       ),
     );
   }
+}
+
+/// v1.1.93 — amber DEMO pill shown on every main tab while demo mode runs.
+class _DemoChip extends ConsumerWidget {
+  const _DemoChip({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Material(
+      color: const Color(0xFFFFB300),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.science_outlined, size: 15, color: Color(0xFF241A00)),
+              const SizedBox(width: 5),
+              Text(
+                ref.s.t('demo_chip'),
+                style: const TextStyle(
+                  color: Color(0xFF241A00),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// v1.1.93 — confirm then wipe the demo (AppController.endDemo navigates back
+/// to /license automatically because the gate flips to LicenseGate.license).
+Future<void> _confirmEndDemo(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final go = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('demo_exit_t')),
+      content: Text(s.t('demo_exit_b')),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(s.t('demo_keep')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: FilledButton.styleFrom(backgroundColor: OfColors.danger, foregroundColor: Colors.white),
+          child: Text(s.t('demo_exit')),
+        ),
+      ],
+    ),
+  );
+  if (go == true) await ref.ctrl.endDemo();
 }

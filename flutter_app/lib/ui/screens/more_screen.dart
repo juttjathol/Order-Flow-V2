@@ -179,6 +179,30 @@ class MoreScreen extends ConsumerWidget {
         }),
     ];
     final account = <Widget>[
+      // v1.1.93 — demo mode: pinned exit row (same confirm as the top chip).
+      if (snap.session.demoMode)
+        _row(Icons.stop_circle_outlined, s.t('demo_exit'), () async {
+          final go = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(s.t('demo_exit_t')),
+              content: Text(s.t('demo_exit_b')),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(s.t('demo_keep')),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: OfColors.danger, foregroundColor: Colors.white),
+                  child: Text(s.t('demo_exit')),
+                ),
+              ],
+            ),
+          );
+          if (go == true) await ref.ctrl.endDemo();
+        }),
       if (snap.isMain) _row(Icons.vpn_key, s.t('license'), () => _license(context, ref)),
       _row(Icons.menu_book, s.t('user_guide'), () {
         launchUrl(Uri.parse(kGuideUrl), mode: LaunchMode.externalApplication);

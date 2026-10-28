@@ -175,6 +175,7 @@ class SessionPrefs {
     this.localSpoolerEnabled = false,
     List<String>? approvedDeviceIds,
     this.lanTrustUntilMs,
+    this.demoMode = false,
     this.pinFails = 0,
     this.pinLockedUntilMs = 0,
     this.tourSeen = false,
@@ -220,6 +221,10 @@ class SessionPrefs {
   int pinLockedUntilMs;
   /// v1.1.92 — APK first-run coachmarks ran once (mirrors the web `tourSeen` kv).
   bool tourSeen;
+  /// v1.1.93 — "Try the demo" on the license screen. Full app over seeded
+  /// sample data; the LICENSE STAYS INVALID (no cloud rooms, no station
+  /// joins) and exiting the demo wipes every trace. Never syncs anywhere.
+  bool demoMode = false;
   LicenseRecord license;
 
   bool get hasLocalBtPrinter =>
@@ -263,6 +268,7 @@ class SessionPrefs {
         'pinFails': pinFails,
         'pinLockedUntilMs': pinLockedUntilMs,
         'tourSeen': tourSeen,
+        'demoMode': demoMode,
         'license': license.toJson(),
       };
 
@@ -300,6 +306,7 @@ class SessionPrefs {
       pinFails: parseInt(m['pinFails'], 0),
       pinLockedUntilMs: parseInt(m['pinLockedUntilMs'], 0),
       tourSeen: parseBool(m['tourSeen']),
+      demoMode: parseBool(m['demoMode']),
       license: LicenseRecord.fromJson(
         m['license'] is Map ? Map<String, dynamic>.from(m['license'] as Map) : null,
       ),
