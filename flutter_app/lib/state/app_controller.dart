@@ -303,6 +303,9 @@ class AppController extends Notifier<AppSnapshot> {
 
   void _emit(AppSnapshot next) {
     state = next;
+    // Demo guard (v1.1.93): flip paper blocking with the session flag so the
+    // demo never prints, whatever route the job takes.
+    printer.demoBlock = next.session.demoMode;
     _schedulePersist();
   }
 
@@ -929,6 +932,14 @@ class AppController extends Notifier<AppSnapshot> {
     // Plan gating (v1.1.59): Main's license limits apply on every device.
     if (StoreGuard.denyReason(state.store, cmd).isNotEmpty) {
       return ReduceResult(state.store);
+    }
+    // Demo guard (v1.1.93): license-screen demo caps live orders so a
+    // look-around shop can never quietly run a real shift unpaid.
+    if (state.session.demoMode) {
+      final demoDeny = DemoGuard.deny(state.store, cmd);
+      if (demoDeny != null) {
+        return ReduceResult(state.store, notice: demoDeny);
+      }
     }
     StoreGuard.sanitize(state.store, cmd);
     if (cmd.id.isNotEmpty && _seenIds.contains(cmd.id)) {

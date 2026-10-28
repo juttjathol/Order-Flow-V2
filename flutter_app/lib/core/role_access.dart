@@ -139,3 +139,27 @@ class RoleAccess {
     }
   }
 }
+
+/// v1.1.93 — demo-mode guard. The license-screen demo is a guided look-around
+/// over seeded sample data, never a free POS: hard cap on live orders so it
+/// can't run a shift, and receipts never touch paper (PrintService.demoBlock).
+/// Demo state resets fully on exit, so nothing here ever touches real shops.
+class DemoGuard {
+  DemoGuard._();
+
+  /// Max orders (any status) the demo shop may hold at once.
+  static const int maxOrders = 10;
+
+  /// Returns a notice for the UI when the demo refuses a command, else null.
+  static AppNotice? deny(AppStore store, NetCommand cmd) {
+    if (cmd.name == 'createOrder' && store.orders.length >= maxOrders) {
+      return AppNotice(
+        id: newId(),
+        title: 'Demo limit reached',
+        body: 'The demo holds $maxOrders tickets. Exit the demo and activate a license for the real shop.',
+        kind: 'demo',
+      );
+    }
+    return null;
+  }
+}

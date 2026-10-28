@@ -1099,8 +1099,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                             }
                           } catch (e) {
                             if (ctx.mounted && !PrintService.isConfigError(e)) {
+                              // demo guard maps to its own hint (v1.1.93)
+                              final k = PrintService.l10nKeyFor(e) ?? 'print_fail';
                               ScaffoldMessenger.of(ctx).showSnackBar(
-                                SnackBar(content: Text(s.t('print_fail'))),
+                                SnackBar(content: Text(s.t(k))),
                               );
                             }
                           }
@@ -1172,8 +1174,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         // Silent when no printer is configured — but a *failed* print of a
         // paid receipt must never pass unnoticed at the counter.
         if (mounted && !PrintService.isConfigError(e)) {
+          final k = PrintService.l10nKeyFor(e) ?? 'print_fail_receipt';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(s.t('print_fail_receipt'))),
+            SnackBar(content: Text(s.t(k))),
           );
         }
       }

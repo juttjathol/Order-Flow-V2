@@ -16,6 +16,13 @@ class PrintService {
   final bluetooth = BluetoothPrinter();
   final _lanChain = <String, Future<void>>{};
 
+  /// v1.1.93 — demo guard: the license-screen demo never touches real paper.
+  /// AppController keeps this in sync with session.demoMode on every emit.
+  bool demoBlock = false;
+
+  /// l10n key a caller should toast for this error, or null for a plain one.
+  static String? l10nKeyFor(Object e) => e is DemoPrintBlocked ? 'demo_print_off' : null;
+
   /// Receipt qty: whole numbers stay whole; weights keep up to 3 decimals.
   static String formatQty(num qty) {
     if (qty % 1 == 0) return qty.toInt().toString();
@@ -45,6 +52,7 @@ class PrintService {
       };
 
   Future<void> send(PrinterConfig cfg, List<int> bytes) async {
+    if (demoBlock) throw const DemoPrintBlocked();
     if (!cfg.enabled) throw Exception('Printer is not configured');
     if (cfg.isSpooler) {
       if (cfg.spoolerName.trim().isEmpty) {
@@ -659,4 +667,11 @@ class EscPos {
     if (firstTail.isNotEmpty) lines.addAll(PrintService.wrapLines(firstTail, w));
     return lines;
   }
+}
+
+/// v1.1.93 — thrown when demo mode blocks a print job.
+class DemoPrintBlocked implements Exception {
+  const DemoPrintBlocked();
+  @override
+  String toString() => 'demo_print_off';
 }

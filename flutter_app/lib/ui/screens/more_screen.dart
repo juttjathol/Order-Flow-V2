@@ -822,8 +822,10 @@ Future<void> _printers(BuildContext context, WidgetRef ref) async {
             }
           } catch (e) {
             if (context.mounted) {
+              // demo guard maps to its own hint instead of a scary raw error (v1.1.93)
+              final k = PrintService.l10nKeyFor(e);
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('${s.t('print_fail')}: ${_errCap(e.toString())}')));
+                  content: Text(k != null ? s.t(k) : '${s.t('print_fail')}: ${_errCap(e.toString())}')));
             }
           }
         }

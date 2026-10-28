@@ -9,6 +9,7 @@ import '../../models/models.dart';
 import '../../state/app_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/pin_gate.dart';
+import '../../services/print_service.dart';
 import '../widgets/station_printer.dart';
 
 class KitchenScreen extends ConsumerStatefulWidget {
@@ -206,7 +207,15 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen> {
                                     role: ref.snap.session.role,
                                     prefer: ref.ctrl.deviceLocalPrinter(),
                                   );
-                                } catch (_) {}
+                                } catch (e) {
+                                  // demo guard: say why nothing printed (v1.1.93)
+                                  final k = PrintService.l10nKeyFor(e);
+                                  if (k != null && context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(s.t(k))),
+                                    );
+                                  }
+                                }
                               },
                               icon: const Icon(Icons.print),
                             ),
