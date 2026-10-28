@@ -1,40 +1,54 @@
-/* ================= APT TOUR — bubble coachmarks (v1.1.92) =================
-   Spotlight-cuts the target out of a dark scrim, pins a bubble next to it,
-   steps the user through one screen at a time (home → floor → menu → more).
-   Locales EN/UR come from L.t(); state survives in kv so it runs once until
-   re-invoked manually from More → "Guide me".
+/* ================= APP TOUR — bubble coachmarks (v1.1.93 element-level) ====
+   Goes TO the button: every step spots a real control (new-ticket button,
+   room QR button, pay button, kitchen badge) — never just a page. The
+   spotlight rectangles the live element, scrolls it into view, and the
+   bubble docks right beside it. Locales EN/UR via L.t().
 */
 (function () {
   const kvGet = window.kvGet, kvSet = window.kvSet, L = window.OFLang;
 
   const STEPS = [
     {
-      tab: 'home', sel: '[data-tour="hero"]', fallbackSel: '#tab-home .card, #tab-home',
+      tab: 'home',
+      sel: '[data-tour="hero"]',
+      fallbackSel: '#tab-home .card.card--forest.hero, #tab-home .card, #tab-home',
       title: L.t('tour_home_t'), body: L.t('tour_home_b'),
     },
     {
-      tab: 'home', sel: '[data-act="home.roomqr"]', fallbackSel: '[data-tour="room"]',
+      tab: 'home',
+      sel: '[data-act="home.roomqr"]',
+      fallbackSel: '[data-tour="room"], #tab-home [data-act^="home."]',
       title: L.t('tour_room_t'), body: L.t('tour_room_b'),
     },
     {
-      tab: 'floor', sel: '#tab-floor', pos: 'top', backdrop: true,
+      tab: 'floor',
+      sel: '#tab-floor .tcard:not(.tcard--free), #tab-floor .tcard, #tab-floor .btn--primary',
+      fallbackSel: '#tab-floor',
       title: L.t('tour_floor_t'), body: L.t('tour_floor_b'),
     },
     {
-      tab: 'menu', sel: '#tab-menu .mcard, #tab-menu', pos: 'top',
+      tab: 'menu',
+      sel: '#tab-menu .mcard .mcard__add, #tab-menu .mcard, #tab-menu [data-act^="menu."], #tab-menu .btn--primary',
+      fallbackSel: '#tab-menu',
       title: L.t('tour_menu_t'), body: L.t('tour_menu_b'),
     },
     {
-      tab: 'more', sel: '#tab-more', pos: 'top',
+      tab: 'more',
+      sel: '#tab-more [data-act="more.cloud"], #tab-more [data-act="more.bill"], #tab-more .accs',
+      fallbackSel: '#tab-more',
       title: L.t('tour_more_t'), body: L.t('tour_more_b'),
+      preferBottomSheet: true,
     },
     {
-      tab: null, sel: '#bnav .bnav__dest[data-tab-id="home"], #rail', pos: 'center',
+      tab: null,
+      sel: '#bnav .bnav__dest[data-tab-id="home"], #rail',
+      fallbackSel: '#bnav',
+      pos: 'center',
       title: L.t('tour_done_t'), body: L.t('tour_done_b'),
     },
   ];
 
-  let overlay = null, stepIdx = 0, activeTabBefore = null, running = false;
+  let overlay = null, stepIdx = 0, running = false;
 
   function el(q) { return document.querySelector(q); }
   function prefersReduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
@@ -43,7 +57,6 @@
     try {
       const done = await kvGet('tourSeen', false);
       if (done) return;
-      // Only on Main's main UI — the license/setup screens come before.
       if (!el('#view-main') || el('#view-main').hidden) {
         setTimeout(maybeStart, 2500);
         return;
@@ -55,9 +68,8 @@
   async function start(fromMore) {
     if (running) return;
     running = true; stepIdx = 0;
-    activeTabBefore = window.__ofActiveTab || 'home';
     buildOverlay();
-    renderStep();
+    await renderStep();
     if (!fromMore) { try { await kvSet('tourSeen', true); } catch { } }
     window.addEventListener('resize', onResize);
   }
@@ -99,13 +111,13 @@
   function findTarget(s) {
     if (!s.sel) return null;
     for (const part of s.sel.split(',')) {
-      const el = el(part.trim());
-      if (el && el.offsetParent !== null) return el;
+      const t = el(part.trim());
+      if (t && t.offsetParent !== null) return t;
     }
     if (s.fallbackSel) {
       for (const part of s.fallbackSel.split(',')) {
-        const el = el(part.trim());
-        if (el && el.offsetParent !== null) return el;
+        const t = el(part.trim());
+        if (t && t.offsetParent !== null) return t;
       }
     }
     return null;
@@ -118,8 +130,7 @@
       if (want && !want.classList.contains('is-on')) {
         try { want.click(); } catch { }
       }
-      // one frame so the target is laid out
-      requestAnimationFrame(() => setTimeout(res, 60));
+      requestAnimationFrame(() => setTimeout(res, 120));
     });
   }
 
@@ -127,7 +138,13 @@
     const s = step();
     if (!s) return stop();
     await ensureTab(s.tab);
-    positionStep();
+    const target = findTarget(s);
+    if (target && target.scrollIntoView) {
+      // Bring the button into view before measuring (fixed nav overlays the bottom).
+      try { target.scrollIntoView({ block: 'center', behavior: prefersReduced() ? 'auto' : 'smooth' }); } catch { }
+    }
+    // after scroll animation settles (~220 ms), measure + position
+    setTimeout(positionStep, prefersReduced() ? 0 : 240);
     document.getElementById('tour-title').textContent = s.title;
     document.getElementById('tour-body').textContent = s.body;
     document.getElementById('tour-dots').innerHTML = STEPS.map((_, i) =>
@@ -141,31 +158,47 @@
     const hole = overlay.querySelector('.tour-hole');
     const bubble = overlay.querySelector('.tour-bubble');
     const target = findTarget(s);
-    hole.style.display = 'none'; bubble.classList.remove('tour-up', 'tour-down');
+    hole.style.display = 'none'; bubble.classList.remove('tour-up', 'tour-down', 'tour-center');
+    bubble.style.transform = 'none';
     if (target && s.pos !== 'center') {
       const r = target.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) { // removed mid-scroll — recentre
+        bubble.classList.add('tour-center');
+        bubble.style.top = '50%'; bubble.style.left = '50%';
+        bubble.style.transform = 'translate(-50%,-50%)';
+        bubble.style.width = Math.min(360, window.innerWidth - 24) + 'px';
+        return;
+      }
       const pad = 8;
       hole.style.display = 'block';
-      hole.style.left = (r.left - pad) + 'px';
-      hole.style.top = (r.top - pad) + 'px';
-      hole.style.width = (r.width + pad * 2) + 'px';
-      hole.style.height = (r.height + pad * 2) + 'px';
-      // bubble above or below, prefer whichever has room
+      hole.style.left = Math.max(4, r.left - pad) + 'px';
+      hole.style.top = Math.max(4, r.top - pad) + 'px';
+      hole.style.width = Math.min(window.innerWidth - 8, r.width + pad * 2) + 'px';
+      hole.style.height = Math.min(window.innerHeight - 8, r.height + pad * 2) + 'px';
       const bw = Math.min(340, window.innerWidth - 24);
-      const bh = 150; // estimated
-      const belowFits = r.bottom + 16 + bh < window.innerHeight - 80;
+      const bh = bubble.offsetHeight || 168;
+      const belowFits = r.bottom + 12 + bh < window.innerHeight - 84;
+      const aboveFits = r.top - 12 - bh > 8;
       const left = Math.max(12, Math.min(window.innerWidth - bw - 12, r.left + r.width / 2 - bw / 2));
-      if (s.pos === 'top' || !belowFits) {
-        bubble.style.top = Math.max(12, r.top - bh - 16) + 'px';
+      if (aboveFits && !belowFits) {
+        bubble.style.top = Math.max(12, r.top - bh - 12) + 'px';
         bubble.classList.add('tour-up');
-      } else {
-        bubble.style.top = (Math.min(window.innerHeight - bh - 12, r.bottom + 16)) + 'px';
+      } else if (s.preferBottomSheet) {
+        // More tab rows: the visible card sits near the top — bubble sits centered below.
+        bubble.style.top = Math.min(window.innerHeight - bh - 12, r.bottom + 16) + 'px';
         bubble.classList.add('tour-down');
+      } else if (belowFits) {
+        bubble.style.top = Math.min(window.innerHeight - bh - 12, r.bottom + 12) + 'px';
+        bubble.classList.add('tour-down');
+      } else {
+        bubble.style.top = '50%';
+        bubble.style.left = '50%';
+        bubble.style.transform = 'translate(-50%,-50%)';
+        bubble.classList.add('tour-center');
       }
       bubble.style.left = left + 'px';
       bubble.style.width = bw + 'px';
     } else {
-      // center fallback
       bubble.style.top = '50%';
       bubble.style.left = '50%';
       bubble.style.transform = 'translate(-50%,-50%)';
@@ -180,7 +213,6 @@
     renderStep();
   }
 
-  // publics
   window.OFTour = { start: () => start(true), restart: start, stop, maybeStart };
   document.addEventListener('DOMContentLoaded', () => setTimeout(maybeStart, 1800));
 })();

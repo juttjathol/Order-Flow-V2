@@ -246,7 +246,8 @@ class MoreScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         if (shop.isNotEmpty) _folder(context, Icons.storefront, s.t('shop_section'), shop),
-        _folder(context, Icons.print, s.t('hardware_section'), [
+        _folder(context, Icons.print, s.t('hardware_section'),
+          key: TourKeys.moreFolder, [
           // Desktop (v1.1.76): the unified sheet offers Windows printers +
           // LAN; phones keep the Bluetooth picker.
           _row(Icons.print, s.t('printers'),
@@ -264,9 +265,11 @@ class MoreScreen extends ConsumerWidget {
     );
   }
 
-  Widget _folder(BuildContext context, IconData icon, String title, List<Widget> children) {
+  Widget _folder(BuildContext context, IconData icon, String title, List<Widget> children, {Key? key}) {
     if (children.isEmpty) return const SizedBox.shrink();
+    // `key` lets the guided tour spotlight this folder (first section only).
     return Padding(
+      key: key,
       padding: const EdgeInsets.only(bottom: 10),
       child: OfCard(
         padding: EdgeInsets.zero,

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../state/nav_tab.dart';
 import '../widgets/common.dart';
 import '../widgets/station_shell.dart';
 import '../widgets/tour_overlay.dart';
@@ -25,12 +26,28 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   void initState() {
     super.initState();
+    // v1.1.93 — the guided tour switches tabs through [mainTabIndex]; keep the
+    // shell's local index in sync with it (and vice versa on user taps).
+    index = mainTabIndex.value;
+    mainTabIndex.addListener(_syncTab);
     // v1.1.92 — first-run bubble tour (once per device; replay from More).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(const Duration(milliseconds: 1200), () {
         if (mounted) TourOverlay.maybeShow(context, ref);
       });
     });
+  }
+
+  void _syncTab() {
+    if (mounted && mainTabIndex.value != index) {
+      setState(() => index = mainTabIndex.value);
+    }
+  }
+
+  @override
+  void dispose() {
+    mainTabIndex.removeListener(_syncTab);
+    super.dispose();
   }
 
   @override
@@ -50,7 +67,11 @@ class _MainShellState extends ConsumerState<MainShell> {
       title: ref.snap.store.profile.businessName,
       subtitle: s.t(ref.snap.isManager ? 'role_manager' : 'role_main'),
       index: index,
-      onIndex: (i) => setState(() => index = i),
+      onIndex: (i) {
+        setState(() => index = i);
+        // Publish so overlays (tour) see user-driven tab switches too.
+        if (mainTabIndex.value != i) mainTabIndex.value = i;
+      },
       actions: [
         if (ref.snap.isMain || ref.snap.isManager)
           PopupMenuButton<String>(

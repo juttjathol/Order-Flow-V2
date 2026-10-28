@@ -52,6 +52,7 @@ window.OFMoreRender = async function () {
   };
   const mrow = (ic, title, subTxt, act, locked) => {
     const el = ce('button', 'mrow'); el.type = 'button';
+    el.dataset.act = act; // lets the guided tour (and audits) find this exact row
     el.innerHTML = '<span class="lrow__ic">' + ic + '</span><span class="ttl">' + esc(title) + '<span class="sub">' + esc(subTxt || '') + '</span></span>' + (locked ? '<span class="lock">🔒</span>' : '') + '<span class="go">›</span>';
     el.onclick = () => { if (locked) return toast(L.t('locked_row'), 'Not in your plan — tap “Refresh my plan” after upgrading'); A[act] && A[act](); };
     const wrap = ce('div', 'tilewrap'); wrap.appendChild(el); cur.appendChild(wrap);
