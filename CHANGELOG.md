@@ -6,6 +6,20 @@ carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering 
 log — including root causes and the mistakes each release was built to avoid repeating —
 is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
+## 1.1.93 — 2026-10-28
+
+### Getting started
+* **Try the demo** — the license screen gets a no-key walkthrough: a seeded café opens with sample tables, menu and tickets, the guided tour runs inside it, and one tap exits and wipes everything. APK + web.
+* **Guided tour v2** — spotlight steps point at the real controls (hero card, Room QR, first table tile, the menu Add button, More rows), switch tabs on their own, scroll targets into view, and dock the bubble beside the button.
+
+### Smarter surfaces
+* **Best-seller 🔥 badge** on menu pick cards (web register + APK order screen): top 3 items by qty paid today.
+
+### Trust & store hygiene
+* **Demo is not a free POS**: demo shops cap at 10 live orders and never touch a printer; cloud rooms and multi-terminal stay license-gated by design.
+* **Play Console**: unused location permissions removed from the manifest; Data-safety docs updated. Plan copy synced — full plan is 16 features (site previously said 15).
+* **Web audit**: every button verified wired; stray `</div>` and dead handlers removed.
+
 ## 1.1.92 — 2026-10-26
 
 ### Devices & team
