@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
+import '../../core/l10n.dart';
 import '../../core/pin_crypto.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
