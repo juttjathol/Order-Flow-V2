@@ -22,6 +22,7 @@ import '../widgets/plan_extras.dart';
 import '../widgets/tour_overlay.dart';
 import '../widgets/plan_lock.dart';
 import 'dispatch_screen.dart';
+import 'menu_engineering_screen.dart';
 import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
 
@@ -62,6 +63,15 @@ class MoreScreen extends ConsumerWidget {
     final reports = <Widget>[
       _row(Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
       _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'advanced_reports',
+        icon: Icons.query_stats,
+        title: s.t('menu_engineering'),
+        onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const MenuEngineeringScreen())),
+      ),
       _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false), subtitle: s.t('x_report_sub')),
       _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true), subtitle: s.t('z_report_sub')),
       planAwareRow(
