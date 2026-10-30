@@ -14,6 +14,16 @@ const shop = () => window.SHOP_REF();
 const money = c => OFMoney(c);
 const canF = k => C.allowsFeature(shop().entitlements, k);
 const toast = (m, s) => window.__toastFn && window.__toastFn(m, s);
+const guarded = (button, action, errorTitle) => async (...args) => {
+  if (button.disabled) return;
+  button.disabled = true;
+  try { return await action(...args); }
+  catch (e) {
+    console.error(errorTitle || 'More action failed', e);
+    toast(errorTitle || 'Could not save', String(e && e.message || e));
+  } finally { button.disabled = false; }
+};
+let moreRenderToken = 0;
 
 /* ================ SUB-SCREEN HOST ================ */
 window.OFShowSub = function (title, sub, draw) {
@@ -30,9 +40,13 @@ window.OFShowSub = function (title, sub, draw) {
 /* ================ MORE TAB RENDER ================ */
 window.OFMoreRender = async function () {
   const host = $('tab-more'); if (!host) return;
-  host.innerHTML = '';
+  const renderToken = ++moreRenderToken;
   const p = shop().profile;
   const demo = await kvGet('demoMode', false);
+  // Tab changes and plan refreshes can request a render at the same time.
+  // Let only the newest request paint, or each async render can duplicate rows.
+  if (renderToken !== moreRenderToken || !host.isConnected) return;
+  host.innerHTML = '';
   const headCard = ce('div', 'card card--forest', '');
   headCard.style.cssText = 'padding:16px';
   headCard.innerHTML = '<div class="row"><div class="grow"><div style="font-weight:900;font-size:17px;letter-spacing:-.3px">' + esc(p.name) + '</div><div class="small" style="opacity:.8;font-weight:600;margin-top:2px">' + esc(p.address || 'Add your address in Bill profile') + '</div></div><span class="chip">' + (demo ? L.t('demo_chip') : C.FEATURE_CATALOG.length + ' features') + '</span></div>';
@@ -72,11 +86,9 @@ window.OFMoreRender = async function () {
   cur.appendChild(leave);
 
   section('📡 Devices & QR');
-  mrow('🧑‍🤝‍🧑', L.t('multi_terminal'), 'Stations join by QR — no key needed', 'more.cloud', !canF('multi_terminal'));
-  mrow('📡', L.t('cloud_sync'), 'E2E-encrypted room relay for every device', 'more.cloud', !canF('cloud_sync'));
+  mrow('🧑‍🤝‍🧑', L.t('multi_terminal') + ' & ' + L.t('cloud_sync'), 'Stations join by QR — encrypted room sync across devices', 'more.cloud', !canF('multi_terminal') && !canF('cloud_sync'));
   mrow('🧍', L.t('qr_ordering'), 'Guests order from their table', 'more.qr', !canF('qr_ordering'));
   mrow('🎨', L.t('guest_branding'), 'Guest page name, cover, hours, accent', 'more.branding', !canF('qr_branding'));
-  mrow('🖨️', L.t('station_printers'), 'Print-gateway device for the whole room', 'more.printers', !canF('station_printers'));
   mrow('📺', L.t('customer_display'), 'Giant total for the guest, from any ticket', 'more.custdisp');
   mrow('📅', L.t('reservations'), 'Tables or appointment slots', 'more.reservations', !canF('reservations'));
 
@@ -136,7 +148,7 @@ async function scrBill() {
       + '<label class="switch"><span>' + L.t('service_charge') + ' %</span><input id="svc-m" type="number" inputmode="decimal" value="' + (p.svc || 0) + '" style="width:100px;text-align:right"/></label>';
     const save = ce('button', 'btn btn--mint btn--full', L.t('save'));
     save.style.marginTop = '16px';
-    save.onclick = async () => {
+    save.onclick = guarded(save, async () => {
       Object.assign(shop().profile, {
         name: $('setup-name-m').value.trim() || p.name, phone: $('shop-phone-m').value, address: $('shop-addr-m').value,
         currency: $('shop-cur-m').value.trim().slice(0, 6) || p.currency, receiptHead: $('rcp-head-m').value, receiptFoot: $('rcp-foot-m').value,
@@ -144,7 +156,7 @@ async function scrBill() {
         tax: Number($('tax-m').value) || 0, svc: Number($('svc-m').value) || 0,
       });
       await kvSet('shop', shop()); await kvSet('rev', Date.now()); OFSyncNow(); toast(L.t('saved') + ' ✓'); OFAct['sub.back']();
-    };
+    });
     body.appendChild(card); body.appendChild(save);
   });
 }
@@ -169,10 +181,6 @@ async function scrPrinters() {
     const test = ce('button', 'btn btn--primary btn--full', '🖨️ ' + L.t('print_test'));
     test.onclick = () => { const demo = C.newOrder(p, {}); demo.lines.push({ id: 't1', name: 'Test print', qty: 1, priceCents: 100, mods: [], notes: '' }); OFPrintReceipt({ ...demo, payment: { method: 'cash', paidTenderCents: 100, changeCents: 0, at: Date.now() } }, {}); };
     row.appendChild(test);
-    const tabPrint = ce('button', 'btn btn--ghost btn--full', 'Sheet never opens? Print in a new tab');
-    tabPrint.style.marginTop = '8px';
-    tabPrint.onclick = () => { const demo = C.newOrder(p, {}); demo.lines.push({ id: 't1', name: 'Test print', qty: 1, priceCents: 100, mods: [], notes: '' }); if (!window.OFPrintReceiptInTab || !OFPrintReceiptInTab({ ...demo, payment: { method: 'cash', paidTenderCents: 100, changeCents: 0, at: Date.now() } }, {})) toast('Popup blocked', 'Allow pop-ups for jathol.org once, then tap again.'); };
-    row.appendChild(tabPrint);
     if ('bluetooth' in navigator) {
       const bt = ce('button', 'btn btn--ghost btn--full', '🔵 ' + L.t('print_bt'));
       bt.onclick = () => { const demo = C.newOrder(p, {}); demo.lines.push({ id: 't1', name: 'Test print', qty: 1, priceCents: 100, mods: [], notes: '' }); OFPrintViaBluetooth(demo, {}).catch(e => toast('Bluetooth print failed', String(e && e.message || e))); };
@@ -182,7 +190,7 @@ async function scrPrinters() {
     }
     body.appendChild(row);
     const save = ce('button', 'btn btn--mint btn--full', L.t('save')); save.style.marginTop = '14px';
-    save.onclick = async () => {
+    save.onclick = guarded(save, async () => {
       shop().profile.autoPrint = $('pr-auto').checked;
       shop().profile.fireMode = $('pr-fire').checked ? 'auto' : 'manual';
       shop().profile.kitchenSound = $('pr-snd').checked;
@@ -190,7 +198,7 @@ async function scrPrinters() {
       shop().profile.paper = $('pr-paper').value;
       await kvSet('shop', shop()); await kvSet('printGateway', $('pr-gateway').checked);
       await kvSet('rev', Date.now()); OFSyncNow(); toast(L.t('saved') + ' ✓');
-    };
+    });
     body.appendChild(save);
   });
 }
@@ -236,13 +244,13 @@ async function scrStaff() {
       for (const r of roles) { const b = ce('button', 'tchip', r); b.onclick = () => { if (picked.has(r)) { picked.delete(r); b.classList.remove('is-on'); } else { picked.add(r); b.classList.add('is-on'); } }; host.appendChild(b); }
       $('dlg-btns').innerHTML = '';
       const ok = ce('button', 'btn btn--mint', L.t('save'));
-      ok.onclick = async () => {
+      ok.onclick = guarded(ok, async () => {
         const name = $('st-name').value.trim(); if (!name) return toast('Name?');
         const pin = $('st-pin').value.trim();
         const s = { id: C.uuid(), name, roles: [...picked], pin: pin || '', pinHash: null, salt: null, active: true };
         if (pin) { s.salt = C.uuid().slice(0, 8); s.pinHash = await OFSha256(s.salt + ':' + pin); s.pin = ''; }
         await idbPut('staff', s); await kvSet('rev', Date.now()); OFSyncNow(); OFCloseDlg(); scrStaff();
-      };
+      });
       $('dlg-btns').appendChild(ok);
     };
     body.appendChild(add);
@@ -303,7 +311,7 @@ async function scrCustomers() {
       $('dlg-body').innerHTML = '<div class="grid"><input id="cu-name" placeholder="' + L.t('name_label') + '"/><input id="cu-phone" placeholder="' + L.t('phone') + '" inputmode="tel"/></div>';
       $('dlg-btns').innerHTML = '';
       const ok = ce('button', 'btn btn--mint', L.t('save'));
-      ok.onclick = async () => { const n = $('cu-name').value.trim(); if (!n) return; await idbPut('customers', { id: C.uuid(), name: n, phone: $('cu-phone').value.trim(), points: 0 }); await kvSet('rev', Date.now()); OFSyncNow(); OFCloseDlg(); scrCustomers(); };
+      ok.onclick = guarded(ok, async () => { const n = $('cu-name').value.trim(); if (!n) return toast('Name?'); await idbPut('customers', { id: C.uuid(), name: n, phone: $('cu-phone').value.trim(), points: 0 }); await kvSet('rev', Date.now()); OFSyncNow(); OFCloseDlg(); scrCustomers(); });
       $('dlg-btns').appendChild(ok);
     };
     body.appendChild(add);
@@ -328,7 +336,7 @@ async function scrDrivers() {
       $('dlg-body').innerHTML = '<div class="grid"><input id="dr-name" placeholder="' + L.t('name_label') + '"/><input id="dr-phone" placeholder="' + L.t('phone') + '" inputmode="tel"/></div>';
       $('dlg-btns').innerHTML = '';
       const ok = ce('button', 'btn btn--mint', L.t('save'));
-      ok.onclick = async () => { const n = $('dr-name').value.trim(); if (!n) return; await idbPut('drivers', { id: C.uuid(), name: n, phone: $('dr-phone').value.trim(), status: 'free' }); OFSyncNow(); OFCloseDlg(); scrDrivers(); };
+      ok.onclick = guarded(ok, async () => { const n = $('dr-name').value.trim(); if (!n) return toast('Name?'); await idbPut('drivers', { id: C.uuid(), name: n, phone: $('dr-phone').value.trim(), status: 'free' }); OFSyncNow(); OFCloseDlg(); scrDrivers(); });
       $('dlg-btns').appendChild(ok);
     };
     body.appendChild(add);
@@ -620,7 +628,14 @@ async function scrReservations() {
       $('dlg-body').innerHTML = '<div class="grid"><input id="rv-name" placeholder="' + L.t('customer') + '"/><input id="rv-phone" placeholder="' + L.t('phone') + '" inputmode="tel"/><input id="rv-table" placeholder="' + L.t('table_word') + '"/><input id="rv-time" type="datetime-local"/></div>';
       $('dlg-btns').innerHTML = '';
       const ok = ce('button', 'btn btn--mint', L.t('save'));
-      ok.onclick = async () => { const n = $('rv-name').value.trim(); if (!n) return; await idbPut('reservations', { id: C.uuid(), customer: n, phone: $('rv-phone').value.trim(), table: $('rv-table').value.trim(), at: new Date($('rv-time').value || Date.now()).getTime(), status: 'booked' }); OFSyncNow(); OFCloseDlg(); scrReservations(); };
+      ok.onclick = guarded(ok, async () => {
+        const n = $('rv-name').value.trim(), value = $('rv-time').value;
+        const at = value ? new Date(value).getTime() : Date.now();
+        if (!n) return toast('Name?');
+        if (!Number.isFinite(at)) return toast('Choose a valid date and time');
+        await idbPut('reservations', { id: C.uuid(), customer: n, phone: $('rv-phone').value.trim(), table: $('rv-table').value.trim(), at, status: 'booked' });
+        OFSyncNow(); OFCloseDlg(); scrReservations();
+      });
       $('dlg-btns').appendChild(ok);
     };
     body.appendChild(add);
@@ -662,14 +677,23 @@ function recipeEditor(p, ss) {
     for (const s of ss) sel.append(Object.assign(ce('option'), { value: s.id, textContent: s.name + ' (' + money(s.costCents) + ')' }));
     const qty = ce('input'); qty.type = 'number'; qty.value = '1'; qty.style.width = '70px';
     const addB = ce('button', 'btn btn--sm btn--primary', '+');
-    addB.onclick = () => { const s = ss.find(x => x.id === sel.value); if (!s) return; p.recipe.push({ stockId: s.id, name: s.name, qty: Number(qty.value) || 1, costCents: s.costCents || 0, unit: s.unit }); draw(); };
+    addB.disabled = !ss.length;
+    addB.onclick = () => {
+      const s = ss.find(x => x.id === sel.value), amount = Number(qty.value);
+      if (!s) return toast('Add a stock item first');
+      if (!Number.isFinite(amount) || amount <= 0) return toast('Quantity must be greater than zero');
+      const existing = p.recipe.find(x => x.stockId === s.id);
+      if (existing) existing.qty = (Number(existing.qty) || 0) + amount;
+      else p.recipe.push({ stockId: s.id, name: s.name, qty: amount, costCents: s.costCents || 0, unit: s.unit });
+      draw();
+    };
     row.appendChild(sel); row.appendChild(qty); row.appendChild(addB);
     host.appendChild(row);
   };
   draw();
   $('dlg-body').innerHTML = ''; $('dlg-body').appendChild(host); $('dlg-btns').innerHTML = '';
   const ok = ce('button', 'btn btn--mint', L.t('save'));
-  ok.onclick = async () => { await idbPut('products', p); await kvSet('rev', Date.now()); OFSyncNow(); OFCloseDlg(); scrRecipes(); };
+  ok.onclick = guarded(ok, async () => { await idbPut('products', p); await kvSet('rev', Date.now()); OFSyncNow(); OFCloseDlg(); scrRecipes(); });
   $('dlg-btns').appendChild(ok);
 }
 
@@ -690,12 +714,18 @@ async function scrWastage() {
       host.appendChild(sel); host.appendChild(qty); host.appendChild(selR);
       $('dlg-body').innerHTML = ''; $('dlg-body').appendChild(host); $('dlg-btns').innerHTML = '';
       const ok = ce('button', 'btn btn--mint', L.t('save'));
+      ok.disabled = !ss.length;
       ok.onclick = async () => {
-        const s = ss.find(x => x.id === sel.value); if (!s) return;
-        const q = Math.max(1, Number(qty.value) || 1);
-        s.qty -= q; await idbPut('stock', s);
-        await idbPut('wastage', { id: C.uuid(), name: s.name, qty: q, reason: selR.value, at: Date.now() });
-        await kvSet('rev', Date.now()); OFSyncNow(); OFCloseDlg(); scrWastage();
+        const s = ss.find(x => x.id === sel.value), q = Number(qty.value);
+        if (!s) return toast('Add a stock item first');
+        if (!Number.isFinite(q) || q <= 0) return toast('Quantity must be greater than zero');
+        if (q > Number(s.qty || 0)) return toast('Wastage cannot exceed stock on hand');
+        ok.disabled = true;
+        try {
+          s.qty -= q; await idbPut('stock', s);
+          await idbPut('wastage', { id: C.uuid(), name: s.name, qty: q, reason: selR.value, at: Date.now() });
+          await kvSet('rev', Date.now()); OFSyncNow(); OFCloseDlg(); scrWastage();
+        } catch (e) { ok.disabled = false; toast('Could not save wastage', String(e && e.message || e)); }
       };
       $('dlg-btns').appendChild(ok);
     };
@@ -715,7 +745,7 @@ async function scrSuppliers() {
       $('dlg-body').innerHTML = '<div class="grid"><input id="sup-n" placeholder="' + L.t('name_label') + '"/><input id="sup-p" placeholder="' + L.t('phone') + '" inputmode="tel"/></div>';
       $('dlg-btns').innerHTML = '';
       const ok = ce('button', 'btn btn--mint', L.t('save'));
-      ok.onclick = async () => { const n = $('sup-n').value.trim(); if (!n) return; await idbPut('suppliers', { id: C.uuid(), name: n, phone: $('sup-p').value.trim() }); OFSyncNow(); OFCloseDlg(); scrSuppliers(); };
+      ok.onclick = guarded(ok, async () => { const n = $('sup-n').value.trim(); if (!n) return toast('Name?'); await idbPut('suppliers', { id: C.uuid(), name: n, phone: $('sup-p').value.trim() }); OFSyncNow(); OFCloseDlg(); scrSuppliers(); });
       $('dlg-btns').appendChild(ok);
     };
     body.appendChild(addS);
@@ -727,9 +757,13 @@ async function scrSuppliers() {
         + (pu.received ? '' : '<button class="btn btn--sm btn--mint">' + L.t('receive') + '</button>');
       const b = el.querySelector('button');
       if (b) b.onclick = async () => {
-        pu.received = true; await idbPut('purchases', pu);
-        const st = await idbGet('stock', pu.stockId, null); if (st) { st.qty += pu.qty; if (pu.costCents) st.costCents = pu.costCents; await idbPut('stock', st); }
-        await kvSet('rev', Date.now()); OFSyncNow(); scrSuppliers();
+        if (b.disabled || pu.received) return;
+        b.disabled = true;
+        try {
+          pu.received = true; await idbPut('purchases', pu);
+          const st = await idbGet('stock', pu.stockId, null); if (st) { st.qty += pu.qty; if (pu.costCents) st.costCents = pu.costCents; await idbPut('stock', st); }
+          await kvSet('rev', Date.now()); OFSyncNow(); scrSuppliers();
+        } catch (e) { pu.received = false; b.disabled = false; toast('Could not receive purchase', String(e && e.message || e)); }
       };
       body.appendChild(el);
     }
@@ -740,12 +774,21 @@ async function scrSuppliers() {
       const host = ce('div', 'grid');
       const selS = ce('select'); for (const s of stocks) selS.append(Object.assign(ce('option'), { value: s.id, textContent: s.name }));
       const selSup = ce('select'); selSup.append(Object.assign(ce('option'), { value: '', textContent: '—' })); for (const s of sups) selSup.append(Object.assign(ce('option'), { value: s.name, textContent: s.name }));
-      const qty = ce('input'); qty.type = 'number'; qty.placeholder = 'qty'; qty.value = '1';
-      const cost = ce('input'); cost.type = 'number'; cost.placeholder = 'unit cost (e.g. 2.50)';
+      const qty = ce('input'); qty.type = 'number'; qty.min = '0.001'; qty.step = 'any'; qty.placeholder = 'qty'; qty.value = '1';
+      const cost = ce('input'); cost.type = 'number'; cost.min = '0'; cost.step = 'any'; cost.placeholder = 'unit cost (e.g. 2.50)';
       host.appendChild(selS); host.appendChild(selSup); host.appendChild(qty); host.appendChild(cost);
       $('dlg-body').innerHTML = ''; $('dlg-body').appendChild(host); $('dlg-btns').innerHTML = '';
       const ok = ce('button', 'btn btn--mint', L.t('save'));
-      ok.onclick = async () => { const st = stocks.find(x => x.id === selS.value); if (!st) return; await idbPut('purchases', { id: C.uuid(), stockId: st.id, itemName: st.name, supplier: selSup.value, qty: Math.max(1, Number(qty.value) || 1), costCents: C.cents(Number(cost.value) || 0), at: Date.now(), received: false }); OFSyncNow(); OFCloseDlg(); scrSuppliers(); };
+      ok.disabled = !stocks.length;
+      ok.onclick = async () => {
+        const st = stocks.find(x => x.id === selS.value), q = Number(qty.value), unitCost = cost.value === '' ? 0 : Number(cost.value);
+        if (!st) return toast('Add a stock item first');
+        if (!Number.isFinite(q) || q <= 0) return toast('Quantity must be greater than zero');
+        if (!Number.isFinite(unitCost) || unitCost < 0) return toast('Enter a valid non-negative cost');
+        ok.disabled = true;
+        try { await idbPut('purchases', { id: C.uuid(), stockId: st.id, itemName: st.name, supplier: selSup.value, qty: q, costCents: C.cents(unitCost), at: Date.now(), received: false }); OFSyncNow(); OFCloseDlg(); scrSuppliers(); }
+        catch (e) { ok.disabled = false; toast('Could not save purchase', String(e && e.message || e)); }
+      };
       $('dlg-btns').appendChild(ok);
     };
     body.appendChild(addP);
@@ -762,8 +805,10 @@ async function scrBackup() {
       for (const s of ['products', 'tables', 'orders', 'stock', 'customers', 'staff', 'drivers', 'suppliers', 'purchases', 'wastage', 'reservations', 'channelsThird', 'refunds', 'appointments']) out[s] = await idbGetAll(s, []);
       out.kv = { shop: shop(), receiptsNote: 'orderflow-web v3' };
       const blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' });
-      const a = ce('a'); a.href = URL.createObjectURL(blob); a.download = 'order-flow-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      const url = URL.createObjectURL(blob);
+      const a = ce('a'); a.href = url; a.download = 'order-flow-backup-' + new Date().toISOString().slice(0, 10) + '.json';
       document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast('Backup exported ✓', 'Keep it in Files or Drive');
     };
     body.appendChild(exp);
@@ -771,22 +816,50 @@ async function scrBackup() {
     imp.onclick = () => {
       const inp = ce('input'); inp.type = 'file'; inp.accept = 'application/json';
       inp.onchange = async () => {
-        const txt = await inp.files[0].text();
-        let obj; try { obj = JSON.parse(txt); } catch { return toast('Not a backup file'); }
+        const file = inp.files && inp.files[0];
+        if (!file) return; // The picker was cancelled.
+        if (file.size > 20 * 1024 * 1024) return toast('Backup is too large', 'Choose a file smaller than 20 MB.');
+        let obj;
+        try { obj = JSON.parse(await file.text()); } catch { return toast('Not a backup file'); }
+        const backupStores = ['products', 'tables', 'orders', 'stock', 'customers', 'staff', 'drivers', 'suppliers', 'purchases', 'wastage', 'reservations', 'channelsThird', 'refunds', 'appointments'];
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return toast('Not a backup file');
+        const requiredStores = ['products', 'tables', 'orders', 'stock'];
+        const presentStores = backupStores.filter(s => Object.prototype.hasOwnProperty.call(obj, s));
+        if (requiredStores.some(s => !Array.isArray(obj[s])) || !presentStores.length || presentStores.some(s => !Array.isArray(obj[s]) || obj[s].some(row => !row || typeof row !== 'object' || Array.isArray(row) || row.id == null))) {
+          return toast('Backup is incomplete or invalid', 'Your current data was not changed.');
+        }
+        if (obj.kv && (typeof obj.kv !== 'object' || Array.isArray(obj.kv) || (obj.kv.shop != null && (typeof obj.kv.shop !== 'object' || Array.isArray(obj.kv.shop))))) {
+          return toast('Backup settings are invalid', 'Your current data was not changed.');
+        }
+        const db = await OFDB.open();
+        if (!db) return toast('Device storage is unavailable', 'Import was not started. Restore storage access and try again.');
         OFDialog({ title: L.t('import_backup'), bodyHtml: '<p class="muted small" style="font-weight:600">Importing replaces the data on THIS device. The room re-syncs it to every station right after.</p>' });
         $('dlg-btns').innerHTML = '';
         const no = ce('button', 'btn btn--ghost', L.t('cancel')); no.onclick = () => OFCloseDlg();
         const yes = ce('button', 'btn btn--mint', 'Import now');
         yes.onclick = async () => {
-          for (const s of Object.keys(obj)) {
-            if (!Array.isArray(obj[s])) continue;
-            const db = await OFDB.open();
-            if (!db.objectStoreNames.contains(s)) continue;
-            await idbClear(s);
-            for (const row of obj[s]) if (row && row.id) await idbPut(s, row);
+          if (yes.disabled) return;
+          yes.disabled = true;
+          try {
+            const stores = backupStores.filter(s => db.objectStoreNames.contains(s));
+            if (stores.length) await new Promise((resolve, reject) => {
+              const tx = db.transaction(stores, 'readwrite');
+              for (const s of stores) {
+                const os = tx.objectStore(s);
+                os.clear();
+                for (const row of (obj[s] || [])) os.put(row);
+              }
+              tx.oncomplete = resolve;
+              tx.onerror = () => reject(tx.error || new Error('Backup transaction failed'));
+              tx.onabort = () => reject(tx.error || new Error('Backup transaction was aborted'));
+            });
+            if (obj.kv && obj.kv.shop) { const keep = shop(); Object.assign(keep, obj.kv.shop); await kvSet('shop', keep); }
+            await kvSet('rev', Date.now()); OFCloseDlg(); toast('Imported ✓'); OFAct['sub.back'](); location.reload();
+          } catch (e) {
+            yes.disabled = false;
+            toast('Import failed', 'The store update was rolled back; your existing records are unchanged.');
+            console.error('Order Flow backup import failed', e);
           }
-          if (obj.kv && obj.kv.shop) { const keep = shop(); Object.assign(keep, obj.kv.shop); await kvSet('shop', keep); }
-          await kvSet('rev', Date.now()); OFCloseDlg(); toast('Imported ✓'); OFAct['sub.back'](); location.reload();
         };
         $('dlg-btns').appendChild(no); $('dlg-btns').appendChild(yes);
       };
@@ -851,7 +924,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v50</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v51</div></div>'));
   });
 }
 

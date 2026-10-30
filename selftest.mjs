@@ -53,11 +53,11 @@ eq('b64u unicode round-trip', C.b64uDecodeString(C.b64uEncode('{"name":"حلو c
 
 /* ============ 4. plan catalog & heal rules ============ */
 console.log('\n[4] plan gating');
-eq('catalog has 16 keys', C.FEATURE_CATALOG.length, 16);
-ok('starter preset locks qr/cloud/branding/third-party',
-  ['qr_ordering', 'cloud_sync', 'qr_branding', 'third_party'].every(k => !C.PLAN_PRESETS.starter.includes(k)));
+eq('catalog has 17 keys', C.FEATURE_CATALOG.length, 17);
+ok('starter preset excludes QR/cloud/stock add-on only',
+  ['qr_ordering', 'cloud_sync', 'stock_engine'].every(k => !C.PLAN_PRESETS.starter.includes(k)) && ['qr_branding', 'third_party'].every(k => C.PLAN_PRESETS.starter.includes(k)));
 eq('growth preset == starter', C.PLAN_PRESETS.growth, C.PLAN_PRESETS.starter);
-eq('custom preset = everything', C.PLAN_PRESETS.custom.length, 16);
+eq('custom preset = everything', C.PLAN_PRESETS.custom.length, 17);
 const entFull = C.entitlementsFromLicense({ plan: 'full', allowedFeatures: ['x'], allowedModels: ['retail'] });
 ok("'full' turns everything ON regardless of lists", entFull.allOn === true && C.FEATURE_KEYS.every(k => C.allowsFeature(entFull, k)));
 const entStarter = C.entitlementsFromLicense({ plan: 'starter', allowedModels: ['restaurant', 'retail'], allowedFeatures: [] });
@@ -214,7 +214,7 @@ const css = readFileSync(join(APP, 'styles.css'), 'utf8');
 const sw = readFileSync(join(PUB, 'sw.js'), 'utf8');
 const orderHtml = readFileSync(join(PUB, 'order.html'), 'utf8');
 ok('[hidden] CSS safeguard present', /\[hidden\]\s*{\s*display:\s*none\s*!important/.test(css));
-ok('SW cache bumped to of-shell-v25', sw.includes("'of-shell-v38'"));
+ok('SW cache matches current shell build', sw.includes("'of-shell-v51'"));
 ok('SW network-first for /app code + /order.html', sw.includes('NETWORK_FIRST') && sw.includes("/app/") && sw.includes("/order.html"));
 ok('viewport-fit=cover on both pages', idx.includes('viewport-fit=cover') && orderHtml.includes('viewport-fit=cover'));
 ok('apple status bar black-translucent', idx.includes('black-translucent'));
@@ -286,7 +286,7 @@ ok('guest join includes room + deviceId (membership)', readFileSync(join(ROOT, '
 ok('cloud API has an upstream fallback base', appJs.includes('order-flow-v2.pages.dev') && readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('order-flow-v2.pages.dev'));
 ok('menu row: one overflow button, name keeps the width', appJs.includes('aria-label="Actions"') && !appJs.includes('data-act="menu.soldout"') && !appJs.includes('data-act="menu.edit"'));
 ok('menu actions: edit + soldout + delete via sheet', appJs.includes('menuToggleSoldout') && appJs.includes('menuDeleteConfirm') && appJs.includes('OFPick('));
-ok('menu.keep registered handlers for legacy rows', appJs.includes("'menu.soldout':") && appJs.includes("'menu.edit':"));
+ok('menu rows route taps to editor and overflow actions', appJs.includes('el.onclick = () => OFMenuEditor(p.id)') && appJs.includes("act: () => menuToggleSoldout(p.id)") && appJs.includes('menuDeleteConfirm(p)'));
 ok('main boot starts the relay when a room is open', appJs.includes('enterMain(); startRelayBoot(room);'));
 ok('v31 dialogs close on backdrop tap', appJs.includes('e.target === dlgEl'));
 ok('v31 cloud open boots relay in place, no reload', moreJs.includes('OFStartRelay') && moreJs.includes("toast('Room is live ✓'") && appJs.includes('window.OFStartRelay = startRelayBoot'));
@@ -323,14 +323,21 @@ ok('v34 More screen has clean sections incl. Account', moreJs.includes("section(
 ok('v34 Privacy row opens the website privacy page', moreJs.includes("window.open('/privacy.html'"));
 ok('v35 same-document print path embeds no auto script (single sheet)', printJs.includes('window.print()') && !printJs.slice(0, printJs.indexOf('function printViaTab')).includes('window.onload=function()'));
 ok('v36 standalone-PWA print escapes to an auto-printing tab', printJs.includes('navigator.standalone') && printJs.includes('OFPrintReceiptInTab') && printJs.includes('printViaTab'));
-ok('v36 printers screen offers a new-tab test print', moreJs.includes('Print in a new tab'));
+ok('v51 printers screen avoids duplicate/new-tab test print controls', !moreJs.includes('Print in a new tab'));
 ok('v37 standalone prints via shared PDF — iOS share sheet has Print', printJs.includes('application/pdf') && printJs.includes('navigator.share') && printJs.includes('buildReceiptPdf') && printJs.includes("navigator.standalone === true"));
-ok('v37 About shows the deployed build', moreJs.includes('cache of-shell-v38'));
+ok('v51 About shows the deployed build', moreJs.includes('cache of-shell-v51'));
 // v38 — X/Z reports print the full day picture; More sections are dropdowns
 ok('v38 report receipts render the full day picture', printJs.includes("type === 'report'") && printJs.includes('X REPORT — MIDDAY') && printJs.includes('Z REPORT — DAY CLOSED') && printJs.includes('TAKEN') && printJs.includes('TOP ITEMS'));
 ok('v38 report prints via all engines', printJs.includes('function reportText') && printJs.includes("order.type === 'report'") && printJs.includes('window.OFPrintReport'));
 ok('v38 X/Z screen sends the report (no empty demo bill)', moreJs.includes('OFPrintReport(rep, isZ)') && !moreJs.includes('lines: [], xz: true'));
 ok('v38 More sections are collapsible dropdowns', moreJs.includes("ce('details', 'accs')") && moreJs.includes("ce('summary', 'accs__t'") && css.includes('.accs[open]') && css.includes('.accs__chev'));
+ok('v51 concurrent More renders cannot duplicate rows', moreJs.includes('renderToken !== moreRenderToken'));
+eq('v51 cloud settings route appears once in More', [...moreJs.matchAll(/mrow\([^\n]*'more\.cloud'/g)].length, 1);
+eq('v51 printer settings route appears once in More', [...moreJs.matchAll(/mrow\([^\n]*'more\.printers'/g)].length, 1);
+ok('v51 shell build marker uses metadata, not inline JavaScript', idx.includes('name="of-build"') && !idx.includes('window.OF_BUILD'));
+ok('v51 import validates before changes and replaces stores atomically', moreJs.includes('Backup is incomplete or invalid') && moreJs.includes("db.transaction(stores, 'readwrite')"));
+ok('v51 wastage refuses quantities beyond stock', moreJs.includes('Wastage cannot exceed stock on hand'));
+ok('v51 recipe lines merge duplicates', moreJs.includes('const existing = p.recipe.find(x => x.stockId === s.id)'));
 ok('v34 58mm paper setting honored in print CSS', printJs.includes('58mm') && printJs.includes("=== '58'"));
 ok('v34 pay receipt respects the Auto print switch', readFileSync(join(APP, 'ticket.js'), 'utf8').includes("profile.autoPrint !== false && window.OFPrintReceipt"));
 

@@ -106,7 +106,10 @@
   }
 
   /* ---------------- auto-update oracle ---------------- */
-  function currentBuild() { return String(window.OF_BUILD || ''); }
+  function currentBuild() {
+    const marker = document.querySelector('meta[name="of-build"]');
+    return String(window.OF_BUILD || (marker && marker.content) || '');
+  }
   function checkServerBuild() {
     if (!currentBuild() || bannerShown) return;
     fetch('/app/ver.txt?ts=' + Date.now(), { cache: 'no-store' }).then(function (r) {
