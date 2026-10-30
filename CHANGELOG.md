@@ -6,6 +6,25 @@ carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering 
 log — including root causes and the mistakes each release was built to avoid repeating —
 is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
+## 1.1.95 — 2026-10-30
+
+### Stock that thinks in recipes
+* **Stock engine (add-on)** — order-taker tiles show exactly how many more servings your inventory can make: buns 3 + patties 2 → burger badge says **"2 left"** (badge appears at ≤5). Turned on by your plan features (`stock_engine`).
+* **Buy list** — last 7 days of sales per ingredient → exact "buy +X kg" sized for the next week, one tap to send to your supplier on WhatsApp.
+
+### Money, delivery & insight
+* **Khata (credit) ledger** — a "Khata / credit" payment method writes the ticket on the customer's tab; live red balances in Customers, **Receive payment**, and a one-tap **WhatsApp the balance** (EN/UR).
+* **Delivery dispatch board** — delivery tickets flow **Queued → Out for delivery → Delivered ✓**, drivers assigned right on the card.
+* **Menu engineering** — 30-day sales × recipe margins grade every dish ⭐ star / 🐴 plowhorse / 🧩 puzzle / 🐕 dog, with a "needs costing" list for un-costed items.
+
+### New channels
+* **Kiosk mode** — a wall tablet becomes a self-order station: pick items, send straight to kitchen, thanks banner; **manager PIN** locks the exit (rides the QR ordering add-on).
+* **Loyalty QR on receipts** — receipts print the customer's QR; staff scan it next visit to attach the customer instantly — points and khata follow automatically.
+* **Read-only menu link** — More → QR copies a **live view-only menu link** (prices + sold-out state, no ordering) for WhatsApp status or Instagram bio.
+
+### Android release health
+* Play Console advisories closed: **edge-to-edge** status/nav bars on SDK 35+ devices, memory-safe image decoding, and a ProGuard/R8 slim-down so release optimisation stays fully on.
+
 ## 1.1.94 — 2026-10-29
 
 ### Plans, rebuilt around your shop
