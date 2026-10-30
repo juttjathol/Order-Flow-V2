@@ -41,7 +41,7 @@ const BROADCAST_TEMPLATES = {
     title: "💎 Cloud add-on & Customize",
     tag: "plan",
     url: "https://jathol.org#plans",
-    message: "Professional (PKR 2,000/mo) already includes 15 pro features — QR ordering too. Cloud networking is a PKR 500/month add-on; want a custom POS built for your business? Ask about Customize!",
+    message: "Professional (PKR 2,000/mo) covers 14 pro features. Cloud networking + QR table ordering ride together as one +PKR 500/month add-on — want a custom POS built for your business? Ask about Customize!",
   },
   tip_qr: {
     title: "💡 Restaurant Flow Tip: Cut Wait Times with Guest QR",
@@ -96,7 +96,7 @@ function showApp(on) {
 }
 
 function setView(name) {
-  ["home", "customers", "licenses", "broadcasts"].forEach((v) => {
+  ["home", "customers", "licenses", "broadcasts", "diagnostics"].forEach((v) => {
     const el = $(`view-${v}`);
     if (el) el.classList.toggle("hidden", v !== name);
   });
@@ -115,10 +115,71 @@ function setView(name) {
         ? "Customers"
         : name === "licenses"
           ? "License keys"
-          : "Push Notifications";
+          : name === "diagnostics"
+            ? "Diagnostics"
+            : "Push Notifications";
   if (name === "broadcasts") {
     loadBroadcasts();
   }
+  if (name === "diagnostics") {
+    loadDiagnostics();
+  }
+}
+
+/* ---------- Diagnostics (R1): app_events pipeline via admin/events ---------- */
+const diagState = { events: [], crashes7d: 0, kind: "", q: "" };
+
+function diagKindBadge(kind) {
+  if (kind === "crash") return badge("revoked", "💥 crash");
+  if (kind === "error") return badge("unbound", "⚠️ error");
+  if (kind === "perf") return badge("bound", "⏱ perf");
+  if (kind === "funnel") return badge("target", "🧭 funnel");
+  return `<span class="badge">${esc(kind || "?")}</span>`;
+}
+
+function renderDiag() {
+  const box = $("diag-list");
+  if (!box) return;
+  const q = diagState.q.trim().toLowerCase();
+  const rows = diagState.events.filter((e) =>
+    (!diagState.kind || e.kind === diagState.kind) &&
+    (!q || `${e.route || ""} ${e.detail || ""} ${e.device_id || ""} ${e.license_key || ""}`.toLowerCase().includes(q)));
+  const c = $("diag-crashes"); if (c) c.textContent = String(diagState.crashes7d || 0);
+  const n = $("diag-count"); if (n) n.textContent = String(diagState.events.length);
+  if (!rows.length) {
+    box.innerHTML = `<p class="muted">No events match — the field is quiet. Android APKs + web POST report to <span class="mono">/api/v1/events</span>.</p>`;
+    return;
+  }
+  box.innerHTML = rows.map((e) => {
+    let when = e.created_at || "";
+    const t = Date.parse(e.created_at);
+    if (!Number.isNaN(t)) when = new Date(t).toLocaleString();
+    return `
+    <div class="diag-row">
+      <div class="diag-top">
+        ${diagKindBadge(e.kind)}
+        <b class="mono">${esc(e.route || "app")}</b>
+        <span class="muted mono">${esc(when)}</span>
+      </div>
+      <div class="diag-detail mono">${esc(e.detail || "")}</div>
+      <div class="muted mono diag-meta">device ${esc(e.device_id || "—")} · key ${esc(e.license_key || "—")}</div>
+    </div>`;
+  }).join("");
+}
+
+async function loadDiagnostics(force) {
+  if (diagState.events.length && !force) { renderDiag(); return; }
+  const box = $("diag-list");
+  if (box) box.innerHTML = `<p class="muted">Loading field events…</p>`;
+  try {
+    const data = await api("admin/events");
+    diagState.events = Array.isArray(data.events) ? data.events : [];
+    diagState.crashes7d = data.crashes7d || 0;
+  } catch (e) {
+    if (box) box.innerHTML = `<p class="error">⚠️ ${esc(e.message || "Could not load events")}</p>`;
+    return;
+  }
+  renderDiag();
 }
 
 function badge(kind, label) {
@@ -904,6 +965,13 @@ if (bMsg) bMsg.addEventListener("input", () => {
   const bc = $("b-count");
   if (bc) bc.textContent = `${bMsg.value.length}/2000`;
 });
+
+const diagRefresh = $("diag-refresh");
+if (diagRefresh) diagRefresh.addEventListener("click", () => loadDiagnostics(true));
+const diagKind = $("diag-kind");
+if (diagKind) diagKind.addEventListener("change", () => { diagState.kind = diagKind.value; renderDiag(); });
+const diagQEl = $("diag-q");
+if (diagQEl) diagQEl.addEventListener("input", () => { diagState.q = diagQEl.value; renderDiag(); });
 
 /* keep the "Latest Android APK" + "Plan & access (…)" tags fresh in long admin sessions */
 setInterval(() => { if (!document.hidden) loadGithubRelease(); }, 300000);

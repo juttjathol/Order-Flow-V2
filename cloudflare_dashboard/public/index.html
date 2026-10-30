@@ -38,6 +38,7 @@
         <a href="#customers" data-view="customers">Customers</a>
         <a href="#licenses" data-view="licenses">License keys</a>
         <a href="#broadcasts" data-view="broadcasts">Push Notifications</a>
+        <a href="#diagnostics" data-view="diagnostics">Diagnostics</a>
       </nav>
     </aside>
 
@@ -141,7 +142,7 @@
             </div>
             <label for="l-plan">Plan</label>
             <select id="l-plan">
-              <option value="starter" selected>Professional — 15 features (PKR 2,000/mo)</option>
+              <option value="starter" selected>Professional — 14 features (PKR 2,000/mo)</option>
               <option value="custom">Customize — all 16 + custom POS (Let's talk)</option>
               <option value="growth">Growth (legacy — same as Professional)</option>
               <option value="full">Full — everything, no limits</option>
@@ -271,6 +272,41 @@
         <!-- Mobile card list -->
         <div class="card-list" id="b-cards"></div>
       </section>
+
+      <section id="view-diagnostics" class="hidden">
+        <div class="panel" style="padding:18px;margin-bottom:16px">
+          <div class="row" style="align-items:center">
+            <div>
+              <h3>POS Field Diagnostics</h3>
+              <p class="muted">Crashes, caught errors, funnel drops and perf signals reported by Order Flow Android APKs and the web POS. Newest 100 events.</p>
+            </div>
+            <button id="diag-refresh" type="button" class="secondary">↻ Refresh</button>
+          </div>
+          <div class="stats" style="margin:16px 0 2px">
+            <div class="stat warn-tile"><span class="muted">App crashes · last 7 days</span><b id="diag-crashes">0</b></div>
+            <div class="stat"><span class="muted">Events loaded</span><b id="diag-count">0</b></div>
+          </div>
+        </div>
+        <div class="panel" style="padding:18px">
+          <div class="row" style="margin-bottom:12px">
+            <div>
+              <label for="diag-kind">Filter by kind</label>
+              <select id="diag-kind">
+                <option value="">All kinds</option>
+                <option value="crash">💥 Crash</option>
+                <option value="error">⚠️ Error</option>
+                <option value="perf">⏱ Performance</option>
+                <option value="funnel">🧭 Funnel</option>
+              </select>
+            </div>
+            <div>
+              <label for="diag-q">Search route, detail, device or key</label>
+              <input id="diag-q" placeholder="e.g. PrinterService, boot, OFPOS…" autocomplete="off">
+            </div>
+          </div>
+          <div id="diag-list"><p class="muted">Events load when you open this tab.</p></div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -302,6 +338,13 @@
         <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
       </svg>
       Push
+    </button>
+    <button class="tab-btn" data-view="diagnostics" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 7h6"/><path d="M10 4L9 7M14 4l1 3"/><path d="M8 10a4 4 0 1 0 8 0v4a4 4 0 1 1-8 0z"/>
+        <path d="M3 11h3M18 11h3"/><path d="M5 18l2.5-2M16.5 16 19 18"/><path d="M5 5l2.5 2M16.5 9 19 7"/><path d="M12 10v8"/>
+      </svg>
+      Diag
     </button>
   </nav>
 

@@ -229,9 +229,23 @@ function printViaTab(order, opts) {
   const w = window.open('', '_blank');
   if (!w) return false;
   w.document.open();
-  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Order Flow — receipt</title></head><body>' + printHtml(order, opts) +
-    '<script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>');
+  // Auto-print fires once the receipt renders; after the dialog (print OR
+  // cancel) the tab closes itself and focus returns to the app. A visible
+  // close bar + opener watchdog guard webviews where onafterprint never fires.
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Order Flow — receipt</title>'
+    + '<style>.of-backbar{position:fixed;left:0;right:0;bottom:0;padding:14px;text-align:center;background:#163E2E;color:#FAF7F2;font:700 15px system-ui,sans-serif;cursor:pointer;z-index:9}@media print{.of-backbar{display:none}}</style>'
+    + '</head><body>' + printHtml(order, opts)
+    + '<div class="of-backbar" onclick="window.close()">&#8592; Done? Tap here to close and return to Order Flow</div>'
+    + '<script>function ofBack(){try{window.close();}catch(e){}try{if(window.opener&&!window.opener.closed)window.opener.focus();}catch(e){}}window.onload=function(){setTimeout(function(){try{window.print();}catch(e){}},250);};window.addEventListener("afterprint",function(){setTimeout(ofBack,300);});<\/script></body></html>');
   w.document.close();
+  try {
+    let ticks = 0;
+    const guard = setInterval(() => {
+      ticks++;
+      if (!w || w.closed) { clearInterval(guard); try { window.focus(); } catch (e) {} }
+      else if (ticks > 120) { clearInterval(guard); try { w.close(); window.focus(); } catch (e) {} }
+    }, 1000);
+  } catch (e) {}
   return true;
 }
 
