@@ -976,6 +976,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     PaymentMethod method = PaymentMethod.cash;
     var splitOn = false;
     PaymentMethod splitMethod = PaymentMethod.card;
+    String? khataCustId;
     var splitText = '';
     var tender = '';
     var tip = order.tip;
@@ -994,7 +995,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               ? primaryDue
               : (splitOn && splitMethod == PaymentMethod.cash ? splitAmt : null);
           final cashOk = cashTarget == null || received + 0.001 >= cashTarget;
-          final canConfirm = splitValid && cashOk;
+          final canConfirm = splitValid && cashOk &&
+              (method != PaymentMethod.credit || khataCustId != null);
           List<Widget> cashPadFor(double target) {
             final received = double.tryParse(tender) ?? 0;
             return [
@@ -1067,10 +1069,41 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                                 : null,
                             label: Text(s.t(m.name)),
                             selected: method == m,
-                            onSelected: (_) => setSt(() => method = m),
+                            onSelected: (_) => setSt(() { method = m; if (m == PaymentMethod.credit) splitOn = false; }),
                           ))
                       .toList(),
                 ),
+                if (method == PaymentMethod.credit) ...[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: khataCustId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: s.t('khata_pick_customer'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    items: ([...ref.snap.store.customers]
+                          ..sort((a, b) => a.name.compareTo(b.name)))
+                        .map((c) => DropdownMenuItem(
+                              value: c.id,
+                              child: Text(
+                                '${c.name}${c.phone.isEmpty ? '' : ' · ${c.phone}'}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setSt(() => khataCustId = v),
+                  ),
+                  if (khataCustId == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(s.t('khata_required'),
+                          style: const TextStyle(
+                              color: OfColors.danger,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                ],
                 if (ref.snap.canFeature('split_payment'))
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1089,6 +1122,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                   Wrap(
                     spacing: 8,
                     children: PaymentMethod.values
+                        .where((m) => m != PaymentMethod.credit)
                         .map((m) => ChoiceChip(
                               avatar: m == PaymentMethod.cash
                                   ? _CashWiggle(active: splitMethod == m)

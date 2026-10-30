@@ -26,7 +26,7 @@ enum OrderType { dineIn, takeaway, delivery, retail, service }
 
 enum OrderStatus { open, preparing, ready, served, paid, cancelled }
 
-enum PaymentMethod { cash, card, wallet, other, complimentary }
+enum PaymentMethod { cash, card, wallet, other, complimentary, credit }
 
 enum DriverStatus { free, busy, offline }
 

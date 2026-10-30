@@ -497,6 +497,48 @@ class ShopCustomer {
       );
 }
 
+class KhataEntry {
+  KhataEntry({
+    required this.id,
+    required this.customerId,
+    required this.kind,
+    required this.amount,
+    this.note = '',
+    this.orderId,
+    DateTime? at,
+  }) : at = at ?? DateTime.now();
+
+  String id;
+  String customerId;
+
+  /// charge = customer owes the shop; pay = payment received against khata.
+  String kind;
+  double amount;
+  String note;
+  String? orderId;
+  DateTime at;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'customerId': customerId,
+        'kind': kind,
+        'amount': amount,
+        'note': note,
+        'orderId': orderId,
+        'at': at.toIso8601String(),
+      };
+
+  factory KhataEntry.fromJson(Map<String, dynamic> j) => KhataEntry(
+        id: parseStr(j['id']) ?? newId(),
+        customerId: parseStr(j['customerId']) ?? '',
+        kind: parseStr(j['kind']) ?? 'charge',
+        amount: parseNum(j['amount']),
+        note: parseStr(j['note']) ?? '',
+        orderId: parseStr(j['orderId']),
+        at: parseTime(j['at']),
+      );
+}
+
 class PrinterConfig {
   PrinterConfig({
     String? id,

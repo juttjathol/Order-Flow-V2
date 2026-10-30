@@ -1116,21 +1116,53 @@ Future<void> _customers(BuildContext context, WidgetRef ref) async {
                     ? EmptyState(icon: Icons.people_outline, message: s.t('no_customers'))
                     : ListView(
                         children: list
-                            .map((c) => ListTile(
+                            .map((c) {
+                              final due = ref.snap.store.khataDue(c.id);
+                              return ListTile(
                                   title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  subtitle: Text([
-                                    c.phone,
-                                    c.address,
-                                    if (c.points > 0) '${s.t('loyalty')} ${c.points.toStringAsFixed(0)}',
-                                    if (c.credit > 0) '${s.t('store_credit')} ${moneyOf(ref.snap, c.credit)}',
-                                  ].where((e) => e.isNotEmpty).join(' · ')),
-                                  onTap: () => _editCustomer(ctx, ref, existing: c),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline),
-                                    onPressed: () => ref.ctrl.dispatch(NetCommand(name: 'deleteCustomer', payload: {'id': c.id})),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text([
+                                        c.phone,
+                                        c.address,
+                                        if (c.points > 0) '${s.t('loyalty')} ${c.points.toStringAsFixed(0)}',
+                                        if (c.credit > 0) '${s.t('store_credit')} ${moneyOf(ref.snap, c.credit)}',
+                                      ].where((e) => e.isNotEmpty).join(' · ')),
+                                      if (due != 0)
+                                        Text(
+                                          '${s.t('khata_due')}: ${moneyOf(ref.snap, due)}',
+                                          style: TextStyle(
+                                            color: due > 0 ? OfColors.danger : OfColors.emerald,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                    ],
                                   ),
-                                ))
-                            .toList(),
+                                  onTap: () => _editCustomer(ctx, ref, existing: c),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: s.t('receive_payment'),
+                                        icon: const Icon(Icons.payments_outlined, color: OfColors.emerald),
+                                        onPressed: () => _khataReceive(ctx, ref, c),
+                                      ),
+                                      if (due > 0 && c.phone.isNotEmpty)
+                                        IconButton(
+                                          tooltip: 'WhatsApp',
+                                          icon: const Icon(Icons.ios_share, color: OfColors.info),
+                                          onPressed: () => _khataShare(ctx, ref, c, due),
+                                        ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline),
+                                        onPressed: () => ref.ctrl.dispatch(NetCommand(name: 'deleteCustomer', payload: {'id': c.id})),
+                                      ),
+                                    ],
+                                  ),
+                              );
+                            }).toList(),
                       ),
               ),
             ],
@@ -1139,6 +1171,72 @@ Future<void> _customers(BuildContext context, WidgetRef ref) async {
       },
     ),
   );
+}
+
+Future<void> _khataReceive(BuildContext context, WidgetRef ref, ShopCustomer c) async {
+  final s = ref.s;
+  final amount = TextEditingController();
+  final ok = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(
+          left: 20, right: 20, top: 18, bottom: MediaQuery.viewInsetsOf(ctx).bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('${s.t('receive_payment')} — ${c.name}',
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+          const SizedBox(height: 6),
+          Text('${s.t('khata_due')}: ${moneyOf(ref.snap, ref.snap.store.khataDue(c.id))}',
+              style: const TextStyle(color: OfColors.muted, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amount,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+                labelText: s.t('amount'), prefixIcon: const Icon(Icons.payments_outlined)),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            icon: const Icon(Icons.check),
+            label: Text(s.t('save')),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (ok != true) return;
+  final v = double.tryParse(amount.text.trim()) ?? 0;
+  if (v <= 0) return;
+  await ref.ctrl.dispatch(NetCommand(name: 'addKhata', payload: {
+    'id': newId(),
+    'customerId': c.id,
+    'kind': 'pay',
+    'amount': v,
+    'note': '',
+  }));
+  if (context.mounted) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(s.t('payment_received'))));
+  }
+}
+
+/// WhatsApp the customer their outstanding khata (digits-normalised PK mobile).
+Future<void> _khataShare(
+    BuildContext context, WidgetRef ref, ShopCustomer c, double due) async {
+  final s = ref.s;
+  final shop = ref.snap.store.profile.businessName;
+  final msg = s.isUrdu
+      ? '${c.name} — آپ کا ${shop} پر کھاتہ باقی ہے: ${moneyOf(ref.snap, due)}۔ براہ کرم آسان وقت پر ادا فرما دیں۔ شکریہ!'
+      : 'Salam ${c.name} — your outstanding khata at $shop is ${moneyOf(ref.snap, due)}. Please settle at your convenience. Thank you!';
+  var digits = c.phone.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.startsWith('0')) digits = '92${digits.substring(1)}';
+  final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(msg)}');
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
 Future<void> _editCustomer(BuildContext context, WidgetRef ref, {ShopCustomer? existing}) async {

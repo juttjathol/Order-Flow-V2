@@ -269,6 +269,26 @@ class StoreReducer {
         }
         bump();
         break;
+      case 'addKhata':
+        {
+          final e = KhataEntry(
+            id: parseStr(p['id']) ?? newId(),
+            customerId: parseStr(p['customerId']) ?? '',
+            kind: parseStr(p['kind']) == 'pay' ? 'pay' : 'charge',
+            amount: parseNum(p['amount']).abs(),
+            note: parseStr(p['note']) ?? '',
+            orderId: parseStr(p['orderId']),
+          );
+          // one charge per order, ever — replay-safe across LAN/cloud resync
+          if (e.orderId != null &&
+              store.khata.any((x) => x.orderId == e.orderId && x.kind == 'charge')) {
+            break;
+          }
+          store.khata.insert(0, e);
+          if (store.khata.length > 1000) store.khata.removeLast();
+          bump();
+        }
+        break;
       case 'deleteCustomer':
         store.customers.removeWhere((e) => e.id == p['id']);
         bump();
@@ -357,6 +377,31 @@ class StoreReducer {
           if (next == OrderStatus.paid && !order.stockDeducted) {
             _deductStock(store, order);
             order.stockDeducted = true;
+          }
+          if (next == OrderStatus.paid &&
+              order.payment == PaymentMethod.credit) {
+            // Khata tab: charge the registered customer once per order.
+            String? cid = parseStr(p['khataCustomerId']);
+            if (cid == null) {
+              for (final c in store.customers) {
+                if (c.phone.trim().isNotEmpty &&
+                    c.phone.trim() == order.customerPhone.trim()) {
+                  cid = c.id;
+                  break;
+                }
+              }
+            }
+            if (cid != null &&
+                !store.khata.any((x) => x.orderId == order.id && x.kind == 'charge')) {
+              store.khata.insert(0, KhataEntry(
+                id: newId(),
+                customerId: cid,
+                kind: 'charge',
+                amount: order.total + order.tip,
+                orderId: order.id,
+                note: 'Ticket ${order.ticketNo}',
+              ));
+            }
           }
           if (next == OrderStatus.cancelled && order.stockDeducted) {
             _restoreStock(store, order);
