@@ -27,6 +27,54 @@ import 'menu_engineering_screen.dart';
 import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
 
+Future<String?> _askBackupPassphrase(
+  BuildContext context,
+  L10nView s, {
+  required bool confirm,
+}) async {
+  final first = TextEditingController();
+  final second = TextEditingController();
+  String? error;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSt) => AlertDialog(
+        title: Text(s.t('backup_password_title')),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(s.t('backup_encrypted_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+          const SizedBox(height: 12),
+          TextField(controller: first, obscureText: true, autofocus: true, decoration: InputDecoration(labelText: s.t('backup_password'))),
+          if (confirm) ...[
+            const SizedBox(height: 8),
+            TextField(controller: second, obscureText: true, decoration: InputDecoration(labelText: s.t('backup_password_confirm'))),
+          ],
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Align(alignment: Alignment.centerLeft, child: Text(error!, style: const TextStyle(color: OfColors.danger, fontSize: 12))),
+          ],
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.t('cancel'))),
+          FilledButton(onPressed: () {
+            if (first.text.trim().length < 8) {
+              setSt(() => error = s.t('backup_password_short'));
+              return;
+            }
+            if (confirm && first.text != second.text) {
+              setSt(() => error = s.t('backup_password_mismatch'));
+              return;
+            }
+            Navigator.pop(ctx, first.text);
+          }, child: Text(s.t('continue'))),
+        ],
+      ),
+    ),
+  );
+  first.dispose();
+  second.dispose();
+  return result;
+}
+
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
@@ -171,11 +219,25 @@ class MoreScreen extends ConsumerWidget {
           () => TourOverlay.show(context, ref),
           subtitle: s.t('guided_tour_sub')),
       _row(Icons.ios_share, s.t('export_backup'), () async {
-        await ref.ctrl.backup.exportAndShare(snap.store);
+        final passphrase = await _askBackupPassphrase(context, s, confirm: true);
+        if (passphrase == null) return;
+        await ref.ctrl.backup.exportAndShare(snap.store, passphrase: passphrase);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('backup_ok'))));
         }
-      }),
+      }, subtitle: s.t('backup_encrypted_hint')),
+      _row(Icons.table_view, s.t('export_orders_csv'), () async {
+        await ref.ctrl.backup.exportOrdersCsv(snap.store);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('export_ready'))));
+        }
+      }, subtitle: s.t('export_orders_csv_sub')),
+      _row(Icons.picture_as_pdf, s.t('export_sales_pdf'), () async {
+        await ref.ctrl.backup.exportSalesPdf(snap.store);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('export_ready'))));
+        }
+      }, subtitle: s.t('export_sales_pdf_sub')),
       if (snap.isMain)
         _row(Icons.unarchive, s.t('import_backup'), () async {
           final ok = await showDialog<bool>(
@@ -190,8 +252,10 @@ class MoreScreen extends ConsumerWidget {
             ),
           );
           if (ok != true) return;
+          final passphrase = await _askBackupPassphrase(context, s, confirm: false);
+          if (passphrase == null) return;
           try {
-            final store = await ref.ctrl.backup.pickImport();
+            final store = await ref.ctrl.backup.pickImport(passphrase: passphrase);
             if (store != null) {
               await ref.ctrl.importStore(store);
               if (context.mounted) {
@@ -296,6 +360,7 @@ class MoreScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
+        if (snap.session.cloudOn && snap.session.cloudRoom.isNotEmpty) _syncChip(ref),
         if (shop.isNotEmpty) _folder(context, Icons.storefront, s.t('shop_section'), shop),
         _folder(context, Icons.print, s.t('hardware_section'),
           key: TourKeys.moreFolder, [
@@ -303,6 +368,7 @@ class MoreScreen extends ConsumerWidget {
           // LAN; phones keep the Bluetooth picker.
           _row(Icons.print, s.t('printers'),
               () => OfPlatform.isDesktop ? showLocalPrinterSheet(context, ref) : _printers(context, ref)),
+          _printOutboxRow(ref),
           _row(Icons.savings, s.t('cash_drawer'), () => _drawer(context, ref)),
         ]),
         _folder(context, Icons.groups, s.t('people_section'), people),
@@ -344,6 +410,65 @@ class MoreScreen extends ConsumerWidget {
       subtitle: subtitle == null ? null : Text(subtitle, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
+    );
+  }
+
+  Widget _syncChip(WidgetRef ref) {
+    final s = ref.s;
+    final snap = ref.snap;
+    final String label;
+    final Color color;
+    if (!snap.online) {
+      label = s.t('sync_offline');
+      color = OfColors.muted;
+    } else if (snap.cloudDegraded) {
+      label = s.t('sync_degraded');
+      color = Colors.orange.shade800;
+    } else if (snap.pendingSync > 0) {
+      label = s.t('sync_pending').replaceAll('{n}', '${snap.pendingSync}');
+      color = Colors.orange.shade800;
+    } else {
+      label = s.t('sync_live');
+      color = OfColors.emerald;
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 0, 6, 10),
+      child: Row(children: [
+        const Text('\u2601\ufe0f', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            '${s.t('cloud_status')} · $label',
+            style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12.5),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _printOutboxRow(WidgetRef ref) {
+    final s = ref.s;
+    return FutureBuilder<int>(
+      future: PrintService.pendingPrintJobs(),
+      builder: (ctx, res) {
+        final n = res.data ?? 0;
+        if (n <= 0) return const SizedBox.shrink();
+        return ListTile(
+          leading: const Icon(Icons.print_disabled, color: OfColors.danger),
+          title: Text(s.t('print_outbox_title'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(s.t('print_outbox_sub').replaceAll('{n}', '$n'),
+              style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+          trailing: const Icon(Icons.refresh, color: OfColors.emerald),
+          onTap: () async {
+            final left = await ref.read(appControllerProvider).printer.flushPrintOutbox();
+            if (!ctx.mounted) return;
+            final msg = left == 0
+                ? s.t('retry_ok')
+                : s.t('retry_left').replaceAll('{n}', '${left < 0 ? n : left}');
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          },
+        );
+      },
     );
   }
 }

@@ -39,6 +39,7 @@ class LicenseResult {
   bool get revoked => error == 'revoked';
   bool get boundOther => error == 'bound_to_other_device';
   bool get expired => error == 'expired';
+  bool get paused => error == 'paused';
 }
 
 class LicenseService {
@@ -124,6 +125,25 @@ class LicenseService {
         allowedModels: hasPlan ? result.allowedModels : current.allowedModels,
         allowedFeatures: hasPlan ? result.allowedFeatures : current.allowedFeatures,
         hasPlanData: hasPlan,
+      );
+    }
+    // An administrator pause is intentional and must take effect immediately;
+    // unlike a network failure it must not inherit offline grace.
+    if (result.paused) {
+      return LicenseRecord(
+        key: current.key,
+        valid: false,
+        locked: true,
+        lockReason: 'paused',
+        customerName: current.customerName,
+        businessName: current.businessName,
+        expiresAt: current.expiresAt,
+        lastValidatedAt: current.lastValidatedAt,
+        message: result.message,
+        plan: current.plan,
+        allowedModels: current.allowedModels,
+        allowedFeatures: current.allowedFeatures,
+        hasPlanData: current.hasPlanData,
       );
     }
     // v1.1.82: network failures, server rate-limits (slow_down) and
@@ -215,9 +235,12 @@ class LicenseService {
     return (body[b] ?? '').toString();
   }
 
-  Future<List<BroadcastItem>> fetchBroadcasts({String apiBase = ''}) async {
+  Future<List<BroadcastItem>> fetchBroadcasts({String apiBase = '', String licenseKey = ''}) async {
     final base = apiBase.trim().isNotEmpty ? apiBase.trim() : kDefaultApiBase;
-    final uri = Uri.parse(_join(base, '/api/v1/broadcasts'));
+    final endpoint = Uri.parse(_join(base, '/api/v1/broadcasts'));
+    final uri = licenseKey.trim().isEmpty
+        ? endpoint
+        : endpoint.replace(queryParameters: {'key': licenseKey.trim()});
     try {
       final res = await http.get(uri, headers: const {
         'Accept': 'application/json',

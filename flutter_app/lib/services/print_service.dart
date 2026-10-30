@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
 import 'package:image/image.dart' as img;
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/money.dart';
 import '../core/sanitize.dart';
@@ -53,6 +54,20 @@ class PrintService {
       };
 
   Future<void> send(PrinterConfig cfg, List<int> bytes) async {
+    try {
+      await _send0(cfg, bytes);
+      // A working printer also drains anything parked earlier.
+      unawaited(flushPrintOutbox());
+    } catch (e) {
+      // Misconfiguration is not retryable; real I/O failures are.
+      if (e is! DemoPrintBlocked && !isConfigError(e)) {
+        await enqueuePrintJob(cfg, bytes, e);
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _send0(PrinterConfig cfg, List<int> bytes) async {
     if (demoBlock) throw const DemoPrintBlocked();
     if (!cfg.enabled) throw Exception('Printer is not configured');
     if (cfg.isSpooler) {
@@ -94,6 +109,67 @@ class PrintService {
     });
     _lanChain[key] = job.catchError((_) {});
     return job;
+  }
+
+  // ---- R4: durable print outbox (retry failed jobs later) ---------------
+  static const String _printOutboxKey = 'of_print_outbox_v1';
+  static const int _printOutboxMax = 30;
+
+  /// Jobs parked for retry (More → Printers surfaces this).
+  static Future<int> pendingPrintJobs() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      return p.getStringList(_printOutboxKey)?.length ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> enqueuePrintJob(PrinterConfig cfg, List<int> bytes, Object err) async {
+    try {
+      final msg = err.toString();
+      final p = await SharedPreferences.getInstance();
+      final list = [...(p.getStringList(_printOutboxKey) ?? const <String>[])];
+      list.add(jsonEncode({
+        'cfg': cfg.toJson(),
+        'bytes': base64Encode(bytes),
+        'error': msg.length > 300 ? msg.substring(0, 300) : msg,
+        'at': DateTime.now().toIso8601String(),
+      }));
+      while (list.length > _printOutboxMax) {
+        list.removeAt(0);
+      }
+      await p.setStringList(_printOutboxKey, list);
+    } catch (_) {}
+  }
+
+  /// Replays parked jobs oldest-first. Unfixable config jobs are dropped.
+  /// Returns how many are still pending after the pass (-1 = unreadable).
+  Future<int> flushPrintOutbox() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final list = [...(p.getStringList(_printOutboxKey) ?? const <String>[])];
+      if (list.isEmpty) return 0;
+      final kept = <String>[];
+      for (var i = 0; i < list.length; i++) {
+        try {
+          final j = jsonDecode(list[i]) as Map<String, dynamic>;
+          final cfg = PrinterConfig.fromJson((j['cfg'] as Map?)?.cast<String, dynamic>());
+          final bytes = base64Decode((j['bytes'] ?? '').toString());
+          await _send0(cfg, bytes);
+        } on DemoPrintBlocked {
+          kept.add(list[i]); // demo guard may lift later
+        } catch (e) {
+          if (isConfigError(e)) continue; // printer removed/renamed — nothing to retry
+          kept.addAll(list.sublist(i)); // likely still offline: keep rest, stop hammering
+          break;
+        }
+      }
+      await p.setStringList(_printOutboxKey, kept);
+      return kept.length;
+    } catch (_) {
+      return -1;
+    }
   }
 
   /// Kicks the cash drawer through the given printer (ESC/POS pin-2 pulse).

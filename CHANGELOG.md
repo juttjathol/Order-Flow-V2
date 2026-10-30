@@ -6,6 +6,15 @@ carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering 
 log — including root causes and the mistakes each release was built to avoid repeating —
 is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
+## 1.1.96 — 2026-10-31
+
+* **More reliability:** errors persist in an offline outbox and flush on resume; failed printer jobs are saved for retry; cloud sync status is visible.
+* **Safer exports:** password-encrypted AES-GCM backups with restore, plus 30-day orders CSV and daily sales PDF.
+* **Better shift close:** cash-denomination counter, counted-vs-expected variance, and saved Z-report reconciliation.
+* **Sharper operations:** split exact item quantities into a new ticket; share the read-only menu from Android; existing table move/merge retained.
+* **License fixes:** targeted broadcasts reach the correct shop; paused licenses show a dedicated EN/UR gate and recover after resuming.
+* **Build hardening:** Android 15 release health fixes from v1.1.95 retained; public download fallbacks now point to v1.1.96.
+
 ## 1.1.95 — 2026-10-30
 
 ### Stock that thinks in recipes
