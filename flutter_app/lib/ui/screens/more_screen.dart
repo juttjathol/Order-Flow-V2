@@ -296,6 +296,7 @@ class MoreScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
+        if (snap.session.cloudOn && snap.session.cloudRoom.isNotEmpty) _syncChip(ref),
         if (shop.isNotEmpty) _folder(context, Icons.storefront, s.t('shop_section'), shop),
         _folder(context, Icons.print, s.t('hardware_section'),
           key: TourKeys.moreFolder, [
@@ -303,6 +304,7 @@ class MoreScreen extends ConsumerWidget {
           // LAN; phones keep the Bluetooth picker.
           _row(Icons.print, s.t('printers'),
               () => OfPlatform.isDesktop ? showLocalPrinterSheet(context, ref) : _printers(context, ref)),
+          _printOutboxRow(ref),
           _row(Icons.savings, s.t('cash_drawer'), () => _drawer(context, ref)),
         ]),
         _folder(context, Icons.groups, s.t('people_section'), people),
@@ -344,6 +346,65 @@ class MoreScreen extends ConsumerWidget {
       subtitle: subtitle == null ? null : Text(subtitle, style: const TextStyle(color: OfColors.muted, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
+    );
+  }
+
+  Widget _syncChip(WidgetRef ref) {
+    final s = ref.s;
+    final snap = ref.snap;
+    final String label;
+    final Color color;
+    if (!snap.online) {
+      label = s.t('sync_offline');
+      color = OfColors.muted;
+    } else if (snap.cloudDegraded) {
+      label = s.t('sync_degraded');
+      color = Colors.orange.shade800;
+    } else if (snap.pendingSync > 0) {
+      label = s.t('sync_pending').replaceAll('{n}', '${snap.pendingSync}');
+      color = Colors.orange.shade800;
+    } else {
+      label = s.t('sync_live');
+      color = OfColors.emerald;
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 0, 6, 10),
+      child: Row(children: [
+        const Text('\u2601\ufe0f', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            '${s.t('cloud_status')} · $label',
+            style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12.5),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _printOutboxRow(WidgetRef ref) {
+    final s = ref.s;
+    return FutureBuilder<int>(
+      future: PrintService.pendingPrintJobs(),
+      builder: (ctx, res) {
+        final n = res.data ?? 0;
+        if (n <= 0) return const SizedBox.shrink();
+        return ListTile(
+          leading: const Icon(Icons.print_disabled, color: OfColors.danger),
+          title: Text(s.t('print_outbox_title'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(s.t('print_outbox_sub').replaceAll('{n}', '$n'),
+              style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+          trailing: const Icon(Icons.refresh, color: OfColors.emerald),
+          onTap: () async {
+            final left = await ref.read(appControllerProvider).printer.flushPrintOutbox();
+            if (!ctx.mounted) return;
+            final msg = left == 0
+                ? s.t('retry_ok')
+                : s.t('retry_left').replaceAll('{n}', '${left < 0 ? n : left}');
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          },
+        );
+      },
     );
   }
 }
