@@ -29,6 +29,9 @@ class AppStore {
     this.ticketSeq = 1000,
     this.seeded = false,
     this.lastDayClose,
+    this.lastCloseExpectedCash = 0,
+    this.lastCloseCountedCash = 0,
+    this.lastCloseVariance = 0,
     this.shiftClosed = false,
     this.shiftNo = 0,
     this.shiftCashier = '',
@@ -89,6 +92,9 @@ class AppStore {
   int ticketSeq;
   bool seeded;
   DateTime? lastDayClose;
+  double lastCloseExpectedCash;
+  double lastCloseCountedCash;
+  double lastCloseVariance;
   /// Shop-level lock (v1.1.74). Distinct from cashier float startShift/endShift.
   /// When true, createOrder is denied until a manager opens the next shift.
   bool shiftClosed;
@@ -182,6 +188,9 @@ class AppStore {
         'ticketSeq': ticketSeq,
         'seeded': seeded,
         'lastDayClose': lastDayClose?.toIso8601String(),
+        'lastCloseExpectedCash': lastCloseExpectedCash,
+        'lastCloseCountedCash': lastCloseCountedCash,
+        'lastCloseVariance': lastCloseVariance,
         'shiftClosed': shiftClosed,
         'shiftNo': shiftNo,
         'shiftCashier': shiftCashier,
@@ -243,6 +252,9 @@ class AppStore {
       ticketSeq: parseInt(m['ticketSeq'], 1000),
       seeded: parseBool(m['seeded']),
       lastDayClose: m['lastDayClose'] == null ? null : parseTime(m['lastDayClose']),
+      lastCloseExpectedCash: parseNum(m['lastCloseExpectedCash']),
+      lastCloseCountedCash: parseNum(m['lastCloseCountedCash']),
+      lastCloseVariance: parseNum(m['lastCloseVariance']),
       shiftClosed: parseBool(m['shiftClosed']),
       shiftNo: parseInt(m['shiftNo']),
       shiftCashier: parseStr(m['shiftCashier']) ?? '',

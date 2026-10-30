@@ -27,6 +27,54 @@ import 'menu_engineering_screen.dart';
 import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
 
+Future<String?> _askBackupPassphrase(
+  BuildContext context,
+  L10nView s, {
+  required bool confirm,
+}) async {
+  final first = TextEditingController();
+  final second = TextEditingController();
+  String? error;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSt) => AlertDialog(
+        title: Text(s.t('backup_password_title')),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(s.t('backup_encrypted_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+          const SizedBox(height: 12),
+          TextField(controller: first, obscureText: true, autofocus: true, decoration: InputDecoration(labelText: s.t('backup_password'))),
+          if (confirm) ...[
+            const SizedBox(height: 8),
+            TextField(controller: second, obscureText: true, decoration: InputDecoration(labelText: s.t('backup_password_confirm'))),
+          ],
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Align(alignment: Alignment.centerLeft, child: Text(error!, style: const TextStyle(color: OfColors.danger, fontSize: 12))),
+          ],
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.t('cancel'))),
+          FilledButton(onPressed: () {
+            if (first.text.trim().length < 8) {
+              setSt(() => error = s.t('backup_password_short'));
+              return;
+            }
+            if (confirm && first.text != second.text) {
+              setSt(() => error = s.t('backup_password_mismatch'));
+              return;
+            }
+            Navigator.pop(ctx, first.text);
+          }, child: Text(s.t('continue'))),
+        ],
+      ),
+    ),
+  );
+  first.dispose();
+  second.dispose();
+  return result;
+}
+
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
@@ -171,11 +219,13 @@ class MoreScreen extends ConsumerWidget {
           () => TourOverlay.show(context, ref),
           subtitle: s.t('guided_tour_sub')),
       _row(Icons.ios_share, s.t('export_backup'), () async {
-        await ref.ctrl.backup.exportAndShare(snap.store);
+        final passphrase = await _askBackupPassphrase(context, s, confirm: true);
+        if (passphrase == null) return;
+        await ref.ctrl.backup.exportAndShare(snap.store, passphrase: passphrase);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('backup_ok'))));
         }
-      }),
+      }, subtitle: s.t('backup_encrypted_hint')),
       _row(Icons.table_view, s.t('export_orders_csv'), () async {
         await ref.ctrl.backup.exportOrdersCsv(snap.store);
         if (context.mounted) {
@@ -202,8 +252,10 @@ class MoreScreen extends ConsumerWidget {
             ),
           );
           if (ok != true) return;
+          final passphrase = await _askBackupPassphrase(context, s, confirm: false);
+          if (passphrase == null) return;
           try {
-            final store = await ref.ctrl.backup.pickImport();
+            final store = await ref.ctrl.backup.pickImport(passphrase: passphrase);
             if (store != null) {
               await ref.ctrl.importStore(store);
               if (context.mounted) {

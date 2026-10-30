@@ -3,6 +3,7 @@
 // it only dispatches new store commands and never touches existing flows.
 // Each entry point in More is wrapped by planAwareRow (plan_lock.dart).
 
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -119,6 +120,43 @@ Future<void> showQrOrdering(BuildContext context, WidgetRef ref) async {
             Text(snap.l10n.t('qr_tables_note'),
                 style: const TextStyle(color: OfColors.muted, fontSize: 12)),
           ],
+        ],
+        if (snap.session.cloudOn && snap.session.cloudRoom.isNotEmpty && snap.session.cloudCode.isNotEmpty && snap.session.cloudSecret.isNotEmpty) ...[
+          const Divider(height: 24),
+          Text(snap.l10n.t('menu_link'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text(snap.l10n.t('menu_link_sub'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+          const SizedBox(height: 8),
+          Builder(builder: (ctx) {
+            final data = jsonEncode({
+              'r': snap.session.cloudRoom,
+              'c': snap.session.cloudCode,
+              'k': snap.session.cloudSecret,
+              'v': 'menu',
+              'shop': store.profile.businessName,
+            });
+            final hash = base64Url.encode(utf8.encode(data)).replaceAll('=', '');
+            final menuUrl = '$kCloudRelayBase/order.html#$hash';
+            return Row(children: [
+              Expanded(child: OutlinedButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: menuUrl));
+                  if (ctx.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(snap.l10n.t('menu_link_copied'))));
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: Text(snap.l10n.t('copy_link')),
+              )),
+              const SizedBox(width: 8),
+              Expanded(child: FilledButton.icon(
+                onPressed: () => Share.share(menuUrl),
+                icon: const Icon(Icons.ios_share, size: 18),
+                label: Text(snap.l10n.t('share_link')),
+              )),
+            ]);
+          }),
+        ] else if (snap.isMain) ...[
+          const Divider(height: 24),
+          Text(snap.l10n.t('menu_link_cloud_required'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
         ],
         const SizedBox(height: 16),
         Text(snap.l10n.t('qr_fire_title'),

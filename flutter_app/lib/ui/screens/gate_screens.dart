@@ -397,7 +397,13 @@ class LockedScreen extends ConsumerWidget {
               const SizedBox(height: 18),
               Text(s.t('locked_title'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
-              Text(s.t('locked_body'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, height: 1.4)),
+              Text(
+                ref.snap.session.license.lockReason == 'paused'
+                    ? s.t('license_paused_body')
+                    : s.t('locked_body'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, height: 1.4),
+              ),
               const SizedBox(height: 24),
               FilledButton.icon(
                 style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),

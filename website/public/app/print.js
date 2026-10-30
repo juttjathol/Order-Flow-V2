@@ -218,7 +218,11 @@ async function printViaShare(order, opts) {
       return true;
     }
   } catch (e) { if (e && e.name === 'AbortError') return true; }
-  if (!printViaTab(order, opts)) printViaApple(order, opts);
+  // Keep the cashier inside the app when the native share sheet is
+  // unavailable: same-document print preview preserves the SPA/session and
+  // returns to the screen on cancel/afterprint. Never force a standalone PWA
+  // into a popup tab that the webview may not be able to close.
+  printViaApple(order, opts);
   return false;
 }
 

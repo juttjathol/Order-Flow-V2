@@ -268,8 +268,8 @@ Future<void> showSalesReports(BuildContext context, WidgetRef ref, {required boo
   final voids = today.where((o) => o.status == OrderStatus.cancelled && o.voidReason != 'refund').toList();
   final refunds = today.where((o) => o.status == OrderStatus.cancelled && o.voidReason == 'refund').toList();
   final total = store.salesOn(now);
-  final cash = paid.where((o) => o.payment == PaymentMethod.cash).fold<double>(0, (a, o) => a + o.total);
-  final card = paid.where((o) => o.payment == PaymentMethod.card).fold<double>(0, (a, o) => a + o.total);
+  final cash = paid.fold<double>(0, (a, o) => a + o.paidBy(PaymentMethod.cash));
+  final card = paid.fold<double>(0, (a, o) => a + o.paidBy(PaymentMethod.card));
   final hours = List.generate(24, (h) {
     final sum = paid.where((o) => o.updatedAt.hour == h).fold<double>(0, (a, o) => a + o.total);
     return MapEntry(h, sum);
@@ -323,6 +323,17 @@ Future<void> showSalesReports(BuildContext context, WidgetRef ref, {required boo
                 ]),
               ]),
             ),
+            if (zReport && store.shiftClosed) ...[
+              const SizedBox(height: 10),
+              OfCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(s.t('cash_reconciliation'), style: const TextStyle(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text('${s.t('cash_expected')}: ${moneyOf(ref.snap, store.lastCloseExpectedCash)}'),
+                Text('${s.t('cash_counted')}: ${moneyOf(ref.snap, store.lastCloseCountedCash)}'),
+                Text('${s.t('cash_variance')}: ${store.lastCloseVariance >= 0 ? '+' : '-'}${moneyOf(ref.snap, store.lastCloseVariance.abs())}',
+                    style: TextStyle(color: store.lastCloseVariance.abs() < 0.01 ? OfColors.emerald : OfColors.danger, fontWeight: FontWeight.w800)),
+              ])),
+            ],
             const SizedBox(height: 12),
             Text(s.t('payment_breakdown'), style: const TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
@@ -515,37 +526,76 @@ Future<void> closeShopShift(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
   final store = ref.snap.store;
   final today = store.salesOn(DateTime.now());
-  final paid = store.orders.where((o) => o.status == OrderStatus.paid).where((o) {
-    final d = DateTime.now();
-    return o.updatedAt.year == d.year && o.updatedAt.month == d.month && o.updatedAt.day == d.day;
-  });
-  final cash = paid.where((o) => o.payment == PaymentMethod.cash).fold<double>(0, (a, o) => a + o.total);
-  final card = paid.where((o) => o.payment == PaymentMethod.card).fold<double>(0, (a, o) => a + o.total);
+  final now = DateTime.now();
+  final paid = store.orders.where((o) => o.status == OrderStatus.paid &&
+      o.updatedAt.year == now.year && o.updatedAt.month == now.month && o.updatedAt.day == now.day);
+  final cash = paid.fold<double>(0, (a, o) => a + o.paidBy(PaymentMethod.cash));
+  final card = paid.fold<double>(0, (a, o) => a + o.paidBy(PaymentMethod.card));
+  final expectedCash = store.shiftFloat + cash;
   final open = store.openOrders.length;
   final last = store.lastDayClose;
-  final ok = await showDialog<bool>(
+  final counted = TextEditingController();
+  final actual = await showDialog<double>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(s.t('day_close')),
-      content: Text(
-        '${s.t('day_close_open')}\n\n'
-        '${s.t('today_sales')}: ${moneyOf(ref.snap, today)}\n'
-        '${s.t('cash')}: ${moneyOf(ref.snap, cash)}\n'
-        '${s.t('card')}: ${moneyOf(ref.snap, card)}\n'
-        '${s.t('open_orders')}: $open'
-        '${last == null ? '' : '\n${s.t('last_close')}: $last'}',
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('cancel'))),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(s.t('day_close'))),
-      ],
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSt) {
+        final value = double.tryParse(counted.text.trim());
+        final variance = value == null ? null : value - expectedCash;
+        return AlertDialog(
+          title: Text(s.t('day_close')),
+          content: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(s.t('day_close_open')),
+              const SizedBox(height: 12),
+              Text('${s.t('today_sales')}: ${moneyOf(ref.snap, today)}'),
+              Text('${s.t('cash')}: ${moneyOf(ref.snap, cash)}'),
+              Text('${s.t('card')}: ${moneyOf(ref.snap, card)}'),
+              Text('${s.t('cash_expected')}: ${moneyOf(ref.snap, expectedCash)}'),
+              Text('${s.t('open_orders')}: $open'),
+              if (last != null) Text('${s.t('last_close')}: $last'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: counted,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                onChanged: (_) => setSt(() {}),
+                decoration: InputDecoration(labelText: s.t('cash_counted'), hintText: '0.00'),
+              ),
+              if (variance != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${s.t('cash_variance')}: ${variance >= 0 ? '+' : '-'}${moneyOf(ref.snap, variance.abs())}',
+                  style: TextStyle(color: variance.abs() < 0.01 ? OfColors.emerald : OfColors.danger, fontWeight: FontWeight.w800),
+                ),
+              ],
+            ],
+          )),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.t('cancel'))),
+            FilledButton(
+              onPressed: value == null || !value.isFinite ? null : () => Navigator.pop(ctx, value),
+              child: Text(s.t('day_close')),
+            ),
+          ],
+        );
+      },
     ),
   );
-  if (ok == true) {
-    await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {}));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
-    }
+  counted.dispose();
+  if (actual == null) return;
+  final variance = actual - expectedCash;
+  await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {
+    'expectedCash': expectedCash,
+    'countedCash': actual,
+    'variance': variance,
+  }));
+  if (context.mounted) {
+    final msg = variance.abs() < 0.01
+        ? s.t('day_close_ok')
+        : '${s.t('day_close_ok')} · ${s.t('cash_variance')}: ${variance >= 0 ? '+' : '-'}${moneyOf(ref.snap, variance.abs())}';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
 
@@ -553,7 +603,7 @@ Future<void> closeShopShift(BuildContext context, WidgetRef ref) async {
 /// shop's sales say should be in the drawer today.
 Future<void> _countDrawerSheet(BuildContext context, WidgetRef ref, double expected) async {
   final s = ref.s;
-  const denoms = <int>[5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
+  const denoms = <double>[100, 50, 20, 10, 5, 1, 0.50, 0.20, 0.10, 0.05];
   final counts = {for (final d in denoms) d: 0};
   final ctrls = {for (final d in denoms) d: TextEditingController()};
   await showModalBottomSheet<void>(

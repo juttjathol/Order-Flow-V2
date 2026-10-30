@@ -856,39 +856,73 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Future<void> _split(PosOrder order) async {
     final s = ref.s;
-    final picked = <String>{};
-    final ok = await showModalBottomSheet<bool>(
+    final qtyControllers = <String, TextEditingController>{
+      for (final l in order.lines) l.id: TextEditingController(),
+    };
+    final picked = await showModalBottomSheet<Map<String, double>>(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
           child: SingleChildScrollView(
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(s.t('split_bill'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-              ...order.lines.map((l) => CheckboxListTile(
-                    value: picked.contains(l.id),
-                    title: Text('${l.qty.toStringAsFixed(l.qty % 1 == 0 ? 0 : 1)}  ${l.name}'),
-                    onChanged: (v) => setSt(() {
-                      if (v == true) {
-                        picked.add(l.id);
-                      } else {
-                        picked.remove(l.id);
-                      }
-                    }),
-                  )),
-              FilledButton(onPressed: picked.isEmpty ? null : () => Navigator.pop(ctx, true), child: Text(s.t('split_pay'))),
-            ],
-          ),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(s.t('split_bill'), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                const SizedBox(height: 8),
+                Text(s.t('split_item_qty_hint'), style: const TextStyle(color: OfColors.muted, fontSize: 12)),
+                ...order.lines.map((l) {
+                  final c = qtyControllers[l.id]!;
+                  final selected = double.tryParse(c.text) ?? 0;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      Expanded(child: Text('${l.name} · max ${l.qty.toStringAsFixed(l.qty % 1 == 0 ? 0 : 2)}', style: const TextStyle(fontWeight: FontWeight.w700))),
+                      SizedBox(
+                        width: 84,
+                        child: TextField(
+                          controller: c,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textAlign: TextAlign.center,
+                          decoration: InputDecoration(isDense: true, border: const OutlineInputBorder(), hintText: '0–${l.qty}'),
+                          onChanged: (_) => setSt(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(moneyOf(ref.snap, l.unitPrice * (selected.clamp(0, l.qty))), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ]),
+                  );
+                }),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: qtyControllers.values.any((c) => (double.tryParse(c.text) ?? 0) > 0)
+                      ? () => Navigator.pop(ctx, {
+                            for (final e in qtyControllers.entries)
+                              if ((double.tryParse(e.value.text) ?? 0) > 0)
+                                e.key: double.parse(e.value.text),
+                          })
+                      : null,
+                  child: Text(s.t('split_pay')),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
-    if (ok != true || picked.isEmpty) return;
+    for (final c in qtyControllers.values) { c.dispose(); }
+    if (picked == null || picked.isEmpty) return;
     if (!await ensureCanCreateOrder(context, ref)) return;
     if (!mounted) return;
-    final move = order.lines.where((l) => picked.contains(l.id)).toList();
+    final move = order.lines.where((l) => picked.containsKey(l.id)).toList();
+    for (final l in move) {
+      final q = picked[l.id]!;
+      if (!q.isFinite || q <= 0 || q > l.qty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('split_item_qty_bad'))));
+        return;
+      }
+    }
     final child = PosOrder(
       id: newId(),
       ticketNo: '',
@@ -899,21 +933,33 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       customerPhone: order.customerPhone,
       address: order.address,
       taxRate: order.taxRate,
-      lines: move.map((l) => OrderLine(
-            id: newId(),
-            productId: l.productId,
-            name: l.name,
-            unitPrice: l.unitPrice,
-            qty: l.qty,
-            notes: l.notes,
-            inventoryId: l.inventoryId,
-            deductQty: l.deductQty,
-          )).toList(),
+      lines: move.map((l) {
+        final q = picked[l.id]!;
+        final fraction = q / l.qty;
+        return OrderLine(
+          id: newId(),
+          productId: l.productId,
+          name: l.name,
+          unitPrice: l.unitPrice,
+          qty: q,
+          notes: l.notes,
+          inventoryId: l.inventoryId,
+          deductQty: l.deductQty,
+          course: l.course,
+          fired: l.fired,
+        );
+      }).toList(),
       createdBy: ref.snap.session.displayName,
     );
     await ref.ctrl.dispatch(NetCommand(name: 'createOrder', payload: {'order': child.toJson()}));
     for (final l in move) {
-      await ref.ctrl.dispatch(NetCommand(name: 'removeLine', payload: {'orderId': order.id, 'lineId': l.id}));
+      final q = picked[l.id]!;
+      if (q >= l.qty) {
+        await ref.ctrl.dispatch(NetCommand(name: 'removeLine', payload: {'orderId': order.id, 'lineId': l.id}));
+      } else {
+        final remaining = OrderLine.fromJson(l.toJson())..qty = l.qty - q;
+        await ref.ctrl.dispatch(NetCommand(name: 'updateLine', payload: {'orderId': order.id, 'line': remaining.toJson()}));
+      }
     }
     if (mounted) _pay(child);
   }

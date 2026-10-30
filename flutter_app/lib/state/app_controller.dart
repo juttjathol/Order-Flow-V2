@@ -584,7 +584,7 @@ class AppController extends Notifier<AppSnapshot> {
   Future<void> revalidate() async {
     final session = state.session;
     if (session.role != AppRole.main || session.license.key.isEmpty) return;
-    if (session.license.locked) {
+    if (session.license.locked && session.license.lockReason != 'paused') {
       _emit(state.copyWith(gate: LicenseGate.locked));
       return;
     }
@@ -618,7 +618,11 @@ class AppController extends Notifier<AppSnapshot> {
       ));
       return;
     }
+    final wasLocked = state.gate == LicenseGate.locked;
     _emit(state.copyWith(session: session, gate: _computeGate(session)));
+    if (wasLocked && _server == null) {
+      await startServer();
+    }
     // v1.1.82: await so a manual Refresh cannot race back to the sheet with
     // stale entitlements — the synced plan must be live before we report.
     await _syncEntitlements();
@@ -629,7 +633,10 @@ class AppController extends Notifier<AppSnapshot> {
     final session = state.session;
     if (session.role != AppRole.main) return;
     try {
-      final list = await _license.fetchBroadcasts(apiBase: session.apiBase);
+      final list = await _license.fetchBroadcasts(
+        apiBase: session.apiBase,
+        licenseKey: session.license.key,
+      );
       if (list.isEmpty) return;
       final prefs = await SharedPreferences.getInstance();
       final lastSeen = prefs.getString('last_broadcast_id') ?? '';

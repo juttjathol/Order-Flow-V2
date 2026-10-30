@@ -230,6 +230,9 @@ class StoreReducer {
         break;
       case 'closeDay':
         store.lastDayClose = DateTime.now();
+        store.lastCloseExpectedCash = parseNum(p['expectedCash']);
+        store.lastCloseCountedCash = parseNum(p['countedCash']);
+        store.lastCloseVariance = parseNum(p['variance']);
         store.shiftClosed = true;
         bump();
         break;

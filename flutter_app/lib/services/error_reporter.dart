@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
 
+import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +17,7 @@ import '../core/constants.dart';
 ///   ErrorReporter.capture(e, stack, tags: {'where': 'license.validate'});
 /// ```
 class ErrorReporter {
+  static final WidgetsBindingObserver _lifecycle = _ReporterLifecycle();
   static bool _initialized = false;
   static final List<_BufferedEvent> _buffer = [];
   static const int _maxBuffer = 50;
@@ -27,6 +29,7 @@ class ErrorReporter {
 
   static Future<void> init() async {
     _initialized = true;
+    WidgetsBinding.instance.addObserver(_lifecycle);
     _sentryDsn = kSentryDsn;
     // Phase-3: if SENTRY_DSN is provided at build, init Sentry
     if (_sentryDsn.isNotEmpty) {
@@ -136,6 +139,9 @@ class ErrorReporter {
   /// Events parked waiting for network (surfaced via [health]).
   static int get outboxPending => _outboxCount;
 
+  /// Called by the lifecycle observer and available to app/test harnesses.
+  static Future<void> flushPending() => _flushOutbox();
+
   static Future<void> _restoreOutbox() async {
     try {
       final p = await SharedPreferences.getInstance();
@@ -217,4 +223,14 @@ class _BufferedEvent {
         'tags': tags,
         'at': at,
       };
+}
+
+
+class _ReporterLifecycle with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ErrorReporter.flushPending());
+    }
+  }
 }
