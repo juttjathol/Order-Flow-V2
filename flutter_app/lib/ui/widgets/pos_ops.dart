@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
@@ -333,7 +334,16 @@ Future<void> showSalesReports(BuildContext context, WidgetRef ref, {required boo
                   side: const BorderSide(color: OfColors.creamBorder),
                 ),
             ]),
-            const SizedBox(height: 16),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _countDrawerSheet(ctx, ref, cash),
+                icon: const Icon(Icons.calculate_outlined, size: 18),
+                label: Text(s.t('count_drawer')),
+              ),
+            ),
+            const SizedBox(height: 10),
             Text(s.t('hourly_sales'), style: const TextStyle(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             if (hours.isEmpty)
@@ -536,5 +546,76 @@ Future<void> closeShopShift(BuildContext context, WidgetRef ref) async {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('day_close_ok'))));
     }
+  }
+}
+
+/// F2 — cash-drawer counter: count notes/coins and compare with the cash the
+/// shop's sales say should be in the drawer today.
+Future<void> _countDrawerSheet(BuildContext context, WidgetRef ref, double expected) async {
+  final s = ref.s;
+  const denoms = <int>[5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
+  final counts = {for (final d in denoms) d: 0};
+  final ctrls = {for (final d in denoms) d: TextEditingController()};
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSt) {
+        var total = 0.0;
+        counts.forEach((d, qty) => total += d * qty);
+        final diff = total - expected;
+        final ok = diff.abs() < 0.01;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(s.t('count_drawer'), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+              const SizedBox(height: 12),
+              ...denoms.map((d) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(children: [
+                      SizedBox(width: 82, child: Text(moneyOf(ref.snap, d), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13))),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: TextField(
+                          controller: ctrls[d],
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: const InputDecoration(isDense: true, border: OutlineInputBorder(), hintText: '0'),
+                          onChanged: (v) => setSt(() => counts[d] = int.tryParse(v) ?? 0),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      SizedBox(width: 110, child: Text(moneyOf(ref.snap, counts[d]! * d), textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
+                    ]),
+                  )),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  Expanded(child: Text(s.t('counted'), style: const TextStyle(fontWeight: FontWeight.w800))),
+                  Text(moneyOf(ref.snap, total), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                ]),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  Expanded(child: Text(s.t('expected'), style: const TextStyle(color: OfColors.muted))),
+                  Text(moneyOf(ref.snap, expected), style: const TextStyle(color: OfColors.muted, fontWeight: FontWeight.w700)),
+                ]),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                ok ? s.t('diff_ok') : s.t('diff_off').replaceAll('{amt}', '${diff >= 0 ? '+' : '-'}${moneyOf(ref.snap, diff.abs())}'),
+                style: TextStyle(color: ok ? OfColors.emerald : OfColors.danger, fontWeight: FontWeight.w900, fontSize: 13),
+              ),
+            ]),
+          ),
+        );
+      },
+    ),
+  );
+  for (final c in ctrls.values) {
+    c.dispose();
   }
 }

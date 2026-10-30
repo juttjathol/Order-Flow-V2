@@ -176,6 +176,18 @@ class MoreScreen extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('backup_ok'))));
         }
       }),
+      _row(Icons.table_view, s.t('export_orders_csv'), () async {
+        await ref.ctrl.backup.exportOrdersCsv(snap.store);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('export_ready'))));
+        }
+      }, subtitle: s.t('export_orders_csv_sub')),
+      _row(Icons.picture_as_pdf, s.t('export_sales_pdf'), () async {
+        await ref.ctrl.backup.exportSalesPdf(snap.store);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('export_ready'))));
+        }
+      }, subtitle: s.t('export_sales_pdf_sub')),
       if (snap.isMain)
         _row(Icons.unarchive, s.t('import_backup'), () async {
           final ok = await showDialog<bool>(
