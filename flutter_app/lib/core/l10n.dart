@@ -489,6 +489,7 @@ class L10n {
     'receive_payment': 'Receive payment',
     'payment_received': 'Payment received — khata updated',
     'amount': 'Amount',
+    'customer_not_found': 'No customer matches this QR — add them in the customers book first.',
     'move_table': 'Move table',
     'merge_table': 'Merge tickets',
     'fire_course': 'Fire course',
@@ -1615,6 +1616,7 @@ class L10n {
     'receive_payment': 'ادائیگی وصول کریں',
     'payment_received': 'ادائیگی موصول — کھاتہ اپڈیٹ ہوگیا',
     'amount': 'رقم',
+    'customer_not_found': 'اس QR سے کوئی کسٹمر نہیں ملا — پہلے کسٹمر بک میں شامل کریں۔',
     'extend_ok': 'توسیع ہو گئی',
     'lock_now': 'اگر کلاؤڈ لائسنس کی موجود نہ ہو تو یہ اقدام دکان لاک کر دیتا ہے۔',
 };

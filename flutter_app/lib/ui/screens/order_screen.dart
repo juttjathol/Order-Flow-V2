@@ -666,6 +666,20 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       hint: s.t('scan_sku_hint'),
       onCommit: (code, qty) async {
         final live = ref.snap.store.orderById(order.id) ?? order;
+        if (code.startsWith('ofl:loy:')) {
+          // Loyalty slip QR from a previous receipt → attach the customer.
+          final cid = code.substring(8).trim();
+          ShopCustomer? hit;
+          for (final c in ref.snap.store.customers) {
+            if (c.id == cid) { hit = c; break; }
+          }
+          if (hit == null) return s.t('customer_not_found');
+          final updated = live
+            ..customerName = hit.name
+            ..customerPhone = hit.phone;
+          await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': updated.toJson()}));
+          return null;
+        }
         final product = productBySku(ref.snap.store, code);
         if (product == null) return '${s.t('sku_not_found')}: $code';
         if (!product.available) return s.t('unavailable');

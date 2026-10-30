@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
 import 'package:image/image.dart' as img;
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/money.dart';
 import '../core/sanitize.dart';
@@ -343,6 +344,33 @@ class PrintService {
     if (slip.showQr) {
       _raster(b, p.payQrBase64, dots);
       if (p.payQrLabel.trim().isNotEmpty) await line(p.payQrLabel.trim(), align: 'center');
+    }
+    // v1.1.95 — loyalty slip QR: printed when the ticket is linked to a
+    // registered customer (loyalty add-on). Staff scan it on the next visit
+    // (order screen scanner) to attach the customer instantly.
+    if (!kitchen && store.entitlements.allowsFeature('loyalty')) {
+      ShopCustomer? loy;
+      for (final c in store.customers) {
+        if (c.phone.trim().isNotEmpty &&
+            c.phone.trim() == order.customerPhone.trim()) {
+          loy = c;
+          break;
+        }
+      }
+      if (loy != null) {
+        try {
+          final png = await QrPainter.withQr(
+            qr: QrCode(3, QrErrorCorrectLevel.L)..addData('ofl:loy:${loy.id}'),
+            gapless: true,
+          ).toImageData(576, format: ui.ImageByteFormat.png);
+          if (png != null) {
+            b.text('');
+            await line('LOYALTY — ${loy.name.trim()}', align: 'center');
+            _raster(b, base64Encode(png.buffer.asUint8List()), dots);
+            await line('Next visit: scan for points & khata', align: 'center');
+          }
+        } catch (_) {}
+      }
     }
     b
       ..feed(4)
