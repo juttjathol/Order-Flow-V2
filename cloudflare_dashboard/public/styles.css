@@ -364,3 +364,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .ltbar { grid-template-columns: 1fr 1fr; }
   .ltbar input[type="search"] { grid-column: 1 / -1; }
 }
+
+/* ---------- diagnostics view ---------- */
+.diag-row { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.diag-row:last-child { border-bottom: 0; }
+.diag-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.diag-detail { margin: 6px 0 4px; white-space: pre-wrap; word-break: break-word; }
+.diag-meta { font-size: 11px; }

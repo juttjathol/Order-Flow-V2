@@ -87,11 +87,14 @@
     { key: 'third_party', label: 'Third-party channels — Foodpanda, Grab & more (manual)' },
   ];
   const FEATURE_KEYS = FEATURE_CATALOG.map(f => f.key);
-  const NOT_STARTER = ['qr_ordering', 'cloud_sync', 'qr_branding', 'third_party'];
+  // v1.1.95 plan restructure: Professional (starter key) = everything except
+  // the +PKR 500 add-on bundle {qr_ordering, cloud_sync} — QR & cloud ride together.
+  const NOT_STARTER = ['qr_ordering', 'cloud_sync'];
   const PLAN_PRESETS = {
     starter: FEATURE_KEYS.filter(k => !NOT_STARTER.includes(k)),
     growth: FEATURE_KEYS.filter(k => !NOT_STARTER.includes(k)),
     custom: FEATURE_KEYS.slice(),
+    customize: FEATURE_KEYS.slice(),
     full: FEATURE_KEYS.slice(),
   };
   function entitlementsFromLicense(payload) {

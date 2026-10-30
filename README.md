@@ -16,7 +16,7 @@ Offline-first multi-device POS for restaurants, retail, fast food, and services,
 - **APK + Windows ZIP** — create a GitHub Release tag `v1.1.92` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.94+94**. The web app deploys continuously from `main` (current shell cache `of-shell-v46`).
+Version **1.1.94+94**. The web app deploys continuously from `main` (current shell cache `of-shell-v47`).
 
 You only need two things after this repo is on GitHub:
 
@@ -65,8 +65,8 @@ First success **binds** the device. A second device is rejected until you click 
 
 Every key carries a **plan** — Professional / Customize (legacy keys: Starter / Growth / Full) — plus the **business models** it may run and a **16-extra feature checklist** (QR ordering, station printers, loyalty, refunds, purchases, cloud sync, branded QR page, third-party channels …) editable from the dashboard's **Access…** dialog:
 
-- **Professional — PKR 2,000/month** — 15 pro features: everything except cloud sync (QR ordering, branded QR page & third-party channels included).
-- **Cloud networking add-on — +PKR 500/month** — `cloud_sync`, requested in-app or by email.
+- **Professional — PKR 2,000/month** — 14 pro features: everything except the add-on bundle (branded QR page & third-party channels included).
+- **Cloud + QR add-on — +PKR 500/month** — `cloud_sync` + `qr_ordering`, requested in-app or by email.
 - **Customize — Let's talk** — all 16 features (cloud included) + a custom POS built for your business + bespoke support.
 - **Legacy Starter/Growth** — 12 features on existing keys until re-issued.
 - **Full** — everything on, always (the contract; `[]` can never lock a full key out).
@@ -214,7 +214,7 @@ flowchart TD
 |---|-----|-------|--------------|
 | 1 | `multi_terminal` | Growth+ | Main is the server on `:8787`; stations join free via IP/QR on same Wi-Fi or via cloud relay on mobile data. Role-based (`manager / orderTaker / kitchen / cashier / driver / stockClerk / frontDesk / specialist`), offline queue, live sync. |
 | 2 | `station_printers` | Growth+ | Every station can pick its own printer (ESC/POS `9100` / Bluetooth / Windows spooler), independent of Main. Tested per-station top-bar icon. |
-| 3 | `qr_ordering` | Growth+ | Guests on shop Wi-Fi open `http://<main-ip>:8787/order` → pick table, build cart, submit. Orders arrive as `channel: qr` tickets, kitchen auto-fires, price is computed on Main (guest cannot set price). Per-table `24/h` + shop `900/h` flood caps. |
+| 3 | `qr_ordering` | **Add-on (+PKR 500/mo)** | Guests on shop Wi-Fi open `http://<main-ip>:8787/order` → pick table, build cart, submit. Orders arrive as `channel: qr` tickets, kitchen auto-fires, price is computed on Main (guest cannot set price). Per-table `24/h` + shop `900/h` flood caps. |
 | 4 | `loyalty` | Growth+ | Customers in `customer_display_screen.dart` earn points on paid orders automatically; points show on shared receipts. |
 | 5 | `split_payment` | Growth+ | One sale → two tenders (cash / card / wallet / other + `complimentary`). Each leg printed separately. |
 | 6 | `refunds` | Growth+ | Paid orders can be refunded → stock returns, ledger entry, receipt reprint. |
@@ -228,7 +228,7 @@ flowchart TD
 | 14 | `cloud_sync` | **Add-on (+PKR 500/mo)** | Encrypted relay at `order-flow-v2.pages.dev/api/cloud` — Main `open` room (256-bit id, 6-char code), stations `join` via mobile data, `send`/`pull` AES-GCM, `200` row cap, `1.2s` hot / `30s` idle, member-only write. Shop data never backed up. |
 | 15 | `qr_branding` | **Professional & Customize** | Brand the guest page (`qr_brand` editor): shop name, tagline, address, phone, WhatsApp, hours, welcome, accent — `QrBrand` in `order.html`. |
 | 16 | `third_party` | **Professional & Customize** | Manual third-party channel log — Foodpanda, GrabFood, ShopeeFood & other. Record the total from the tablet; reports split by channel. |
-| — | *Professional* | PKR 2,000/mo | 15 features — everything except the cloud add-on; QR, branded QR & third-party included. |
+| — | *Professional* | PKR 2,000/mo | 14 features — everything except the Cloud+QR add-on; branded QR & third-party included. |
 | — | *Customize* | Let's talk | All 16 extras + custom POS build — hand-picked per key from dashboard **Access…** dialog. |
 | — | *Full* | — | Everything on, always (`[]` can never lock it — `healFeatures` + `allOn` contract). |
 
