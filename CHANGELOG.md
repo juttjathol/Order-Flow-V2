@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.97 — 2026-10-31
+
+* **More tab cleanup:** removed duplicate printer/cloud destinations and overlapping print-test controls; concurrent rerenders no longer duplicate rows.
+* **Safer operations:** guarded repeated saves, validated stock quantities and costs, merged duplicate recipe ingredients, and blocked wastage beyond stock on hand.
+* **Safer backups:** validated imports before changing data and restored IndexedDB stores atomically; revoked exported object URLs.
+* **Build fixes:** corrected backup localization typing, print-outbox access, and BuildContext usage; APK and Windows CI passed on the fixed branch.
+* **Web shell:** advanced cache/build marker to v52 and moved the version marker to metadata for CSP-safe updates.
+
 Notable, user-visible changes. The authoritative per-release notes live in
 [GitHub Releases](https://github.com/juttjathol/Order-Flow-V2/releases) (every release
 carries `app-release.apk` + `order-flow-windows.zip`), and the full engineering session

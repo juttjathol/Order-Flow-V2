@@ -13,15 +13,15 @@ Offline-first multi-device POS for restaurants, retail, fast food, and services,
 - **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.93+)
 - **iPhone / web app** (`website/public/app/`) — the same POS rebuilt as an installable PWA at **jathol.org/app**; guest QR menu at `/order.html`; iOS printing via share-sheet PDF (standalone), AirPrint sheet (Safari tab), or Bluetooth ESC/POS
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke, plans & per-key feature access, push broadcasts
-- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.92` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
+- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.97` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.96+96**. The web app deploys continuously from `main` (current shell cache `of-shell-v50`).
+Version **1.1.97+97**. The web app deploys continuously from `main` (current shell cache `of-shell-v52`).
 
 You only need two things after this repo is on GitHub:
 
 1. Connect the repo to **Cloudflare Pages** (dashboard clicks, no terminal)
-2. Create a **GitHub Release** with tag `v1.0.0` (the Action builds the APK + Windows ZIP)
+2. Create a **GitHub Release** with tag `v1.1.97` (the Action builds the APK + Windows ZIP)
 
 ---
 
@@ -82,7 +82,7 @@ GitHub Actions (`.github/workflows/build-release.yml`) installs Java 17 + Flutte
 After that, every release is tag-only (no terminal):
 
 1. Open the repo → **Releases** → **Draft a new release**
-2. **Choose a tag** → type `v1.0.0` → **Create new tag** on `main`
+2. **Choose a tag** → type `v1.1.97` → **Create new tag** on the release commit
 3. Title: `Order Flow 1.0.0`
 4. **Publish release**
 

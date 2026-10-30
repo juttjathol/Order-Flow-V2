@@ -241,6 +241,6 @@ jobs:
             dist/app-release.apk
             dist/app-release.aab
             dist/order-flow-windows.zip
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
