@@ -318,26 +318,26 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                                               child: const Text('🔥', style: TextStyle(fontSize: 10)),
                                             ),
                                           ),
-                                        if (StockEngine.badgeCount(p, snap.store) != null)
+                                        if (StockEngine.badgeCount(p, ref.snap.store) != null)
                                           Align(
                                             alignment: Alignment.bottomRight,
                                             child: Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                               decoration: BoxDecoration(
-                                                color: (StockEngine.badgeCount(p, snap.store) ?? 0) == 0
+                                                color: (StockEngine.badgeCount(p, ref.snap.store) ?? 0) == 0
                                                     ? OfColors.danger.withValues(alpha: 0.14)
                                                     : Colors.orange.withValues(alpha: 0.16),
                                                 borderRadius: BorderRadius.circular(999),
-                                                border: Border.all(color: ((StockEngine.badgeCount(p, snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange).withValues(alpha: 0.45)),
+                                                border: Border.all(color: ((StockEngine.badgeCount(p, ref.snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange).withValues(alpha: 0.45)),
                                               ),
                                               child: Text(
-                                                (StockEngine.badgeCount(p, snap.store) ?? 0) == 0
+                                                (StockEngine.badgeCount(p, ref.snap.store) ?? 0) == 0
                                                     ? (s.isUrdu ? 'ختم' : 'none left')
-                                                    : (s.isUrdu ? '${StockEngine.badgeCount(p, snap.store)} باقی' : '${StockEngine.badgeCount(p, snap.store)} left'),
+                                                    : (s.isUrdu ? '${StockEngine.badgeCount(p, ref.snap.store)} باقی' : '${StockEngine.badgeCount(p, ref.snap.store)} left'),
                                                 style: TextStyle(
                                                   fontSize: 10.5,
                                                   fontWeight: FontWeight.w900,
-                                                  color: (StockEngine.badgeCount(p, snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange.shade800,
+                                                  color: (StockEngine.badgeCount(p, ref.snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange.shade800,
                                                 ),
                                               ),
                                             ),
