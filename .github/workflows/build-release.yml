@@ -2,6 +2,8 @@ name: Build Release APK + Windows
 
 on:
   push:
+    branches:
+      - "arena/**"
     tags:
       - "v*"
   workflow_dispatch:
