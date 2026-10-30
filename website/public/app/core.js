@@ -85,11 +85,12 @@
     { key: 'cloud_sync', label: 'Cloud station networking' },
     { key: 'qr_branding', label: 'Your own branded guest QR ordering page' },
     { key: 'third_party', label: 'Third-party channels — Foodpanda, Grab & more (manual)' },
+    { key: 'stock_engine', label: 'Stock & recipes engine — availability counts + buy list (add-on)' },
   ];
   const FEATURE_KEYS = FEATURE_CATALOG.map(f => f.key);
   // v1.1.95 plan restructure: Professional (starter key) = everything except
   // the +PKR 500 add-on bundle {qr_ordering, cloud_sync} — QR & cloud ride together.
-  const NOT_STARTER = ['qr_ordering', 'cloud_sync'];
+  const NOT_STARTER = ['qr_ordering', 'cloud_sync', 'stock_engine'];
   const PLAN_PRESETS = {
     starter: FEATURE_KEYS.filter(k => !NOT_STARTER.includes(k)),
     growth: FEATURE_KEYS.filter(k => !NOT_STARTER.includes(k)),

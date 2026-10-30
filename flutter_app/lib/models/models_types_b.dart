@@ -117,6 +117,7 @@ class PosOrder {
     this.voidReason = '',
     this.sentAt,
     this.channel = '',
+    this.deliveryState = '',
     this.staffId,
     this.shiftNo = 0,
   })  : lines = lines ?? <OrderLine>[],
@@ -155,6 +156,8 @@ class PosOrder {
   DateTime? sentAt;
   /// '' = staff-entered ticket, 'qr' = customer self-order web page (v1.1.59).
   String channel;
+  /// Dispatch pipeline for delivery orders: '' (queued) | 'out' | 'delivered'.
+  String deliveryState;
   /// Optional attribution to a StaffMember id for per-staff reports (v1.1.59).
   String? staffId;
   /// Shop shift number stamped at create (v1.1.74). 0 = before shifts existed.
@@ -166,6 +169,7 @@ class PosOrder {
   /// (never the raw enum `DINEIN`, and never TAKEAWAY for a dine-in ticket).
   String get kitchenWhere {
     final name = tableName?.trim();
+    if (channel == 'kiosk') return '>>> KIOSK <<<';
     if (name != null && name.isNotEmpty) {
       return isQr ? '>>> QR TABLE $name <<<' : 'Table $name';
     }
@@ -240,6 +244,7 @@ class PosOrder {
         'splitPayment': splitPayment?.name,
         'splitAmount': splitAmount,
         'loyaltyAwarded': loyaltyAwarded,
+        'deliveryState': deliveryState,
         'notes': notes,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
@@ -284,6 +289,7 @@ class PosOrder {
             : enumParse(PaymentMethod.values, j['splitPayment'], PaymentMethod.cash),
         splitAmount: parseNum(j['splitAmount']),
         loyaltyAwarded: parseBool(j['loyaltyAwarded']),
+        deliveryState: parseStr(j['deliveryState']) ?? '',
         notes: parseStr(j['notes']) ?? '',
         createdAt: parseTime(j['createdAt']),
         updatedAt: parseTime(j['updatedAt']),
@@ -494,6 +500,48 @@ class ShopCustomer {
         notes: parseStr(j['notes']) ?? '',
         points: parseNum(j['points']),
         credit: parseNum(j['credit']),
+      );
+}
+
+class KhataEntry {
+  KhataEntry({
+    required this.id,
+    required this.customerId,
+    required this.kind,
+    required this.amount,
+    this.note = '',
+    this.orderId,
+    DateTime? at,
+  }) : at = at ?? DateTime.now();
+
+  String id;
+  String customerId;
+
+  /// charge = customer owes the shop; pay = payment received against khata.
+  String kind;
+  double amount;
+  String note;
+  String? orderId;
+  DateTime at;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'customerId': customerId,
+        'kind': kind,
+        'amount': amount,
+        'note': note,
+        'orderId': orderId,
+        'at': at.toIso8601String(),
+      };
+
+  factory KhataEntry.fromJson(Map<String, dynamic> j) => KhataEntry(
+        id: parseStr(j['id']) ?? newId(),
+        customerId: parseStr(j['customerId']) ?? '',
+        kind: parseStr(j['kind']) ?? 'charge',
+        amount: parseNum(j['amount']),
+        note: parseStr(j['note']) ?? '',
+        orderId: parseStr(j['orderId']),
+        at: parseTime(j['at']),
       );
 }
 

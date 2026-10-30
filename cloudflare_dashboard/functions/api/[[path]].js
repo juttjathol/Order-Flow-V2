@@ -9,16 +9,16 @@ const CORE_FEATURE_KEYS = new Set([
   "refunds", "customer_display", "reservations", "recipe_costing", "wastage",
   "purchases", "advanced_reports", "eighty_six",
 ]);
-// v1.1.60: extras that belong to the custom plan only. Must match
-// kFeatureCatalog in the app (kFeatureCatalog lists ALL sixteen).
-const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding", "third_party"]);
+// v1.1.95: extras that ride with plan presets. Must match
+// kFeatureCatalog in the app (kFeatureCatalog lists ALL seventeen).
+const FEATURE_KEYS = new Set([...CORE_FEATURE_KEYS, "cloud_sync", "qr_branding", "third_party", "stock_engine"]);
 const MODEL_KEYS = new Set(["restaurant", "retail", "fastfood", "services"]);
 // v1.1.95 plan restructure: key "starter" is sold as "Professional" — every
 // gated feature EXCEPT the +PKR 500/month add-on bundle {cloud_sync, qr_ordering},
 // which shops request in-app or by email.
 const PLAN_PRESETS = {
-  starter: [...FEATURE_KEYS].filter((k) => k !== "cloud_sync" && k !== "qr_ordering"),
-  growth: [...FEATURE_KEYS].filter((k) => k !== "cloud_sync" && k !== "qr_ordering"),
+  starter: [...FEATURE_KEYS].filter((k) => k !== "cloud_sync" && k !== "qr_ordering" && k !== "stock_engine"),
+  growth: [...FEATURE_KEYS].filter((k) => k !== "cloud_sync" && k !== "qr_ordering" && k !== "stock_engine"),
   custom: [...FEATURE_KEYS],
   customize: [...FEATURE_KEYS],
   full: [...FEATURE_KEYS],

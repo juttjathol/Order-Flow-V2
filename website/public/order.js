@@ -12,7 +12,7 @@ const $ = id => document.getElementById(id);
 const ce = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-let CFG = null, KEY = null, CURSOR = 0, STATE = null, CART = new Map(), SESSION_START = Date.now(), CACHE_SEEDED = false;
+let CFG = null, KEY = null, CURSOR = 0, STATE = null, CART = new Map(), SESSION_START = Date.now(), CACHE_SEEDED = false, VIEW_ONLY = false;
 let CAT = 'all', SENT_GIDS = [];
 const BASES = ['', 'https://order-flow-v2.pages.dev'];
 let BASE = location.protocol.startsWith('http') ? '' : BASES[1];
@@ -53,7 +53,7 @@ async function boot() {
   let cfg;
   try { cfg = JSON.parse(new TextDecoder().decode(C.b64uDecode(hash))); } catch { return fail('This QR looks out of date', 'Ask the staff for a fresh code — we renew them when the room reopens.'); }
   if (!cfg.r || !cfg.c || !cfg.k) return fail('This QR looks out of date');
-  CFG = cfg; KEY = await key(cfg.k);
+  CFG = cfg; KEY = await key(cfg.k); VIEW_ONLY = !!(cfg && cfg.v === 'menu');
   CFG.device = 'guest-' + Math.random().toString(36).slice(2, 10);
   // Instant menu on repeat visits: render the last snapshot we received for
   // this room from localStorage, then refresh it live below.
@@ -127,6 +127,14 @@ function applyState(json) {
     if (p.hours) $('g-note').textContent = '🕒 ' + p.hours + ' · pay at the counter';
   } else {
     $('g-sub').textContent = 'Order from your table — kitchen gets it straight away';
+  }
+  if (VIEW_ONLY) {
+    // read-only digital menu: branding stays, cart/ordering disappear
+    document.body.classList.add('view-only');
+    document.title = (($('g-shop') || {}).textContent || 'Order here') + ' — menu';
+    $('g-sub').textContent = 'Browse the menu — order at the counter with staff';
+    const gl = $('g-live'); if (gl) gl.hidden = true;
+    $('g-note').textContent = 'Live menu — prices & sold-out state straight from the POS';
   }
   renderMenu();
   renderLive();
@@ -221,6 +229,6 @@ function toast(msg, err) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3200);
 }
-$('g-send').addEventListener('click', sendOrder);
+if (!VIEW_ONLY) $('g-send').addEventListener('click', sendOrder);
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

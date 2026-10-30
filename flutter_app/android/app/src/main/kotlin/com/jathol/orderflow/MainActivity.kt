@@ -18,6 +18,8 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.ActivityCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import android.graphics.Color
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import io.flutter.embedding.android.FlutterActivity
@@ -29,11 +31,22 @@ class MainActivity : FlutterActivity() {
 
     // Play review advisory (edge-to-edge, SDK 35/36): opt in explicitly with the
     // androidx.core API — FlutterActivity is a plain Activity, so the console's
-    // suggested enableEdgeToEdge() helper does not exist here. The Flutter engine
-    // still manages insets; this only removes the mismatch warning.
+    // suggested enableEdgeToEdge() helper does not exist here. We do the same
+    // steps it does: draw behind system bars, make bars transparent (pre-35;
+    // 35+ enforces it), and set dark status/navigation icons for our light UI.
+    // The Flutter engine still manages insets in Dart-land.
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        if (Build.VERSION.SDK_INT < 35) {
+            @Suppress("DEPRECATION")
+            window.statusBarColor = Color.TRANSPARENT
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = Color.TRANSPARENT
+        }
         super.onCreate(savedInstanceState)
+        val insets = WindowInsetsControllerCompat(window, window.decorView)
+        insets.isAppearanceLightStatusBars = true
+        insets.isAppearanceLightNavigationBars = true
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

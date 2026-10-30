@@ -36,6 +36,7 @@ class AppStore {
     this.shiftFloat = 0,
     this.shiftEndCash = 0,
     List<ShopCustomer>? customers,
+    List<KhataEntry>? khata,
     this.drawerAuto = false,
     Entitlements? entitlements,
     this.qrOrderOn = false,
@@ -63,6 +64,7 @@ class AppStore {
         rolePrinters = rolePrinters ?? <String, String>{},
         shiftStartedAt = shiftStartedAt,
         customers = customers ?? <ShopCustomer>[],
+        khata = khata ?? <KhataEntry>[],
         waste = waste ?? <WastageEntry>[],
         suppliers = suppliers ?? <Supplier>[],
         purchases = purchases ?? <PurchaseOrder>[];
@@ -96,6 +98,13 @@ class AppStore {
   double shiftFloat;
   double shiftEndCash;
   List<ShopCustomer> customers;
+  /// Khata (credit tab) ledger — one row per charge / payment received.
+  List<KhataEntry> khata;
+
+  /// What this customer still owes the shop right now.
+  double khataDue(String customerId) => khata
+      .where((e) => e.customerId == customerId)
+      .fold(0.0, (a, e) => a + (e.kind == 'charge' ? e.amount : -e.amount));
   bool drawerAuto;
   /// Plan limits pushed from the license server (v1.1.59).
   Entitlements entitlements;
@@ -180,6 +189,7 @@ class AppStore {
         'shiftFloat': shiftFloat,
         'shiftEndCash': shiftEndCash,
         'customers': customers.map((e) => e.toJson()).toList(),
+        'khata': khata.map((e) => e.toJson()).toList(),
         'drawerAuto': drawerAuto,
         'entitlements': entitlements.toJson(),
         'qrOrderOn': qrOrderOn,
@@ -240,6 +250,7 @@ class AppStore {
       shiftFloat: parseNum(m['shiftFloat']),
       shiftEndCash: parseNum(m['shiftEndCash']),
       customers: list('customers', ShopCustomer.fromJson),
+      khata: list('khata', KhataEntry.fromJson),
       drawerAuto: parseBool(m['drawerAuto']),
       entitlements: Entitlements.fromJson(
         m['entitlements'] is Map

@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/stock_engine.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../services/print_service.dart';
@@ -315,6 +316,30 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                                                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 5)],
                                               ),
                                               child: const Text('🔥', style: TextStyle(fontSize: 10)),
+                                            ),
+                                          ),
+                                        if (StockEngine.badgeCount(p, snap.store) != null)
+                                          Align(
+                                            alignment: Alignment.bottomRight,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: (StockEngine.badgeCount(p, snap.store) ?? 0) == 0
+                                                    ? OfColors.danger.withValues(alpha: 0.14)
+                                                    : Colors.orange.withValues(alpha: 0.16),
+                                                borderRadius: BorderRadius.circular(999),
+                                                border: Border.all(color: ((StockEngine.badgeCount(p, snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange).withValues(alpha: 0.45)),
+                                              ),
+                                              child: Text(
+                                                (StockEngine.badgeCount(p, snap.store) ?? 0) == 0
+                                                    ? (s.isUrdu ? 'ختم' : 'none left')
+                                                    : (s.isUrdu ? '${StockEngine.badgeCount(p, snap.store)} باقی' : '${StockEngine.badgeCount(p, snap.store)} left'),
+                                                style: TextStyle(
+                                                  fontSize: 10.5,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: (StockEngine.badgeCount(p, snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange.shade800,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         if (!p.available)
@@ -641,6 +666,20 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       hint: s.t('scan_sku_hint'),
       onCommit: (code, qty) async {
         final live = ref.snap.store.orderById(order.id) ?? order;
+        if (code.startsWith('ofl:loy:')) {
+          // Loyalty slip QR from a previous receipt → attach the customer.
+          final cid = code.substring(8).trim();
+          ShopCustomer? hit;
+          for (final c in ref.snap.store.customers) {
+            if (c.id == cid) { hit = c; break; }
+          }
+          if (hit == null) return s.t('customer_not_found');
+          final updated = live
+            ..customerName = hit.name
+            ..customerPhone = hit.phone;
+          await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': updated.toJson()}));
+          return null;
+        }
         final product = productBySku(ref.snap.store, code);
         if (product == null) return '${s.t('sku_not_found')}: $code';
         if (!product.available) return s.t('unavailable');
@@ -951,6 +990,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     PaymentMethod method = PaymentMethod.cash;
     var splitOn = false;
     PaymentMethod splitMethod = PaymentMethod.card;
+    String? khataCustId;
     var splitText = '';
     var tender = '';
     var tip = order.tip;
@@ -969,7 +1009,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               ? primaryDue
               : (splitOn && splitMethod == PaymentMethod.cash ? splitAmt : null);
           final cashOk = cashTarget == null || received + 0.001 >= cashTarget;
-          final canConfirm = splitValid && cashOk;
+          final canConfirm = splitValid && cashOk &&
+              (method != PaymentMethod.credit || khataCustId != null);
           List<Widget> cashPadFor(double target) {
             final received = double.tryParse(tender) ?? 0;
             return [
@@ -1042,10 +1083,41 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                                 : null,
                             label: Text(s.t(m.name)),
                             selected: method == m,
-                            onSelected: (_) => setSt(() => method = m),
+                            onSelected: (_) => setSt(() { method = m; if (m == PaymentMethod.credit) splitOn = false; }),
                           ))
                       .toList(),
                 ),
+                if (method == PaymentMethod.credit) ...[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: khataCustId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: s.t('khata_pick_customer'),
+                      border: const OutlineInputBorder(),
+                    ),
+                    items: ([...ref.snap.store.customers]
+                          ..sort((a, b) => a.name.compareTo(b.name)))
+                        .map((c) => DropdownMenuItem(
+                              value: c.id,
+                              child: Text(
+                                '${c.name}${c.phone.isEmpty ? '' : ' · ${c.phone}'}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setSt(() => khataCustId = v),
+                  ),
+                  if (khataCustId == null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(s.t('khata_required'),
+                          style: const TextStyle(
+                              color: OfColors.danger,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                ],
                 if (ref.snap.canFeature('split_payment'))
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -1064,6 +1136,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                   Wrap(
                     spacing: 8,
                     children: PaymentMethod.values
+                        .where((m) => m != PaymentMethod.credit)
                         .map((m) => ChoiceChip(
                               avatar: m == PaymentMethod.cash
                                   ? _CashWiggle(active: splitMethod == m)

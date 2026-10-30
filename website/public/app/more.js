@@ -557,6 +557,18 @@ async function scrQR() {
     }
     body.appendChild(grid);
     if (!ts.length) body.appendChild(ce('p', 'muted small', 'Add tables on the Tables tab first.'));
+    // read-only digital menu link (share anywhere — no ordering, live prices)
+    const dm = { r: relay.info.room, c: relay.info.code, k: relay.info.secret, v: 'menu', shop: shop().profile.name };
+    const murl = location.origin + '/order.html#' + C.b64uEncode(new TextEncoder().encode(JSON.stringify(dm)));
+    const mcard = ce('div', 'card card--pad');
+    mcard.innerHTML = '<b>🔗 ' + esc(L.t('menu_link')) + '</b>'
+      + '<div class="small muted" style="margin:4px 0 8px">' + esc(L.t('menu_link_sub')) + '</div>'
+      + '<button class="btn btn--sm btn--mint" type="button">' + esc(L.t('copy_link')) + '</button>';
+    mcard.querySelector('button').onclick = async () => {
+      try { await navigator.clipboard.writeText(murl); if (window.toast) toast(L.t('menu_link_copied')); }
+      catch (e) { window.prompt('Copy menu link:', murl); }
+    };
+    body.appendChild(mcard);
   });
 }
 
@@ -839,7 +851,7 @@ async function scrPrivacy() {
 async function scrAbout() {
   OFShowSub('About', '', async (body) => {
     body.innerHTML = '';
-    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v47</div></div>'));
+    body.appendChild(ce('div', 'card card--pad', '<div style="text-align:center;padding:14px"><img src="/media/logo.png" width="56" style="border-radius:14px"/><div style="font-weight:900;font-size:17px;margin-top:10px">Order Flow Web</div><div class="small muted" style="font-weight:600;margin-top:4px">' + (L.t('app_name') || 'Order Flow') + ' — same POS as the Android app · in your browser</div><div class="small muted" style="font-weight:600;margin-top:8px">cache of-shell-v48</div></div>'));
   });
 }
 

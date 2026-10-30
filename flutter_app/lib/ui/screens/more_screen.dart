@@ -21,6 +21,9 @@ import '../widgets/pin_gate.dart';
 import '../widgets/plan_extras.dart';
 import '../widgets/tour_overlay.dart';
 import '../widgets/plan_lock.dart';
+import 'dispatch_screen.dart';
+import 'kiosk_screen.dart';
+import 'menu_engineering_screen.dart';
 import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
 
@@ -37,8 +40,11 @@ class MoreScreen extends ConsumerWidget {
       _row(Icons.account_balance_wallet, s.t('shift'), () => _shiftCash(context, ref)),
       _row(Icons.badge, s.t('staff'), () => _staff(context, ref)),
       if (snap.isMain) _row(Icons.phonelink, s.t('devices'), () => _devices(context, ref)),
-      if (model == BusinessModel.restaurant || model == BusinessModel.fastfood)
+      if (model == BusinessModel.restaurant || model == BusinessModel.fastfood) ...[
         _row(Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
+        _row(Icons.local_shipping_outlined, s.t('dispatch_board'),
+            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DispatchScreen()))),
+      ],
       if (model == BusinessModel.services)
         _row(Icons.spa, s.t('services'), () => _services(context, ref)),
       if (model == BusinessModel.restaurant || model == BusinessModel.services)
@@ -58,6 +64,15 @@ class MoreScreen extends ConsumerWidget {
     final reports = <Widget>[
       _row(Icons.print, s.t('reprint_any'), () => reprintSearch(context, ref)),
       _row(Icons.bar_chart, s.t('reports'), () => _reports(context, ref)),
+      planAwareRow(
+        ref: ref,
+        context: context,
+        feature: 'advanced_reports',
+        icon: Icons.query_stats,
+        title: s.t('menu_engineering'),
+        onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const MenuEngineeringScreen())),
+      ),
       _row(Icons.receipt_long, s.t('x_report'), () => showSalesReports(context, ref, zReport: false), subtitle: s.t('x_report_sub')),
       _row(Icons.summarize, s.t('z_report'), () => showSalesReports(context, ref, zReport: true), subtitle: s.t('z_report_sub')),
       planAwareRow(
@@ -84,7 +99,7 @@ class MoreScreen extends ConsumerWidget {
             : _row(Icons.lock_clock, s.t('day_close'), () => closeShopShift(context, ref)),
     ];
     final extras = <Widget>[
-      if (snap.isMain)
+      if (snap.isMain) ...[
         planAwareRow(
           ref: ref,
           context: context,
@@ -94,6 +109,17 @@ class MoreScreen extends ConsumerWidget {
           subtitle: s.t('qr_ordering_sub'),
           onTap: () => showQrOrdering(context, ref),
         ),
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'qr_ordering',
+          icon: Icons.table_bar,
+          title: s.t('kiosk_mode'),
+          subtitle: s.t('kiosk_mode_sub'),
+          onTap: () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const KioskScreen())),
+        ),
+      ],
       planAwareRow(
         ref: ref,
         context: context,
@@ -1116,21 +1142,53 @@ Future<void> _customers(BuildContext context, WidgetRef ref) async {
                     ? EmptyState(icon: Icons.people_outline, message: s.t('no_customers'))
                     : ListView(
                         children: list
-                            .map((c) => ListTile(
+                            .map((c) {
+                              final due = ref.snap.store.khataDue(c.id);
+                              return ListTile(
                                   title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                  subtitle: Text([
-                                    c.phone,
-                                    c.address,
-                                    if (c.points > 0) '${s.t('loyalty')} ${c.points.toStringAsFixed(0)}',
-                                    if (c.credit > 0) '${s.t('store_credit')} ${moneyOf(ref.snap, c.credit)}',
-                                  ].where((e) => e.isNotEmpty).join(' · ')),
-                                  onTap: () => _editCustomer(ctx, ref, existing: c),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline),
-                                    onPressed: () => ref.ctrl.dispatch(NetCommand(name: 'deleteCustomer', payload: {'id': c.id})),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text([
+                                        c.phone,
+                                        c.address,
+                                        if (c.points > 0) '${s.t('loyalty')} ${c.points.toStringAsFixed(0)}',
+                                        if (c.credit > 0) '${s.t('store_credit')} ${moneyOf(ref.snap, c.credit)}',
+                                      ].where((e) => e.isNotEmpty).join(' · ')),
+                                      if (due != 0)
+                                        Text(
+                                          '${s.t('khata_due')}: ${moneyOf(ref.snap, due)}',
+                                          style: TextStyle(
+                                            color: due > 0 ? OfColors.danger : OfColors.emerald,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                    ],
                                   ),
-                                ))
-                            .toList(),
+                                  onTap: () => _editCustomer(ctx, ref, existing: c),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: s.t('receive_payment'),
+                                        icon: const Icon(Icons.payments_outlined, color: OfColors.emerald),
+                                        onPressed: () => _khataReceive(ctx, ref, c),
+                                      ),
+                                      if (due > 0 && c.phone.isNotEmpty)
+                                        IconButton(
+                                          tooltip: 'WhatsApp',
+                                          icon: const Icon(Icons.ios_share, color: OfColors.info),
+                                          onPressed: () => _khataShare(ctx, ref, c, due),
+                                        ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline),
+                                        onPressed: () => ref.ctrl.dispatch(NetCommand(name: 'deleteCustomer', payload: {'id': c.id})),
+                                      ),
+                                    ],
+                                  ),
+                              );
+                            }).toList(),
                       ),
               ),
             ],
@@ -1139,6 +1197,72 @@ Future<void> _customers(BuildContext context, WidgetRef ref) async {
       },
     ),
   );
+}
+
+Future<void> _khataReceive(BuildContext context, WidgetRef ref, ShopCustomer c) async {
+  final s = ref.s;
+  final amount = TextEditingController();
+  final ok = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(
+          left: 20, right: 20, top: 18, bottom: MediaQuery.viewInsetsOf(ctx).bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('${s.t('receive_payment')} — ${c.name}',
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+          const SizedBox(height: 6),
+          Text('${s.t('khata_due')}: ${moneyOf(ref.snap, ref.snap.store.khataDue(c.id))}',
+              style: const TextStyle(color: OfColors.muted, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amount,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+                labelText: s.t('amount'), prefixIcon: const Icon(Icons.payments_outlined)),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            icon: const Icon(Icons.check),
+            label: Text(s.t('save')),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (ok != true) return;
+  final v = double.tryParse(amount.text.trim()) ?? 0;
+  if (v <= 0) return;
+  await ref.ctrl.dispatch(NetCommand(name: 'addKhata', payload: {
+    'id': newId(),
+    'customerId': c.id,
+    'kind': 'pay',
+    'amount': v,
+    'note': '',
+  }));
+  if (context.mounted) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(s.t('payment_received'))));
+  }
+}
+
+/// WhatsApp the customer their outstanding khata (digits-normalised PK mobile).
+Future<void> _khataShare(
+    BuildContext context, WidgetRef ref, ShopCustomer c, double due) async {
+  final s = ref.s;
+  final shop = ref.snap.store.profile.businessName;
+  final msg = s.isUrdu
+      ? '${c.name} — آپ کا ${shop} پر کھاتہ باقی ہے: ${moneyOf(ref.snap, due)}۔ براہ کرم آسان وقت پر ادا فرما دیں۔ شکریہ!'
+      : 'Salam ${c.name} — your outstanding khata at $shop is ${moneyOf(ref.snap, due)}. Please settle at your convenience. Thank you!';
+  var digits = c.phone.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.startsWith('0')) digits = '92${digits.substring(1)}';
+  final uri = Uri.parse('https://wa.me/$digits?text=${Uri.encodeComponent(msg)}');
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
 Future<void> _editCustomer(BuildContext context, WidgetRef ref, {ShopCustomer? existing}) async {
