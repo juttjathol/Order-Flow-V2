@@ -317,6 +317,20 @@ class StoreReducer {
         }
         bump();
         break;
+      case 'setDelivery':
+        {
+          final o = store.orderById(parseStr(p['orderId']) ?? '');
+          if (o != null && o.type == OrderType.delivery) {
+            final st = parseStr(p['state']);
+            if (st == null || st == 'out' || st == 'delivered' || st == 'queued') {
+              o.deliveryState = st ?? '';
+            }
+            if (p.containsKey('driverId')) o.driverId = parseStr(p['driverId']);
+            o.updatedAt = DateTime.now();
+            bump();
+          }
+        }
+        break;
       case 'fireCourse':
         final order = store.orderById(parseStr(p['orderId']));
         final course = parseStr(p['course']) ?? '';

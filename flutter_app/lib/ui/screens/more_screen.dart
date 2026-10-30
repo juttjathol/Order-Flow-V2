@@ -21,6 +21,7 @@ import '../widgets/pin_gate.dart';
 import '../widgets/plan_extras.dart';
 import '../widgets/tour_overlay.dart';
 import '../widgets/plan_lock.dart';
+import 'dispatch_screen.dart';
 import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
 
@@ -37,8 +38,11 @@ class MoreScreen extends ConsumerWidget {
       _row(Icons.account_balance_wallet, s.t('shift'), () => _shiftCash(context, ref)),
       _row(Icons.badge, s.t('staff'), () => _staff(context, ref)),
       if (snap.isMain) _row(Icons.phonelink, s.t('devices'), () => _devices(context, ref)),
-      if (model == BusinessModel.restaurant || model == BusinessModel.fastfood)
+      if (model == BusinessModel.restaurant || model == BusinessModel.fastfood) ...[
         _row(Icons.delivery_dining, s.t('drivers'), () => _drivers(context, ref)),
+        _row(Icons.local_shipping_outlined, s.t('dispatch_board'),
+            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DispatchScreen()))),
+      ],
       if (model == BusinessModel.services)
         _row(Icons.spa, s.t('services'), () => _services(context, ref)),
       if (model == BusinessModel.restaurant || model == BusinessModel.services)
