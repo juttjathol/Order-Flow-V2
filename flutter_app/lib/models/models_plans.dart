@@ -39,6 +39,9 @@ const kFeatureCatalog = <FeatureInfo>[
   FeatureInfo('third_party',
       'Third-party channels — Foodpanda, Grab & more (manual)',
       'تھرڈ پارٹی چینلز — فوڈ پانڈا، گریب اور مزید (دستی)'),
+  FeatureInfo('stock_engine',
+      'Stock & recipes engine — “N left” on order tiles + 7-day buy list',
+      'اسٹاک اور ریسیپی انجن — آرڈر ٹائلز پر باقی مقدار اور ۷ دن کی خرید لسٹ'),
 ];
 
 final Set<String> _kFeatureKeys = kFeatureCatalog.map((f) => f.key).toSet();

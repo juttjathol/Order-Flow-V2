@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/stock_engine.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../services/print_service.dart';
@@ -315,6 +316,30 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                                                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 5)],
                                               ),
                                               child: const Text('🔥', style: TextStyle(fontSize: 10)),
+                                            ),
+                                          ),
+                                        if (StockEngine.badgeCount(p, snap.store) != null)
+                                          Align(
+                                            alignment: Alignment.bottomRight,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: (StockEngine.badgeCount(p, snap.store) ?? 0) == 0
+                                                    ? OfColors.danger.withValues(alpha: 0.14)
+                                                    : Colors.orange.withValues(alpha: 0.16),
+                                                borderRadius: BorderRadius.circular(999),
+                                                border: Border.all(color: ((StockEngine.badgeCount(p, snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange).withValues(alpha: 0.45)),
+                                              ),
+                                              child: Text(
+                                                (StockEngine.badgeCount(p, snap.store) ?? 0) == 0
+                                                    ? (s.isUrdu ? 'ختم' : 'none left')
+                                                    : (s.isUrdu ? '${StockEngine.badgeCount(p, snap.store)} باقی' : '${StockEngine.badgeCount(p, snap.store)} left'),
+                                                style: TextStyle(
+                                                  fontSize: 10.5,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: (StockEngine.badgeCount(p, snap.store) ?? 0) == 0 ? OfColors.danger : Colors.orange.shade800,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         if (!p.available)

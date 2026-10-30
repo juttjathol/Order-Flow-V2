@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../core/stock_engine.dart';
 import '../../state/app_controller.dart';
+import 'buy_list_screen.dart';
 import '../widgets/barcode_scan.dart';
 import '../widgets/common.dart';
+import '../widgets/plan_lock.dart';
 
 class StockScreen extends ConsumerStatefulWidget {
   const StockScreen({super.key});
@@ -33,6 +36,21 @@ class _StockScreenState extends ConsumerState<StockScreen> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          FloatingActionButton.extended(
+            heroTag: 'buy_list',
+            onPressed: () {
+              final store = ref.snap.store;
+              if (!store.entitlements.allowsFeature('stock_engine')) {
+                showPlanLock(context, ref, featureKey: 'stock_engine');
+                return;
+              }
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const BuyListScreen()));
+            },
+            icon: const Icon(Icons.shopping_cart_outlined),
+            label: Text(s.t('buy_list')),
+          ),
+          const SizedBox(height: 10),
           FloatingActionButton.extended(
             heroTag: 'scan_stock',
             onPressed: () => scanStock(context, ref),

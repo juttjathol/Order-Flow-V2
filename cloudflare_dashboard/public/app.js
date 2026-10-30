@@ -675,11 +675,12 @@ const FEATURES = [
   ["cloud_sync", "Cloud networking — stations keep running when Wi-Fi is down"],
   ["qr_branding", "Branded guest QR page (shop identity editor)"],
   ["third_party", "Third-party channels — Foodpanda, Grab & more (manual)"],
+  ["stock_engine", "Stock & recipes engine — availability counts + buy list (add-on)"],
 ];
 const PLAN_PRESETS = {
-  // Oct 2026: 2 plans — Starter (12) + Customize (16). Growth is kept as alias for legacy keys.
-  starter: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "qr_branding", "third_party"].includes(f[0])).map((f) => f[0]),
-  growth: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "qr_branding", "third_party"].includes(f[0])).map((f) => f[0]),
+  // v1.1.95: Professional (starter key) = everything except the two add-ons {cloud_sync+qr_ordering, stock_engine}. Growth is a legacy alias.
+  starter: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "stock_engine"].includes(f[0])).map((f) => f[0]),
+  growth: FEATURES.filter((f) => !["qr_ordering", "cloud_sync", "stock_engine"].includes(f[0])).map((f) => f[0]),
   custom: FEATURES.map((f) => f[0]),
   customize: FEATURES.map((f) => f[0]),
   full: FEATURES.map((f) => f[0]),
