@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
+import '../../core/l10n.dart';
 import '../../core/pin_crypto.dart';
 import '../../core/platform_check.dart';
 import '../../core/theme.dart';
@@ -29,7 +30,7 @@ import '../widgets/station_printer.dart';
 
 Future<String?> _askBackupPassphrase(
   BuildContext context,
-  L10nView s, {
+  L10n s, {
   required bool confirm,
 }) async {
   final first = TextEditingController();
@@ -460,12 +461,12 @@ class MoreScreen extends ConsumerWidget {
               style: const TextStyle(color: OfColors.muted, fontSize: 12)),
           trailing: const Icon(Icons.refresh, color: OfColors.emerald),
           onTap: () async {
-            final left = await ref.read(appControllerProvider).printer.flushPrintOutbox();
+            final left = await ref.ctrl.printer.flushPrintOutbox();
             if (!ctx.mounted) return;
             final msg = left == 0
                 ? s.t('retry_ok')
                 : s.t('retry_left').replaceAll('{n}', '${left < 0 ? n : left}');
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(msg)));
           },
         );
       },

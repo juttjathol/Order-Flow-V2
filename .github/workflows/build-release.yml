@@ -40,7 +40,8 @@ jobs:
           set -e
           echo "Checking pubspec vs kAppVersion..."
           python3 scripts/version_sync_check.py flutter_app
-          TAG="${GITHUB_REF_NAME:-}"
+          TAG=""
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then TAG="${GITHUB_REF_NAME:-}"; fi
           PUB=$(grep -oP '^version:\s*\K[0-9.]+' flutter_app/pubspec.yaml | head -1)
           APP=$(grep -oP "kAppVersion\s*=\s*'\K[0-9.]+" flutter_app/lib/core/constants.dart | head -1)
           FB=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' functions/download.js | head -1)
