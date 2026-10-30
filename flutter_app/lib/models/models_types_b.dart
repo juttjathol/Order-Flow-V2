@@ -169,6 +169,7 @@ class PosOrder {
   /// (never the raw enum `DINEIN`, and never TAKEAWAY for a dine-in ticket).
   String get kitchenWhere {
     final name = tableName?.trim();
+    if (channel == 'kiosk') return '>>> KIOSK <<<';
     if (name != null && name.isNotEmpty) {
       return isQr ? '>>> QR TABLE $name <<<' : 'Table $name';
     }

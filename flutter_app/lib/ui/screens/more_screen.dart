@@ -22,6 +22,7 @@ import '../widgets/plan_extras.dart';
 import '../widgets/tour_overlay.dart';
 import '../widgets/plan_lock.dart';
 import 'dispatch_screen.dart';
+import 'kiosk_screen.dart';
 import 'menu_engineering_screen.dart';
 import '../widgets/pos_ops.dart';
 import '../widgets/station_printer.dart';
@@ -98,7 +99,7 @@ class MoreScreen extends ConsumerWidget {
             : _row(Icons.lock_clock, s.t('day_close'), () => closeShopShift(context, ref)),
     ];
     final extras = <Widget>[
-      if (snap.isMain)
+      if (snap.isMain) ...[
         planAwareRow(
           ref: ref,
           context: context,
@@ -108,6 +109,17 @@ class MoreScreen extends ConsumerWidget {
           subtitle: s.t('qr_ordering_sub'),
           onTap: () => showQrOrdering(context, ref),
         ),
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'qr_ordering',
+          icon: Icons.table_bar,
+          title: s.t('kiosk_mode'),
+          subtitle: s.t('kiosk_mode_sub'),
+          onTap: () => Navigator.push(
+              context, MaterialPageRoute(builder: (_) => const KioskScreen())),
+        ),
+      ],
       planAwareRow(
         ref: ref,
         context: context,

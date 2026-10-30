@@ -37,6 +37,9 @@
   .g-live.is-paid{background:#EDE9E2;border-color:#DDD5C7;color:#6E7A74}
   .g-err{max-width:420px;margin:20vh auto 0;padding:24px;text-align:center}
   .g-note{font-size:12px;color:#6E7A74;font-weight:600;text-align:center;padding:12px 0}
+  /* read-only digital menu mode (payload v='menu'): no cart, no ordering */
+  body.view-only .g-add,body.view-only .g-qty,body.view-only #g-bar,body.view-only #g-live{display:none!important}
+  body.view-only .g-wrap{padding-bottom:calc(30px + env(safe-area-inset-bottom))}
 </style>
 </head>
 <body>
