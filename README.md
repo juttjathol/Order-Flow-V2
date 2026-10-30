@@ -10,13 +10,13 @@
 Offline-first multi-device POS for restaurants, retail, fast food, and services, plus a Cloudflare license dashboard.
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
-- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.93+)
+- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.97+)
 - **iPhone / web app** (`website/public/app/`) — the same POS rebuilt as an installable PWA at **jathol.org/app**; guest QR menu at `/order.html`; iOS printing via share-sheet PDF (standalone), AirPrint sheet (Safari tab), or Bluetooth ESC/POS
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke, plans & per-key feature access, push broadcasts
-- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.92` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
+- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.97` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.96+96**. The web app deploys continuously from `main` (current shell cache `of-shell-v50`).
+Version **1.1.97+96**. The web app deploys continuously from `main` (current shell cache `of-shell-v50`).
 
 You only need two things after this repo is on GitHub:
 
@@ -61,7 +61,7 @@ In the Android app license screen, set **License API URL** to that Pages origin.
 
 First success **binds** the device. A second device is rejected until you click **Reset device**. Delete or revoke the key and the Main app locks to WhatsApp **@Jathol_Jutt**.
 
-### Plans & per-key access (v1.1.92+, hardened v1.1.91)
+### Plans & per-key access (v1.1.97+, hardened v1.1.97)
 
 Every key carries a **plan** — Professional / Customize (legacy keys: Starter / Growth / Full) — plus the **business models** it may run and a **16-extra feature checklist** (QR ordering, station printers, loyalty, refunds, purchases, cloud sync, branded QR page, third-party channels …) editable from the dashboard's **Access…** dialog:
 
@@ -127,7 +127,7 @@ License screen → **Connect to Main** → same Wi‑Fi → IP or QR from Main �
 
 ### Cloud networking (Custom plan)
 
-When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud relay** instead of the LAN (v1.1.92+): Main opens a room, stations join with a pairing code, and orders reach Main over any connection. Messages are end-to-end encrypted between your devices, deleted on read, and expire in ~30 minutes — **shop data is never backed up to the cloud**.
+When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud relay** instead of the LAN (v1.1.97+): Main opens a room, stations join with a pairing code, and orders reach Main over any connection. Messages are end-to-end encrypted between your devices, deleted on read, and expire in ~30 minutes — **shop data is never backed up to the cloud**.
 
 ---
 
