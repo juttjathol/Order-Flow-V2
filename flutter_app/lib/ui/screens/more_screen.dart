@@ -78,7 +78,7 @@ Future<String?> _askBackupPassphrase(
 
 Future<void> _showWebConsoleCode(BuildContext context, WidgetRef ref) async {
   final s = ref.s;
-  final code = ref.read(appControllerProvider).createWebConsoleCode();
+  final code = ref.read(appControllerProvider.notifier).createWebConsoleCode();
   if (code == null) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(s.t('console_code_unavailable'))),
