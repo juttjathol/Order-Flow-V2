@@ -1,72 +1,46 @@
-name: Sync Docs & Guide on Tag
+name: Verify Release Docs & Version
 
 on:
   push:
     tags:
       - "v*"
-  # Manual re-run without re-tagging: Actions → this workflow → Run workflow,
-  # input v1.1.92. Re-pushing a tag retriggers the heavy APK build too; this path doesn't.
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to sync (e.g. v1.1.92)"
+        description: "Tag to verify (e.g. v1.1.98)"
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  sync:
+  verify:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the tagged release
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 1
 
-      - name: Extract version from tag
-        id: ver
+      - name: Verify tag, app version, and download fallbacks
+        shell: bash
         run: |
-          # tag push → refs/tags/vX; manual dispatch → github.event.inputs.tag
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-            TAG="${TAG#v}"
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
           else
-            TAG="${GITHUB_REF_NAME#v}"
+            TAG="${GITHUB_REF_NAME}"
           fi
-          echo "version=$TAG" >> $GITHUB_OUTPUT
-          echo "Tag $TAG"
-
-      - name: Checkout main & sync version
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # NOTE: a tag literally named "main" exists in this repo, so a bare
-          # `git fetch origin main` resolves to the TAG (FETCH_HEAD = old commit),
-          # which made `git checkout -B main FETCH_HEAD` land on an ancient tree
-          # where scripts/ doesn't exist → python exit 2 on every tag since v1.1.88.
-          # Pin BOTH refs with explicit namespaces so the tag can never shadow the branch:
-          git fetch origin '+refs/heads/main:refs/remotes/origin/main'
-          git checkout -B main origin/main
-          TAGV="${{ steps.ver.outputs.version }}"
-          echo "Syncing $TAGV onto main..."
-          python3 scripts/sync_docs_version.py "$TAGV"
-          sed -i "s|jathol.pages.dev|jathol.org|g" docs/PLAY_STORE.md docs/APP_STORE.md website/public/guide.html README.md || true
-          cat flutter_app/pubspec.yaml | grep version
-          grep kAppVersion flutter_app/lib/core/constants.dart
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No changes to sync"
-            exit 0
-          fi
-          git commit -m "docs: sync version $TAGV — guide + PLAY/STORE + README + privacy URL"
-          # Bare `main` is ambiguous when a tag named `main` exists or the
-          # default refspec collides — address the branch ref explicitly.
-          git push origin HEAD:refs/heads/main
-          echo "Sync complete"
-
-      - name: Update README architecture diagram (keep mermaid fresh)
-        run: |
-          echo "Architecture diagram is mermaid in README — version-agnostic, no auto-change needed."
-          echo "If you add a new system component, update the mermaid manually and this job will carry it forward."
+          [[ "$TAG" == v* ]]
+          VERSION="${TAG#v}"
+          python3 scripts/version_sync_check.py flutter_app
+          PUB=$(grep -oP '^version:\s*\K[0-9.]+' flutter_app/pubspec.yaml | head -1)
+          APP=$(grep -oP "kAppVersion\s*=\s*'\K[0-9.]+" flutter_app/lib/core/constants.dart | head -1)
+          for FILE in functions/download.js website/functions/download.js cloudflare_dashboard/functions/download.js; do
+            FALLBACK=$(grep -oP 'FALLBACK_TAG\s*=\s*"\K[^"]+' "$FILE" | head -1)
+            [[ "$FALLBACK" == "$TAG" ]] || { echo "::error::$FILE uses $FALLBACK, expected $TAG"; exit 1; }
+          done
+          [[ "$PUB" == "$VERSION" ]] || { echo "::error::pubspec version $PUB does not match $TAG"; exit 1; }
+          [[ "$APP" == "$VERSION" ]] || { echo "::error::app version $APP does not match $TAG"; exit 1; }
+          echo "Release version $TAG is consistent."
