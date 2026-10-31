@@ -51,7 +51,9 @@ Future<bool> confirmManagerPin(BuildContext context, WidgetRef ref, {bool requir
       ],
     ),
   );
-  if (ok != true && context.mounted) {
+  if (ok == true) {
+    ctrlApp.rememberManagerPinForNextProtectedAction(field.text.trim());
+  } else if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
       ctrlApp.managerPinLocked() ? s.t('pin_locked') : s.t('pin_wrong'),
     )));

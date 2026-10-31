@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
@@ -61,6 +62,13 @@ class LanServer {
   // Phase-2 PIN verify rate limit per device (server-side, Main only)
   final _pinFails = <String, int>{};
   final _pinLockUntil = <String, int>{};
+  String? _consoleCodeHash;
+  int _consoleCodeExpiresMs = 0;
+  int _consoleCodeCooldownUntilMs = 0;
+  int _consoleUnlockFailures = 0;
+  int _consoleUnlockLockedUntilMs = 0;
+  String? _consoleUnlockToken;
+  int _consoleUnlockExpiresMs = 0;
   // Phase-1 QR double-tap guard: same table + same payload hash within 5s returns same ticket
   final _qrLastSubmit = <String, _QrDedup>{};
 
@@ -87,17 +95,30 @@ class LanServer {
     final device = (req.headers['x-of-device'] ?? req.headers['X-OF-Device'] ?? '').trim();
     final tok = _bearer(req);
     if (device.isEmpty || tok == null || tok.isEmpty) return null;
+    if (device == 'web-console') {
+      if (DateTime.now().millisecondsSinceEpoch >= _consoleUnlockExpiresMs ||
+          _consoleUnlockToken == null || !safeEq(tok, _consoleUnlockToken!)) {
+        return null;
+      }
+      return ClientInfo(deviceId: 'web-console', name: 'Web', role: 'web');
+    }
     // safeEq: constant-time, so a LAN attacker cannot nibble a token byte by
     // byte off the comparison's timing.
     if (!safeEq(tok, _tokenFor(device))) return null;
-    if (device == 'web-console') {
-      return clients[device] ??
-          ClientInfo(deviceId: 'web-console', name: 'Web', role: 'web');
-    }
     return clients[device];
   }
 
   NetCommand _bindRole(NetCommand cmd, String? deviceId) {
+    if (deviceId == 'web-console') {
+      return NetCommand(
+        id: cmd.id,
+        name: cmd.name,
+        payload: cmd.payload,
+        actor: 'Web console',
+        role: 'web',
+        at: cmd.at,
+      );
+    }
     final bound = deviceId != null ? clients[deviceId] : null;
     if (bound != null && bound.role.isNotEmpty) {
       return NetCommand(
@@ -158,6 +179,7 @@ class LanServer {
       ..get('/join', _join)
       ..get('/state', _state)
       ..post('/command', _command)
+      ..post('/console/unlock', _consoleUnlock)
       ..post('/verify-pin', _verifyPin)
       ..post('/driver/status', _driverStatus)
       ..get('/order', _qrPage)
@@ -186,6 +208,10 @@ class LanServer {
     _socketDevice.clear();
     await _server?.close(force: true);
     _server = null;
+    _consoleCodeHash = null;
+    _consoleCodeExpiresMs = 0;
+    _consoleUnlockToken = null;
+    _consoleUnlockExpiresMs = 0;
   }
 
   void broadcastState() {
@@ -267,13 +293,66 @@ class LanServer {
     'Content-Type': 'application/json; charset=utf-8',
   };
 
+  String? createConsoleCode() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_server == null || now < _consoleCodeCooldownUntilMs) return null;
+    final rnd = Random.secure();
+    final code = List.generate(6, (_) => rnd.nextInt(10)).join();
+    _consoleCodeHash = sha256.convert(utf8.encode('of-console|$code')).toString();
+    _consoleCodeExpiresMs = now + 2 * 60 * 1000;
+    _consoleCodeCooldownUntilMs = now + 20 * 1000;
+    _consoleUnlockToken = null;
+    _consoleUnlockExpiresMs = 0;
+    _consoleUnlockFailures = 0;
+    return code;
+  }
+
+  Future<Response> _consoleUnlock(Request req) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now < _consoleUnlockLockedUntilMs) {
+      return _json({'ok': false, 'error': 'locked'}, status: 429);
+    }
+    try {
+      final raw = await req.readAsString();
+      if (raw.length > 512) return _json({'ok': false, 'error': 'invalid'}, status: 413);
+      final value = jsonDecode(raw);
+      final code = value is Map ? (value['code'] ?? '').toString().trim() : '';
+      final digest = sha256.convert(utf8.encode('of-console|$code')).toString();
+      final valid = RegExp(r'^\d{6}$').hasMatch(code) &&
+          _consoleCodeHash != null && now < _consoleCodeExpiresMs &&
+          safeEq(digest, _consoleCodeHash!);
+      if (!valid) {
+        _consoleUnlockFailures += 1;
+        if (_consoleUnlockFailures >= 5) {
+          _consoleUnlockFailures = 0;
+          _consoleUnlockLockedUntilMs = now + 5 * 60 * 1000;
+          _consoleCodeHash = null;
+        }
+        return _json({'ok': false, 'error': 'invalid'}, status: 403);
+      }
+      _consoleCodeHash = null; // single use
+      _consoleUnlockFailures = 0;
+      _consoleUnlockLockedUntilMs = 0;
+      _consoleUnlockToken = const Uuid().v4();
+      _consoleUnlockExpiresMs = now + 10 * 60 * 1000;
+      return _json({
+        'ok': true,
+        'deviceId': 'web-console',
+        'token': _consoleUnlockToken,
+        'expiresAt': _consoleUnlockExpiresMs,
+      });
+    } catch (_) {
+      return _json({'ok': false, 'error': 'invalid'}, status: 400);
+    }
+  }
+
   String? _dashboardHtml;
 
   Future<Response> _dashboard(Request req) async {
     _dashboardHtml ??= await rootBundle.loadString('assets/web/index.html');
     final html = _dashboardHtml!.replaceFirst(
       '/*OF_AUTH*/',
-      'window.OF_TOKEN="${_tokenFor('web-console', 'web')}";window.OF_DEVICE="web-console";',
+      'window.OF_DEVICE="web-console";',
     );
     return Response.ok(
       html,
@@ -338,7 +417,9 @@ class LanServer {
       if (isPrivileged(cmd.name, cmd.role)) {
         return _json({'ok': false, 'error': 'forbidden'}, status: 403);
       }
-      if (!RoleAccess.allow(cmd.role, cmd)) {
+      if (!RoleAccess.allow(cmd.role, cmd) ||
+          (cmd.role == AppRole.driver.name &&
+              !RoleAccess.bindDriverCommand(readStore(), cmd, who.deviceId))) {
         return _json({'ok': false, 'error': 'forbidden'}, status: 403);
       }
       final deny = StoreGuard.denyReason(readStore(), cmd);
@@ -351,7 +432,7 @@ class LanServer {
       if (result.notice != null) broadcastNotice(result.notice!);
       return _json({
         'ok': true,
-        'store': result.store.toJson(),
+        'store': _storeJsonFor(who.deviceId),
         'notice': result.notice?.toJson(),
         'payload': cmd.payload,
       });
@@ -428,6 +509,7 @@ class LanServer {
         name: map['name'] == 'pairDriver' ? 'pairDriver' : 'setDriverStatus',
         payload: map,
         actor: (map['name'] ?? 'driver').toString(),
+        role: map['name'] == 'pairDriver' ? callerRole : AppRole.driver.name,
       );
       final result = onCommand(cmd);
       broadcastState();
@@ -441,7 +523,7 @@ class LanServer {
       return _json({
         'ok': true,
         'driver': paired?.toJson(),
-        'store': result.store.toJson(),
+        'store': _storeJsonFor(who.deviceId),
       });
     } catch (e) {
       return _json({'ok': false, 'error': 'server_error'}, status: 500);
@@ -879,7 +961,8 @@ class LanServer {
             final id = (data['deviceId'] ?? '').toString();
             final roleName = (data['role'] ?? '').toString();
             final name = sanitizeText((data['name'] ?? '').toString());
-            if (!helloRoleOk(roleName) || id.isEmpty) {
+            if (!helloRoleOk(roleName) || id.isEmpty ||
+                id == 'web-console' || roleName == 'web') {
               socket.sink.add(jsonEncode({'type': 'error', 'error': 'bad_role'}));
               return;
             }
@@ -912,7 +995,9 @@ class LanServer {
               var cmd = NetCommand.fromJson(Map<String, dynamic>.from(raw));
               cmd = _bindRole(cmd, deviceId);
               if (isPrivileged(cmd.name, cmd.role)) return;
-              if (!RoleAccess.allow(cmd.role, cmd)) return;
+              if (!RoleAccess.allow(cmd.role, cmd) ||
+                  (cmd.role == AppRole.driver.name &&
+                      !RoleAccess.bindDriverCommand(readStore(), cmd, deviceId))) return;
               if (StoreGuard.denyReason(readStore(), cmd).isNotEmpty) return;
               StoreGuard.sanitize(readStore(), cmd);
               final result = onCommand(cmd);

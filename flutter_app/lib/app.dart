@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -53,11 +54,34 @@ class OrderFlowApp extends ConsumerWidget {
           data: mq.copyWith(textScaler: mq.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.35)),
           child: child ?? const SizedBox.shrink(),
         );
-        return ScrollConfiguration(
-          behavior: const _OfScroll(),
-          child: Directionality(
-            textDirection: l10n.direction,
-            child: ReadyBannerHost(child: scaled),
+        final darkBars = theme == ThemeChoice.dark;
+        final systemUi = SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: darkBars ? Brightness.light : Brightness.dark,
+          statusBarBrightness: darkBars ? Brightness.dark : Brightness.light,
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarIconBrightness:
+              darkBars ? Brightness.light : Brightness.dark,
+          systemNavigationBarDividerColor: Colors.transparent,
+        );
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: systemUi,
+          child: ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            // Android 15+ draws the app behind system bars by default. Keep
+            // every route (including future screens) inside the reported
+            // safe insets, while painting the edge-to-edge gutters with the
+            // active surface color. Scaffold/AppBar then get zero consumed
+            // padding and do not apply the insets a second time.
+            child: SafeArea(
+              child: ScrollConfiguration(
+                behavior: const _OfScroll(),
+                child: Directionality(
+                  textDirection: l10n.direction,
+                  child: ReadyBannerHost(child: scaled),
+                ),
+              ),
+            ),
           ),
         );
       },

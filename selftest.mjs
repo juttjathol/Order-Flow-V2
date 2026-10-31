@@ -281,7 +281,7 @@ ok('RTL switches for ur', appJs.includes('langDir') && appJs.includes("'rtl'"));
 const moreJs = readFileSync(join(APP, 'more.js'), 'utf8');
 ok('cloud open sends licenseKey + deviceId (worker contract)', moreJs.includes("OFApiCloud('/api/cloud/open'") && moreJs.includes('licenseKey') && moreJs.includes('deviceId'));
 ok('plan error gets a real message, not check internet', moreJs.includes("res.error === 'plan'"));
-ok('station join includes deviceId (membership)', appJs.includes("role: 'station', deviceId"));
+ok('station join includes device identity and per-device proof', appJs.includes('deviceId: dev, deviceProof') && appJs.includes("/api/cloud/join"));
 ok('guest join includes room + deviceId (membership)', readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('room: cfg.r, code: cfg.c') && readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('deviceId: CFG.device'));
 ok('cloud API has an upstream fallback base', appJs.includes('order-flow-v2.pages.dev') && readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('order-flow-v2.pages.dev'));
 ok('menu row: one overflow button, name keeps the width', appJs.includes('aria-label="Actions"') && !appJs.includes('data-act="menu.soldout"') && !appJs.includes('data-act="menu.edit"'));
@@ -294,7 +294,7 @@ ok('v31 dead room needs two strikes', appJs.includes('deadCount'));
 ok('v32 splash mirrors the APK exactly (logo.png, ORDER FLOW tag, rings)', idx.includes('src="/media/logo.png"') && idx.includes('>ORDER FLOW<') && css.includes('.splash__ring') && !idx.includes('splash__logo" src="/media/bolt.png"'));
 ok('v32 guest asks for the menu (menu_request) and caches it (ofqrmenu:)', readFileSync(join(PUB, 'order.js'), 'utf8').includes('menu_request') && readFileSync(join(PUB, 'order.js'), 'utf8').includes('ofqrmenu:'));
 ok('v32 guest first pull is immediate + faster while hungry', readFileSync(join(PUB, 'order.js'), 'utf8').includes('setTimeout(poll, document.hidden ? 9000 : (STATE ? 2500 : 1100))'));
-ok('v32 main republishes the menu when a guest says hello', appJs.includes("cmd.role === 'guest'"));
+ok('v32 main republishes the menu when a guest says hello', appJs.includes("cmd.__relayRole === 'guest'"));
 ok('v32 push failures are surfaced, never swallowed', appJs.includes('Menu push failed') && appJs.includes('okAny'));
 
 /* v33 — REAL crypto round-trip: the ArrayBuffer bug that black-holed every relay message */
@@ -305,6 +305,7 @@ ok('v32 push failures are surfaced, never swallowed', appJs.includes('Menu push 
   new Function('module', 'require', coreJs)(undefined, undefined);
   const core = globalThis.OFCore;
   ok('OFCore loads in selftest harness', !!core);
+  eq('money formatter removes store-controlled HTML delimiters', core.fmtCents(1234, '<b>RM</b>&"\'`'), 'bRM/b 12.34');
   const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|selftest'));
   const key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -340,6 +341,33 @@ ok('v52 wastage refuses quantities beyond stock', moreJs.includes('Wastage canno
 ok('v52 recipe lines merge duplicates', moreJs.includes('const existing = p.recipe.find(x => x.stockId === s.id)'));
 ok('v34 58mm paper setting honored in print CSS', printJs.includes('58mm') && printJs.includes("=== '58'"));
 ok('v34 pay receipt respects the Auto print switch', readFileSync(join(APP, 'ticket.js'), 'utf8').includes("profile.autoPrint !== false && window.OFPrintReceipt"));
+
+// 2026 security hardening contracts: short-lived LAN console auth and
+// proof-bound cloud membership (no new D1 columns).
+const cloudApiJs = readFileSync(join(ROOT, 'cloudflare_dashboard/functions/api/cloud/[[path]].js'), 'utf8');
+const cloudRelayDart = readFileSync(join(ROOT, 'flutter_app/lib/services/cloud_relay.dart'), 'utf8');
+const lanServerDart = readFileSync(join(ROOT, 'flutter_app/lib/services/lan_server.dart'), 'utf8');
+const flutterAppDart = readFileSync(join(ROOT, 'flutter_app/lib/app.dart'), 'utf8');
+const mainActivityKotlin = readFileSync(join(ROOT, 'flutter_app/android/app/src/main/kotlin/com/jathol/orderflow/MainActivity.kt'), 'utf8');
+ok('Android edge-to-edge explicitly enables drawing behind bars and contains routes in safe insets', mainActivityKotlin.includes('WindowCompat.setDecorFitsSystemWindows(window, false)') && flutterAppDart.includes('child: SafeArea(') && flutterAppDart.includes('Colors.transparent'));
+ok('web console no longer receives a reusable static token', lanServerDart.includes("'window.OF_DEVICE=\"web-console\";'" ) && !lanServerDart.includes('window.OF_TOKEN='));
+ok('web console unlock code is short-lived and single-use', lanServerDart.includes('_consoleCodeExpiresMs = now + 2 * 60 * 1000') && lanServerDart.includes('_consoleCodeHash = null; // single use') && lanServerDart.includes('now + 10 * 60 * 1000'));
+ok('synthetic web-console commands are rebound to web role', lanServerDart.includes("if (deviceId == 'web-console')") && lanServerDart.includes("role: 'web'"));
+ok('cloud relay requires proof-bound active membership for pull', cloudApiJs.includes('verifiedMember(db, room, dev, body.proof)') && cloudApiJs.includes('if (!member) return j(403, { ok: false, error: "not_member" })'));
+ok('web QR money output sanitizes the store currency symbol', readFileSync(join(ROOT, 'flutter_app/assets/web/order.html'), 'utf8').includes("replace(/[&<>") && readFileSync(join(ROOT, 'flutter_app/assets/web/order.html'), 'utf8').includes(".slice(0,12)"));
+ok('web QR image attributes accept only signature-checked raster data', readFileSync(join(ROOT, 'flutter_app/assets/web/order.html'), 'utf8').includes("b.slice(0,4)==='RIFF'&&b.slice(8,12)==='WEBP'") && readFileSync(join(ROOT, 'flutter_app/assets/web/order.html'), 'utf8').includes("b.charCodeAt(0)===255"));
+ok('cloud relay sender identity is proof-bound without a D1 schema migration', cloudApiJs.includes('proof:v1:') && cloudApiJs.includes('name, cursor, joined_at') && !cloudApiJs.includes('ALTER TABLE cloud_devices ADD COLUMN proof'));
+ok('cloud device proof is derived from existing license/pairing credentials, not a new random secret', cloudApiJs.includes('deviceProofFor(licenseKey, deviceRaw, "main")') && cloudApiJs.includes('deviceProofFor(String(row.secret || ""), joinDevice, "member")') && readFileSync(join(ROOT, 'flutter_app/lib/services/cloud_relay.dart'), 'utf8').includes("_deviceProof(roomSecret, deviceId, 'member')") && readFileSync(join(ROOT, 'website/public/order.js'), 'utf8').includes('newDeviceProof(cfg.k, CFG.device)'));
+ok('cloud relay attaches the verified membership role to each message', cloudApiJs.includes('sender_role: senderRole') && cloudApiJs.includes('current_role') && cloudRelayDart.includes("raw['sender_role']"));
+ok('cloud stations accept authoritative snapshots only from Main', cloudRelayDart.includes("senderRole != 'main'") && cloudRelayDart.includes('State is authoritative only'));
+ok('cloud sender role replaces caller-supplied command role', readFileSync(join(ROOT, 'flutter_app/lib/state/app_controller.dart'), 'utf8').includes('role: senderRole'));
+ok('cloud PIN attempt counters key off verified sender', readFileSync(join(ROOT, 'flutter_app/lib/state/app_controller.dart'), 'utf8').includes("final dev = '${j['_relaySender'] ?? ''}'"));
+ok('web cloud snapshots never include the manager PIN or verifier', appJs.includes("const profile = { ...(SHOP.profile || {}), managerPin: '' };") && appJs.includes("managerPin: '',"));
+ok('Flutter cloud snapshots never include the manager PIN or verifier', readFileSync(join(ROOT, 'flutter_app/lib/state/app_controller.dart'), 'utf8').includes("profile['managerPin'] = '';"));
+ok('cloud PIN requests and replies are targeted to verified devices', cloudApiJs.includes('routePrefix = `!to:') && cloudApiJs.includes('targetPrefix') && cloudRelayDart.includes("'to': target"));
+ok('sender role is fixed at message-send time', cloudApiJs.includes('rolePrefix') && cloudApiJs.includes('current_role'));
+ok('paid tickets cannot be repaid or reopened through status commands', readFileSync(join(ROOT, 'flutter_app/lib/core/role_access.dart'), 'utf8').includes("next != OrderStatus.cancelled.name") && readFileSync(join(ROOT, 'flutter_app/test/security_hardening_test.dart'), 'utf8').includes('paid and cancelled tickets cannot be reopened'));
+ok('driver cloud commands bind to their paired device and legal transition', readFileSync(join(ROOT, 'flutter_app/lib/state/app_controller.dart'), 'utf8').includes('RoleAccess.bindDriverCommand(state.store, cmd, sender)'));
 
 console.log('\n────────────────────────────');
 console.log(`${pass} passed, ${failCount} failed`);

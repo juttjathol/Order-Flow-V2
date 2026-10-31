@@ -76,6 +76,35 @@ Future<String?> _askBackupPassphrase(
   return result;
 }
 
+Future<void> _showWebConsoleCode(BuildContext context, WidgetRef ref) async {
+  final s = ref.s;
+  final code = ref.read(appControllerProvider).createWebConsoleCode();
+  if (code == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(s.t('console_code_unavailable'))),
+    );
+    return;
+  }
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.t('console_code_title')),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        SelectableText(
+          code,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w800, letterSpacing: 8),
+        ),
+        const SizedBox(height: 12),
+        Text(s.t('console_code_instructions')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.t('close'))),
+      ],
+    ),
+  );
+}
+
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
@@ -169,10 +198,16 @@ class MoreScreen extends ConsumerWidget {
               context, MaterialPageRoute(builder: (_) => const KioskScreen())),
         ),
       ],
-      planAwareRow(
-        ref: ref,
-        context: context,
-        feature: 'cloud_sync',
+        _row(
+          Icons.computer,
+          s.t('web_console'),
+          () => _showWebConsoleCode(context, ref),
+          subtitle: s.t('web_console_sub'),
+        ),
+        planAwareRow(
+          ref: ref,
+          context: context,
+          feature: 'cloud_sync',
         icon: Icons.wifi_tethering_error,
         title: s.t('cloud_title'),
         subtitle: s.t('cloud_desc'),

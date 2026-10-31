@@ -125,7 +125,10 @@
   function fmtCents(c, currency) {
     c = c == null ? 0 : c;
     const sign = c < 0 ? '-' : '';
-    return sign + (currency || '') + ' ' + (Math.abs(c) / 100).toFixed(2);
+    // Currency is editable store data and many callers render this string in
+    // HTML. Remove markup delimiters here so every money sink stays inert.
+    const symbol = String(currency || '').replace(/[&<>"'`]/g, '').slice(0, 12);
+    return sign + symbol + ' ' + (Math.abs(c) / 100).toFixed(2);
   }
   /** Bill math in cents. order: {lines:[{qty, unitPrice? price, mods:[{priceCents?}]}], discount, taxRate, serviceRate, tip} s: {tax,svc} fallback */
   function billOf(order, s) {
@@ -201,6 +204,36 @@
     return ((line.priceCents != null ? line.priceCents : cents(line.price)) +
       (line.mods || []).reduce((a, m) => a + (m.priceCents != null ? m.priceCents : cents(m.price)), 0)) * (line.qty || 1);
   }
+  /** Only render verified raster image data or HTTPS URLs in image sinks. */
+  function safeImageUrl(raw) {
+    const value = String(raw == null ? '' : raw).trim();
+    if (!value || value.length > 8 * 1024 * 1024) return '';
+    if (/^https:\/\//i.test(value)) {
+      try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && !url.username && !url.password ? url.href : '';
+      } catch { return ''; }
+    }
+    let declared = '';
+    let data = value;
+    const match = value.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,([a-z0-9+/]+={0,2})$/i);
+    if (match) {
+      declared = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase();
+      data = match[2];
+    } else if (!/^[a-z0-9+/]+={0,2}$/i.test(data)) {
+      return '';
+    }
+    try {
+      const bytes = atob(data);
+      let detected = '';
+      if (bytes.startsWith('\x89PNG\r\n\x1a\n')) detected = 'png';
+      else if (bytes.charCodeAt(0) === 0xff && bytes.charCodeAt(1) === 0xd8 && bytes.charCodeAt(2) === 0xff) detected = 'jpeg';
+      else if (bytes.startsWith('GIF87a') || bytes.startsWith('GIF89a')) detected = 'gif';
+      else if (bytes.slice(0, 4) === 'RIFF' && bytes.slice(8, 12) === 'WEBP') detected = 'webp';
+      if (!detected || (declared && declared !== detected)) return '';
+      return `data:image/${detected};base64,${data}`;
+    } catch { return ''; }
+  }
   /** What comes back on refund of a paid order (mirrors reducer refund). */
   function refundPlan(order, products) {
     const linesRefund = []; const stockBack = [];
@@ -257,7 +290,7 @@
     KEY_RE, normalizeKey, isValidKey, maskKey,
     pairingEncode, pairingDecode,
     FEATURE_CATALOG, FEATURE_KEYS, PLAN_PRESETS, entitlementsFromLicense, allowsFeature, allowsModel,
-    cents, fromCents, fmtCents, billOf, payCheck,
+    cents, fromCents, fmtCents, billOf, payCheck, safeImageUrl,
     newOrder, addLine, linePriceCents, refundPlan, deductPlan,
     dayStart, reportXZ,
     MODELS, MODEL_SECOND_TAB, MODEL_ROLES,

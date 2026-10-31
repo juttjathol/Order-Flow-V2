@@ -335,8 +335,13 @@ async function OFApiCloudRaw(path, body, bases) {
   return null;
 }
 window.OFApiCloud = async (path, body) => (await OFApiCloudRaw(path, body)) || null;
+async function newCloudDeviceProof(credential, deviceId, purpose) {
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`of-cloud-device|v1|${purpose}|${credential}|${deviceId}`));
+  return [...new Uint8Array(raw)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+window.OFNewCloudDeviceProof = newCloudDeviceProof;
 async function cloudApi(path, body, info) {
-  const payload = { room: info.room, device: info.device, ...body };
+  const payload = { ...body, room: info.room, device: info.device, proof: info.proof || '' };
   const bases = ['', info.base, ...CLOUD_BASES].filter((b, i, a) => b != null && a.indexOf(b) === i);
   const res = await OFApiCloudRaw(path, payload, bases);
   if (res && res.base !== (info.base || '')) { info.base = res.base; kvSet('roomInfo', info).catch(() => {}); }
@@ -370,7 +375,10 @@ async function decStr(key, blob) {
 async function backupObject() {
   const out = {};
   for (const s of ['products', 'tables', 'orders', 'stock', 'customers', 'staff', 'drivers', 'suppliers', 'purchases', 'wastage', 'reservations', 'channelsThird', 'refunds', 'appointments']) out[s] = await idbGetAll(s, []);
-  out.kv = { shop: SHOP, entitlements: SHOP.entitlements };
+  // The manager PIN and verifier are never relay data. Stations check it via
+  // a PIN message routed only to Main by the proof-bound cloud transport.
+  const profile = { ...(SHOP.profile || {}), managerPin: '' };
+  out.kv = { shop: { ...SHOP, profile }, entitlements: SHOP.entitlements };
   return out;
 }
 async function restoreBackup(obj) {
@@ -404,7 +412,8 @@ async function setStatusLive() {
 async function sendCmd(c) {
   if (!RELAY) return;
   const blob = await encStr(RELAY.key, JSON.stringify({ t: 'cmd', c }));
-  await cloudApi('/api/cloud/send', { msg: blob }, RELAY.info);
+  const to = c && typeof c.to === 'string' ? c.to : '';
+  await cloudApi('/api/cloud/send', { msg: blob, ...(to ? { to } : {}) }, RELAY.info);
 }
 async function heartbeat() {
   try {
@@ -456,7 +465,7 @@ function loop() {
           const plain = await decStr(RELAY.key, String(m.msg || ''));
           if (!plain) continue;
           let env; try { env = JSON.parse(plain); } catch { continue; }
-          await handleMsg(env);
+          await handleMsg(env, String(m.sender || ''), String(m.sender_role || ''));
         }
         RELAY.deadCount = 0;
         updateChips();
@@ -472,8 +481,10 @@ function loop() {
     loop();
   }, slow);
 }
-async function handleMsg(env) {
+async function handleMsg(env, sender, senderRole) {
+  if (!sender || !senderRole) return;
   if (env.t === 'state' || env.t === 'state_part') {
+    if (senderRole !== 'main') return;
     if (env.t === 'state') await applyState(env.s);
     else {
       const k = Number(env.parts) || 1, i = Number(env.part) || 0;
@@ -483,7 +494,7 @@ async function handleMsg(env) {
     }
     return;
   }
-  if (env.t === 'cmd') return onCmd(env.c || {});
+  if (env.t === 'cmd') return onCmd(env.c || {}, sender, senderRole);
 }
 /* ---- Flutter ↔ web store translation (v1.1.91) ----
    Flutter AppStore json carries schemaVersion + profile; a web backup carries
@@ -568,7 +579,7 @@ function appStoreToBackup(s) {
         receiptFoot: prof.footer ?? SHOP.profile.receiptFoot,
         currency: prof.currencySymbol || SHOP.profile.currency,
         tax: Number(prof.taxRate) || 0, svc: Number(prof.serviceRate) || 0,
-        managerPin: prof.managerPin ?? SHOP.profile.managerPin,
+        managerPin: '',
         payQr: prof.payQrBase64 || SHOP.profile.payQr,
         model: ['restaurant', 'retail', 'fastfood', 'services'].includes(s.model) ? s.model : SHOP.profile.model,
       },
@@ -592,16 +603,17 @@ async function applyState(json) {
   renderStationsMini().catch(() => {});
   refreshBoard().catch(() => {});
 }
-async function onCmd(cmd) {
-  if (!cmd) return;
+async function onCmd(cmd, sender, senderRole) {
+  if (!cmd || !sender || !senderRole) return;
+  cmd = { ...cmd, __relaySender: sender, __relayRole: senderRole };
   if (cmd.type === 'hello' && cmd.device) {
     const seen = (await kvGet('stationsSeen', {})) || {};
-    const key = String(cmd.device);
+    const key = String(cmd.__relaySender);
     // v1.1.92: hello carries an optional human name — Main shows it instead
     // of the binding id. Last-writer-wins so a rename from the station sticks.
     const prev = seen[key] || {};
     seen[key] = {
-      role: cmd.role || 'station',
+      role: cmd.__relayRole || 'station',
       at: Number(cmd.at) || Date.now(),
       name: (typeof cmd.name === 'string' && cmd.name.trim()) ? cmd.name.trim() : (prev.name || ''),
     };
@@ -610,12 +622,12 @@ async function onCmd(cmd) {
     await kvSet('stationsSeen', seen);
     // A guest just scanned: republish the menu (throttled) so they render in
     // seconds no matter how long ago the boot push happened.
-    if (cmd.role === 'guest' && Date.now() - (RELAY ? RELAY.lastPush : 0) > 6000) pushStateNow();
+    if (cmd.__relayRole === 'guest' && Date.now() - (RELAY ? RELAY.lastPush : 0) > 6000) pushStateNow();
     await renderStationsPanel();
     return;
   }
   if (cmd.type === 'menu_request') { await pushStateNow(); return; }
-  if (cmd.type === 'order' && Array.isArray(cmd.lines)) { // guest QR order (transit only — not a cloud backup)
+  if (cmd.type === 'order' && cmd.__relayRole === 'guest' && Array.isArray(cmd.lines)) { // guest QR order (transit only — not a cloud backup)
     const info = normTypeForModel();
     const o = C.newOrder({}, { type: info, tableId: cmd.tableId || null, tableName: cmd.tableName || '', channel: 'qr' });
     for (const l of cmd.lines) o.lines.push({ id: C.uuid(), productId: l.productId || '', name: l.name, qty: l.qty || 1, priceCents: l.priceCents | 0, mods: [], notes: l.notes || '' });
@@ -640,7 +652,8 @@ async function onCmd(cmd) {
     // PBKDF2 hash lives in SHOP.profile.managerPin and never leaves here.
     if (!cmd.reqId) return;
     // Brute-force dampener: max 8 guesses per device per minute.
-    const dev = String(cmd.device || '?');
+    if (cmd.__relayRole === 'main') return;
+    const dev = String(cmd.__relaySender);
     const now = Date.now();
     const log = (window.__pinVerifyLog = window.__pinVerifyLog || {});
     (log[dev] = (log[dev] || []).filter(t => now - t < 60000));
@@ -655,24 +668,88 @@ async function onCmd(cmd) {
     await sendCmd({ type: 'pin_reply', reqId: cmd.reqId, ok, to: dev });
     return;
   }
-  if (cmd.type === 'pin_reply' && window.__pinReplyResolve) {
+  if (cmd.type === 'pin_reply' && cmd.__relayRole === 'main' && cmd.to === await deviceId() && window.__pinReplyResolve) {
     // Station side of the round-trip (defensive — stations normally resolve
     // via their own waiter; kept for future tools).
     try { window.__pinReplyResolve(cmd); } catch {}
     return;
   }
-  if (cmd.orders) { for (const o of cmd.orders) await idbPut('orders', normOrder(o)); await kvSet('rev', Date.now()); await refreshBoard(); await renderActiveTab(true); }
+  if (Array.isArray(cmd.orders)) {
+    let changed = false;
+    for (const incoming of cmd.orders.slice(0, 40)) {
+      if (!incoming || !incoming.id) continue;
+      const current = await idbGet('orders', String(incoming.id), null);
+      if (!current || current.status === 'paid' || current.status === 'cancelled') continue;
+      const next = String(incoming.status || '');
+      if (!ORDER_STATUS_OK.includes(next) ||
+          !cloudRoleAllows(cmd.__relayRole, 'setOrderStatus', { status: next })) continue;
+      // Legacy web stations send a whole-ticket JSON patch for status taps.
+      // Bind the writer to its verified relay role and accept only the status
+      // transition; never let that envelope rewrite lines, totals, payment,
+      // or a paid/void ticket.
+      current.status = next;
+      current.updatedAt = Date.now();
+      if (next === 'preparing' && !current.sentAt) current.sentAt = Date.now();
+      if (next === 'paid' && incoming.payment && typeof incoming.payment === 'object') {
+        const method = String(incoming.payment.method || '');
+        if (['cash', 'card', 'wallet', 'other'].includes(method)) {
+          current.payment = { method, at: Date.now() };
+        }
+      }
+      await idbPut('orders', current);
+      if (current.tableId && (next === 'paid' || next === 'cancelled')) {
+        const table = await idbGet('tables', current.tableId, null);
+        if (table) {
+          table.state = 'free'; table.since = null; table.busySince = null; table.orderId = null;
+          await idbPut('tables', table);
+        }
+      }
+      changed = true;
+    }
+    if (changed) {
+      await kvSet('rev', Date.now());
+      await refreshBoard();
+      await renderActiveTab(true);
+    }
+  }
   // ---- Flutter NetCommand bridge (v1.1.91) ---------------------------------
   // APK/Windows stations speak {id,name,payload,actor,role,at}. Only Main
   // applies them, then the normal state-gossip carries the result back.
   if (cmd.name && typeof cmd.payload === 'object' && cmd.payload !== null) {
-    await applyNetCommand(String(cmd.name), cmd.payload).catch(() => {});
+    if (cmd.__relayRole === 'main') return;
+    await applyNetCommand(String(cmd.name), cmd.payload, cmd.__relaySender, cmd.__relayRole).catch(() => {});
   }
 }
 const ORDER_STATUS_OK = ['open', 'preparing', 'ready', 'served', 'paid', 'cancelled'];
 const ORDER_TYPE_OK = ['dineIn', 'takeaway', 'delivery', 'retail', 'service'];
-async function applyNetCommand(name, p) {
-  if (ROLE !== 'main') return; // stations don't apply peer commands (Flutter does the same)
+const CLOUD_TICKET_WRITE = new Set(['createOrder', 'addLine', 'updateLine', 'removeLine', 'patchOrder', 'moveOrder', 'mergeOrders', 'fireCourse']);
+function cloudRoleAllows(role, name, p) {
+  if (role === 'manager') return !['replaceState', 'seedModel', 'setModel'].includes(name);
+  if (role === 'kitchen') return name === 'setOrderStatus' && ['preparing', 'ready', 'served'].includes(String(p.status || ''));
+  if (role === 'cashier') return CLOUD_TICKET_WRITE.has(name) || ['startShift', 'endShift', 'upsertCustomer', 'deleteCustomer'].includes(name) || (name === 'setOrderStatus' && ['open', 'preparing', 'ready', 'served', 'paid', 'cancelled'].includes(String(p.status || '')));
+  if (role === 'orderTaker') return CLOUD_TICKET_WRITE.has(name) || ['upsertCustomer', 'deleteCustomer'].includes(name) || (name === 'setOrderStatus' && ['open', 'preparing', 'cancelled'].includes(String(p.status || '')));
+  if (role === 'frontDesk') return CLOUD_TICKET_WRITE.has(name) || ['upsertCustomer', 'deleteCustomer', 'upsertAppointment', 'deleteAppointment'].includes(name) || (name === 'setOrderStatus' && ['open', 'preparing', 'ready', 'served', 'paid', 'cancelled'].includes(String(p.status || '')));
+  if (role === 'specialist') return name === 'upsertAppointment';
+  if (role === 'stockClerk') return ['upsertStock', 'adjustStock', 'deleteStock'].includes(name);
+  if (role === 'driver') return name === 'setDriverStatus' || (name === 'setDelivery' && ['out', 'delivered'].includes(String(p.state || '')));
+  return false;
+}
+async function applyNetCommand(name, p, sender, senderRole) {
+  if (ROLE !== 'main' || !sender || !senderRole || !cloudRoleAllows(senderRole, name, p)) return;
+  const closed = o => !o || o.status === 'paid' || o.status === 'cancelled';
+  if (['addLine', 'updateLine', 'removeLine', 'moveOrder', 'fireCourse', 'setOrderStatus', 'deleteOrder'].includes(name)) {
+    const id = String(p.orderId || p.id || '');
+    if (id && closed(await idbGet('orders', id, null))) return;
+  }
+  if (name === 'mergeOrders') {
+    const keep = await idbGet('orders', String(p.keepId || ''), null);
+    const drop = await idbGet('orders', String(p.dropId || ''), null);
+    if (closed(keep) || closed(drop)) return;
+  }
+  if (name === 'patchOrder') {
+    const order = p.order && typeof p.order === 'object' ? p.order : null;
+    if (!order || closed(await idbGet('orders', String(order.id || ''), null))) return;
+  }
   const centsOf = (v) => Math.round((Number(v) || 0) * 100);
   let touched = false;
   switch (name) {
@@ -1079,7 +1156,7 @@ function readyLine(o) {
   const el = ce('div', 'readyline',
     '<span class="lrow__ic" style="background:rgba(212,158,53,.18)">🔔</span>'
     + '<span class="ttl">' + esc(whereOf(o)) + ' — ' + L.t('ready_to_serve') + '<small class="sub" style="display:block">' + (o.lines || []).length + ' dish(es) waiting</small></span>'
-    + '<button type="button" data-act="tk.served" data-id="' + o.id + '">' + L.t('mark_served') + '</button>');
+    + '<button type="button" data-act="tk.served" data-id="' + esc(o.id) + '">' + L.t('mark_served') + '</button>');
   el.querySelector('button').onclick = (e) => { e.stopPropagation(); OFAct['ticket.served'](el.querySelector('button'), e); };
   return el;
 }
@@ -1285,7 +1362,7 @@ function apptRow(a) {
   const late = a.status === 'booked' && (Date.now() - a.at) > 15 * 60000;
   const el = ce('div', 'lrow', '<span class="lrow__ic">🗓️</span><div class="hd grow"><b>' + esc(a.customer) + '</b><small>' + esc(a.service || '') + ' · ' + new Date(a.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + (a.staff ? ' · ' + esc(a.staff) : '') + (a.phone ? ' · ' + esc(a.phone) : '') + '</small></div>'
     + (late ? '<span class="tag tag--danger">' + L.t('running_late') + '</span>' : '<span class="tag">' + (a.status || 'booked') + '</span>')
-    + (a.status === 'booked' ? '<button class="btn btn--sm btn--mint" data-act="appt.start" data-id="' + a.id + '">' + L.t('start') + '</button>' : (a.status === 'in_service' ? '<button class="btn btn--sm" data-act="appt.finish" data-id="' + a.id + '">' + L.t('finish') + '</button>' : '')));
+    + (a.status === 'booked' ? '<button class="btn btn--sm btn--mint" data-act="appt.start" data-id="' + esc(a.id) + '">' + L.t('start') + '</button>' : (a.status === 'in_service' ? '<button class="btn btn--sm" data-act="appt.finish" data-id="' + esc(a.id) + '">' + L.t('finish') + '</button>' : '')));
   el.querySelectorAll('button').forEach(b => b.onclick = (e) => { e.stopPropagation(); OFAct[b.dataset.act](b, e); });
   return el;
 }
@@ -1314,8 +1391,9 @@ async function hotProductIds() {
   return ids;
 }
 function menuPickCard(p, onAdd, hot) {
-  const el = ce('div', 'mcard');
-  el.innerHTML = '<div class="mcard__img">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️')
+    const el = ce('div', 'mcard');
+  const imageUrl = C.safeImageUrl(p.imageBase64);
+  el.innerHTML = '<div class="mcard__img">' + (imageUrl ? '<img src="' + esc(imageUrl) + '" alt=""/>' : '🍽️')
     + (hot ? '<span class="mcard__hot">🔥</span>' : '') + '</div>'
     + '<div class="mcard__body"><span class="mcard__name">' + esc(p.name) + '</span><span class="mcard__price">' + money(p.priceCents) + '</span><button class="mcard__add" type="button">' + L.t('add') + '</button></div>';
   el.querySelector('button').onclick = (e) => { e.stopPropagation(); onAdd && onAdd(); };
@@ -1349,7 +1427,8 @@ async function renderMenu() {
     // opens the editor; ⋯ opens an action sheet (sold-out / delete live here)
     // so the name always gets the full width — never one letter per line.
     const el = ce('div', 'lrow' + (off ? ' is-off' : ''));
-    el.innerHTML = '<span class="lrow__ic">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️') + '</span>'
+    const imageUrl = C.safeImageUrl(p.imageBase64);
+    el.innerHTML = '<span class="lrow__ic">' + (imageUrl ? '<img src="' + esc(imageUrl) + '" alt=""/>' : '🍽️') + '</span>'
       + '<div class="hd grow"><b>' + esc(p.name) + (off ? ' <span class="tag tag--danger">' + L.t('sold_out_word') + '</span>' : '') + '</b><small>' + esc(p.categoryId || p.cat || 'Items') + (p.sku ? ' · ' + esc(p.sku) : '') + '</small></div>'
       + '<span class="lrow__amt">' + money(p.priceCents) + '</span>'
       + '<button class="iconbtn" type="button" aria-label="Actions">⋯</button>';
@@ -1399,8 +1478,8 @@ async function renderStock() {
   for (const s of ss) {
     const lvl = s.qty <= 0 ? ['Out', 'tag--danger'] : (s.qty <= (s.lowStockAt ?? s.lowAt ?? 5) ? ['Low', 'tag--gold'] : ['OK', 'tag--mint']);
     const el = ce('div', 'lrow');
-    el.innerHTML = '<span class="lrow__ic">📦</span><div class="hd grow"><b>' + esc(s.name) + ' <span class="tag ' + lvl[1] + '">' + lvl[0] + '</span></b><small>qty ' + s.qty + ' ' + (s.unit || 'pcs') + (s.costCents ? ' · cost ' + money(s.costCents) : '') + '</small></div>'
-      + '<button class="btn btn--sm" data-act="stock.adjust" data-id="' + s.id + '">' + L.t('adjust') + '</button>';
+    el.innerHTML = '<span class="lrow__ic">📦</span><div class="hd grow"><b>' + esc(s.name) + ' <span class="tag ' + lvl[1] + '">' + lvl[0] + '</span></b><small>qty ' + s.qty + ' ' + esc(s.unit || 'pcs') + (s.costCents ? ' · cost ' + esc(money(s.costCents)) : '') + '</small></div>'
+      + '<button class="btn btn--sm" data-act="stock.adjust" data-id="' + esc(s.id) + '">' + L.t('adjust') + '</button>';
     el.querySelector('button').onclick = (e) => { e.stopPropagation(); OFAct['stock.adjust'](e.target.closest('button'), e); };
     host.appendChild(el);
   }
@@ -1491,9 +1570,9 @@ function roleZone_Kitchen(host, os) {
         + '<div style="margin-top:6px;font-size:13.5px">' + (o.lines || []).map(l => '<div style="display:flex;justify-content:space-between;padding:2px 0;font-weight:600"><span>' + esc(l.name) + (l.notes ? ' · ' + esc(l.notes) : '') + '</span><span>× ' + l.qty + '</span></div>').join('') + '</div>'
         + (o.channel === 'qr' ? '<div class="small muted" style="margin-top:4px;font-weight:700">QR order — ready counts on the guest page too</div>' : '')
         + '<div class="row" style="margin-top:10px">'
-        + (['open', 'sent'].includes(o.status) ? '<button class="btn btn--sm btn--primary" data-act="kd.prep" data-id="' + o.id + '">' + L.t('mark_prepared') + '</button>' : '')
-        + (o.status !== 'ready' ? '<button class="btn btn--sm btn--mint" data-act="kd.ready" data-id="' + o.id + '">' + L.t('mark_ready') + '</button>' : '<button class="btn btn--sm" data-act="kd.back" data-id="' + o.id + '">↩</button>')
-        + '<button class="btn btn--sm btn--ghost" data-act="kd.print" data-id="' + o.id + '">🖨️</button></div>';
+        + (['open', 'sent'].includes(o.status) ? '<button class="btn btn--sm btn--primary" data-act="kd.prep" data-id="' + esc(o.id) + '">' + L.t('mark_prepared') + '</button>' : '')
+        + (o.status !== 'ready' ? '<button class="btn btn--sm btn--mint" data-act="kd.ready" data-id="' + esc(o.id) + '">' + L.t('mark_ready') + '</button>' : '<button class="btn btn--sm" data-act="kd.back" data-id="' + esc(o.id) + '">↩</button>')
+        + '<button class="btn btn--sm btn--ghost" data-act="kd.print" data-id="' + esc(o.id) + '">🖨️</button></div>';
       el.querySelectorAll('button').forEach(b => b.onclick = (e) => { e.stopPropagation(); OFAct[b.dataset.act](b, e); });
       col.appendChild(el);
     }
@@ -1513,7 +1592,7 @@ function roleZone_Cashier(host, os) {
   for (const o of unpaid.sort((a, b) => a.createdAt - b.createdAt)) {
     const b = billOf(o);
     const el = ce('div', 'lrow');
-    el.innerHTML = '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + ageHms(o.createdAt || 0) + ' · ' + (o.lines || []).length + ' item(s)</small></div><span class="lrow__amt">' + money(b.due) + '</span><button class="btn btn--sm btn--gold" data-act="kd.open" data-id="' + o.id + '">' + L.t('pay') + '</button>';
+    el.innerHTML = '<div class="hd grow"><b>' + esc(whereOf(o)) + '</b><small>' + ageHms(o.createdAt || 0) + ' · ' + (o.lines || []).length + ' item(s)</small></div><span class="lrow__amt">' + money(b.due) + '</span><button class="btn btn--sm btn--gold" data-act="kd.open" data-id="' + esc(o.id) + '">' + L.t('pay') + '</button>';
     el.querySelector('button').onclick = (e) => { e.stopPropagation(); OFAct['kd.open'](e.target.closest('button'), e); };
     host.appendChild(el);
   }
@@ -1810,8 +1889,11 @@ async function OFConnectJoin() {
   catch { err.textContent = 'That does not look like an OF1:… pairing text. Copy it fully.'; return; }
   // preflight: join room over the cloud (deviceId is what makes us a member)
   const dev = await deviceId();
-  let info = { ...pair, base: '', device: dev };
-  const j = await cloudApi('/api/cloud/join', { code: pair.code, role: 'station', deviceId: dev }, info);
+  const deviceProof = await newCloudDeviceProof(pair.secret, dev, 'member');
+  let info = { ...pair, base: '', device: dev, proof: deviceProof };
+  const j = await cloudApi('/api/cloud/join', {
+    code: pair.code, role: STATION_ROLE || 'station', deviceId: dev, deviceProof,
+  }, info);
   if (!j) { err.textContent = 'No internet — could not reach the relay. Try again.'; return; }
   if (j.ok !== true) {
     err.textContent = j.error === 'code' || j.error === 'bad_code' ? 'Wrong join code — get a fresh QR/text from Main.' : (j.error === 'no_room' ? 'That room is closed — Main should reopen it (More → Cloud room).' : (j.error === 'full' ? 'The room is full (16 devices).' : (j.error || 'Could not join.')));
@@ -1842,14 +1924,31 @@ function renderRoleScreen() {
   show('view-role');
 }
 async function rolePickWithPin(role) {
+  const activateRole = async () => {
+    if (ROLE !== 'main' && RELAY && RELAY.info) {
+      const info = RELAY.info;
+      const result = await cloudApi('/api/cloud/join', {
+        code: info.code, role, deviceId: info.device, deviceProof: info.proof,
+      }, info);
+      if (!result || result.ok !== true) {
+        toast('Could not bind station role', 'Reconnect this station to Main and try again.');
+        return false;
+      }
+    }
+    await kvSet('stationRole', role);
+    STATION_ROLE = role;
+    roleHome(role);
+    heartbeat();
+    return true;
+  };
   const staff = await idbGetAll('staff', []);
   // v1.1.91: a PIN can live as web {pinHash+salt}, Flutter plaintext `pin`,
   // or a PinCrypto hash-string in `pin` — all of them must gate the role.
   const pinOn = staff.some(s => s.pinHash || s.pin);
-  if (!pinOn) { await kvSet('stationRole', role); STATION_ROLE = role; roleHome(role); heartbeat(); return; }
+  if (!pinOn) { await activateRole(); return; }
   const pick = staff.filter(s => staffCanRole(s, role));
   const list = pick.length ? pick : staff;
-  pickAction(L.t('selecting_station'), 'Who are you?', list.map(s => ({ label: s.name, act: async () => { const ok = await pinAsk(s); if (ok === true) { await kvSet('stationRole', role); STATION_ROLE = role; roleHome(role); heartbeat(); } } })).concat([{ label: L.t('cancel'), kind: 'ghost', act: async () => { } }]));
+  pickAction(L.t('selecting_station'), 'Who are you?', list.map(s => ({ label: s.name, act: async () => { const ok = await pinAsk(s); if (ok === true) await activateRole(); } })).concat([{ label: L.t('cancel'), kind: 'ghost', act: async () => { } }]));
   async function pinAsk(st) {
     await new Promise(resolve => {
       const body = ce('div', 'grid');

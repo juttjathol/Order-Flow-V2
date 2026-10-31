@@ -21,6 +21,7 @@ import '../../state/app_controller.dart';
 import '../widgets/tour_overlay.dart';
 import '../widgets/common.dart';
 import '../widgets/pos_ops.dart';
+import '../widgets/pin_gate.dart';
 import 'stock_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -358,6 +359,7 @@ Future<void> _deleteTicket(BuildContext context, WidgetRef ref, PosOrder o) asyn
     ),
   );
   if (ok != true) return;
+  if (o.status == OrderStatus.paid && !await confirmManagerPin(context, ref)) return;
   await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
     'id': o.id,
     'status': OrderStatus.cancelled.name,

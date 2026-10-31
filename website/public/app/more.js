@@ -522,13 +522,16 @@ async function scrCloud() {
         open.disabled = true;
         try {
           const licInfo = await OFLicenseInfo();
+          const licenseKey = licInfo.lic && licInfo.lic.key || '';
+          if (!licenseKey) { toast('Could not open the room', 'Activate this shop with its license first.'); return; }
           const deviceId = await kvGet('deviceId', null) || 'web-main';
-          const api = await window.OFApiCloud('/api/cloud/open', { licenseKey: licInfo.lic && licInfo.lic.key, deviceId });
+          const deviceProof = await window.OFNewCloudDeviceProof(licenseKey, deviceId, 'main');
+          const api = await window.OFApiCloud('/api/cloud/open', { licenseKey, deviceId, deviceProof });
           const res = api && api.json ? api.json : null;
           if (!res) { toast('Could not open the room', 'No internet — try again.'); return; }
           if (res.error === 'plan') { toast('Cloud is not on your plan', 'Tap Refresh my plan — or WhatsApp Jathol to add it.'); return; }
           if (!res.ok || !res.room || !res.secret) { toast('Could not open the room', 'Cloud answered: ' + (res.error || 'unknown') + '. Try again.'); return; }
-          const info = { room: res.room, code: res.code, secret: res.secret, base: api.base || '', device: deviceId };
+          const info = { room: res.room, code: res.code, secret: res.secret, base: api.base || '', device: deviceId, proof: deviceProof };
           await kvSet('roomInfo', info);
           await kvSet('relayErr', null);
           // Boot the relay right here — NO location.reload(): a splash reload

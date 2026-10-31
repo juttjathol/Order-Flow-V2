@@ -585,6 +585,7 @@ Future<void> closeShopShift(BuildContext context, WidgetRef ref) async {
   );
   counted.dispose();
   if (actual == null) return;
+  if (!await confirmManagerPin(context, ref)) return;
   final variance = actual - expectedCash;
   await ref.ctrl.dispatch(NetCommand(name: 'closeDay', payload: {
     'expectedCash': expectedCash,

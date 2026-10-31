@@ -151,6 +151,7 @@ class SessionPrefs {
     this.cloudOn = false,
     this.cloudRoom = '',
     this.cloudSecret = '',
+    this.cloudProof = '',
     this.cloudCode = '',
     this.cloudUrl = '',
     this.role = AppRole.none,
@@ -190,6 +191,8 @@ class SessionPrefs {
   bool cloudOn;
   String cloudRoom;
   String cloudSecret;
+  /// Per-device relay credential; never included in pairing text.
+  String cloudProof;
   String cloudCode;
   String cloudUrl;
   AppRole role;
@@ -241,6 +244,7 @@ class SessionPrefs {
         'cloudOn': cloudOn,
         'cloudRoom': cloudRoom,
         'cloudSecret': cloudSecret,
+        'cloudProof': cloudProof,
         'cloudCode': cloudCode,
         'cloudUrl': cloudUrl,
         'role': role.name,
@@ -279,6 +283,7 @@ class SessionPrefs {
       cloudOn: parseBool(m['cloudOn']),
       cloudRoom: parseStr(m['cloudRoom']) ?? '',
       cloudSecret: parseStr(m['cloudSecret']) ?? '',
+      cloudProof: parseStr(m['cloudProof']) ?? '',
       cloudCode: parseStr(m['cloudCode']) ?? '',
       cloudUrl: parseStr(m['cloudUrl']) ?? '',
       role: enumParse(AppRole.values, m['role'], AppRole.none),

@@ -1,6 +1,6 @@
 # Google Play — publish checklist (2026)
 
-> **Sideload APKs (`v1.1.91` tag) do NOT need this.** This doc is the gate before you upload `app-release.aab` to Play Console.
+> **Sideload APKs (`v1.1.98` tag) do NOT need this.** This doc is the gate before you upload `app-release.aab` to Play Console.
 
 ## 2026 gates you must clear (what changed)
 
@@ -11,7 +11,7 @@
 | **Privacy policy URL** | Must be live HTTPS, public, non-geofenced, non-PDF, same host as Data Safety, in **Store listing → Privacy policy** + **in-app** (More → Privacy). | `https://jathol.org/privacy` (primary) + `https://order-flow-v2.pages.dev/privacy` (mirror). Static HTML, last updated **25 Aug 2026** (`cloudflare_dashboard/public/privacy.html` + `website/public/privacy.html`), PDPA 2010, no geofence. In-app `kPrivacyUrl` → `https://jathol.org/privacy`. |
 | **Feature graphic / icons** | `1024×500` PNG/JPG mandatory + `512×512` high-res icon (no Play logo) + ≥2 phone screenshots (8 max, at least one per device type). | Icons: `flutter_app/android/app/src/main/res/mipmap-*` (anydpi `ic_launcher.xml` + foreground 108dp). **Store graphics not in repo** — add `store_assets/` (see below) before first upload. |
 | **AAB + Play Signing** | Play **requires AAB**, not APK. Upload via **Play App Signing** (you keep upload key, Play keeps signing key). GitHub Actions currently builds `app-release.apk` only — `app-release.aab` added in this patch (`flutter build appbundle`). | `build-release.yml` now has `Build release AAB (Play Store)` → `build/app/outputs/bundle/release/app-release.aab` → artifact `app-aab` → attached to GitHub Release alongside APK + Windows. Signing uses `sideload/upload.p12` (`JatholOrderFlowSideload`) — for Play, create a separate upload keystore and never commit its password (store in Play Console + GitHub Secrets `PLAY_UPLOAD_*`). |
-| **Permissions** | Request only what’s needed; background location / nearby devices heavily reviewed. Unused permissions are a rejection risk — keep the list tight. | `AndroidManifest.xml`: `CAMERA`, `NEARBY_WIFI_DEVICES` + `BLUETOOTH_SCAN neverForLocation`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`, `BLUETOOTH_CONNECT`. **v1.1.93: `ACCESS_FINE/COARSE_LOCATION` removed** — only `getWifiIP()` is used (no location needed); nothing requested them at runtime. `camera` + `bluetooth` marked `required=false`. `google_analytics_adid_collection_enabled=false`. `allowBackup=false`. `networkSecurityConfig` base `cleartextTrafficPermitted=false` (only `localhost`/`127.0.0.1`/`10.x`/`192.168.x` LAN). |
+| **Permissions** | Request only what’s needed; background location / nearby devices heavily reviewed. Unused permissions are a rejection risk — keep the list tight. | `AndroidManifest.xml`: `CAMERA`, `NEARBY_WIFI_DEVICES` + `BLUETOOTH_SCAN neverForLocation`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`, `BLUETOOTH_CONNECT`. **v1.1.98: `ACCESS_FINE/COARSE_LOCATION` removed** — only `getWifiIP()` is used (no location needed); nothing requested them at runtime. `camera` + `bluetooth` marked `required=false`. `google_analytics_adid_collection_enabled=false`. `allowBackup=false`. `networkSecurityConfig` base `cleartextTrafficPermitted=false` (only `localhost`/`127.0.0.1`/`10.x`/`192.168.x` LAN). |
 | **64-bit + App Integrity** | 64-bit ABIs required; Play Integrity API recommended. | Flutter builds `arm64-v8a` + `x86_64` by default; `shelf` LAN server is pure Dart. |
 | **Government ID / finance** | If you collect government IDs or finance data, extra verification + encryption. | We don’t — shop POS keeps sales on device; license key is not a government ID. |
 
@@ -51,7 +51,7 @@
 | **App activity** — `app interactions` (screen views, button taps) | No (no analytics) | No | — | — | — |
 | **App info & performance** — `crash logs` | No (Sentry stub, DSN empty) — if you set `SENTRY_DSN`, then Yes → `Crash logs` → App functionality, encrypted | No | — | — | — |
 | **Photos / media** | **No** — menu photos stay in `getApplicationDocumentsDirectory()` on device, never uploaded | No | — | — | — |
-| **Location** | **No** — v1.1.93 removed the location permissions entirely; `network_info_plus` is only used for `getWifiIP`, which needs none | No | — | — | — |
+| **Location** | **No** — v1.1.98 removed the location permissions entirely; `network_info_plus` is only used for `getWifiIP`, which needs none | No | — | — | — |
 | **Financial** | No — sales, stock, customers stay on shop LAN + archive JSON/SQLite | No | — | — | — |
 | **Advertising ID** | **No** — `google_analytics_adid_collection_enabled=false`, no AdMob | No | — | — | — |
 

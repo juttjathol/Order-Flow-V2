@@ -61,6 +61,45 @@ void main() {
     expect(RoleAccess.allow('web', NetCommand(name: 'seedModel')), isFalse);
   });
 
+  test('paid and cancelled tickets cannot be reopened or rewritten', () {
+    final paid = PosOrder(
+      id: 'paid-1', ticketNo: '1001', type: OrderType.takeaway,
+      status: OrderStatus.paid,
+    );
+    final cancelled = PosOrder(
+      id: 'cancelled-1', ticketNo: '1002', type: OrderType.takeaway,
+      status: OrderStatus.cancelled,
+    );
+    final store = AppStore(orders: [paid, cancelled]);
+    expect(StoreGuard.denyReason(store, NetCommand(
+      name: 'setOrderStatus', payload: {'id': paid.id, 'status': 'paid'},
+    )), 'ticket_closed');
+    expect(StoreGuard.denyReason(store, NetCommand(
+      name: 'setOrderStatus', payload: {'orderId': cancelled.id, 'status': 'paid'},
+    )), 'ticket_closed');
+    expect(StoreGuard.denyReason(store, NetCommand(
+      name: 'setOrderStatus', payload: {'id': paid.id, 'status': 'cancelled'},
+    )), ''); // controller enforces the manager PIN and reducer reversals
+    expect(StoreGuard.denyReason(store, NetCommand(
+      name: 'mergeOrders', payload: {'keepId': cancelled.id, 'dropId': paid.id},
+    )), 'ticket_closed');
+  });
+
+  test('driver relay commands bind to paired device and legal transition', () {
+    final driver = Driver(id: 'driver-1', name: 'A', deviceId: 'paired-device');
+    final order = PosOrder(
+      id: 'delivery-1', ticketNo: '2001', type: OrderType.delivery,
+      status: OrderStatus.preparing, driverId: driver.id, deliveryState: 'queued',
+    );
+    final store = AppStore(drivers: [driver], orders: [order]);
+    final cmd = NetCommand(name: 'setDelivery', payload: {
+      'orderId': order.id, 'state': 'out', 'driverId': 'spoofed',
+    });
+    expect(RoleAccess.bindDriverCommand(store, cmd, 'other-device'), isFalse);
+    expect(RoleAccess.bindDriverCommand(store, cmd, 'paired-device'), isTrue);
+    expect(cmd.payload['driverId'], driver.id);
+  });
+
   test('station cannot send privileged commands', () {
     expect(isPrivileged('replaceState', 'cashier'), isTrue);
     expect(isPrivileged('setEntitlements', 'manager'), isTrue);

@@ -363,6 +363,34 @@ class StoreReducer {
           final next =
               enumParse(OrderStatus.values, p['status'], order.status);
           final prev = order.status;
+          final payment = p['payment'] == null
+              ? order.payment
+              : enumParse(PaymentMethod.values, p['payment'], PaymentMethod.cash);
+          final tip = p['tip'] == null ? order.tip : parseNum(p['tip']);
+          ShopCustomer? creditCustomer;
+          if (next == OrderStatus.paid && payment == PaymentMethod.credit) {
+            final selectedId = parseStr(p['khataCustomerId']);
+            if (selectedId != null && selectedId.isNotEmpty) {
+              for (final c in store.customers) {
+                if (c.id == selectedId) {
+                  creditCustomer = c;
+                  break;
+                }
+              }
+            }
+            if (creditCustomer == null) {
+              for (final c in store.customers) {
+                if (c.phone.trim().isNotEmpty &&
+                    c.phone.trim() == order.customerPhone.trim()) {
+                  creditCustomer = c;
+                  break;
+                }
+              }
+            }
+            // Credit is not a payment method unless we can identify the
+            // account that will be charged. Leave the ticket untouched.
+            if (creditCustomer == null) break;
+          }
           order.status = next;
           order.updatedAt = DateTime.now();
           if (next == OrderStatus.preparing && order.sentAt == null) {
@@ -371,10 +399,10 @@ class StoreReducer {
           if (p['voidReason'] != null) {
             order.voidReason = parseStr(p['voidReason']) ?? '';
           }
-          if (p['payment'] != null) {
-            order.payment =
-                enumParse(PaymentMethod.values, p['payment'], PaymentMethod.cash);
+          if (p['notes'] != null) {
+            order.notes = parseStr(p['notes']) ?? '';
           }
+          if (p['payment'] != null) order.payment = payment;
           if (p['splitPayment'] != null) {
             order.splitPayment =
                 enumParse(PaymentMethod.values, p['splitPayment'], PaymentMethod.cash);
@@ -386,7 +414,7 @@ class StoreReducer {
             order.loyaltyAwarded = parseBool(p['loyaltyAwarded']);
           }
           if (p['tip'] != null) {
-            order.tip = parseNum(p['tip']);
+            order.tip = tip;
           }
           if (p['driverId'] != null) {
             order.driverId = parseStr(p['driverId']);
@@ -397,24 +425,17 @@ class StoreReducer {
           }
           if (next == OrderStatus.paid &&
               order.payment == PaymentMethod.credit) {
-            // Khata tab: charge the registered customer once per order.
-            String? cid = parseStr(p['khataCustomerId']);
-            if (cid == null) {
-              for (final c in store.customers) {
-                if (c.phone.trim().isNotEmpty &&
-                    c.phone.trim() == order.customerPhone.trim()) {
-                  cid = c.id;
-                  break;
-                }
-              }
-            }
-            if (cid != null &&
-                !store.khata.any((x) => x.orderId == order.id && x.kind == 'charge')) {
+            // Keep the selected account on the ticket for receipt/report
+            // context, and charge the final total exactly once (total already
+            // includes tip).
+            order.customerName = creditCustomer!.name;
+            order.customerPhone = creditCustomer.phone;
+            if (!store.khata.any((x) => x.orderId == order.id && x.kind == 'charge')) {
               store.khata.insert(0, KhataEntry(
                 id: newId(),
-                customerId: cid,
+                customerId: creditCustomer.id,
                 kind: 'charge',
-                amount: order.total + order.tip,
+                amount: order.total,
                 orderId: order.id,
                 note: 'Ticket ${order.ticketNo}',
               ));
@@ -423,6 +444,27 @@ class StoreReducer {
           if (next == OrderStatus.cancelled && order.stockDeducted) {
             _restoreStock(store, order);
             order.stockDeducted = false;
+          }
+          if (next == OrderStatus.cancelled && prev == OrderStatus.paid) {
+            // Reverse a credit charge and earned points once. Clearing the
+            // award flag makes duplicate cancellation commands idempotent.
+            store.khata.removeWhere(
+                (e) => e.orderId == order.id && e.kind == 'charge');
+            if (order.loyaltyAwarded) {
+              ShopCustomer? customer;
+              for (final c in store.customers) {
+                if (c.phone.trim().isNotEmpty &&
+                    c.phone.trim() == order.customerPhone.trim()) {
+                  customer = c;
+                  break;
+                }
+              }
+              if (customer != null) {
+                customer.points = (customer.points - order.total.floorToDouble())
+                    .clamp(0, double.infinity).toDouble();
+              }
+              order.loyaltyAwarded = false;
+            }
           }
           _syncTable(store, order.tableId);
           if (next == OrderStatus.preparing && prev != OrderStatus.preparing) {
@@ -729,26 +771,42 @@ class StoreReducer {
     table.occupiedAt ??= earliest;
   }
 
+  static Map<String, double> _stockUsage(AppStore store, OrderLine line) {
+    final usage = <String, double>{};
+    final product = store.productById(line.productId);
+    final inventoryId = line.inventoryId ?? product?.inventoryId;
+    if (inventoryId != null && inventoryId.isNotEmpty) {
+      usage[inventoryId] =
+          (line.deductQty > 0 ? line.deductQty : 1) * line.qty;
+    }
+    if (product != null) {
+      for (final recipe in product.recipe) {
+        if (recipe.stockId.isNotEmpty && recipe.quantity > 0) {
+          usage[recipe.stockId] =
+              (usage[recipe.stockId] ?? 0) + recipe.quantity * line.qty;
+        }
+      }
+    }
+    return usage;
+  }
+
   static void _deductStock(AppStore store, PosOrder order) {
     for (final line in order.lines) {
-      final invId = line.inventoryId ?? store.productById(line.productId)?.inventoryId;
-      if (invId == null) continue;
-      final item = store.stockById(invId);
-      if (item == null) continue;
-      final qty = (line.deductQty > 0 ? line.deductQty : 1) * line.qty;
-      item.quantity -= qty;
-      if (item.quantity < 0) item.quantity = 0;
+      for (final entry in _stockUsage(store, line).entries) {
+        final item = store.stockById(entry.key);
+        // Keep a negative balance if a shop sells below zero: clamping here
+        // would make a later exact cancellation restore too much stock.
+        if (item != null) item.quantity -= entry.value;
+      }
     }
   }
 
   static void _restoreStock(AppStore store, PosOrder order) {
     for (final line in order.lines) {
-      final invId = line.inventoryId ?? store.productById(line.productId)?.inventoryId;
-      if (invId == null) continue;
-      final item = store.stockById(invId);
-      if (item == null) continue;
-      final qty = (line.deductQty > 0 ? line.deductQty : 1) * line.qty;
-      item.quantity += qty;
+      for (final entry in _stockUsage(store, line).entries) {
+        final item = store.stockById(entry.key);
+        if (item != null) item.quantity += entry.value;
+      }
     }
   }
 }

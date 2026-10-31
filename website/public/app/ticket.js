@@ -122,7 +122,8 @@ async function renderMenuPick() {
   for (const p of ps.filter(p => (T_CAT === 'all' || (p.categoryId || p.cat || 'Items') === T_CAT))) {
     const off = p.available === false || p.avail === false;
     const card = ce('div', 'mcard' + (off ? ' mcard--off' : ''));
-    card.innerHTML = '<div class="mcard__img">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️') + '</div>'
+    const imageUrl = C.safeImageUrl(p.imageBase64);
+    card.innerHTML = '<div class="mcard__img">' + (imageUrl ? '<img src="' + esc(imageUrl) + '" alt=""/>' : '🍽️') + '</div>'
       + '<div class="mcard__body"><span class="mcard__name">' + esc(p.name) + '</span>'
       + '<span class="chip chip--small ' + (off ? 'tag--danger' : '') + '">' + (off ? L.t('sold_out_word') : money(p.priceCents != null ? p.priceCents : C.cents(p.price))) + '</span>'
       + (off ? '' : '<button class="mcard__add" type="button">' + L.t('add') + '</button>') + '</div>';

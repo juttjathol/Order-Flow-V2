@@ -18,6 +18,10 @@ const BASES = ['', 'https://order-flow-v2.pages.dev'];
 let BASE = location.protocol.startsWith('http') ? '' : BASES[1];
 
 function fail(t, b) { $('g-err').hidden = false; $('g-err-t').textContent = t; if (b) $('g-err-b').textContent = b; $('g-bar').hidden = true; }
+async function newDeviceProof(secret, deviceId) {
+  const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`of-cloud-device|v1|member|${secret}|${deviceId}`));
+  return [...new Uint8Array(raw)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
 
 async function key(secret) {
   const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('orderflow-cloud|v1|' + secret));
@@ -55,6 +59,7 @@ async function boot() {
   if (!cfg.r || !cfg.c || !cfg.k) return fail('This QR looks out of date');
   CFG = cfg; KEY = await key(cfg.k); VIEW_ONLY = !!(cfg && cfg.v === 'menu');
   CFG.device = 'guest-' + Math.random().toString(36).slice(2, 10);
+  CFG.proof = await newDeviceProof(cfg.k, CFG.device);
   // Instant menu on repeat visits: render the last snapshot we received for
   // this room from localStorage, then refresh it live below.
   try {
@@ -63,14 +68,17 @@ async function boot() {
   } catch { /* no cache */ }
   // Worker contract (v1.1.83+): join needs room + code + deviceId — the
   // deviceId is what makes us a member allowed to send.
-  const j = await api('/api/cloud/join', { room: cfg.r, code: cfg.c, role: 'guest', deviceId: CFG.device });
+  const j = await api('/api/cloud/join', {
+    room: cfg.r, code: cfg.c, role: 'guest', deviceId: CFG.device,
+    deviceProof: CFG.proof,
+  });
   if (!j || j.ok !== true) return fail('Room is closed right now', 'The shop is not taking QR orders at the moment. Order at the counter.');
   $('g-shop').textContent = cfg.shop || 'Order here';
   if (cfg.tn) {
     const chip = ce('div', 'g-chip', '📍 Table ' + esc(cfg.tn));
     $('g-hero').querySelector('div').appendChild(chip);
   }
-  await api('/api/cloud/send', { room: cfg.r, device: CFG.device, msg: await enc(JSON.stringify({ t: 'cmd', c: { type: 'hello', device: CFG.device, role: 'guest', at: Date.now() } })) });
+  await api('/api/cloud/send', { room: cfg.r, device: CFG.device, proof: CFG.proof, msg: await enc(JSON.stringify({ t: 'cmd', c: { type: 'hello', device: CFG.device, role: 'guest', at: Date.now() } })) });
   requestMenu(true); // ask main for a fresh push instead of waiting silently
   poll();
 }
@@ -79,15 +87,16 @@ async function requestMenu(force) {
   const now = Date.now();
   if (!force && LAST_MENU_REQ && now - LAST_MENU_REQ < 6000) return;
   LAST_MENU_REQ = now;
-  try { await api('/api/cloud/send', { room: CFG.r, device: CFG.device, msg: await enc(JSON.stringify({ t: 'cmd', c: { type: 'menu_request', device: CFG.device, role: 'guest', at: now } })) }); } catch {}
+  try { await api('/api/cloud/send', { room: CFG.r, device: CFG.device, proof: CFG.proof, msg: await enc(JSON.stringify({ t: 'cmd', c: { type: 'menu_request', device: CFG.device, role: 'guest', at: now } })) }); } catch {}
 }
 async function poll() {
   try {
-    const j = await api('/api/cloud/pull', { room: CFG.r, device: CFG.device, after: CURSOR });
+    const j = await api('/api/cloud/pull', { room: CFG.r, device: CFG.device, proof: CFG.proof, after: CURSOR });
     if (j && j.ok !== false && Array.isArray(j.msgs)) {
       if (typeof j.cursor === 'number') CURSOR = j.cursor;
       for (const m of j.msgs) {
         if (!m || m.sender === CFG.device) continue;
+        if (!m.sender_role || m.sender_role !== 'main') continue;
         const plain = await dec(String(m.msg || '')); if (!plain) continue;
         let env; try { env = JSON.parse(plain); } catch { continue; }
         if (env.t === 'state') applyState(env.s);
@@ -155,7 +164,8 @@ function renderMenu() {
   for (const p of ps.filter(x => CAT === 'all' || (x.categoryId || x.cat || 'Menu') === CAT)) {
     const inCart = CART.get(p.id);
     const row = ce('div', 'g-item');
-    row.innerHTML = '<div class="g-item__img">' + (p.imageBase64 ? '<img src="' + p.imageBase64 + '" alt=""/>' : '🍽️') + '</div>'
+    const imageUrl = C.safeImageUrl(p.imageBase64);
+    row.innerHTML = '<div class="g-item__img">' + (imageUrl ? '<img src="' + esc(imageUrl) + '" alt=""/>' : '🍽️') + '</div>'
       + '<div style="flex:1;min-width:0"><b>' + esc(p.name) + '</b><small>' + esc(p.description || '') + '</small></div>'
       + '<span class="prc">' + money(p.priceCents) + '</span>'
       + (inCart ? '<span class="g-qty"><button data-d="-1">−</button><b>' + inCart.qty + '</b><button data-d="1">＋</button></span>' : '<button class="g-add">＋</button>');
@@ -200,7 +210,7 @@ async function sendOrder() {
   for (const v of CART.values()) lines.push({ productId: v.p.id, name: v.p.name, qty: v.qty, priceCents: v.p.priceCents, notes: '' });
   const cmd = { type: 'order', gid, tableId: CFG.t || null, tableName: CFG.tn || '', lines, at: Date.now() };
   const msg = await enc(JSON.stringify({ t: 'cmd', c: cmd }));
-  const j = await api('/api/cloud/send', { room: CFG.r, device: CFG.device, msg });
+  const j = await api('/api/cloud/send', { room: CFG.r, device: CFG.device, proof: CFG.proof, msg });
   if (j && j.ok !== false) {
     SENT_GIDS.push({ gid, at: Date.now() });
     CART.clear();

@@ -10,18 +10,18 @@
 Offline-first multi-device POS for restaurants, retail, fast food, and services, plus a Cloudflare license dashboard.
 
 - **Android app** (`flutter_app/`) — Main server + Order Taker / Kitchen / Cashier / Driver
-- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.93+)
+- **Windows Main** — the same Main server in `order_flow.exe` for Windows 10/11 laptops (v1.1.98+)
 - **iPhone / web app** (`website/public/app/`) — the same POS rebuilt as an installable PWA at **jathol.org/app**; guest QR menu at `/order.html`; iOS printing via share-sheet PDF (standalone), AirPrint sheet (Safari tab), or Bluetooth ESC/POS
 - **SaaS dashboard** (`cloudflare_dashboard/`) — customers, keys, device bind / reset / revoke, plans & per-key feature access, push broadcasts
-- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.97` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
+- **APK + Windows ZIP** — create a GitHub Release tag `v1.1.98` (or any `v*`) and the Action attaches `app-release.apk` (+ `app-release.aab`) and `order-flow-windows.zip`
 - **Public website** (`website/`) — Jathol.pages.dev + full user guide (`/guide`)
 
-Version **1.1.97+97**. The web app deploys continuously from `main` (current shell cache `of-shell-v52`).
+Version **1.1.98+97**. The web app deploys continuously from `main` (current shell cache `of-shell-v52`).
 
 You only need two things after this repo is on GitHub:
 
 1. Connect the repo to **Cloudflare Pages** (dashboard clicks, no terminal)
-2. Create a **GitHub Release** with tag `v1.1.97` (the Action builds the APK + Windows ZIP)
+2. Create a **GitHub Release** with tag `v1.1.98` (the Action builds the APK + Windows ZIP)
 
 ---
 
@@ -61,7 +61,7 @@ In the Android app license screen, set **License API URL** to that Pages origin.
 
 First success **binds** the device. A second device is rejected until you click **Reset device**. Delete or revoke the key and the Main app locks to WhatsApp **@Jathol_Jutt**.
 
-### Plans & per-key access (v1.1.92+, hardened v1.1.91)
+### Plans & per-key access (v1.1.98+, hardened v1.1.98)
 
 Every key carries a **plan** — Professional / Customize (legacy keys: Starter / Growth / Full) — plus the **business models** it may run and a **16-extra feature checklist** (QR ordering, station printers, loyalty, refunds, purchases, cloud sync, branded QR page, third-party channels …) editable from the dashboard's **Access…** dialog:
 
@@ -82,7 +82,7 @@ GitHub Actions (`.github/workflows/build-release.yml`) installs Java 17 + Flutte
 After that, every release is tag-only (no terminal):
 
 1. Open the repo → **Releases** → **Draft a new release**
-2. **Choose a tag** → type `v1.1.97` → **Create new tag** on the release commit
+2. **Choose a tag** → type `v1.1.98` → **Create new tag** on the release commit
 3. Title: `Order Flow 1.0.0`
 4. **Publish release**
 
@@ -127,7 +127,7 @@ License screen → **Connect to Main** → same Wi‑Fi → IP or QR from Main �
 
 ### Cloud networking (Custom plan)
 
-When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud relay** instead of the LAN (v1.1.92+): Main opens a room, stations join with a pairing code, and orders reach Main over any connection. Messages are end-to-end encrypted between your devices, deleted on read, and expire in ~30 minutes — **shop data is never backed up to the cloud**.
+When the shop Wi‑Fi dies mid-service, stations can ride an **encrypted cloud relay** instead of the LAN (v1.1.98+): Main opens a room, stations join with a pairing code, and orders reach Main over any connection. Messages are end-to-end encrypted between your devices, deleted on read, and expire in ~30 minutes — **shop data is never backed up to the cloud**.
 
 ---
 

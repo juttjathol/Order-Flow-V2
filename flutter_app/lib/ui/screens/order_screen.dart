@@ -916,6 +916,17 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     if (!await ensureCanCreateOrder(context, ref)) return;
     if (!mounted) return;
     final move = order.lines.where((l) => picked.containsKey(l.id)).toList();
+    final originalGross = order.lines.fold<double>(0, (sum, line) => sum + line.lineTotal);
+    final childGross = move.fold<double>(0, (sum, line) =>
+        sum + line.lineTotal * (picked[line.id]! / line.qty));
+    final remainingGross = (originalGross - childGross).clamp(0, double.infinity).toDouble();
+    final originalDiscount = order.discount.clamp(0, originalGross).toDouble();
+    final childDiscount = originalGross <= 0
+        ? 0.0
+        : (originalDiscount * childGross / originalGross)
+            .clamp(0, childGross).toDouble();
+    final parentDiscount = (originalDiscount - childDiscount)
+        .clamp(0, remainingGross).toDouble();
     for (final l in move) {
       final q = picked[l.id]!;
       if (!q.isFinite || q <= 0 || q > l.qty) {
@@ -933,6 +944,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       customerPhone: order.customerPhone,
       address: order.address,
       taxRate: order.taxRate,
+      taxes: order.taxes.map((t) => OrderTax(name: t.name, rate: t.rate)).toList(),
+      serviceRate: order.serviceRate,
+      discount: childDiscount,
       lines: move.map((l) {
         final q = picked[l.id]!;
         final fraction = q / l.qty;
@@ -961,6 +975,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         await ref.ctrl.dispatch(NetCommand(name: 'updateLine', payload: {'orderId': order.id, 'line': remaining.toJson()}));
       }
     }
+    order.discount = parentDiscount;
+    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': order.toJson()}));
     if (mounted) _pay(child);
   }
 
@@ -1266,6 +1282,16 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       final splitAmt = splitOn ? (double.tryParse(splitText) ?? 0) : 0.0;
       final due = base + tip;
       final primaryDue = splitOn ? (due - splitAmt) : due;
+      final khataCustomer = method == PaymentMethod.credit && khataCustId != null
+          ? ref.snap.store.customers
+              .where((c) => c.id == khataCustId)
+              .firstOrNull
+          : null;
+      if (method == PaymentMethod.credit && khataCustomer == null) return;
+      if (khataCustomer != null) {
+        order.customerName = khataCustomer.name;
+        order.customerPhone = khataCustomer.phone;
+      }
 
       // Loyalty: a saved customer earns 1 point per whole currency unit.
       if (ref.snap.canFeature('loyalty') &&
@@ -1291,6 +1317,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           'splitPayment': splitMethod.name,
           'splitAmount': splitAmt,
         },
+        if (khataCustomer != null) 'khataCustomerId': khataCustomer.id,
         if (order.loyaltyAwarded) 'loyaltyAwarded': true,
         'tip': tip,
       }));
@@ -1415,12 +1442,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       ),
     );
     if (ok != true) return;
-    order.notes = [order.notes, 'REFUND ${moneyOf(ref.snap, order.total)}'].where((e) => e.isNotEmpty).join(' | ');
-    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': order.toJson()}));
+    final notes = [order.notes, 'REFUND ${moneyOf(ref.snap, order.total)}']
+        .where((e) => e.isNotEmpty).join(' | ');
     await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
       'id': order.id,
       'status': OrderStatus.cancelled.name,
       'voidReason': 'refund',
+      'notes': notes,
     }));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s.t('refund_done'))));
@@ -1429,7 +1457,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
 
   Future<void> _voidOrder(PosOrder order) async {
     final s = ref.s;
-    if (!await confirmManagerPin(context, ref)) return;
+    if (order.status == OrderStatus.paid &&
+        !await confirmManagerPin(context, ref)) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1444,11 +1473,13 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     if (ok != true) return;
     final reason = await _askVoid();
     if (reason == null) return;
-    order.notes = [order.notes, 'VOID: $reason'].where((e) => e.isNotEmpty).join(' | ');
-    await ref.ctrl.dispatch(NetCommand(name: 'patchOrder', payload: {'order': order.toJson()}));
+    final notes = [order.notes, 'VOID: $reason']
+        .where((e) => e.isNotEmpty).join(' | ');
     await ref.ctrl.dispatch(NetCommand(name: 'setOrderStatus', payload: {
       'id': order.id,
       'status': OrderStatus.cancelled.name,
+      'voidReason': reason,
+      'notes': notes,
     }));
   }
 

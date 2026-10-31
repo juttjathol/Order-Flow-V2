@@ -1,5 +1,6 @@
-• EN: Removed duplicate More controls. UR: More کے دہرے بٹن ختم۔
-• EN: Safer saves and stock checks. UR: محفوظ کرنا اور اسٹاک جانچ بہتر۔
-• EN: Recipe ingredients merge cleanly. UR: ترکیب کے اجزاء اب درست ضم ہوتے ہیں۔
-• EN: Backup restore is validated and atomic. UR: بیک اپ بحالی محفوظ اور مکمل۔
-• EN: Fixed printer retry and build errors. UR: پرنٹر retry اور build کی خرابیاں درست۔
+• EN: Safer ticket and payment changes, with protected PIN approvals across devices.
+• EN: Stronger cloud relay identity checks and private PIN messaging.
+• EN: Android 15+ edge-to-edge layout now respects system safe areas.
+• UR: ٹکٹ اور ادائیگی میں محفوظ تبدیلیاں، PIN منظوری کے ساتھ۔
+• UR: کلاؤڈ ڈیوائس کی بہتر تصدیق اور نجی PIN پیغامات۔
+• UR: Android 15+ پر سسٹم اِن سیٹس کے مطابق بہتر لے آؤٹ۔

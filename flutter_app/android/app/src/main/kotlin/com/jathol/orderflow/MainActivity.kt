@@ -32,9 +32,9 @@ class MainActivity : FlutterActivity() {
     // Play review advisory (edge-to-edge, SDK 35/36): opt in explicitly with the
     // androidx.core API — FlutterActivity is a plain Activity, so the console's
     // suggested enableEdgeToEdge() helper does not exist here. We do the same
-    // steps it does: draw behind system bars, make bars transparent (pre-35;
-    // 35+ enforces it), and set dark status/navigation icons for our light UI.
-    // The Flutter engine still manages insets in Dart-land.
+    // steps it does: draw behind system bars and keep them transparent. The
+    // root SafeArea in app.dart consumes Flutter's reported insets, while its
+    // AnnotatedRegion updates system-bar icon contrast for the active theme.
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         if (Build.VERSION.SDK_INT < 35) {

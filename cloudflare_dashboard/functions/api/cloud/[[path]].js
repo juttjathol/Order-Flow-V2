@@ -11,13 +11,18 @@
 // there is no list/query endpoint of any kind. Rooms open only for licenses
 // whose plan includes the "cloud_sync" feature.
 
-import { sec, throttle, ipOf, corsFor, d1Limit } from "../../_security.js";
+import { sec, throttle, ipOf, corsFor, d1Limit, safeEqual } from "../../_security.js";
 
 const PLAN_FEATURE_KEY = "cloud_sync";
 const MSG_TTL_MS = 30 * 60 * 1000; // rows never live longer than ~30 min
 const MSG_CAP = 200; // newest-rows cap per room (was 400; 200 x 1.3MB worst case
 // is still far above any real shop snapshot, and it caps D1 storage abuse)
 const MAX_DEVICES = 16;
+const GUEST_MEMBERSHIP_TTL_MS = 30 * 60 * 1000;
+const CLOUD_JOIN_ROLES = new Set([
+  "station", "guest", "manager", "orderTaker", "kitchen", "cashier",
+  "driver", "stockClerk", "frontDesk", "specialist",
+]);
 const MAX_MSG_LEN = 1_300_000; // encrypted payload size cap
 
 function j(status, body, extra = {}, cors = {}) {
@@ -43,6 +48,27 @@ function hex(buf) {
 async function sha256Hex(text) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return hex(d);
+}
+
+function validDeviceProof(proof) {
+  return /^[0-9a-f]{64}$/i.test(String(proof || ""));
+}
+
+async function deviceProofFor(credential, deviceId, purpose) {
+  return sha256Hex(`of-cloud-device|v1|${purpose}|${credential}|${deviceId}`);
+}
+
+async function proofMarker(proof) {
+  return `proof:v1:${await sha256Hex(`of-cloud-device|v1|${proof}`)}`;
+}
+
+async function verifiedMember(db, room, deviceId, proof) {
+  if (!room || !deviceId || !validDeviceProof(proof)) return null;
+  const member = await db.prepare(
+    "SELECT role, name FROM cloud_devices WHERE room = ?1 AND device_id = ?2",
+  ).bind(room, deviceId).first();
+  if (!member || !(await safeEqual(String(member.name || ""), await proofMarker(proof)))) return null;
+  return member;
 }
 
 function randomHex(bytes) {
@@ -295,10 +321,18 @@ export async function onRequest(context) {
       if (throttle(`cloud-open|${ipOf(request)}`, 20, 300000) || await d1Limit(db, `cloud-open|${ipOf(request)}`, 20, 300000)) {
         return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "300" });
       }
-      const allowed = await licenseAllowsCloud(db, String(body.licenseKey || ""), String(body.deviceId || ""));
-      if (!allowed) return j(403, { ok: false, error: "plan" });
+      const proof = String(body.deviceProof || "");
+      const deviceRaw = String(body.deviceId || "");
+      if (!validDeviceProof(proof) || !deviceRaw || deviceRaw.length > 160) {
+        return j(400, { ok: false, error: "identity" });
+      }
       const licenseKey = String(body.licenseKey || "").slice(0, 80);
-      const mainDevice = String(body.deviceId || "").slice(0, 160);
+      const allowed = await licenseAllowsCloud(db, licenseKey, deviceRaw);
+      if (!allowed) return j(403, { ok: false, error: "plan" });
+      if (!(await safeEqual(proof, await deviceProofFor(licenseKey, deviceRaw, "main")))) {
+        return j(403, { ok: false, error: "identity" });
+      }
+      const mainDevice = deviceRaw;
       const room = randomHex(32);
       const secret = randomHex(32);
       const code = randomCode();
@@ -323,8 +357,8 @@ export async function onRequest(context) {
       );
       stmts.push(
         db
-          .prepare("INSERT INTO cloud_devices (room, device_id, role, name, joined_at) VALUES (?1,?2,'main','Main',?3)")
-          .bind(room, mainDevice, now)
+          .prepare("INSERT INTO cloud_devices (room, device_id, role, name, joined_at) VALUES (?1,?2,'main',?3,?4)")
+          .bind(room, mainDevice, await proofMarker(proof), now)
       );
       await db.batch(stmts);
       // Keep `secret` so already-installed Mains can pair. New apps ignore it
@@ -341,20 +375,49 @@ export async function onRequest(context) {
       }
       const room = String(body.room || "");
       const code = String(body.code || "").toUpperCase().trim();
-      if (!room || !code) return j(400, { ok: false, error: "args" });
-      const row = await db.prepare("SELECT code_hash FROM cloud_rooms WHERE room = ?1").bind(room).first();
+      const joinDevice = String(body.deviceId || "");
+      const joinRole = String(body.role || "station");
+      const joinProof = String(body.deviceProof || "");
+      if (!room || !code || !joinDevice || joinDevice.length > 160 ||
+          !CLOUD_JOIN_ROLES.has(joinRole) || !validDeviceProof(joinProof)) {
+        return j(400, { ok: false, error: "args" });
+      }
+      const row = await db.prepare("SELECT code_hash, main_device, secret FROM cloud_rooms WHERE room = ?1").bind(room).first();
       if (!row) return j(404, { ok: false, error: "no_room" });
-      if ((await sha256Hex("of-cloud|" + code)) !== row.code_hash) return j(403, { ok: false, error: "code" });
+      if (!(await safeEqual(await sha256Hex("of-cloud|" + code), String(row.code_hash || "")))) {
+        return j(403, { ok: false, error: "code" });
+      }
+      if (!(await safeEqual(joinProof, await deviceProofFor(String(row.secret || ""), joinDevice, "member")))) {
+        return j(403, { ok: false, error: "identity" });
+      }
+      if (joinDevice === String(row.main_device || "")) return j(409, { ok: false, error: "identity" });
+      // QR guests have ephemeral browser identities; reap abandoned guest
+      // rows before counting capacity so a busy shop does not fill the room
+      // permanently with closed tabs.
+      await db.prepare(
+        "DELETE FROM cloud_devices WHERE room = ?1 AND role = 'guest' AND COALESCE(last_seen, joined_at, 0) < ?2",
+      ).bind(room, Date.now() - GUEST_MEMBERSHIP_TTL_MS).run();
+      const marker = await proofMarker(joinProof);
+      const existing = await db.prepare(
+        "SELECT name FROM cloud_devices WHERE room = ?1 AND device_id = ?2",
+      ).bind(room, joinDevice).first();
+      if (existing) {
+        if (await safeEqual(String(existing.name || ""), marker)) {
+          await db.prepare("UPDATE cloud_devices SET role = ?1, last_seen = ?2 WHERE room = ?3 AND device_id = ?4")
+            .bind(joinRole, Date.now(), room, joinDevice).run();
+          return j(200, { ok: true, room, resumed: true });
+        }
+        return j(409, { ok: false, error: "identity" });
+      }
       const count = await db.prepare("SELECT COUNT(*) AS n FROM cloud_devices WHERE room = ?1").bind(room).first();
       if (count && Number(count.n) >= MAX_DEVICES) return j(403, { ok: false, error: "full" });
-      // Bounded identity strings — a joiner controls these and they are stored.
-      const joinDevice = String(body.deviceId || "?").slice(0, 160);
-      const joinRole = String(body.role || "station").slice(0, 32);
-      await db
-        .prepare(
-          "INSERT OR REPLACE INTO cloud_devices (room, device_id, role, name, cursor, joined_at) VALUES (?1,?2,?3,?4,0,?5)"
-        )
-        .bind(room, joinDevice, joinRole, joinRole, Date.now()).run();
+      // The existing name column stores a context-hashed proof marker, not a
+      // display name. This avoids a D1 migration and binds the device id to a
+      // proof derived from its existing pairing credential, without minting
+      // another device key/password/secret.
+      await db.prepare(
+        "INSERT INTO cloud_devices (room, device_id, role, name, cursor, joined_at) VALUES (?1,?2,?3,?4,0,?5)",
+      ).bind(room, joinDevice, joinRole, marker, Date.now()).run();
       return j(200, { ok: true, room });
     }
 
@@ -364,8 +427,10 @@ export async function onRequest(context) {
       }
       const room = String(body.room || "");
       const dev = String(body.deviceId || "");
+      const member = await verifiedMember(db, room, dev, body.proof);
+      if (!member) return j(403, { ok: false, error: "not_member" });
       const row = await db.prepare("SELECT main_device FROM cloud_rooms WHERE room = ?1").bind(room).first();
-      if (row && row.main_device === dev) {
+      if (row && row.main_device === dev && member.role === "main") {
         await db.batch([
           db.prepare("DELETE FROM cloud_msgs WHERE room = ?1").bind(room),
           db.prepare("DELETE FROM cloud_devices WHERE room = ?1").bind(room),
@@ -386,24 +451,38 @@ export async function onRequest(context) {
         const okLic = await cachedLicenseOk(db, String(body.licenseKey), String(body.device || ""));
         if (!okLic) return j(403, { ok: false, error: "plan" });
       }
-      const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
-      if (!open) return j(404, { ok: false, error: "no_room" });
-      // v1.1.83 hardening: writing to a room now requires MEMBERSHIP, not just
-      // knowledge of the room id. Every shipped client already joins first
-      // (Main is inserted by /open, stations by /join), so this is backward
-      // compatible — it only stops a leaked/ex-device room id from injecting or
-      // flooding ciphertext (which could evict real orders via the row cap).
-      const sender = String(body.device || "").slice(0, 160);
-      const member = await db
-        .prepare("SELECT 1 AS x FROM cloud_devices WHERE room = ?1 AND device_id = ?2")
-        .bind(room, sender).first();
+      const sender = String(body.device || "");
+      const member = await verifiedMember(db, room, sender, body.proof);
       if (!member) return j(403, { ok: false, error: "not_member" });
       if (throttle(`cloud-send-dev|${room}|${sender}`, 240, 60000)) {
         return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "5" });
       }
+      let routePrefix = "";
+      const requestedTo = String(body.to || "");
+      if (requestedTo) {
+        let target = requestedTo;
+        if (requestedTo === "main") {
+          const main = await db.prepare("SELECT main_device FROM cloud_rooms WHERE room = ?1").bind(room).first();
+          target = String(main?.main_device || "");
+        }
+        if (!target || target.length > 160) return j(400, { ok: false, error: "recipient" });
+        const recipient = await db.prepare(
+          "SELECT 1 AS x FROM cloud_devices WHERE room = ?1 AND device_id = ?2",
+        ).bind(room, target).first();
+        if (!recipient) return j(403, { ok: false, error: "recipient" });
+        // Reuse the existing msg column: only the selected authenticated
+        // member can pull this ciphertext. No cloud_devices/cloud_msgs schema
+        // migration is needed, and the payload stays opaque to the relay.
+        routePrefix = `!to:${hex(new TextEncoder().encode(target))}:`;
+      }
+      // Capture the authenticated sender's role at send-time; a later role
+      // update cannot retroactively upgrade queued messages in the room.
+      const rolePrefix = `!r:${hex(new TextEncoder().encode(String(member.role || "")))}:`;
+      const storedMsg = `${routePrefix}${rolePrefix}${msg}`;
+      if (storedMsg.length > MAX_MSG_LEN) return j(400, { ok: false, error: "args" });
       await db
         .prepare("INSERT INTO cloud_msgs (room, sender, msg, created_at) VALUES (?1,?2,?3,?4)")
-        .bind(room, sender, msg, Date.now()).run();
+        .bind(room, sender, storedMsg, Date.now()).run();
       await prune(db, room);
       return j(200, { ok: true });
     }
@@ -411,21 +490,49 @@ export async function onRequest(context) {
     if (path === "pull") {
       const room = String(body.room || "");
       const dev = String(body.device || "");
-      const after = Number(body.after || 0);
-      // Keyed per room+device (NOT per IP): a whole shop sits behind one NAT
-      // address, so an IP-level limit would lock out real stations. 120/min is
-      // 2.4x the fastest legitimate poll rate.
+      const after = Math.max(0, Number(body.after || 0) || 0);
+      const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
+      if (!open) return j(404, { ok: false, error: "no_room" });
+      const member = await verifiedMember(db, room, dev, body.proof);
+      if (!member) return j(403, { ok: false, error: "not_member" });
+      // Keyed to the verified membership, not the untrusted device string or
+      // the shared shop IP, so callers cannot borrow another station's quota.
       if (throttle(`cloud-pull|${room}|${dev}`, 120, 60000)) {
         return j(429, { ok: false, error: "slow_down" }, { "Retry-After": "5" });
       }
-      const open = await db.prepare("SELECT 1 AS x FROM cloud_rooms WHERE room = ?1").bind(room).first();
-      if (!open) return j(404, { ok: false, error: "no_room" });
+      const targetPrefix = `!to:${hex(new TextEncoder().encode(dev))}:`;
       const rs = await db
         .prepare(
-          "SELECT id, sender, msg FROM cloud_msgs WHERE room = ?1 AND id > ?2 AND (sender IS NULL OR sender <> ?3) ORDER BY id ASC LIMIT 25"
+          `SELECT m.id, m.sender, m.msg, d.role AS current_role
+             FROM cloud_msgs m
+             JOIN cloud_devices d ON d.room = m.room AND d.device_id = m.sender
+            WHERE m.room = ?1 AND m.id > ?2 AND m.sender <> ?3
+              AND (substr(m.msg, 1, 4) <> '!to:' OR substr(m.msg, 1, length(?4)) = ?4)
+            ORDER BY m.id ASC LIMIT 25`
         )
-        .bind(room, after, dev).all();
-      const msgs = rs.results || [];
+        .bind(room, after, dev, targetPrefix).all();
+      const msgs = (rs.results || []).map((message) => {
+        let rawMsg = String(message.msg || "");
+        if (rawMsg.startsWith("!to:")) {
+          const targetEnd = rawMsg.indexOf(":", 4);
+          if (targetEnd >= 0) rawMsg = rawMsg.slice(targetEnd + 1);
+        }
+        let senderRole = String(message.current_role || "");
+        if (rawMsg.startsWith("!r:")) {
+          const roleEnd = rawMsg.indexOf(":", 3);
+          if (roleEnd >= 0) {
+            const roleHex = rawMsg.slice(3, roleEnd);
+            if (/^(?:[0-9a-f]{2})*$/i.test(roleHex)) {
+              try {
+                const bytes = Uint8Array.from(roleHex.match(/.{2}/g) || [], (h) => parseInt(h, 16));
+                senderRole = new TextDecoder().decode(bytes) || senderRole;
+              } catch {}
+            }
+            rawMsg = rawMsg.slice(roleEnd + 1);
+          }
+        }
+        return { ...message, msg: rawMsg, sender_role: senderRole };
+      });
       let cursor = after;
       if (msgs.length) cursor = msgs[msgs.length - 1].id;
       // Relay sleep/wake handshake: a device reports its mode with each pull
@@ -441,8 +548,8 @@ export async function onRequest(context) {
           await db.prepare("UPDATE cloud_devices SET hot = 1, last_seen = ?1 WHERE room = ?2 AND device_id = ?3 AND (hot <> 1 OR last_seen IS NULL OR last_seen < ?4)")
             .bind(now, room, dev, now - 60000).run();
         } else {
-          await db.prepare("UPDATE cloud_devices SET hot = 0 WHERE room = ?1 AND device_id = ?2 AND hot = 1")
-            .bind(room, dev).run();
+          await db.prepare("UPDATE cloud_devices SET hot = 0, last_seen = ?1 WHERE room = ?2 AND device_id = ?3 AND (hot <> 0 OR last_seen IS NULL OR last_seen < ?4)")
+            .bind(now, room, dev, now - 60000).run();
         }
       } catch {}
       // Main reads this to wake out of idle the moment any peer reports

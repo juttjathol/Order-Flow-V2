@@ -45,7 +45,7 @@ class DispatchScreen extends ConsumerWidget {
     }
 
     Widget card(PosOrder o, String state) {
-      final due = o.total + o.tip;
+      final due = o.total;
       return OfCard(
         padding: const EdgeInsets.all(12),
         child: Column(

@@ -811,6 +811,11 @@ class AppController extends Notifier<AppSnapshot> {
     }
   }
 
+  String? createWebConsoleCode() {
+    if (!state.isMain || !state.serverOn) return null;
+    return _server?.createConsoleCode();
+  }
+
   Future<void> approveDevice(String deviceId) async {
     if (!state.session.approvedDeviceIds.contains(deviceId)) {
       state.session.approvedDeviceIds.add(deviceId);
@@ -836,6 +841,39 @@ class AppController extends Notifier<AppSnapshot> {
       clients: _server?.clients.values.toList() ?? state.clients,
       pendingClients: _server?.pending.values.toList() ?? const [],
     ));
+  }
+
+  String? _pendingManagerPin;
+  DateTime? _pendingManagerPinUntil;
+
+  void rememberManagerPinForNextProtectedAction(String pin) {
+    _pendingManagerPin = pin;
+    _pendingManagerPinUntil = DateTime.now().add(const Duration(seconds: 60));
+  }
+
+  String? _takePendingManagerPin() {
+    final pin = _pendingManagerPin;
+    final until = _pendingManagerPinUntil;
+    _pendingManagerPin = null;
+    _pendingManagerPinUntil = null;
+    if (until == null || DateTime.now().isAfter(until)) return null;
+    return pin;
+  }
+
+  bool _requiresManagerPin(NetCommand cmd) {
+    if (cmd.name == 'closeDay' || cmd.name == 'openShift') return true;
+    if (cmd.name == 'setOrderStatus' &&
+        cmd.payload['status']?.toString() == OrderStatus.cancelled.name) {
+      final order = state.store.orderById(
+          parseStr(cmd.payload['id'] ?? cmd.payload['orderId']));
+      return order?.status == OrderStatus.paid;
+    }
+    if (cmd.name == 'deleteOrder') {
+      final order = state.store.orderById(
+          parseStr(cmd.payload['id'] ?? cmd.payload['orderId']));
+      return order?.status == OrderStatus.paid;
+    }
+    return false;
   }
 
   bool managerPinLocked() {
@@ -880,19 +918,16 @@ class AppController extends Notifier<AppSnapshot> {
     }
     // Station paths — whichever transport works, in order of cheapness.
     bool? verdict;
-    // 1. Cloud snapshots carry the real hash (unstripped) — verify offline.
+    // Snapshots strip the manager PIN entirely. A local copy from an older
+    // session can still reject obvious wrong input, but Main remains the
+    // authority and the cloud path targets its encrypted PIN message.
     if (PinCrypto.isHashed(stored)) {
       verdict = PinCrypto.verify(stored, pin);
-      if (verdict == false && PinCrypto.isHashed(stored)) {
-        // Fall through to a server round-trip too — the snapshot could be
-        // stale relative to a PIN the manager just rotated.
-        verdict = null;
-      }
+      if (verdict == false) verdict = null; // Main may have rotated the PIN.
     } else if (stored.isNotEmpty) {
-      // Legacy plaintext hash survived transport: exact match is the hint.
       if (stored == pin) verdict = true;
     }
-    // 2. LAN: server-side check (Main strips the hash from LAN payloads).
+    // LAN: server-side check (Main strips the hash from LAN payloads).
     if (verdict == null && state.connected && _client != null) {
       try {
         verdict = await _client!.verifyPin(pin);
@@ -908,6 +943,10 @@ class AppController extends Notifier<AppSnapshot> {
     }
     // 3. Cloud room: pin_verify / pin_reply round-trip across the relay.
     if (verdict == null && _relay != null) {
+      verdict = await verifyManagerPinOverRelay(pin);
+    } else if (verdict == true && _relay?.active == true && !state.connected) {
+      // Local verification alone must not authorize a cloud mutation; Main
+      // issues the one-use approval after its own PIN check.
       verdict = await verifyManagerPinOverRelay(pin);
     }
     if (verdict == true) {
@@ -930,6 +969,19 @@ class AppController extends Notifier<AppSnapshot> {
   }
 
   ReduceResult _localApply(NetCommand cmd) {
+    if (_requiresManagerPin(cmd)) {
+      if (!state.isMain) return ReduceResult(state.store);
+      final pin = parseStr(cmd.payload.remove('managerPin')) ?? '';
+      final cloudApproved = cmd.id.isNotEmpty &&
+          _cloudPinApprovedCommands.remove(cmd.id);
+      // Main is the enforcement boundary for local, LAN and cloud commands.
+      // Cloud stations receive a one-use approval bound to their verified
+      // relay identity; PIN text is never copied into a room broadcast.
+      if (state.store.profile.managerPin.isNotEmpty &&
+          !cloudApproved && !checkManagerPin(pin)) {
+        return ReduceResult(state.store);
+      }
+    }
     if (isPrivileged(cmd.name, cmd.role) && cmd.role != AppRole.main.name) {
       return ReduceResult(state.store);
     }
@@ -1013,10 +1065,36 @@ class AppController extends Notifier<AppSnapshot> {
 
   Future<void> dispatch(NetCommand cmd) async {
     cmd = _stamp(cmd);
+    final protected = _requiresManagerPin(cmd);
+    if (protected &&
+        (!state.isMain || state.store.profile.managerPin.isNotEmpty)) {
+      final pin = _takePendingManagerPin();
+      if (pin == null) return;
+      // Only LAN HTTP (or local Main) gets the PIN field. Cloud uses a
+      // targeted pin_verify message and Main's one-use sender-bound grant.
+      if (state.isMain || state.connected) cmd.payload['managerPin'] = pin;
+    }
     if (state.isMain || state.session.role == AppRole.none) {
       final result = _localApply(cmd);
       _server?.broadcastState();
       if (result.notice != null) _server?.broadcastNotice(result.notice!);
+      return;
+    }
+    // Protected commands must be checked by Main and must never be applied
+    // optimistically or written to the offline queue with a PIN in the payload.
+    if (protected) {
+      final client = _client;
+      try {
+        if (client != null && state.connected) {
+          await client.send(cmd);
+          return;
+        }
+        final relay = _relay;
+        if (relay != null && relay.active && await relay.sendCommand(cmd.toJson())) {
+          return;
+        }
+      } catch (_) {}
+      state = state.copyWith(error: 'pin_action_offline');
       return;
     }
     _localApply(cmd);
@@ -1083,6 +1161,7 @@ class AppController extends Notifier<AppSnapshot> {
         ..cloudOn = true
         ..cloudRoom = info.room
         ..cloudSecret = info.secret
+        ..cloudProof = info.deviceProof
         ..cloudCode = info.code
         ..cloudUrl = kCloudRelayBase,
     );
@@ -1095,19 +1174,21 @@ class AppController extends Notifier<AppSnapshot> {
     if (state.isMain) return 'is_main';
     final parts = CloudRelay.parsePairing(pairing);
     if (parts == null) return 'bad_pairing';
-    final ok = await CloudRelay.joinRoom(
+    final proof = await CloudRelay.joinRoom(
       roomId: parts[0],
       code: parts[1],
       deviceId: state.session.deviceId,
       role: state.session.role.name,
+      roomSecret: parts[2],
       baseUrl: parts[3],
     );
-    if (!ok) return 'join_failed';
+    if (proof == null) return 'join_failed';
     state = state.copyWith(
       session: state.session
         ..cloudOn = true
         ..cloudRoom = parts[0]
         ..cloudSecret = parts[2]
+        ..cloudProof = proof
         ..cloudCode = ''
         ..cloudUrl = parts[3],
     );
@@ -1123,6 +1204,7 @@ class AppController extends Notifier<AppSnapshot> {
     unawaited(CloudRelay.leaveRoom(
       roomId: state.session.cloudRoom,
       deviceId: state.session.deviceId,
+      deviceProof: state.session.cloudProof,
       baseUrl: state.session.cloudUrl,
     ));
     state = state.copyWith(
@@ -1131,6 +1213,7 @@ class AppController extends Notifier<AppSnapshot> {
         ..cloudOn = false
         ..cloudRoom = ''
         ..cloudSecret = ''
+        ..cloudProof = ''
         ..cloudCode = ''
         ..cloudUrl = '',
     );
@@ -1141,14 +1224,32 @@ class AppController extends Notifier<AppSnapshot> {
     _relay?.stop();
     final s = state.session;
     if (!s.cloudOn || s.cloudRoom.isEmpty || s.cloudSecret.isEmpty) return;
+    if (!RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(s.cloudProof)) {
+      // Pre-proof relay memberships cannot authenticate this client safely;
+      // require Main to reopen the room and stations to pair again.
+      _setCloudDegraded(true);
+      return;
+    }
     final relay = CloudRelay(
       roomId: s.cloudRoom,
       secret: s.cloudSecret,
       deviceId: s.deviceId,
+      deviceProof: s.cloudProof,
       isMain: state.isMain,
       baseUrl: s.cloudUrl,
       revision: () => state.store.revision,
-      getStateJson: () => jsonEncode(state.store.toJson()),
+      getStateJson: () {
+        final snapshot = state.store.toJson();
+        final rawProfile = snapshot['profile'];
+        if (rawProfile is Map) {
+          final profile = Map<String, dynamic>.from(rawProfile);
+          // The manager PIN and its verifier are never included in cloud
+          // snapshots; stations use the targeted, encrypted pin_verify path.
+          profile['managerPin'] = '';
+          snapshot['profile'] = profile;
+        }
+        return jsonEncode(snapshot);
+      },
       onPeerState: _applyCloudState,
       onPeerCommand: _applyCloudCommand,
       onLost: () => _setCloudDegraded(true),
@@ -1201,12 +1302,39 @@ class AppController extends Notifier<AppSnapshot> {
   ///     'order'|'pin_verify'|'pin_reply', ...}` → handled here directly.
   void _applyCloudCommand(Map<String, dynamic> j) {
     try {
-      if (j['type'] is String) {
-        _applyTypedCloudMessage(j);
+      final sender = (j['_relaySender'] ?? '').toString();
+      final senderRole = (j['_relayRole'] ?? '').toString();
+      if (sender.isEmpty || senderRole.isEmpty) return;
+      final bound = Map<String, dynamic>.from(j)
+        ..remove('_relaySender')
+        ..remove('_relayRole')
+        ..['_relaySender'] = sender
+        ..['_relayRole'] = senderRole;
+      if (bound['type'] is String) {
+        _applyTypedCloudMessage(bound);
         return;
       }
-      if (!state.isMain) return; // NetCommands are Main-side; replies ride `type`
-      final cmd = NetCommand.fromJson(j);
+      if (!state.isMain || senderRole == AppRole.main.name) return;
+      final supplied = NetCommand.fromJson(bound);
+      // Role and actor come from the relay's verified membership row, never
+      // from ciphertext controlled by the sender.
+      final cmd = NetCommand(
+        id: supplied.id,
+        name: supplied.name,
+        payload: supplied.payload,
+        actor: sender,
+        role: senderRole,
+        at: supplied.at,
+      );
+      if (cmd.role == AppRole.driver.name &&
+          !RoleAccess.bindDriverCommand(state.store, cmd, sender)) return;
+      if (_requiresManagerPin(cmd) && cmd.id.isNotEmpty) {
+        final expiresAt = _cloudPinGrants[sender] ?? 0;
+        if (DateTime.now().millisecondsSinceEpoch < expiresAt) {
+          _cloudPinGrants.remove(sender);
+          _cloudPinApprovedCommands.add(cmd.id);
+        }
+      }
       _localApply(cmd);
       _server?.broadcastState();
       _schedulePersist();
@@ -1221,6 +1349,7 @@ class AppController extends Notifier<AppSnapshot> {
         if (state.isMain) unawaited(_relay?.pushNow());
         break;
       case 'order':
+        if (j['_relayRole'] != 'guest') break;
         // Web guest QR order. Price from OUR catalogue, never from the wire
         // — same trust level as the LAN /order/submit path. (v1.1.91)
         if (!state.isMain) break;
@@ -1278,7 +1407,8 @@ class AppController extends Notifier<AppSnapshot> {
         if (reqId.isEmpty) break;
         // Brute-force dampener: a room member could otherwise spray guesses
         // at network speed. 8 per device per minute is plenty for humans.
-        final dev = '${j['device'] ?? '?'}';
+        final dev = '${j['_relaySender'] ?? ''}';
+        if (dev.isEmpty || j['_relayRole'] == AppRole.main.name) break;
         final nowMs = DateTime.now().millisecondsSinceEpoch;
         final rl = _pinVerifyLog.putIfAbsent(dev, () => <int>[]);
         rl.removeWhere((t) => nowMs - t > 60000);
@@ -1296,16 +1426,23 @@ class AppController extends Notifier<AppSnapshot> {
         rl.add(nowMs);
         final ok = state.store.profile.managerPin.isEmpty ||
             checkManagerPin(pin);
+        if (ok) {
+          _cloudPinGrants.removeWhere((_, expires) => expires <= nowMs);
+          _cloudPinGrants[dev] = nowMs + 60 * 1000;
+        }
         unawaited(_relay?.sendCommand(<String, dynamic>{
           'type': 'pin_reply',
           'reqId': reqId,
           'ok': ok,
-          'to': '${j['device'] ?? ''}',
+          'to': dev,
           'at': DateTime.now().millisecondsSinceEpoch,
         }));
         break;
       case 'pin_reply':
-        // Station side: a pending pin_verify round-trip just resolved.
+        // Only the authenticated Main member may resolve a PIN request, and
+        // it must be addressed to this device.
+        if (j['_relayRole'] != AppRole.main.name ||
+            j['to']?.toString() != state.session.deviceId) break;
         final reqId = '${j['reqId'] ?? ''}';
         final cb = _pinReplyWaiters.remove(reqId);
         if (cb != null) cb(j['ok'] == true);
@@ -1320,6 +1457,8 @@ class AppController extends Notifier<AppSnapshot> {
 
   /// DeviceId → recent pin_verify timestamps (Main-side rate limit). (v1.1.91)
   final Map<String, List<int>> _pinVerifyLog = <String, List<int>>{};
+  final Map<String, int> _cloudPinGrants = <String, int>{};
+  final Set<String> _cloudPinApprovedCommands = <String>{};
 
   /// Station → Main manager-PIN check over the cloud room. Completes with
   /// null on timeout / offline so the caller can fall back to "deny".

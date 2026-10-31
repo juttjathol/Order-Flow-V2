@@ -16,10 +16,11 @@ const kCloudRelayBase = 'https://order-flow-v2.pages.dev';
 /// payload is AES-GCM encrypted with a key derived from the room secret, so
 /// rooms cannot read each other and the server only ever sees ciphertext.
 class CloudRoom {
-  CloudRoom(this.room, this.secret, this.code);
+  CloudRoom(this.room, this.secret, this.code, this.deviceProof);
   final String room;
   final String secret;
   final String code;
+  final String deviceProof;
 }
 
 class CloudRelay {
@@ -27,6 +28,7 @@ class CloudRelay {
     required this.roomId,
     required this.secret,
     required this.deviceId,
+    required this.deviceProof,
     required this.isMain,
     required this.revision,
     required this.getStateJson,
@@ -43,6 +45,7 @@ class CloudRelay {
   final String roomId;
   final String secret;
   final String deviceId;
+  final String deviceProof;
   final bool isMain;
   final String _base;
   late final Encrypter _aes;
@@ -111,17 +114,29 @@ class CloudRelay {
 
   // ── Room lifecycle ───────────────────────────────────────────────────
 
+  // Derive identity proofs from existing credentials; do not mint or persist
+  // another device key/secret. Main uses its license key; paired members use
+  // the existing room secret already present in the OF1 pairing text.
+  static String _deviceProof(String credential, String deviceId, String purpose) =>
+      cr.sha256.convert(utf8.encode('of-cloud-device|v1|$purpose|$credential|$deviceId')).toString();
+
   static Future<CloudOpenResult> openRoom({
     required String licenseKey,
     required String deviceId,
     required String shopName,
     String? baseUrl,
   }) async {
+    final deviceProof = _deviceProof(licenseKey, deviceId, 'main');
     Map<String, dynamic>? res;
     for (var attempt = 0; attempt < 2; attempt++) {
       res = await _post(
         '${baseUrl ?? kCloudRelayBase}/api/cloud/open',
-        {'licenseKey': licenseKey, 'deviceId': deviceId, 'shopName': shopName},
+        {
+          'licenseKey': licenseKey,
+          'deviceId': deviceId,
+          'shopName': shopName,
+          'deviceProof': deviceProof,
+        },
       );
       if (res != null) break; // any parsed answer beats a retry
     }
@@ -130,35 +145,44 @@ class CloudRelay {
       final local = List.generate(32, (_) => Random.secure().nextInt(16).toRadixString(16)).join();
       final secret = res['noSecret'] == true ? local : '${res['secret']}';
       return CloudOpenResult.ok(
-          CloudRoom('${res['room']}', secret, '${res['code']}'));
+          CloudRoom('${res['room']}', secret, '${res['code']}', deviceProof));
     }
     final e = '${res['error'] ?? ''}';
     if (e == 'plan') return const CloudOpenResult.fail('plan');
     return const CloudOpenResult.fail('server');
   }
 
-  static Future<bool> joinRoom({
+  static Future<String?> joinRoom({
     required String roomId,
     required String code,
     required String deviceId,
     required String role,
+    required String roomSecret,
     String? baseUrl,
   }) async {
+    final deviceProof = _deviceProof(roomSecret, deviceId, 'member');
     final res = await _post(
       '${baseUrl ?? kCloudRelayBase}/api/cloud/join',
-      {'room': roomId, 'code': code, 'deviceId': deviceId, 'role': role},
+      {
+        'room': roomId,
+        'code': code,
+        'deviceId': deviceId,
+        'role': role,
+        'deviceProof': deviceProof,
+      },
     );
-    return res != null && res['ok'] == true;
+    return res != null && res['ok'] == true ? deviceProof : null;
   }
 
   static Future<void> leaveRoom({
     required String roomId,
     required String deviceId,
+    required String deviceProof,
     String? baseUrl,
   }) async {
     await _post(
       '${baseUrl ?? kCloudRelayBase}/api/cloud/leave',
-      {'room': roomId, 'deviceId': deviceId},
+      {'room': roomId, 'deviceId': deviceId, 'proof': deviceProof},
     );
   }
 
@@ -233,7 +257,12 @@ class CloudRelay {
   }
 
   Future<Map<String, dynamic>?> _apiPost(String path, Map<String, dynamic> body) {
-    return _post('$_base$path', {...body, 'room': roomId, 'device': deviceId});
+    return _post('$_base$path', {
+      ...body,
+      'room': roomId,
+      'device': deviceId,
+      'proof': deviceProof,
+    });
   }
 
   /// Queue a command from a station. False = send failed; the caller keeps
@@ -261,7 +290,15 @@ class CloudRelay {
   Future<bool> _sendEnvelope(Map<String, dynamic> env) async {
     final blob = _encrypt(jsonEncode(env));
     if (blob == null) return false;
-    final res = await _apiPost('/api/cloud/send', {'msg': blob});
+    final rawCommand = env['c'];
+    final target = (env['to'] ??
+            (rawCommand is Map ? rawCommand['to'] : null))
+        ?.toString()
+        .trim();
+    final res = await _apiPost('/api/cloud/send', {
+      'msg': blob,
+      if (target != null && target.isNotEmpty) 'to': target,
+    });
     return res != null && res['ok'] == true;
   }
 
@@ -347,8 +384,9 @@ class CloudRelay {
   void _handleMsgs(List msgs) {
     for (final raw in msgs) {
       if (raw is! Map) continue;
-      final sender = '${raw['sender']}';
-      if (sender == deviceId) continue;
+      final sender = '${raw['sender'] ?? ''}';
+      final senderRole = '${raw['sender_role'] ?? ''}';
+      if (sender.isEmpty || senderRole.isEmpty || sender == deviceId) continue;
       final plain = _decrypt('${raw['msg']}');
       if (plain == null) continue;
       Map<String, dynamic> env;
@@ -360,6 +398,9 @@ class CloudRelay {
         continue;
       }
       final t = env['t'];
+      // State is authoritative only when the relay's membership row says the
+      // authenticated sender is Main. A station may never replace the store.
+      if ((t == 'state' || t == 'state_part') && senderRole != 'main') continue;
       if (t == 'state_part') {
         final k = int.tryParse('${env['parts']}') ?? 1;
         final i = int.tryParse('${env['part']}') ?? -1;
@@ -385,7 +426,9 @@ class CloudRelay {
         // `to`) must reach stations too. (v1.1.91)
         final c = env['c'];
         if (c is! Map) continue;
-        final cmd = Map<String, dynamic>.from(c);
+        final cmd = Map<String, dynamic>.from(c)
+          ..['_relaySender'] = sender
+          ..['_relayRole'] = senderRole;
         if (isMain ||
             cmd['to'] == deviceId ||
             cmd['type'] == 'pin_reply') {

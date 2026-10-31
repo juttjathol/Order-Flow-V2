@@ -360,8 +360,22 @@
   function L(k){return T[lang][k];}
   function escapeHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
   function nm(o){return lang==='ur'&&o.nameUr?o.nameUr:(o.name||'');}
-  function imgAttr(raw){if(!raw)return '';var s=String(raw).trim();if(s.slice(0,5)==='data:')return s;var m=s.slice(0,6);var mime=m.indexOf('/9j/')===0?'image/jpeg':m.indexOf('iVBOR')===0?'image/png':m.indexOf('R0lG')===0?'image/gif':m.indexOf('UklGR')===0?'image/webp':'image/png';return 'data:'+mime+';base64,'+s;}
-  function money(x){var m=menu||{};var sym=m.currency||'';var pre=m.currencyPrefix!==false;var n=Math.abs(+x||0),i=Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','),c=Math.round((n-Math.floor(n))*100);var v=i+(c?('.'+(c<10?'0'+c:c)):'');if(x<0)v='-'+v;return !sym?v:(pre?sym+v:v+' '+sym);}
+  function imgAttr(raw){
+    if(!raw)return '';
+    var s=String(raw).trim();if(s.length>8*1024*1024)return '';
+    var m=s.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,([a-z0-9+/]+={0,2})$/i);
+    var b64=m?m[2]:s;if(!/^[a-z0-9+/]+={0,2}$/i.test(b64))return '';
+    try{
+      var b=atob(b64),type='';
+      if(b.charCodeAt(0)===137&&b.slice(1,4)==='PNG'&&b.slice(4,8)==='\r\n\x1a\n')type='png';
+      else if(b.charCodeAt(0)===255&&b.charCodeAt(1)===216&&b.charCodeAt(2)===255)type='jpeg';
+      else if(b.slice(0,6)==='GIF87a'||b.slice(0,6)==='GIF89a')type='gif';
+      else if(b.slice(0,4)==='RIFF'&&b.slice(8,12)==='WEBP')type='webp';
+      if(!type||(m&&m[1].toLowerCase().replace('jpg','jpeg')!==type))return '';
+      return 'data:image/'+type+';base64,'+b64;
+    }catch(e){return '';}
+  }
+  function money(x){var m=menu||{};var sym=String(m.currency||'').replace(/[&<>\"'`]/g,'').slice(0,12);var pre=m.currencyPrefix!==false;var n=Math.abs(+x||0),i=Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,','),c=Math.round((n-Math.floor(n))*100);var v=i+(c?('.'+(c<10?'0'+c:c)):'');if(x<0)v='-'+v;return !sym?v:(pre?sym+v:v+' '+sym);}
   function vib(ms){try{navigator.vibrate&&navigator.vibrate(ms);}catch(e){}}
 
   function loadCart(){try{var c=JSON.parse(localStorage.getItem('of-cart')||'{}');return (c&&typeof c==='object')?c:{};}catch(e){return {};}}
